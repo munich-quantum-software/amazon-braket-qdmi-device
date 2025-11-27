@@ -1,2 +1,0 @@
-# aws
-AWS QDMI integration
