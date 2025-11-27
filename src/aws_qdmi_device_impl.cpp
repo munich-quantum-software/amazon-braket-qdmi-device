@@ -23,16 +23,9 @@
  * This library enables ANY quantum software that uses the QDMI specification
  * to run on AWS Braket quantum devices without code changes.
  * 
- * If your quantum compiler/framework:
- * 1. Compiles algorithms to OpenQASM format
- * 2. Uses QDMI API to submit circuits and query devices
- * 3. Expects QDMI-compliant device implementations
- * 
- * Then you can target AWS Braket by simply linking against this library
+ * You can target AWS Braket devices by simply linking against this library
  * instead of another QDMI implementation. Your OpenQASM circuits will
  * execute on AWS Braket simulators or real quantum hardware.
- * 
- * NO CODE CHANGES NEEDED - just swap the QDMI library at link time.
  * 
  * ============================================================================
  * QDMI to AWS Braket Mapping
@@ -62,27 +55,6 @@
  * Operation (Gate)     | Parsed from DeviceCapabilities nativeGateSet
  * Coupling Map         | Parsed from DeviceCapabilities connectivity graph
  * 
- * Key AWS SDK Headers:
- * - aws/braket/BraketClient.h
- * - aws/braket/model/GetDeviceRequest.h
- * - aws/braket/model/GetDeviceResult.h
- * - aws/braket/model/CreateQuantumTaskRequest.h
- * - aws/braket/model/GetQuantumTaskRequest.h
- * - aws/braket/model/CancelQuantumTaskRequest.h
- * - aws/braket/model/QuantumTaskStatus.h
- * - aws/braket/model/DeviceStatus.h
- * 
- * Key Concepts:
- * - Device Session: Represents a connection to a quantum device or simulator
- * - Job: A quantum task/circuit submitted for execution
- * - Site: A physical qubit in the quantum processor
- * - Operation: A quantum gate or operation that can be performed
- * 
- * AWS Braket Integration:
- * - This implementation wraps the AWS Braket SDK to submit quantum tasks
- * - Supports both real quantum hardware and simulators available through AWS
- * - Uses S3 for storing large result sets
- * - Handles async job execution and polling for completion
  */
 
 #include "aws_qdmi_device_impl.hpp"
