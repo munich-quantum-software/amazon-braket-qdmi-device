@@ -18,13 +18,13 @@ SPDX-License-Identifier: MIT
  * - ARN: Amazon Resource Name - unique identifier for AWS resources
  * - Session: A connection to a quantum device or simulator
  * - Job: A quantum circuit/program submitted for execution (OpenQASM only)
- * - Site: A physical qubit (quantum bit) in the processor
+ * - Site: A physical qubit in the processor
  * - Operation: A quantum gate that can be applied to qubits
  * 
  * TYPICAL WORKFLOW:
  * 1. Initialize: AWS_QDMI_device_initialize()
  * 2. Create session: AWS_QDMI_device_session_alloc()
- * 3. Configure session: AWS_QDMI_device_session_set_parameter() (region, device ARN)
+ * 3. Configure session: AWS_QDMI_device_session_set_parameter() (device ARN, S3 bucket)
  * 4. Initialize session: AWS_QDMI_device_session_init()
  * 5. Query device: AWS_QDMI_device_session_query_device_property()
  * 6. Create job: AWS_QDMI_device_session_create_device_job()

@@ -66,31 +66,35 @@ endif()
 # ============================================================================
 
 # First try standard find_package
-find_package(AWSSDK COMPONENTS braket core)
+find_package(AWSSDK COMPONENTS braket s3 core)
 
 # If not found, try to find manually using AWSSDK_ROOT
 if(NOT AWSSDK_FOUND AND DEFINED AWSSDK_ROOT)
     message(STATUS "Searching for AWS SDK at: ${AWSSDK_ROOT}")
     
-    # Look for braket SDK
+    # Look for braket and S3 SDK
     set(BRAKET_INCLUDE_DIR "${AWSSDK_ROOT}/generated/src/aws-cpp-sdk-braket/include")
+    set(S3_INCLUDE_DIR "${AWSSDK_ROOT}/generated/src/aws-cpp-sdk-s3/include")
     set(CORE_INCLUDE_DIR "${AWSSDK_ROOT}/generated/src/aws-cpp-sdk-core/include")
     set(BRAKET_LIB_DIR "${AWSSDK_ROOT}/build/generated/src/aws-cpp-sdk-braket")
+    set(S3_LIB_DIR "${AWSSDK_ROOT}/build/generated/src/aws-cpp-sdk-s3")
     set(CORE_LIB_DIR "${AWSSDK_ROOT}/build/generated/src/aws-cpp-sdk-core")
     
     if(EXISTS "${BRAKET_INCLUDE_DIR}" AND EXISTS "${CORE_INCLUDE_DIR}")
         message(STATUS "Found AWS Braket SDK headers at: ${BRAKET_INCLUDE_DIR}")
         set(AWS_SDK_FOUND TRUE)
-        set(AWS_SDK_INCLUDE_DIRS "${BRAKET_INCLUDE_DIR}" "${CORE_INCLUDE_DIR}")
+        set(AWS_SDK_INCLUDE_DIRS "${BRAKET_INCLUDE_DIR}" "${S3_INCLUDE_DIR}" "${CORE_INCLUDE_DIR}")
         
         # Find libraries
         find_library(AWS_BRAKET_LIB NAMES aws-cpp-sdk-braket PATHS "${BRAKET_LIB_DIR}" NO_DEFAULT_PATH)
+        find_library(AWS_S3_LIB NAMES aws-cpp-sdk-s3 PATHS "${S3_LIB_DIR}" NO_DEFAULT_PATH)
         find_library(AWS_CORE_LIB NAMES aws-cpp-sdk-core PATHS "${CORE_LIB_DIR}" NO_DEFAULT_PATH)
         
-        if(AWS_BRAKET_LIB AND AWS_CORE_LIB)
+        if(AWS_BRAKET_LIB AND AWS_S3_LIB AND AWS_CORE_LIB)
             message(STATUS "Found AWS Braket library: ${AWS_BRAKET_LIB}")
+            message(STATUS "Found AWS S3 library: ${AWS_S3_LIB}")
             message(STATUS "Found AWS Core library: ${AWS_CORE_LIB}")
-            set(AWS_SDK_LIBRARIES "${AWS_BRAKET_LIB}" "${AWS_CORE_LIB}")
+            set(AWS_SDK_LIBRARIES "${AWS_BRAKET_LIB}" "${AWS_S3_LIB}" "${AWS_CORE_LIB}")
         endif()
     endif()
 endif()
@@ -110,10 +114,10 @@ target_include_directories(aws_qdmi_device PUBLIC
 
 # Link AWS SDK - always required for this library
 if(TARGET AWSSDK::braket)
-  target_link_libraries(aws_qdmi_device PRIVATE AWSSDK::braket AWSSDK::core)
+  target_link_libraries(aws_qdmi_device PRIVATE AWSSDK::braket AWSSDK::s3 AWSSDK::core)
   message(STATUS "AWS Braket SDK found via find_package.")
 elseif(TARGET aws-cpp-sdk-braket)
-  target_link_libraries(aws_qdmi_device PRIVATE aws-cpp-sdk-braket aws-cpp-sdk-core)
+  target_link_libraries(aws_qdmi_device PRIVATE aws-cpp-sdk-braket aws-cpp-sdk-s3 aws-cpp-sdk-core)
   message(STATUS "AWS Braket SDK found via find_package.")
 elseif(AWS_SDK_FOUND)
   target_include_directories(aws_qdmi_device PRIVATE ${AWS_SDK_INCLUDE_DIRS})
@@ -139,9 +143,9 @@ if(BUILD_EXAMPLES)
 
   # Link AWS SDK to example if available, to support direct SDK calls in example
   if(TARGET AWSSDK::braket)
-    target_link_libraries(aws_qdmi_example PRIVATE AWSSDK::braket AWSSDK::core)
+    target_link_libraries(aws_qdmi_example PRIVATE AWSSDK::braket AWSSDK::s3 AWSSDK::core)
   elseif(TARGET aws-cpp-sdk-braket)
-    target_link_libraries(aws_qdmi_example PRIVATE aws-cpp-sdk-braket aws-cpp-sdk-core)
+    target_link_libraries(aws_qdmi_example PRIVATE aws-cpp-sdk-braket aws-cpp-sdk-s3 aws-cpp-sdk-core)
   elseif(AWS_SDK_FOUND)
     target_include_directories(aws_qdmi_example PRIVATE ${AWS_SDK_INCLUDE_DIRS})
     target_link_libraries(aws_qdmi_example PRIVATE ${AWS_SDK_LIBRARIES})

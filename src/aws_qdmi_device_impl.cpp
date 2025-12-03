@@ -62,10 +62,13 @@
 #include <aws/core/Aws.h>
 #include <aws/core/client/ClientConfiguration.h>
 #include <aws/core/utils/json/JsonSerializer.h>
+#include <aws/s3/S3Client.h>
+#include <aws/s3/model/GetObjectRequest.h>
 
 #include <chrono>
 #include <cstring>
 #include <iostream>
+#include <sstream>
 #include <thread>
 
 #define ADD_SINGLE_VALUE_PROPERTY(prop_name, prop_type, prop_value, prop,     \
@@ -981,6 +984,9 @@ auto AWS_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
     newStatus = QDMI_JOB_STATUS_RUNNING;
   } else if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::COMPLETED) {
     newStatus = QDMI_JOB_STATUS_DONE;
+    // Store S3 location for result retrieval
+    outputS3Bucket_ = outcome.GetResult().GetOutputS3Bucket();
+    outputS3Directory_ = outcome.GetResult().GetOutputS3Directory();
     aws_qdmi::Device::get().decreaseRunningJobs();
   } else if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::FAILED) {
     newStatus = QDMI_JOB_STATUS_FAILED;
@@ -1038,62 +1044,111 @@ auto AWS_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
 }
 
 /**
+ * Fetch results from S3 and parse into QDMI format.
+ * 
+ * Downloads results.json from S3 and parses the measurements array.
+ * AWS Braket stores results in format:
+ * {
+ *   "measurements": [[0,0], [1,1], [0,0], ...],
+ *   "measuredQubits": [0, 1],
+ *   "taskMetadata": { "shots": 100, ... }
+ * }
+ * 
+ * Converts to:
+ * - shotsString_: "00,11,00,..." (comma-separated bitstrings)
+ * - counts_: {"00": 52, "11": 48} (histogram)
+ */
+auto AWS_QDMI_Device_Job_impl_d::fetchResults() const -> QDMI_STATUS {
+  if (resultsFetched_) {
+    return QDMI_SUCCESS;
+  }
+  
+  if (outputS3Bucket_.empty() || outputS3Directory_.empty()) {
+    std::cerr << "S3 output location not available\n";
+    return QDMI_ERROR_FATAL;
+  }
+  
+  // Create S3 client with same region as Braket client
+  Aws::Client::ClientConfiguration s3Config;
+  s3Config.region = session_->getRegion();
+  Aws::S3::S3Client s3Client(s3Config);
+  
+  // Download results.json from S3
+  // Key format: {outputS3Directory}/results.json
+  std::string objectKey = outputS3Directory_ + "/results.json";
+  
+  Aws::S3::Model::GetObjectRequest getRequest;
+  getRequest.SetBucket(outputS3Bucket_.c_str());
+  getRequest.SetKey(objectKey.c_str());
+  
+  auto outcome = s3Client.GetObject(getRequest);
+  if (!outcome.IsSuccess()) {
+    std::cerr << "Failed to download results from S3: " 
+              << outcome.GetError().GetMessage() << "\n";
+    return QDMI_ERROR_FATAL;
+  }
+  
+  // Read response body into string
+  std::stringstream ss;
+  ss << outcome.GetResult().GetBody().rdbuf();
+  std::string jsonStr = ss.str();
+  
+  // Parse JSON
+  Aws::Utils::Json::JsonValue json(jsonStr);
+  if (!json.WasParseSuccessful()) {
+    std::cerr << "Failed to parse results JSON\n";
+    return QDMI_ERROR_FATAL;
+  }
+  
+  auto root = json.View();
+  
+  // Parse measurements array: [[0,0], [1,1], [0,0], ...]
+  if (!root.KeyExists("measurements")) {
+    std::cerr << "No measurements in results\n";
+    return QDMI_ERROR_FATAL;
+  }
+  
+  auto measurements = root.GetArray("measurements");
+  std::vector<std::string> shotsList;
+  shotsList.reserve(measurements.GetLength());
+  
+  for (size_t i = 0; i < measurements.GetLength(); ++i) {
+    auto shot = measurements[i].AsArray();
+    std::string bitstring;
+    
+    // Each shot is an array of qubit values: [0, 0] or [1, 1]
+    for (size_t q = 0; q < shot.GetLength(); ++q) {
+      bitstring += std::to_string(shot[q].AsInteger());
+    }
+    
+    shotsList.push_back(bitstring);
+    counts_[bitstring]++;
+  }
+  
+  // Build comma-separated shots string for QDMI_JOB_RESULT_SHOTS
+  for (size_t i = 0; i < shotsList.size(); ++i) {
+    if (i > 0) {
+      shotsString_ += ',';
+    }
+    shotsString_ += shotsList[i];
+  }
+  
+  resultsFetched_ = true;
+  return QDMI_SUCCESS;
+}
+
+/**
  * Retrieve results from a completed quantum job.
  * 
  * Result Types:
- * - HIST_KEYS: Measurement outcome strings ("00", "01", "10", "11")
- * - HIST_VALUES: Count for each outcome (how many times it was measured)
- * - SHOTS: Raw shot-by-shot measurement data (optional)
- * - STATEVECTOR: Quantum state amplitudes (simulator only)
- * - PROBABILITIES: Probability distribution (simulator only)
- * 
- * For real quantum hardware, only histogram results are available since
- * measuring a quantum state collapses it - you can't observe the full
- * statevector, only classical measurement outcomes.
- * 
- * Results are stored as key-value pairs:
- * Keys: ["00\0", "01\0", "11\0"] (null-terminated bitstrings)
- * Values: [45, 30, 25] (counts, sum equals total shots)
+ * - SHOTS: Comma-separated bitstrings "00,11,00,11,..." 
+ * - HIST_KEYS: Null-terminated unique outcomes "00\011\0"
+ * - HIST_VALUES: Count for each outcome [52, 48]
+ * - STATEVECTOR/PROBABILITIES: Only from simulators (not supported yet)
  */
 auto AWS_QDMI_Device_Job_impl_d::getResults(const QDMI_Job_Result result,
                                              const size_t size, void* data,
-                                             size_t* sizeRet) -> QDMI_STATUS {
-  // ============================================================================
-  // AWS Braket Results Retrieval
-  // ============================================================================
-  // Purpose: Retrieve measurement results from completed quantum task
-  // 
-  // AWS Result Storage:
-  // - Results stored in S3 bucket (specified in CreateQuantumTask)
-  // - GetQuantumTask() returns S3 URI: "s3://bucket/results/task-id/results.json"
-  // - Must download and parse JSON to extract measurements
-  // 
-  // AWS Result Format (S3 JSON):
-  // {
-  //   "braketSchemaHeader": {...},
-  //   "measurementProbabilities": {"00": 0.45, "01": 0.23, "10": 0.18, "11": 0.14},
-  //   "measurements": [[0,0], [0,0], [1,1], [0,1], ...],  // Raw shot-by-shot data
-  //   "measuredQubits": [0, 1]
-  // }
-  // 
-  // QDMI Result Types:
-  // - HIST_KEYS/VALUES: Histogram format (most common for hardware)
-  //   Example: keys=["00","01","10","11"], values=[45,23,18,14]
-  // 
-  // - SHOTS: Raw shot-by-shot measurements (if available)
-  //   Example: [0,0,0,0,1,1,0,1,...] for 100 shots * 2 qubits = 200 bits
-  // 
-  // - STATEVECTOR/PROBABILITIES: Only from simulators, not real QPUs
-  //   SV1 simulator can return full statevector for small circuits (< 34 qubits)
-  // 
-  // Implementation:
-  // 1. Use GetQuantumTask() to get S3 result URI
-  // 2. Download S3 object (requires AWS SDK S3 client)
-  // 3. Parse JSON using Aws::Utils::Json::JsonValue
-  // 4. Convert measurementProbabilities to QDMI histogram format
-  // 5. Convert measurements array to QDMI shots format
-  // ============================================================================
-
+                                             size_t* sizeRet) const -> QDMI_STATUS {
   if ((data != nullptr && size == 0) || result >= QDMI_JOB_RESULT_MAX) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -1103,15 +1158,31 @@ auto AWS_QDMI_Device_Job_impl_d::getResults(const QDMI_Job_Result result,
     return QDMI_ERROR_BADSTATE;
   }
 
-  // TODO: Implement S3 result retrieval
-  // 1. GetQuantumTask(taskArn_) to get outputS3Bucket + outputS3Directory
-  // 2. Download S3://bucket/directory/results.json
-  // 3. Parse JSON to extract measurements
-  // 4. Populate counts_ map from measurementProbabilities
+  // Fetch results from S3 if not already done
+  QDMI_STATUS fetchStatus = fetchResults();
+  if (fetchStatus != QDMI_SUCCESS) {
+    return fetchStatus;
+  }
+
+  if (result == QDMI_JOB_RESULT_SHOTS) {
+    // Return comma-separated shot results: "00,11,00,11,..."
+    // Size includes null terminator
+    size_t totalSize = shotsString_.size() + 1;
+    
+    if (data != nullptr) {
+      if (size < totalSize) {
+        return QDMI_ERROR_INVALIDARGUMENT;
+      }
+      memcpy(data, shotsString_.c_str(), totalSize);
+    }
+    if (sizeRet != nullptr) {
+      *sizeRet = totalSize;
+    }
+    return QDMI_SUCCESS;
+  }
 
   if (result == QDMI_JOB_RESULT_HIST_KEYS) {
-    // Return concatenated null-terminated bitstrings representing measurement outcomes
-    // Example: "00\011\010\011\0" for outcomes 00, 11, 10, 11
+    // Return concatenated null-terminated bitstrings: "00\011\0"
     std::string keys_str;
     for (const auto& [key, count] : counts_) {
       keys_str += key;
@@ -1132,7 +1203,6 @@ auto AWS_QDMI_Device_Job_impl_d::getResults(const QDMI_Job_Result result,
   
   if (result == QDMI_JOB_RESULT_HIST_VALUES) {
     // Return array of counts corresponding to HIST_KEYS
-    // Example: [45, 23, 18, 14] for 100 total shots
     std::vector<size_t> values;
     for (const auto& [key, count] : counts_) {
       values.push_back(count);
@@ -1150,22 +1220,6 @@ auto AWS_QDMI_Device_Job_impl_d::getResults(const QDMI_Job_Result result,
     return QDMI_SUCCESS;
   }
   
-  if (result == QDMI_JOB_RESULT_SHOTS) {
-    // Raw measurement data: packed bitstring for each shot
-    // For 100 shots on 2 qubits: 200 bits packed into bytes
-    // TODO: Parse from AWS "measurements" array in S3 results.json
-    if (data != nullptr) {
-      if (size < measurements_.size()) {
-        return QDMI_ERROR_INVALIDARGUMENT;
-      }
-      memcpy(data, measurements_.data(), measurements_.size());
-    }
-    if (sizeRet != nullptr) {
-      *sizeRet = measurements_.size();
-    }
-    return QDMI_SUCCESS;
-  }
-  
   if (result == QDMI_JOB_RESULT_STATEVECTOR_DENSE ||
       result == QDMI_JOB_RESULT_PROBABILITIES_DENSE ||
       result == QDMI_JOB_RESULT_STATEVECTOR_SPARSE_KEYS ||
@@ -1173,8 +1227,6 @@ auto AWS_QDMI_Device_Job_impl_d::getResults(const QDMI_Job_Result result,
       result == QDMI_JOB_RESULT_PROBABILITIES_SPARSE_KEYS ||
       result == QDMI_JOB_RESULT_PROBABILITIES_SPARSE_VALUES) {
     // Statevector and probabilities only available from simulators
-    // Real QPUs perform measurements and destroy quantum state
-    // AWS SV1 simulator can return these for circuits with < 34 qubits
     // TODO: Parse from S3 results if device supports statevector
     if (sizeRet != nullptr) {
       *sizeRet = 0;

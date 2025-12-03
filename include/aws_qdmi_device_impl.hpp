@@ -170,6 +170,9 @@ private:
   [[nodiscard]] auto getS3Bucket() const -> const std::string& {
     return s3Bucket_;
   }
+  [[nodiscard]] auto getRegion() const -> const std::string& {
+    return region_;
+  }
 
   // Allow Job to access session internals
   friend struct AWS_QDMI_Device_Job_impl_d;
@@ -211,8 +214,14 @@ private:
   std::string taskArn_;
   
   std::future<void> jobHandle_;
-  std::map<std::string, size_t> counts_;
-  std::vector<uint8_t> measurements_;
+  mutable std::map<std::string, size_t> counts_;
+  mutable std::string shotsString_;  // Comma-separated shots: "00,11,00,..."
+  mutable bool resultsFetched_ = false;
+  mutable std::string outputS3Bucket_;
+  mutable std::string outputS3Directory_;
+
+  // Helper to fetch and parse results from S3
+  auto fetchResults() const -> QDMI_STATUS;
 
 public:
   explicit AWS_QDMI_Device_Job_impl_d(AWS_QDMI_Device_Session_impl_d* session)
@@ -228,5 +237,5 @@ public:
   auto check(QDMI_Job_Status* status) const -> QDMI_STATUS;
   auto wait(size_t timeout) const -> QDMI_STATUS;
   auto getResults(QDMI_Job_Result result, size_t size, void* data,
-                  size_t* sizeRet) -> QDMI_STATUS;
+                  size_t* sizeRet) const -> QDMI_STATUS;
 };
