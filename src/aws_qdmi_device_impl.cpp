@@ -68,6 +68,7 @@
 #include <chrono>
 #include <cstring>
 #include <iostream>
+#include <mutex>
 #include <sstream>
 #include <thread>
 
@@ -1249,23 +1250,47 @@ auto AWS_QDMI_Device_Job_impl_d::getResults(const QDMI_Job_Result result,
  * Must be called once at program startup before any other QDMI functions.
  * Initializes the AWS SDK (if enabled) and sets up the device singleton.
  * 
+ * Thread-safe: Can be called multiple times, only first call initializes.
+ * 
  * @return QDMI_SUCCESS on successful initialization
  */
+
+// Global SDK state - must be in same translation unit for safe init/shutdown
+namespace {
+  Aws::SDKOptions g_awsOptions;
+  bool g_awsInitialized = false;
+  std::mutex g_awsInitMutex;
+}
+
 int AWS_QDMI_device_initialize() {
-  static Aws::SDKOptions options;
-  static bool initialized = false;
-  if (!initialized) {
-    Aws::InitAPI(options);
-    initialized = true;
+  std::lock_guard<std::mutex> lock(g_awsInitMutex);
+  if (!g_awsInitialized) {
+    Aws::InitAPI(g_awsOptions);
+    g_awsInitialized = true;
   }
   std::ignore = aws_qdmi::Device::get();
   return QDMI_SUCCESS;
 }
 
+/**
+ * Finalize the QDMI device.
+ * 
+ * Should be called once at program exit after all QDMI resources are freed.
+ * Shuts down the AWS SDK and releases global resources.
+ * 
+ * Thread-safe: Can be called multiple times, only first call shuts down.
+ * 
+ * WARNING: After calling finalize(), no other AWS SDK calls should be made.
+ * Any sessions or jobs should be freed BEFORE calling this function.
+ * 
+ * @return QDMI_SUCCESS on successful finalization
+ */
 int AWS_QDMI_device_finalize() {
-  // Note: ShutdownAPI should only be called once at program exit
-  // static Aws::SDKOptions options;
-  // Aws::ShutdownAPI(options);
+  std::lock_guard<std::mutex> lock(g_awsInitMutex);
+  if (g_awsInitialized) {
+    Aws::ShutdownAPI(g_awsOptions);
+    g_awsInitialized = false;
+  }
   return QDMI_SUCCESS;
 }
 
