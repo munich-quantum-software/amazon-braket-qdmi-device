@@ -3,7 +3,7 @@
 # ============================================================================
 # This project implements the QDMI specification for AWS Braket.
 # 
-# QDMI Project: https://github.com/munich-quantum-software/QDMI
+# QDMI Project: https://github.com/Munich-Quantum-Software-Stack/QDMI
 # 
 # QDMI defines a standardized C API for quantum devices. This library provides
 # the AWS Braket implementation of that API specification.
@@ -38,7 +38,7 @@ option(BUILD_TESTS "Build tests" ON)
 # This library implements the QDMI specification for AWS Braket.
 # QDMI headers are required to build.
 # Set QDMI_DIR to point to the QDMI project location.
-# Example: cmake .. -DQDMI_DIR=/Users/patrickhopf/Code/QDMI
+# Example: cmake .. -DQDMI_DIR=/path/to/QDMI
 # ============================================================================
 if(NOT DEFINED QDMI_DIR)
     set(QDMI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../QDMI" CACHE PATH "Path to QDMI project")

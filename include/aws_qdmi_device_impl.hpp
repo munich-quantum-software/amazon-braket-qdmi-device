@@ -40,6 +40,8 @@
 
 #include "aws_qdmi/device.h"
 
+#include <aws/braket/BraketClient.h>
+
 #include <atomic>
 #include <future>
 #include <map>
@@ -53,6 +55,7 @@
 // Forward declarations
 struct AWS_QDMI_Site_impl_d;
 struct AWS_QDMI_Operation_impl_d;
+struct AWS_QDMI_Device_Job_impl_d;
 
 namespace aws_qdmi {
 
@@ -167,6 +170,9 @@ private:
   [[nodiscard]] auto getS3Bucket() const -> const std::string& {
     return s3Bucket_;
   }
+
+  // Allow Job to access session internals
+  friend struct AWS_QDMI_Device_Job_impl_d;
 };
 
 /**

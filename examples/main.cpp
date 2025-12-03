@@ -1,12 +1,6 @@
 #include "aws_qdmi/device.h"
 #include <cstring>
 #include <iostream>
-#include <aws/braket/model/SearchDevicesRequest.h>
-#include <aws/braket/model/SearchDevicesFilter.h>
-#include <aws/braket/BraketClient.h>
-#include <aws/core/Aws.h>
-#include <aws/braket/model/DeviceType.h>
-#include <aws/braket/model/DeviceStatus.h>
 
 
 int main() {
@@ -25,45 +19,8 @@ int main() {
     return 1;
   }
 
-  // Set session parameters (optional - configure AWS region and device)
-  const char* region = "us-east-1";
-  ret = AWS_QDMI_device_session_set_parameter(
-      session, static_cast<QDMI_Device_Session_Parameter>(QDMI_DEVICE_SESSION_PARAMETER_REGION), 
-      strlen(region) + 1, region);
-  if (ret != QDMI_SUCCESS) {
-    std::cerr << "Failed to set region: " << ret << "\n";
-  }
-
-  // Not part of QDMI, but useful for debugging, search for available devices:
-  {
-      Aws::Client::ClientConfiguration config;
-      config.region = region;
-      Aws::Braket::BraketClient client(config);
-
-      Aws::Braket::Model::SearchDevicesRequest searchRequest;
-      Aws::Braket::Model::SearchDevicesFilter filter;
-      filter.SetName("deviceArn");
-      const char* targetDeviceArn = "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
-      filter.SetValues({targetDeviceArn}); 
-      searchRequest.AddFilters(filter);
-
-      std::cout << "DEBUG: Searching for devices..." << std::endl;
-      auto searchOutcome = client.SearchDevices(searchRequest);
-      if (searchOutcome.IsSuccess()) {
-          std::cout << "DEBUG: Found devices:" << std::endl;
-          for (const auto& device : searchOutcome.GetResult().GetDevices()) {
-              std::cout << "  - " << device.GetDeviceName() 
-                        << " (" << Aws::Braket::Model::DeviceTypeMapper::GetNameForDeviceType(device.GetDeviceType()) << ")"
-                        << " [" << Aws::Braket::Model::DeviceStatusMapper::GetNameForDeviceStatus(device.GetDeviceStatus()) << "]"
-                        << "\n    ARN: " << device.GetDeviceArn() << std::endl;
-          }
-      } else {
-          std::cerr << "DEBUG: Failed to search devices: " 
-                    << searchOutcome.GetError().GetMessage() << std::endl;
-      }
-  }
-
-  // Check if simulator is available
+  // Set device ARN - region is automatically extracted from the ARN
+  // Format: arn:aws:braket:<region>::device/... or arn:aws:braket:::<device> (global)
   const char* deviceArn = "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
   ret = AWS_QDMI_device_session_set_parameter(
       session, static_cast<QDMI_Device_Session_Parameter>(QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN), 

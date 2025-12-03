@@ -14,14 +14,11 @@
  * This file implements the Quantum Device Management Interface (QDMI) specification
  * for AWS Braket, Amazon's quantum computing service.
  * 
- * QDMI Project: https://github.com/munich-quantum-software/QDMI
+ * QDMI Project: https://github.com/Munich-Quantum-Software-Stack/QDMI
  * 
  * ============================================================================
  * Purpose: QDMI Adapter for AWS Braket
  * ============================================================================
- * 
- * This library enables ANY quantum software that uses the QDMI specification
- * to run on AWS Braket quantum devices without code changes.
  * 
  * You can target AWS Braket devices by simply linking against this library
  * instead of another QDMI implementation. Your OpenQASM circuits will
@@ -238,7 +235,7 @@ auto Device::decreaseRunningJobs() -> void {
 // ============================================================================
 
 /**
- * Fetches the quantum device architecture from AWS Braket or generates a mock topology.
+ * Fetches the quantum device architecture from AWS Braket.
  * 
  * This function queries the device capabilities to understand:
  * - Number of qubits (sites)
@@ -252,9 +249,6 @@ auto Device::decreaseRunningJobs() -> void {
  * - paradigm.connectivity: Graph of qubit connections
  * - paradigm.nativeGateSet: List of supported quantum gates
  * - provider: Hardware specifications
- * 
- * In stub mode (without AWS SDK), we generate a realistic mock topology
- * with 5 qubits in a linear chain and common gate operations.
  * 
  * @return QDMI_SUCCESS on successful fetch, error code otherwise
  */
@@ -395,7 +389,7 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
           }
       }
       
-      // Old/Generic Schema: provider.1Q.<id>.T1
+      // Generic Schema: provider.1Q.<id>.T1
       if (provider.ValueExists("1Q")) {
           auto oneQ = provider.GetObject("1Q");
           auto oneQMap = oneQ.GetAllObjects();
@@ -545,7 +539,25 @@ auto AWS_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
     return QDMI_ERROR_BADSTATE;
   }
 
-  // Configure AWS client with region (e.g., "us-east-1" for US East Virginia)
+  // Extract region from ARN if not explicitly set
+  // ARN format: arn:aws:braket:<region>::device/... or arn:aws:braket:::<device> (global)
+  if (region_.empty() && !deviceArn_.empty()) {
+    // Parse ARN: arn:aws:braket:REGION::device/...
+    size_t start = deviceArn_.find("braket:");
+    if (start != std::string::npos) {
+      start += 7; // Skip "braket:"
+      size_t end = deviceArn_.find(':', start);
+      if (end != std::string::npos && end > start) {
+        region_ = deviceArn_.substr(start, end - start);
+      }
+    }
+    // If region is still empty (global ARN like simulators), default to us-east-1
+    if (region_.empty()) {
+      region_ = "us-east-1";
+    }
+  }
+
+  // Configure AWS client with region
   Aws::Client::ClientConfiguration config;
   if (!region_.empty()) {
     config.region = region_.c_str();

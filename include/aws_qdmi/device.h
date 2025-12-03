@@ -34,7 +34,7 @@ SPDX-License-Identifier: MIT
  * 10. Get results: AWS_QDMI_device_job_get_results()
  * 11. Cleanup: AWS_QDMI_device_job_free(), AWS_QDMI_device_session_free()
  * 
- * QDMI Project: https://github.com/munich-quantum-software/QDMI
+ * QDMI Project: https://github.com/Munich-Quantum-Software-Stack/QDMI
  */
 
 #pragma once
@@ -79,9 +79,9 @@ extern "C" {
 #define QDMI_PROGRAM_FORMAT_BRAKET_IR 100   /* Braket's native IR format (JSON-based) */
 
 /* AWS-specific session parameters - use 100+ to avoid conflicts */
-#define QDMI_DEVICE_SESSION_PARAMETER_REGION 100    /* string: AWS region (e.g., "us-east-1") */
-#define QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN 101 /* string: Device ARN */
-#define QDMI_DEVICE_SESSION_PARAMETER_S3BUCKET 102  /* string: S3 bucket for results */
+#define QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN 100 /* string: Device ARN (required, region extracted automatically) */
+#define QDMI_DEVICE_SESSION_PARAMETER_S3BUCKET 101  /* string: S3 bucket for results (required for job submission) */
+#define QDMI_DEVICE_SESSION_PARAMETER_REGION 102    /* string: AWS region override (optional, auto-extracted from ARN) */
 
 /* AWS-specific job property */
 #define QDMI_DEVICE_JOB_PROPERTY_TASKARN 100       /* string: AWS Braket task ARN */
