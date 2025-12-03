@@ -30,27 +30,23 @@
  * 
  * This implementation translates QDMI standard calls into AWS Braket SDK calls:
  * 
- * QDMI Concept          | AWS Braket SDK Type/API
- * ---------------------|--------------------------------------------------
- * Device               | BraketClient + GetDeviceRequest/Result
- * Device ARN           | GetDeviceRequest::SetDeviceArn()
- * Device Capabilities  | GetDeviceResult::GetDeviceCapabilities() (JSON)
- * Device Status        | DeviceStatus enum (ONLINE, OFFLINE, RETIRED)
+ * QDMI Concept          | AWS Braket Equivalent
+ * ----------------------|--------------------------------------------------
+ * Device                | BraketClient + GetDeviceRequest/Result
+ * Device Status         | DeviceStatus enum (ONLINE, OFFLINE, RETIRED)
+ * Session               | BraketClient instance with credentials
  * 
- * Job/Task             | CreateQuantumTaskRequest/Result
- * Task ARN             | CreateQuantumTaskResult::GetQuantumTaskArn()
- * Job Status           | QuantumTaskStatus (CREATED, QUEUED, RUNNING, etc.)
- * Job Submission       | BraketClient::CreateQuantumTask()
- * Job Polling          | BraketClient::GetQuantumTask()
- * Job Cancellation     | BraketClient::CancelQuantumTask()
+ * Job                   | QuantumTask
+ * Job Status            | QuantumTaskStatus (CREATED, QUEUED, RUNNING, etc.)
+ * Job Submission        | BraketClient::CreateQuantumTask()
+ * Job Cancellation      | BraketClient::CancelQuantumTask()
  * 
- * Circuit/Program      | Action field (OpenQASM, Braket IR JSON string)
- * Shots                | CreateQuantumTaskRequest::SetShots()
- * Results Storage      | S3 bucket (OutputDataConfig)
+ * Program               | Action field (OpenQASM string wrapped in JSON)
+ * Shots                 | CreateQuantumTaskRequest::SetShots()
  * 
- * Site (Qubit)         | Parsed from DeviceCapabilities JSON
- * Operation (Gate)     | Parsed from DeviceCapabilities nativeGateSet
- * Coupling Map         | Parsed from DeviceCapabilities connectivity graph
+ * Site (Qubit)          | Parsed from DeviceCapabilities JSON (qubitCount)
+ * Operation (Gate)      | Parsed from nativeGateSet / supportedOperations
+ * Coupling Map          | Parsed from connectivity graph
  * 
  */
 
