@@ -50,6 +50,19 @@ This implementation supports all AWS Braket devices:
 - **QDMI** headers ([Munich-Quantum-Software-Stack/QDMI](https://github.com/Munich-Quantum-Software-Stack/QDMI))
 - **AWS Credentials** configured (`~/.aws/credentials` or environment variables)
 
+### Setup & Credentials
+
+You can provide AWS credentials using environment variables (recommended for quick testing).
+
+```bash
+export AWS_ACCESS_KEY_ID="your_access_key_id"
+export AWS_SECRET_ACCESS_KEY="your_secret_access_key"
+# Optional: temporary session token
+export AWS_SESSION_TOKEN="your_session_token"
+# Default region used by the SDK if not provided via session/device ARN
+export AWS_REGION="us-east-1"
+```
+
 ### Building
 
 ```bash
