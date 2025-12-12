@@ -56,7 +56,6 @@ endif()
 # AWS SDK Detection
 # ============================================================================
 # Try to find the AWS SDK for C++ with Braket support.
-# If not found, the library will build in stub/mock mode.
 # 
 # To specify AWS SDK location: 
 #   cmake -DAWSSDK_ROOT=/Users/patrickhopf/Code/aws-sdk-cpp ..

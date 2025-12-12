@@ -450,19 +450,11 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
       gateSetFound = true;
   } else if (view.ValueExists("action")) {
       auto action = view.GetObject("action");
-      // Try OpenQASM 3.0 first (preferred)
       if (action.ValueExists("braket.ir.openqasm.program")) {
           auto openqasm = action.GetObject("braket.ir.openqasm.program");
+          // TODO: What's the difference between nativeGateSet and supportedOperations?
           if (openqasm.ValueExists("supportedOperations")) {
               gateSet = openqasm.GetArray("supportedOperations");
-              gateSetFound = true;
-          }
-      }
-      // Fallback to JAQCD if OpenQASM not found
-      if (!gateSetFound && action.ValueExists("braket.ir.jaqcd.program")) {
-          auto jaqcd = action.GetObject("braket.ir.jaqcd.program");
-          if (jaqcd.ValueExists("supportedOperations")) {
-              gateSet = jaqcd.GetArray("supportedOperations");
               gateSetFound = true;
           }
       }
@@ -524,15 +516,13 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
  * Initialize a device session.
  * 
  * Session initialization involves:
- * 1. Setting up the AWS SDK client (if enabled) with proper region configuration
- * 2. Fetching device capabilities (topology, gates, etc.) from AWS or mock
+ * 1. Setting up the AWS SDK client with proper region configuration
+ * 2. Fetching device capabilities (topology, gates, etc.)
  * 3. Transitioning the session to INITIALIZED state
  * 
  * A session must be initialized before it can create and submit jobs.
- * Multiple sessions can exist concurrently for the same device.
  * 
  * AWS Regions: AWS Braket is available in specific regions (us-east-1, us-west-2, etc.)
- * The region parameter determines which AWS datacenter handles your quantum jobs.
  */
 auto AWS_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
   if (status_ != Status::ALLOCATED) {
@@ -566,7 +556,7 @@ auto AWS_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
 
   status_ = Status::INITIALIZED;
   
-  // Always fetch device architecture (stub or real)
+  // Always fetch device architecture
   const auto ret = fetchDeviceArchitecture();
   if (ret != QDMI_SUCCESS) {
     return ret;
@@ -834,12 +824,7 @@ auto AWS_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
   
   request.SetAction(actionJson.View().WriteCompact().c_str());
 
-  // Configure Output S3 Bucket
-  // Note: hello_braket.cpp uses SetOutputS3Bucket/Prefix directly.
-  // If the SDK version supports it, we use that. Otherwise we fall back to OutputDataConfig.
-  // Assuming modern SDK where these helpers exist or we use the config object.
-  // Let's stick to the pattern in hello_braket.cpp which implies these methods exist on the Request object.
-  
+  // Configure Output S3 Bucket  
   if (!session_->getS3Bucket().empty()) {
       request.SetOutputS3Bucket(session_->getS3Bucket().c_str());
       
@@ -882,7 +867,6 @@ auto AWS_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
   // ============================================================================
   // AWS Braket CancelQuantumTask API Call
   // ============================================================================
-  // Purpose: Request cancellation of a running or queued quantum task
   // 
   // AWS SDK Usage:
   // 1. Create CancelQuantumTaskRequest with taskArn
@@ -1248,7 +1232,7 @@ auto AWS_QDMI_Device_Job_impl_d::getResults(const QDMI_Job_Result result,
  * Initialize the QDMI device library.
  * 
  * Must be called once at program startup before any other QDMI functions.
- * Initializes the AWS SDK (if enabled) and sets up the device singleton.
+ * Initializes the AWS SDK and sets up the device singleton.
  * 
  * Thread-safe: Can be called multiple times, only first call initializes.
  * 

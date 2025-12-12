@@ -39,7 +39,6 @@ This implementation supports all AWS Braket devices:
 |-------------|----------|
 | **Simulators** | SV1 (State Vector), DM1 (Density Matrix), TN1 (Tensor Network) |
 | **Gate-based QPUs** | IonQ Aria/Forte, IQM Garnet, Rigetti Ankaa |
-| **Annealing QPUs** | D-Wave (via Braket Hybrid Jobs) |
 
 ## Quick Start
 

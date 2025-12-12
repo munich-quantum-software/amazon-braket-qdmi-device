@@ -90,7 +90,7 @@ int main() {
     printResult("Set DEVICEARN", ret == QDMI_SUCCESS);
     allPassed &= (ret == QDMI_SUCCESS);
 
-    // Test setting S3 bucket (required for job submission)
+    // Test setting S3 bucket (required for job submission / result retrieval)
     const char* s3Bucket = "amazon-braket-my-first-bucket";
     std::cout << "\n  Setting S3BUCKET parameter:\n";
     printQDMI("AWS_QDMI_device_session_set_parameter(session, S3BUCKET, ...)",
