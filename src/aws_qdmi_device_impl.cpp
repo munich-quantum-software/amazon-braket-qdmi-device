@@ -437,7 +437,7 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
       }
   }
   
-  // 3. Parse Native Gate Set
+  // 3. Parse Native Gate Set and Properties
   operations_.clear();
   operations_ptr_.clear();
   operations_map_.clear();
@@ -460,6 +460,7 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
       }
   }
 
+  // TODO: Check again with actual device schemas for fidelity and params
   if (gateSetFound) {
       for (size_t i = 0; i < gateSet.GetLength(); ++i) {
           std::string gateName = gateSet[i].AsString().c_str();
@@ -468,7 +469,6 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
           op->name_ = gateName;
       
           // Heuristic for qubit count based on name
-          // Covers standard gates and native gates from IonQ (GPI, MS), IQM (prx, measure), AQT (r, xx)
           if (gateName == "cnot" || gateName == "cz" || gateName == "swap" || 
               gateName == "xx" || gateName == "yy" || gateName == "zz" || 
               gateName == "xy" || gateName == "cp" || gateName == "iswap" || 
@@ -483,20 +483,6 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
           } else {
               // Default to 1 qubit (x, y, z, h, rx, ry, rz, s, t, v, prx, GPI, GPI2, measure_ff)
               op->num_qubits_ = 1;
-          }
-          
-          // Heuristic for params
-          if (gateName == "rx" || gateName == "ry" || gateName == "rz" || 
-              gateName == "phaseshift" || gateName == "cphaseshift" || 
-              gateName == "xy" || gateName == "xx" || gateName == "yy" || gateName == "zz" ||
-              gateName == "GPI" || gateName == "GPI2") {
-              op->num_params_ = 1;
-          } else if (gateName == "prx" || gateName == "cc_prx") {
-              op->num_params_ = 2; // Usually angle and phase
-          } else if (gateName == "MS") {
-              op->num_params_ = 3; // IonQ MS gate has 3 phases
-          } else {
-              op->num_params_ = 0;
           }
 
           op->fidelity_ = 0.999; // Default, could parse from provider properties
