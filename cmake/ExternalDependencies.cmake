@@ -58,8 +58,10 @@ if(NOT AWSSDK_FOUND)
       1.11.714
       CACHE STRING "AWS SDK version")
 
-  set(BUILD_ONLY "core;s3;braket" CACHE STRING "" FORCE)
-  
+  set(BUILD_ONLY
+      "core;s3;braket"
+      CACHE STRING "" FORCE)
+
   FetchContent_Declare(
     awssdk
     GIT_REPOSITORY https://github.com/aws/aws-sdk-cpp.git

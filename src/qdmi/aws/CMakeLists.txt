@@ -37,7 +37,7 @@ if(NOT TARGET ${TARGET_NAME})
   target_link_libraries(
     ${TARGET_NAME}
     PUBLIC qdmi::qdmi
-    PRIVATE ${AWSSDK_LINK_LIBRARIES})
+    PRIVATE AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket)
 
   # Always compile with position independent code such that the library can be
   # used in shared libraries
