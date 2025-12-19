@@ -1,4 +1,5 @@
 #include "aws-qdmi/qdmi/aws/device.h"
+
 #include <cstring>
 #include <iomanip>
 #include <iostream>
@@ -13,24 +14,24 @@
 // Requires: AWS credentials configured (env vars or ~/.aws/credentials)
 // ============================================================================
 
-void printSeparator(const char *section) {
+void printSeparator(const char* section) {
   std::cout << "\n" << std::string(70, '=') << "\n";
   std::cout << " " << section << "\n";
   std::cout << std::string(70, '=') << "\n";
 }
 
-void printQDMI(const char *qdmiFunc, const char *awsFunc = nullptr) {
+void printQDMI(const char* qdmiFunc, const char* awsFunc = nullptr) {
   std::cout << "  [QDMI] " << qdmiFunc << "\n";
   if (awsFunc) {
     std::cout << "   [AWS] -> " << awsFunc << "\n";
   }
 }
 
-void printVar(const char *action, const char *varName) {
+void printVar(const char* action, const char* varName) {
   std::cout << "   [VAR] " << action << ": " << varName << "\n";
 }
 
-void printResult(const char *test, bool success) {
+void printResult(const char* test, bool success) {
   std::cout << "  " << std::left << std::setw(50) << test
             << (success ? "✓ PASS" : "✗ FAIL") << "\n";
 }
@@ -82,8 +83,8 @@ int main() {
   printSeparator("TEST 3: Session Configuration");
 
   // Test setting device ARN (required)
-  const char *envDeviceArn = std::getenv("AWS_DEVICE_ARN");
-  const char *deviceArn =
+  const char* envDeviceArn = std::getenv("AWS_DEVICE_ARN");
+  const char* deviceArn =
       envDeviceArn ? envDeviceArn
                    : "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
   std::cout << "\n  Setting DEVICEARN parameter:\n";
@@ -99,8 +100,8 @@ int main() {
   allPassed &= (ret == QDMI_SUCCESS);
 
   // Test setting S3 bucket (required for job submission / result retrieval)
-  const char *envS3Bucket = std::getenv("AWS_S3_BUCKET");
-  const char *s3Bucket =
+  const char* envS3Bucket = std::getenv("AWS_S3_BUCKET");
+  const char* s3Bucket =
       envS3Bucket ? envS3Bucket : "amazon-braket-my-first-bucket";
   std::cout << "\n  Setting S3BUCKET parameter:\n";
   printQDMI("AWS_QDMI_device_session_set_parameter(session, S3BUCKET, ...)",
@@ -115,8 +116,8 @@ int main() {
   allPassed &= (ret == QDMI_SUCCESS);
 
   // Test setting region (optional - should work)
-  const char *envRegion = std::getenv("AWS_DEFAULT_REGION");
-  const char *region = envRegion ? envRegion : "us-east-1";
+  const char* envRegion = std::getenv("AWS_DEFAULT_REGION");
+  const char* region = envRegion ? envRegion : "us-east-1";
   std::cout << "\n  Setting REGION parameter (optional):\n";
   printQDMI("AWS_QDMI_device_session_set_parameter(session, REGION, ...)",
             "(stored for ClientConfiguration::region)");
@@ -300,7 +301,7 @@ int main() {
   allPassed &= (ret == QDMI_SUCCESS);
 
   // Set program (Bell state circuit)
-  const char *program = "OPENQASM 3.0;\n"
+  const char* program = "OPENQASM 3.0;\n"
                         "qubit[2] q;\n"
                         "h q[0];\n"
                         "cnot q[0], q[1];\n"
@@ -392,7 +393,7 @@ int main() {
     ret = AWS_QDMI_device_job_check(job, &jobStatus);
     printResult("Check job status (GetQuantumTask)", ret == QDMI_SUCCESS);
     if (ret == QDMI_SUCCESS) {
-      const char *statusStr = jobStatus == QDMI_JOB_STATUS_CREATED   ? "CREATED"
+      const char* statusStr = jobStatus == QDMI_JOB_STATUS_CREATED   ? "CREATED"
                               : jobStatus == QDMI_JOB_STATUS_QUEUED  ? "QUEUED"
                               : jobStatus == QDMI_JOB_STATUS_RUNNING ? "RUNNING"
                               : jobStatus == QDMI_JOB_STATUS_DONE    ? "DONE"
@@ -492,14 +493,14 @@ int main() {
           printResult("Get HIST_KEYS data", ret == QDMI_SUCCESS);
 
           // Parse null-separated keys
-          const char *ptr = keysData.data();
-          const char *end = ptr + keysSize;
+          const char* ptr = keysData.data();
+          const char* end = ptr + keysSize;
           while (ptr < end && *ptr) {
             keys.emplace_back(ptr);
             ptr += strlen(ptr) + 1;
           }
           std::cout << "    -> Keys: ";
-          for (const auto &k : keys)
+          for (const auto& k : keys)
             std::cout << "\"" << k << "\" ";
           std::cout << "\n";
         }

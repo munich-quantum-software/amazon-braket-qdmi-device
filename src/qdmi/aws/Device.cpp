@@ -54,7 +54,6 @@
 #include <aws/core/utils/json/JsonSerializer.h>
 #include <aws/s3/S3Client.h>
 #include <aws/s3/model/GetObjectRequest.h>
-
 #include <chrono>
 #include <cstring>
 #include <iostream>
@@ -70,7 +69,7 @@
         if ((size) < sizeof(prop_type)) {                                      \
           return QDMI_ERROR_INVALIDARGUMENT;                                   \
         }                                                                      \
-        *static_cast<prop_type *>(value) = prop_value;                         \
+        *static_cast<prop_type*>(value) = prop_value;                          \
       }                                                                        \
       if ((size_ret) != nullptr) {                                             \
         *size_ret = sizeof(prop_type);                                         \
@@ -81,9 +80,9 @@
 
 #ifdef _WIN32
 #define STRNCPY(dest, src, size)                                               \
-  strncpy_s(static_cast<char *>(dest), size, src, size);
+  strncpy_s(static_cast<char*>(dest), size, src, size);
 #else
-#define STRNCPY(dest, src, size) strncpy(static_cast<char *>(dest), src, size);
+#define STRNCPY(dest, src, size) strncpy(static_cast<char*>(dest), src, size);
 #endif
 
 #define ADD_STRING_PROPERTY(prop_name, prop_value, prop, size, value,          \
@@ -95,7 +94,7 @@
           return QDMI_ERROR_INVALIDARGUMENT;                                   \
         }                                                                      \
         STRNCPY(value, prop_value, size);                                      \
-        static_cast<char *>(value)[size - 1] = '\0';                           \
+        static_cast<char*>(value)[size - 1] = '\0';                            \
       }                                                                        \
       if ((size_ret) != nullptr) {                                             \
         *size_ret = strlen(prop_value) + 1;                                    \
@@ -112,8 +111,8 @@
         if ((size) < (prop_values).size() * sizeof(prop_type)) {               \
           return QDMI_ERROR_INVALIDARGUMENT;                                   \
         }                                                                      \
-        memcpy(static_cast<void *>(value),                                     \
-               static_cast<const void *>((prop_values).data()),                \
+        memcpy(static_cast<void*>(value),                                      \
+               static_cast<const void*>((prop_values).data()),                 \
                (prop_values).size() * sizeof(prop_type));                      \
       }                                                                        \
       if ((size_ret) != nullptr) {                                             \
@@ -148,13 +147,13 @@ Device::Device() {
   status_.store(QDMI_DEVICE_STATUS_IDLE);
 }
 
-auto Device::sessionAlloc(AWS_QDMI_Device_Session *session) -> QDMI_STATUS {
+auto Device::sessionAlloc(AWS_QDMI_Device_Session* session) -> QDMI_STATUS {
   if (session == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   auto uniqueSession = std::make_unique<AWS_QDMI_Device_Session_impl_d>();
   const std::scoped_lock<std::mutex> lock(sessionsMutex_);
-  const auto &it =
+  const auto& it =
       sessions_.emplace(uniqueSession.get(), std::move(uniqueSession)).first;
   *session = it->first;
   return QDMI_SUCCESS;
@@ -163,14 +162,14 @@ auto Device::sessionAlloc(AWS_QDMI_Device_Session *session) -> QDMI_STATUS {
 auto Device::sessionFree(AWS_QDMI_Device_Session session) -> void {
   if (session != nullptr) {
     const std::scoped_lock<std::mutex> lock(sessionsMutex_);
-    if (const auto &it = sessions_.find(session); it != sessions_.end()) {
+    if (const auto& it = sessions_.find(session); it != sessions_.end()) {
       sessions_.erase(it);
     }
   }
 }
 
 auto Device::queryProperty(const QDMI_Device_Property prop, const size_t size,
-                           void *value, size_t *sizeRet) const -> QDMI_STATUS {
+                           void* value, size_t* sizeRet) const -> QDMI_STATUS {
   // Validate arguments and reject MAX sentinel value
   // Note: We allow AWS-specific extensions (100+) so don't check < MAX
   if ((value != nullptr && size == 0) || prop == QDMI_DEVICE_PROPERTY_MAX) {
@@ -267,8 +266,8 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
     return QDMI_ERROR_NOTSUPPORTED;
   }
 
-  const auto &device = outcome.GetResult();
-  const auto &capabilitiesStr =
+  const auto& device = outcome.GetResult();
+  const auto& capabilitiesStr =
       device.GetDeviceCapabilities(); // Returns JSON string
 
   Aws::Utils::Json::JsonValue json(capabilitiesStr);
@@ -318,7 +317,7 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
       if (t1Obj.ValueExists("value")) {
         uint64_t t1Val = static_cast<uint64_t>(t1Obj.GetDouble("value") *
                                                1e6); // Convert s to us
-        for (auto *site : sites_ptr_)
+        for (auto* site : sites_ptr_)
           site->t1_ = t1Val;
       }
     }
@@ -327,7 +326,7 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
       if (t2Obj.ValueExists("value")) {
         uint64_t t2Val = static_cast<uint64_t>(t2Obj.GetDouble("value") *
                                                1e6); // Convert s to us
-        for (auto *site : sites_ptr_)
+        for (auto* site : sites_ptr_)
           site->t2_ = t2Val;
       }
     }
@@ -345,7 +344,7 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
       if (props.ValueExists("one_qubit")) {
         auto oneQubit = props.GetObject("one_qubit");
         auto oneQubitMap = oneQubit.GetAllObjects();
-        for (const auto &[qubitIdxStr, qProps] : oneQubitMap) {
+        for (const auto& [qubitIdxStr, qProps] : oneQubitMap) {
           try {
             size_t idx = std::stoi(qubitIdxStr);
             if (idx < sites_ptr_.size()) {
@@ -370,7 +369,7 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
         if (t1Obj.ValueExists("value")) {
           uint64_t t1Val =
               static_cast<uint64_t>(t1Obj.GetDouble("value") * 1e6);
-          for (auto *site : sites_ptr_)
+          for (auto* site : sites_ptr_)
             site->t1_ = t1Val;
         }
       }
@@ -379,7 +378,7 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
         if (t2Obj.ValueExists("value")) {
           uint64_t t2Val =
               static_cast<uint64_t>(t2Obj.GetDouble("value") * 1e6);
-          for (auto *site : sites_ptr_)
+          for (auto* site : sites_ptr_)
             site->t2_ = t2Val;
         }
       }
@@ -390,12 +389,12 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
       auto timing = provider.GetObject("timing");
       if (timing.ValueExists("T1")) {
         uint64_t t1Val = static_cast<uint64_t>(timing.GetDouble("T1") * 1e6);
-        for (auto *site : sites_ptr_)
+        for (auto* site : sites_ptr_)
           site->t1_ = t1Val;
       }
       if (timing.ValueExists("T2")) {
         uint64_t t2Val = static_cast<uint64_t>(timing.GetDouble("T2") * 1e6);
-        for (auto *site : sites_ptr_)
+        for (auto* site : sites_ptr_)
           site->t2_ = t2Val;
       }
     }
@@ -404,7 +403,7 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
     if (provider.ValueExists("1Q")) {
       auto oneQ = provider.GetObject("1Q");
       auto oneQMap = oneQ.GetAllObjects();
-      for (const auto &[qubitIdxStr, props] : oneQMap) {
+      for (const auto& [qubitIdxStr, props] : oneQMap) {
         try {
           size_t idx = std::stoi(qubitIdxStr);
           if (idx < sites_ptr_.size()) {
@@ -437,7 +436,7 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
   } else {
     auto graph = connectivityObj.GetObject("connectivityGraph");
     auto map = graph.GetAllObjects();
-    for (const auto &[sourceStr, targets] : map) {
+    for (const auto& [sourceStr, targets] : map) {
       size_t sourceIdx = std::stoi(sourceStr);
       if (sourceIdx >= qubitsNum_)
         continue;
@@ -580,7 +579,7 @@ auto AWS_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
 
 auto AWS_QDMI_Device_Session_impl_d::setParameter(
     const QDMI_Device_Session_Parameter param, const size_t size,
-    const void *value) -> QDMI_STATUS {
+    const void* value) -> QDMI_STATUS {
   // Check for invalid arguments
   if (value != nullptr && size == 0) {
     return QDMI_ERROR_INVALIDARGUMENT;
@@ -607,22 +606,22 @@ auto AWS_QDMI_Device_Session_impl_d::setParameter(
   }
 
   if (param == QDMI_DEVICE_SESSION_PARAMETER_REGION) {
-    region_ = std::string(static_cast<const char *>(value), size - 1);
+    region_ = std::string(static_cast<const char*>(value), size - 1);
     return QDMI_SUCCESS;
   }
   if (param == QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN) {
-    deviceArn_ = std::string(static_cast<const char *>(value), size - 1);
+    deviceArn_ = std::string(static_cast<const char*>(value), size - 1);
     return QDMI_SUCCESS;
   }
   if (param == QDMI_DEVICE_SESSION_PARAMETER_S3BUCKET) {
-    s3Bucket_ = std::string(static_cast<const char *>(value), size - 1);
+    s3Bucket_ = std::string(static_cast<const char*>(value), size - 1);
     return QDMI_SUCCESS;
   }
 
   return QDMI_ERROR_NOTSUPPORTED;
 }
 
-auto AWS_QDMI_Device_Session_impl_d::createDeviceJob(AWS_QDMI_Device_Job *job)
+auto AWS_QDMI_Device_Session_impl_d::createDeviceJob(AWS_QDMI_Device_Job* job)
     -> QDMI_STATUS {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
@@ -646,8 +645,8 @@ auto AWS_QDMI_Device_Session_impl_d::freeDeviceJob(AWS_QDMI_Device_Job job)
 }
 
 auto AWS_QDMI_Device_Session_impl_d::queryDeviceProperty(
-    const QDMI_Device_Property prop, const size_t size, void *value,
-    size_t *sizeRet) const -> QDMI_STATUS {
+    const QDMI_Device_Property prop, const size_t size, void* value,
+    size_t* sizeRet) const -> QDMI_STATUS {
   if (status_ != Status::INITIALIZED) {
     return QDMI_ERROR_BADSTATE;
   }
@@ -671,8 +670,8 @@ auto AWS_QDMI_Device_Session_impl_d::queryDeviceProperty(
 }
 
 auto AWS_QDMI_Device_Session_impl_d::querySiteProperty(
-    AWS_QDMI_Site_impl_d *site, const QDMI_Site_Property prop,
-    const size_t size, void *value, size_t *sizeRet) const -> QDMI_STATUS {
+    AWS_QDMI_Site_impl_d* site, const QDMI_Site_Property prop,
+    const size_t size, void* value, size_t* sizeRet) const -> QDMI_STATUS {
   if (site == nullptr || (value != nullptr && size == 0) ||
       prop >= QDMI_SITE_PROPERTY_MAX) {
     return QDMI_ERROR_INVALIDARGUMENT;
@@ -695,10 +694,10 @@ auto AWS_QDMI_Device_Session_impl_d::querySiteProperty(
 }
 
 auto AWS_QDMI_Device_Session_impl_d::queryOperationProperty(
-    AWS_QDMI_Operation_impl_d *operation, const size_t num_sites,
-    const AWS_QDMI_Site_impl_d *const *sites, const size_t num_params,
-    const double *params, const QDMI_Operation_Property prop, const size_t size,
-    void *value, size_t *sizeRet) const -> QDMI_STATUS {
+    AWS_QDMI_Operation_impl_d* operation, const size_t num_sites,
+    const AWS_QDMI_Site_impl_d* const* sites, const size_t num_params,
+    const double* params, const QDMI_Operation_Property prop, const size_t size,
+    void* value, size_t* sizeRet) const -> QDMI_STATUS {
   if (operation == nullptr || (value != nullptr && size == 0) ||
       (sites != nullptr && num_sites == 0) ||
       (params != nullptr && num_params == 0) ||
@@ -724,7 +723,7 @@ auto AWS_QDMI_Device_Job_impl_d::free() -> void {
 }
 
 auto AWS_QDMI_Device_Job_impl_d::setParameter(
-    const QDMI_Device_Job_Parameter param, const size_t size, const void *value)
+    const QDMI_Device_Job_Parameter param, const size_t size, const void* value)
     -> QDMI_STATUS {
   if ((value != nullptr && size == 0) ||
       (param >= QDMI_DEVICE_JOB_PARAMETER_MAX &&
@@ -740,18 +739,18 @@ auto AWS_QDMI_Device_Job_impl_d::setParameter(
     if (size != sizeof(size_t)) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
-    shots_ = *static_cast<const size_t *>(value);
+    shots_ = *static_cast<const size_t*>(value);
     return QDMI_SUCCESS;
   }
   if (param == QDMI_DEVICE_JOB_PARAMETER_PROGRAM) {
-    program_ = std::string(static_cast<const char *>(value), size - 1);
+    program_ = std::string(static_cast<const char*>(value), size - 1);
     return QDMI_SUCCESS;
   }
   if (param == QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT) {
     if (size != sizeof(QDMI_Program_Format)) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
-    auto fmt = *static_cast<const QDMI_Program_Format *>(value);
+    auto fmt = *static_cast<const QDMI_Program_Format*>(value);
 
     // Only OpenQASM 2.0 and 3.0 are currently supported
     if (fmt != QDMI_PROGRAM_FORMAT_QASM2 && fmt != QDMI_PROGRAM_FORMAT_QASM3) {
@@ -766,8 +765,8 @@ auto AWS_QDMI_Device_Job_impl_d::setParameter(
 }
 
 auto AWS_QDMI_Device_Job_impl_d::queryProperty(
-    const QDMI_Device_Job_Property prop, const size_t size, void *value,
-    size_t *sizeRet) const -> QDMI_STATUS {
+    const QDMI_Device_Job_Property prop, const size_t size, void* value,
+    size_t* sizeRet) const -> QDMI_STATUS {
   if ((value != nullptr && size == 0) || prop >= QDMI_DEVICE_JOB_PROPERTY_MAX) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -924,7 +923,7 @@ auto AWS_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
   return QDMI_SUCCESS;
 }
 
-auto AWS_QDMI_Device_Job_impl_d::check(QDMI_Job_Status *status) const
+auto AWS_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
     -> QDMI_STATUS {
   if (status == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
@@ -978,7 +977,7 @@ auto AWS_QDMI_Device_Job_impl_d::check(QDMI_Job_Status *status) const
     return QDMI_ERROR_NOTSUPPORTED;
   }
 
-  const auto &taskStatus = outcome.GetResult().GetStatus();
+  const auto& taskStatus = outcome.GetResult().GetStatus();
   QDMI_Job_Status newStatus;
   if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::CREATED) {
     newStatus = QDMI_JOB_STATUS_CREATED;
@@ -1153,8 +1152,8 @@ auto AWS_QDMI_Device_Job_impl_d::fetchResults() const -> QDMI_STATUS {
  * - STATEVECTOR/PROBABILITIES: Only from simulators (not supported yet)
  */
 auto AWS_QDMI_Device_Job_impl_d::getResults(const QDMI_Job_Result result,
-                                            const size_t size, void *data,
-                                            size_t *sizeRet) const
+                                            const size_t size, void* data,
+                                            size_t* sizeRet) const
     -> QDMI_STATUS {
   if ((data != nullptr && size == 0) || result >= QDMI_JOB_RESULT_MAX) {
     return QDMI_ERROR_INVALIDARGUMENT;
@@ -1191,7 +1190,7 @@ auto AWS_QDMI_Device_Job_impl_d::getResults(const QDMI_Job_Result result,
   if (result == QDMI_JOB_RESULT_HIST_KEYS) {
     // Return concatenated null-terminated bitstrings: "00\011\0"
     std::string keys_str;
-    for (const auto &[key, count] : counts_) {
+    for (const auto& [key, count] : counts_) {
       keys_str += key;
       keys_str += '\0';
     }
@@ -1211,7 +1210,7 @@ auto AWS_QDMI_Device_Job_impl_d::getResults(const QDMI_Job_Result result,
   if (result == QDMI_JOB_RESULT_HIST_VALUES) {
     // Return array of counts corresponding to HIST_KEYS
     std::vector<size_t> values;
-    for (const auto &[key, count] : counts_) {
+    for (const auto& [key, count] : counts_) {
       values.push_back(count);
     }
 
@@ -1300,7 +1299,7 @@ int AWS_QDMI_device_finalize() {
   return QDMI_SUCCESS;
 }
 
-int AWS_QDMI_device_session_alloc(AWS_QDMI_Device_Session *session) {
+int AWS_QDMI_device_session_alloc(AWS_QDMI_Device_Session* session) {
   return aws_qdmi::Device::get().sessionAlloc(session);
 }
 
@@ -1318,7 +1317,7 @@ void AWS_QDMI_device_session_free(AWS_QDMI_Device_Session session) {
 int AWS_QDMI_device_session_set_parameter(AWS_QDMI_Device_Session session,
                                           QDMI_Device_Session_Parameter param,
                                           const size_t size,
-                                          const void *value) {
+                                          const void* value) {
   if (session == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -1327,7 +1326,7 @@ int AWS_QDMI_device_session_set_parameter(AWS_QDMI_Device_Session session,
 
 int AWS_QDMI_device_session_query_device_property(
     AWS_QDMI_Device_Session session, const QDMI_Device_Property prop,
-    const size_t size, void *value, size_t *sizeRet) {
+    const size_t size, void* value, size_t* sizeRet) {
   if (session == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -1335,7 +1334,7 @@ int AWS_QDMI_device_session_query_device_property(
 }
 
 int AWS_QDMI_device_session_create_device_job(AWS_QDMI_Device_Session session,
-                                              AWS_QDMI_Device_Job *job) {
+                                              AWS_QDMI_Device_Job* job) {
   if (session == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -1350,7 +1349,7 @@ void AWS_QDMI_device_job_free(AWS_QDMI_Device_Job job) {
 
 int AWS_QDMI_device_job_set_parameter(AWS_QDMI_Device_Job job,
                                       const QDMI_Device_Job_Parameter param,
-                                      const size_t size, const void *value) {
+                                      const size_t size, const void* value) {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -1359,8 +1358,8 @@ int AWS_QDMI_device_job_set_parameter(AWS_QDMI_Device_Job job,
 
 int AWS_QDMI_device_job_query_property(AWS_QDMI_Device_Job job,
                                        const QDMI_Device_Job_Property prop,
-                                       const size_t size, void *value,
-                                       size_t *sizeRet) {
+                                       const size_t size, void* value,
+                                       size_t* sizeRet) {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -1382,7 +1381,7 @@ int AWS_QDMI_device_job_cancel(AWS_QDMI_Device_Job job) {
 }
 
 int AWS_QDMI_device_job_check(AWS_QDMI_Device_Job job,
-                              QDMI_Job_Status *status) {
+                              QDMI_Job_Status* status) {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -1398,7 +1397,7 @@ int AWS_QDMI_device_job_wait(AWS_QDMI_Device_Job job, const size_t timeout) {
 
 int AWS_QDMI_device_job_get_results(AWS_QDMI_Device_Job job,
                                     QDMI_Job_Result result, const size_t size,
-                                    void *data, size_t *sizeRet) {
+                                    void* data, size_t* sizeRet) {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -1408,8 +1407,8 @@ int AWS_QDMI_device_job_get_results(AWS_QDMI_Device_Job job,
 int AWS_QDMI_device_session_query_site_property(AWS_QDMI_Device_Session session,
                                                 AWS_QDMI_Site site,
                                                 QDMI_Site_Property prop,
-                                                const size_t size, void *value,
-                                                size_t *sizeRet) {
+                                                const size_t size, void* value,
+                                                size_t* sizeRet) {
   if (session == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -1418,14 +1417,14 @@ int AWS_QDMI_device_session_query_site_property(AWS_QDMI_Device_Session session,
 
 int AWS_QDMI_device_session_query_operation_property(
     AWS_QDMI_Device_Session session, AWS_QDMI_Operation operation,
-    const size_t num_sites, const AWS_QDMI_Site *sites, const size_t num_params,
-    const double *params, QDMI_Operation_Property prop, const size_t size,
-    void *value, size_t *sizeRet) {
+    const size_t num_sites, const AWS_QDMI_Site* sites, const size_t num_params,
+    const double* params, QDMI_Operation_Property prop, const size_t size,
+    void* value, size_t* sizeRet) {
   if (session == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   return session->queryOperationProperty(
       operation, num_sites,
-      reinterpret_cast<const AWS_QDMI_Site_impl_d *const *>(sites), num_params,
+      reinterpret_cast<const AWS_QDMI_Site_impl_d* const*>(sites), num_params,
       params, prop, size, value, sizeRet);
 }
