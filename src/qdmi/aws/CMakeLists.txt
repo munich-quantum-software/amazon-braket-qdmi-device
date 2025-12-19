@@ -43,9 +43,6 @@ if(NOT TARGET ${TARGET_NAME})
   # used in shared libraries
   set_target_properties(${TARGET_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-  # Add to list of MQT Core targets set(MQT_CORE_TARGETS ${MQT_CORE_TARGETS}
-  # ${TARGET_NAME} PARENT_SCOPE)
-
   # Make QDMI version available
   target_compile_definitions(${TARGET_NAME}
                              PRIVATE QDMI_VERSION="${QDMI_VERSION}")
