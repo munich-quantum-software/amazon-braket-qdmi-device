@@ -62,15 +62,8 @@ if(NOT AWSSDK_FOUND)
     awssdk
     GIT_REPOSITORY https://github.com/aws/aws-sdk-cpp.git
     GIT_TAG ${AWSSDK_VERSION})
-
-  # Downloads and configures the SDK
-  FetchContent_GetProperties(awssdk)
-  if(NOT awssdk_POPULATED)
-    FetchContent_Populate(awssdk)
-
-    # Build the SDK as an external project
-    add_subdirectory(${awssdk_SOURCE_DIR} ${awssdk_BINARY_DIR} EXCLUDE_FROM_ALL)
-  endif()
+  # Downloads and builds the SDK in-tree if not found system-wide
+  FetchContent_MakeAvailable(awssdk)
 endif()
 
 # Make all declared dependencies available.
