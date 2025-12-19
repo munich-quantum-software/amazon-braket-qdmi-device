@@ -1,17 +1,14 @@
 #include "aws-qdmi/qdmi/aws/device.h"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <fstream>
+#include <cstdlib>
+#include <cstring>
 #include <functional>
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
-// NOLINTNEXTLINE(misc-include-cleaner)
-#include <sstream>
 #include <stdexcept>
 #include <string>
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -80,25 +77,25 @@ protected:
     ASSERT_EQ(AWS_QDMI_device_session_alloc(&session), QDMI_SUCCESS)
         << "Failed to allocate a session";
 
-    const char* device_arn_env = std::getenv("AWS_DEVICE_ARN");
-    std::string device_arn =
-        (device_arn_env != nullptr)
-            ? device_arn_env
+    const char* deviceArnEnv = std::getenv("AWS_DEVICE_ARN");
+    const std::string deviceArn =
+        (deviceArnEnv != nullptr)
+            ? deviceArnEnv
             : "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
 
     AWS_QDMI_device_session_set_parameter(
         session,
         static_cast<QDMI_Device_Session_Parameter>(
             QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN),
-        device_arn.length() + 1, device_arn.c_str());
+        deviceArn.length() + 1, deviceArn.c_str());
 
-    const char* s3_bucket_env = std::getenv("AWS_S3_BUCKET");
-    if (s3_bucket_env != nullptr) {
+    const char* s3BucketEnv = std::getenv("AWS_S3_BUCKET");
+    if (s3BucketEnv != nullptr) {
       AWS_QDMI_device_session_set_parameter(
           session,
           static_cast<QDMI_Device_Session_Parameter>(
               QDMI_DEVICE_SESSION_PARAMETER_S3BUCKET),
-          strlen(s3_bucket_env) + 1, s3_bucket_env);
+          strlen(s3BucketEnv) + 1, s3BucketEnv);
     }
 
     ASSERT_EQ(AWS_QDMI_device_session_init(session), QDMI_SUCCESS)

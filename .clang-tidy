@@ -6,6 +6,7 @@ Checks: |
   -bugprone-unchecked-optional-access,
   clang-analyzer-*,
   -clang-analyzer-core.NullDereference,
+  -clang-analyzer-optin.core.EnumCastOutOfRange,
   clang-diagnostic-*,
   cppcoreguidelines-*,
   -cppcoreguidelines-non-private-member-variables-in-classes,
@@ -14,6 +15,7 @@ Checks: |
   -cppcoreguidelines-macro-usage,
   -cppcoreguidelines-pro-type-reinterpret-cast,
   -cppcoreguidelines-pro-bounds-constant-array-index,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
   -cppcoreguidelines-avoid-do-while,
   google-*,
   -google-readability-todo,
@@ -46,7 +48,7 @@ CheckOptions:
   - key: readability-identifier-naming.FunctionCase
     value: camelBack
   - key: readability-identifier-naming.FunctionIgnoredRegexp
-    value: ".*ZX.*|.*SWAP.*|.*CEX.*|.*DD.*|.*EQ.*"
+    value: ".*ZX.*|.*SWAP.*|.*CEX.*|.*DD.*|.*EQ.*|AWS_QDMI_.*"
   - key: readability-identifier-naming.GlobalConstantCase
     value: UPPER_CASE
   - key: readability-identifier-naming.IgnoreMainLikeFunctions
@@ -71,6 +73,8 @@ CheckOptions:
     value: UPPER_CASE
   - key: readability-identifier-naming.StructCase
     value: CamelCase
+  - key: readability-identifier-naming.StructIgnoredRegexp
+    value: "AWS_QDMI_.*"
   - key: readability-identifier-naming.VariableCase
     value: camelBack
   - key: misc-include-cleaner.IgnoreHeaders

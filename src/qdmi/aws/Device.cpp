@@ -42,24 +42,35 @@
 
 #include "aws-qdmi/qdmi/aws/Device.hpp"
 
+#include "aws-qdmi/qdmi/aws/device.h"
+#include "aws/braket/model/QuantumTaskStatus.h"
+#include "aws/core/utils/Array.h"
+#include "aws_qdmi/types.h"
+#include "qdmi/constants.h"
+
 #include <aws/braket/BraketClient.h>
 #include <aws/braket/model/CancelQuantumTaskRequest.h>
 #include <aws/braket/model/CreateQuantumTaskRequest.h>
 #include <aws/braket/model/GetDeviceRequest.h>
 #include <aws/braket/model/GetQuantumTaskRequest.h>
 #include <aws/braket/model/SearchDevicesFilter.h>
-#include <aws/braket/model/SearchDevicesRequest.h>
 #include <aws/core/Aws.h>
 #include <aws/core/client/ClientConfiguration.h>
 #include <aws/core/utils/json/JsonSerializer.h>
 #include <aws/s3/S3Client.h>
 #include <aws/s3/model/GetObjectRequest.h>
 #include <chrono>
+#include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <memory>
 #include <mutex>
 #include <sstream>
+#include <string>
 #include <thread>
+#include <tuple>
+#include <utility>
+#include <vector>
 
 #define ADD_SINGLE_VALUE_PROPERTY(prop_name, prop_type, prop_value, prop,      \
                                   size, value, size_ret)                       \
@@ -69,14 +80,14 @@
         if ((size) < sizeof(prop_type)) {                                      \
           return QDMI_ERROR_INVALIDARGUMENT;                                   \
         }                                                                      \
-        *static_cast<prop_type*>(value) = prop_value;                          \
+        *static_cast<prop_type*>((value)) = (prop_value);                      \
       }                                                                        \
       if ((size_ret) != nullptr) {                                             \
-        *size_ret = sizeof(prop_type);                                         \
+        *(size_ret) = sizeof(prop_type);                                       \
       }                                                                        \
       return QDMI_SUCCESS;                                                     \
     }                                                                          \
-  }
+  } // NOLINT(bugprone-macro-parentheses)
 
 #ifdef _WIN32
 #define STRNCPY(dest, src, size)                                               \
@@ -90,14 +101,14 @@
   {                                                                            \
     if ((prop) == (prop_name)) {                                               \
       if ((value) != nullptr) {                                                \
-        if ((size) < strlen(prop_value) + 1) {                                 \
+        if ((size) < strlen((prop_value)) + 1) {                               \
           return QDMI_ERROR_INVALIDARGUMENT;                                   \
         }                                                                      \
-        STRNCPY(value, prop_value, size);                                      \
-        static_cast<char*>(value)[size - 1] = '\0';                            \
+        STRNCPY(value, (prop_value), size);                                    \
+        static_cast<char*>(value)[(size) - 1] = '\0';                          \
       }                                                                        \
       if ((size_ret) != nullptr) {                                             \
-        *size_ret = strlen(prop_value) + 1;                                    \
+        *(size_ret) = strlen((prop_value)) + 1;                                \
       }                                                                        \
       return QDMI_SUCCESS;                                                     \
     }                                                                          \
@@ -108,15 +119,15 @@
   {                                                                            \
     if ((prop) == (prop_name)) {                                               \
       if ((value) != nullptr) {                                                \
-        if ((size) < (prop_values).size() * sizeof(prop_type)) {               \
+        if ((size) < ((prop_values)).size() * sizeof(prop_type)) {             \
           return QDMI_ERROR_INVALIDARGUMENT;                                   \
         }                                                                      \
         memcpy(static_cast<void*>(value),                                      \
-               static_cast<const void*>((prop_values).data()),                 \
-               (prop_values).size() * sizeof(prop_type));                      \
+               static_cast<const void*>(((prop_values)).data()),               \
+               ((prop_values)).size() * sizeof(prop_type));                    \
       }                                                                        \
       if ((size_ret) != nullptr) {                                             \
-        *size_ret = (prop_values).size() * sizeof(prop_type);                  \
+        *(size_ret) = ((prop_values)).size() * sizeof(prop_type);              \
       }                                                                        \
       return QDMI_SUCCESS;                                                     \
     }                                                                          \
@@ -137,13 +148,13 @@ namespace aws_qdmi {
  * - Session registry for lifecycle management
  * - Random number generation for unique job IDs
  */
-Device::Device() {
-  name_ = "AWS Braket Device";
-  provider_ = "AWS"; // AWS is the cloud provider
-  deviceArn_ =
-      ""; // ARN (Amazon Resource Name) identifies the specific quantum device
-  deviceType_ = "QPU"; // Quantum Processing Unit
-  qubitsNum_ = 0;      // Will be populated when device capabilities are queried
+Device::Device()
+    : name_("AWS Braket Device"), provider_("AWS"), deviceType_("QPU") {
+
+  // AWS is the cloud provider
+  // ARN (Amazon Resource Name) identifies the specific quantum device
+  // Quantum Processing Unit
+  // Will be populated when device capabilities are queried
   status_.store(QDMI_DEVICE_STATUS_IDLE);
 }
 
@@ -270,7 +281,7 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
   const auto& capabilitiesStr =
       device.GetDeviceCapabilities(); // Returns JSON string
 
-  Aws::Utils::Json::JsonValue json(capabilitiesStr);
+  Aws::Utils::Json::JsonValue const json(capabilitiesStr);
   if (!json.WasParseSuccessful()) {
     std::cerr << "Failed to parse device capabilities JSON\n";
     return QDMI_ERROR_FATAL;
@@ -315,19 +326,21 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
     if (standardized.ValueExists("T1")) {
       auto t1Obj = standardized.GetObject("T1");
       if (t1Obj.ValueExists("value")) {
-        uint64_t t1Val = static_cast<uint64_t>(t1Obj.GetDouble("value") *
-                                               1e6); // Convert s to us
-        for (auto* site : sites_ptr_)
+        const uint64_t t1Val = static_cast<uint64_t>(t1Obj.GetDouble("value") *
+                                                     1e6); // Convert s to us
+        for (auto* site : sites_ptr_) {
           site->t1_ = t1Val;
+        }
       }
     }
     if (standardized.ValueExists("T2")) {
       auto t2Obj = standardized.GetObject("T2");
       if (t2Obj.ValueExists("value")) {
-        uint64_t t2Val = static_cast<uint64_t>(t2Obj.GetDouble("value") *
-                                               1e6); // Convert s to us
-        for (auto* site : sites_ptr_)
+        const uint64_t t2Val = static_cast<uint64_t>(t2Obj.GetDouble("value") *
+                                                     1e6); // Convert s to us
+        for (auto* site : sites_ptr_) {
           site->t2_ = t2Val;
+        }
       }
     }
   }
@@ -346,7 +359,7 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
         auto oneQubitMap = oneQubit.GetAllObjects();
         for (const auto& [qubitIdxStr, qProps] : oneQubitMap) {
           try {
-            size_t idx = std::stoi(qubitIdxStr);
+            const size_t idx = std::stoi(qubitIdxStr);
             if (idx < sites_ptr_.size()) {
               auto qPropsObj = qProps;
               if (qPropsObj.ValueExists("T1")) {
@@ -358,7 +371,8 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
                     static_cast<uint64_t>(qPropsObj.GetDouble("T2") * 1e6);
               }
             }
-          } catch (...) {
+          } catch (...) { // NOLINT(bugprone-empty-catch)
+            // Ignore parsing errors for optional T1/T2 values
           }
         }
       }
@@ -367,19 +381,21 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
       if (props.ValueExists("t1_s")) {
         auto t1Obj = props.GetObject("t1_s");
         if (t1Obj.ValueExists("value")) {
-          uint64_t t1Val =
+          const uint64_t t1Val =
               static_cast<uint64_t>(t1Obj.GetDouble("value") * 1e6);
-          for (auto* site : sites_ptr_)
+          for (auto* site : sites_ptr_) {
             site->t1_ = t1Val;
+          }
         }
       }
       if (props.ValueExists("t2_coherence_time_s")) {
         auto t2Obj = props.GetObject("t2_coherence_time_s");
         if (t2Obj.ValueExists("value")) {
-          uint64_t t2Val =
+          const uint64_t t2Val =
               static_cast<uint64_t>(t2Obj.GetDouble("value") * 1e6);
-          for (auto* site : sites_ptr_)
+          for (auto* site : sites_ptr_) {
             site->t2_ = t2Val;
+          }
         }
       }
     }
@@ -388,14 +404,18 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
     if (provider.ValueExists("timing")) {
       auto timing = provider.GetObject("timing");
       if (timing.ValueExists("T1")) {
-        uint64_t t1Val = static_cast<uint64_t>(timing.GetDouble("T1") * 1e6);
-        for (auto* site : sites_ptr_)
+        const uint64_t t1Val =
+            static_cast<uint64_t>(timing.GetDouble("T1") * 1e6);
+        for (auto* site : sites_ptr_) {
           site->t1_ = t1Val;
+        }
       }
       if (timing.ValueExists("T2")) {
-        uint64_t t2Val = static_cast<uint64_t>(timing.GetDouble("T2") * 1e6);
-        for (auto* site : sites_ptr_)
+        const uint64_t t2Val =
+            static_cast<uint64_t>(timing.GetDouble("T2") * 1e6);
+        for (auto* site : sites_ptr_) {
           site->t2_ = t2Val;
+        }
       }
     }
 
@@ -405,7 +425,7 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
       auto oneQMap = oneQ.GetAllObjects();
       for (const auto& [qubitIdxStr, props] : oneQMap) {
         try {
-          size_t idx = std::stoi(qubitIdxStr);
+          const size_t idx = std::stoi(qubitIdxStr);
           if (idx < sites_ptr_.size()) {
             auto propsObj = props;
             if (propsObj.ValueExists("T1")) {
@@ -417,7 +437,8 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
                   static_cast<uint64_t>(propsObj.GetDouble("T2")); // Usually us
             }
           }
-        } catch (...) {
+        } catch (...) { // NOLINT(bugprone-empty-catch)
+          // Ignore parsing errors for optional T1/T2 values
         }
       }
     }
@@ -437,15 +458,17 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
     auto graph = connectivityObj.GetObject("connectivityGraph");
     auto map = graph.GetAllObjects();
     for (const auto& [sourceStr, targets] : map) {
-      size_t sourceIdx = std::stoi(sourceStr);
-      if (sourceIdx >= qubitsNum_)
+      const size_t sourceIdx = std::stoi(sourceStr);
+      if (sourceIdx >= qubitsNum_) {
         continue;
+      }
 
       auto targetArray = targets.AsArray();
       for (size_t k = 0; k < targetArray.GetLength(); ++k) {
-        size_t targetIdx = std::stoi(targetArray[k].AsString().c_str());
-        if (targetIdx >= qubitsNum_)
+        const size_t targetIdx = std::stoi(targetArray[k].AsString());
+        if (targetIdx >= qubitsNum_) {
           continue;
+        }
 
         connectivity_.emplace_back(sites_ptr_[sourceIdx],
                                    sites_ptr_[targetIdx]);
@@ -480,7 +503,7 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
   // TODO: Check again with actual device schemas for fidelity and params
   if (gateSetFound) {
     for (size_t i = 0; i < gateSet.GetLength(); ++i) {
-      std::string gateName = gateSet[i].AsString().c_str();
+      const std::string gateName = gateSet[i].AsString();
 
       auto op = std::make_unique<AWS_QDMI_Operation_impl_d>();
       op->name_ = gateName;
@@ -497,13 +520,13 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
         // controlled-controlled (3). But let's check if it's in the 2-qubit
         // list. For safety, let's assume 2 for now unless we know it's 3
         // (ccnot, cswap).
-        op->num_qubits_ = 2;
+        op->numQubits_ = 2;
       } else if (gateName == "ccnot" || gateName == "cswap") {
-        op->num_qubits_ = 3;
+        op->numQubits_ = 3;
       } else {
         // Default to 1 qubit (x, y, z, h, rx, ry, rz, s, t, v, prx, GPI, GPI2,
         // measure_ff)
-        op->num_qubits_ = 1;
+        op->numQubits_ = 1;
       }
 
       op->fidelity_ = 0.999; // Default, could parse from provider properties
@@ -515,7 +538,7 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
   } else {
     std::cerr << "Warning: Could not find nativeGateSet or supportedOperations "
                  "in device capabilities."
-              << std::endl;
+              << '\n';
   }
 
   return QDMI_SUCCESS;
@@ -544,12 +567,12 @@ auto AWS_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
   // arn:aws:braket:::<device> (global)
   if (region_.empty() && !deviceArn_.empty()) {
     // Parse ARN: arn:aws:braket:REGION::device/...
-    size_t start = deviceArn_.find("braket:");
+    const size_t start = deviceArn_.find("braket:");
     if (start != std::string::npos) {
-      start += 7; // Skip "braket:"
-      size_t end = deviceArn_.find(':', start);
-      if (end != std::string::npos && end > start) {
-        region_ = deviceArn_.substr(start, end - start);
+      size_t const startPos = start + 7; // Skip "braket:"
+      const size_t end = deviceArn_.find(':', startPos);
+      if (end != std::string::npos && end > startPos) {
+        region_ = deviceArn_.substr(startPos, end - startPos);
       }
     }
     // If region is still empty (global ARN like simulators), default to
@@ -562,7 +585,7 @@ auto AWS_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
   // Configure AWS client with region
   Aws::Client::ClientConfiguration config;
   if (!region_.empty()) {
-    config.region = region_.c_str();
+    config.region = region_;
   }
   client_ = std::make_unique<Aws::Braket::BraketClient>(config);
 
@@ -671,7 +694,7 @@ auto AWS_QDMI_Device_Session_impl_d::queryDeviceProperty(
 
 auto AWS_QDMI_Device_Session_impl_d::querySiteProperty(
     AWS_QDMI_Site_impl_d* site, const QDMI_Site_Property prop,
-    const size_t size, void* value, size_t* sizeRet) const -> QDMI_STATUS {
+    const size_t size, void* value, size_t* sizeRet) -> QDMI_STATUS {
   if (site == nullptr || (value != nullptr && size == 0) ||
       prop >= QDMI_SITE_PROPERTY_MAX) {
     return QDMI_ERROR_INVALIDARGUMENT;
@@ -694,13 +717,13 @@ auto AWS_QDMI_Device_Session_impl_d::querySiteProperty(
 }
 
 auto AWS_QDMI_Device_Session_impl_d::queryOperationProperty(
-    AWS_QDMI_Operation_impl_d* operation, const size_t num_sites,
-    const AWS_QDMI_Site_impl_d* const* sites, const size_t num_params,
+    AWS_QDMI_Operation_impl_d* operation, const size_t numSites,
+    const AWS_QDMI_Site_impl_d* const* sites, const size_t numParams,
     const double* params, const QDMI_Operation_Property prop, const size_t size,
-    void* value, size_t* sizeRet) const -> QDMI_STATUS {
+    void* value, size_t* sizeRet) -> QDMI_STATUS {
   if (operation == nullptr || (value != nullptr && size == 0) ||
-      (sites != nullptr && num_sites == 0) ||
-      (params != nullptr && num_params == 0) ||
+      (sites != nullptr && numSites == 0) ||
+      (params != nullptr && numParams == 0) ||
       prop >= QDMI_OPERATION_PROPERTY_MAX) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -708,9 +731,9 @@ auto AWS_QDMI_Device_Session_impl_d::queryOperationProperty(
   ADD_STRING_PROPERTY(QDMI_OPERATION_PROPERTY_NAME, operation->name_.c_str(),
                       prop, size, value, sizeRet)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_OPERATION_PROPERTY_QUBITSNUM, size_t,
-                            operation->num_qubits_, prop, size, value, sizeRet)
+                            operation->numQubits_, prop, size, value, sizeRet)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_OPERATION_PROPERTY_PARAMETERSNUM, size_t,
-                            operation->num_params_, prop, size, value, sizeRet)
+                            operation->numParams_, prop, size, value, sizeRet)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_OPERATION_PROPERTY_FIDELITY, double,
                             operation->fidelity_, prop, size, value, sizeRet)
 
@@ -750,7 +773,7 @@ auto AWS_QDMI_Device_Job_impl_d::setParameter(
     if (size != sizeof(QDMI_Program_Format)) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
-    auto fmt = *static_cast<const QDMI_Program_Format*>(value);
+    const auto fmt = *static_cast<const QDMI_Program_Format*>(value);
 
     // Only OpenQASM 2.0 and 3.0 are currently supported
     if (fmt != QDMI_PROGRAM_FORMAT_QASM2 && fmt != QDMI_PROGRAM_FORMAT_QASM3) {
@@ -828,7 +851,7 @@ auto AWS_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
 
   Aws::Braket::Model::CreateQuantumTaskRequest request;
   request.SetDeviceArn(session_->getDeviceArn().c_str());
-  request.SetShots(static_cast<long long>(shots_));
+  request.SetShots(static_cast<int64_t>(shots_));
 
   // Construct the Action JSON
   Aws::Utils::Json::JsonValue actionJson;
@@ -845,7 +868,7 @@ auto AWS_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
     request.SetOutputS3Bucket(session_->getS3Bucket().c_str());
 
     // Generate a prefix for this specific job to avoid collisions
-    std::string prefix = "qdmi-tasks/" + std::to_string(id_);
+    const std::string prefix = "qdmi-tasks/" + std::to_string(id_);
     request.SetOutputS3KeyPrefix(prefix.c_str());
   } else {
     // If no bucket provided, AWS SDK might fail or use a default if configured
@@ -978,7 +1001,7 @@ auto AWS_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
   }
 
   const auto& taskStatus = outcome.GetResult().GetStatus();
-  QDMI_Job_Status newStatus;
+  QDMI_Job_Status newStatus = QDMI_JOB_STATUS_CREATED;
   if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::CREATED) {
     newStatus = QDMI_JOB_STATUS_CREATED;
   } else if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::QUEUED) {
@@ -1020,7 +1043,7 @@ auto AWS_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
   }
 
   const auto startTime = std::chrono::steady_clock::now();
-  QDMI_Job_Status checkedStatus;
+  QDMI_Job_Status checkedStatus = QDMI_JOB_STATUS_CREATED;
 
   while (true) {
     const QDMI_STATUS result = check(&checkedStatus);
@@ -1039,7 +1062,7 @@ auto AWS_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
           std::chrono::duration_cast<std::chrono::milliseconds>(
               std::chrono::steady_clock::now() - startTime)
               .count();
-      if (static_cast<size_t>(elapsed) >= timeout) {
+      if (std::cmp_greater_equal(elapsed, timeout)) {
         return QDMI_ERROR_TIMEOUT;
       }
     }
@@ -1076,11 +1099,11 @@ auto AWS_QDMI_Device_Job_impl_d::fetchResults() const -> QDMI_STATUS {
   // Create S3 client with same region as Braket client
   Aws::Client::ClientConfiguration s3Config;
   s3Config.region = session_->getRegion();
-  Aws::S3::S3Client s3Client(s3Config);
+  Aws::S3::S3Client const s3Client(s3Config);
 
   // Download results.json from S3
   // Key format: {outputS3Directory}/results.json
-  std::string objectKey = outputS3Directory_ + "/results.json";
+  const std::string objectKey = outputS3Directory_ + "/results.json";
 
   Aws::S3::Model::GetObjectRequest getRequest;
   getRequest.SetBucket(outputS3Bucket_.c_str());
@@ -1096,10 +1119,10 @@ auto AWS_QDMI_Device_Job_impl_d::fetchResults() const -> QDMI_STATUS {
   // Read response body into string
   std::stringstream ss;
   ss << outcome.GetResult().GetBody().rdbuf();
-  std::string jsonStr = ss.str();
+  const std::string jsonStr = ss.str();
 
   // Parse JSON
-  Aws::Utils::Json::JsonValue json(jsonStr);
+  const Aws::Utils::Json::JsonValue json(jsonStr);
   if (!json.WasParseSuccessful()) {
     std::cerr << "Failed to parse results JSON\n";
     return QDMI_ERROR_FATAL;
@@ -1165,7 +1188,7 @@ auto AWS_QDMI_Device_Job_impl_d::getResults(const QDMI_Job_Result result,
   }
 
   // Fetch results from S3 if not already done
-  QDMI_STATUS fetchStatus = fetchResults();
+  QDMI_STATUS const fetchStatus = fetchResults();
   if (fetchStatus != QDMI_SUCCESS) {
     return fetchStatus;
   }
@@ -1173,7 +1196,7 @@ auto AWS_QDMI_Device_Job_impl_d::getResults(const QDMI_Job_Result result,
   if (result == QDMI_JOB_RESULT_SHOTS) {
     // Return comma-separated shot results: "00,11,00,11,..."
     // Size includes null terminator
-    size_t totalSize = shotsString_.size() + 1;
+    const size_t totalSize = shotsString_.size() + 1;
 
     if (data != nullptr) {
       if (size < totalSize) {
@@ -1189,20 +1212,20 @@ auto AWS_QDMI_Device_Job_impl_d::getResults(const QDMI_Job_Result result,
 
   if (result == QDMI_JOB_RESULT_HIST_KEYS) {
     // Return concatenated null-terminated bitstrings: "00\011\0"
-    std::string keys_str;
+    std::string keysStr;
     for (const auto& [key, count] : counts_) {
-      keys_str += key;
-      keys_str += '\0';
+      keysStr += key;
+      keysStr += '\0';
     }
 
     if (data != nullptr) {
-      if (size < keys_str.size()) {
+      if (size < keysStr.size()) {
         return QDMI_ERROR_INVALIDARGUMENT;
       }
-      memcpy(data, keys_str.data(), keys_str.size());
+      memcpy(data, keysStr.data(), keysStr.size());
     }
     if (sizeRet != nullptr) {
-      *sizeRet = keys_str.size();
+      *sizeRet = keysStr.size();
     }
     return QDMI_SUCCESS;
   }
@@ -1210,6 +1233,7 @@ auto AWS_QDMI_Device_Job_impl_d::getResults(const QDMI_Job_Result result,
   if (result == QDMI_JOB_RESULT_HIST_VALUES) {
     // Return array of counts corresponding to HIST_KEYS
     std::vector<size_t> values;
+    values.reserve(counts_.size());
     for (const auto& [key, count] : counts_) {
       values.push_back(count);
     }
@@ -1262,16 +1286,20 @@ auto AWS_QDMI_Device_Job_impl_d::getResults(const QDMI_Job_Result result,
 
 // Global SDK state - must be in same translation unit for safe init/shutdown
 namespace {
-Aws::SDKOptions g_awsOptions;
-bool g_awsInitialized = false;
-std::mutex g_awsInitMutex;
+Aws::SDKOptions
+    gAWSOptions; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+bool
+    gAWSInitialized = // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+    false;
+std::mutex
+    gAWSInitMutex; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 } // namespace
 
 int AWS_QDMI_device_initialize() {
-  std::lock_guard<std::mutex> lock(g_awsInitMutex);
-  if (!g_awsInitialized) {
-    Aws::InitAPI(g_awsOptions);
-    g_awsInitialized = true;
+  const std::lock_guard<std::mutex> lock(gAWSInitMutex);
+  if (!gAWSInitialized) {
+    Aws::InitAPI(gAWSOptions);
+    gAWSInitialized = true;
   }
   std::ignore = aws_qdmi::Device::get();
   return QDMI_SUCCESS;
@@ -1291,10 +1319,10 @@ int AWS_QDMI_device_initialize() {
  * @return QDMI_SUCCESS on successful finalization
  */
 int AWS_QDMI_device_finalize() {
-  std::lock_guard<std::mutex> lock(g_awsInitMutex);
-  if (g_awsInitialized) {
-    Aws::ShutdownAPI(g_awsOptions);
-    g_awsInitialized = false;
+  const std::lock_guard<std::mutex> lock(gAWSInitMutex);
+  if (gAWSInitialized) {
+    Aws::ShutdownAPI(gAWSOptions);
+    gAWSInitialized = false;
   }
   return QDMI_SUCCESS;
 }
@@ -1412,19 +1440,22 @@ int AWS_QDMI_device_session_query_site_property(AWS_QDMI_Device_Session session,
   if (session == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
-  return session->querySiteProperty(site, prop, size, value, sizeRet);
+  return session
+      ->querySiteProperty( // NOLINT(readability-static-accessed-through-instance)
+          site, prop, size, value, sizeRet);
 }
 
 int AWS_QDMI_device_session_query_operation_property(
     AWS_QDMI_Device_Session session, AWS_QDMI_Operation operation,
-    const size_t num_sites, const AWS_QDMI_Site* sites, const size_t num_params,
-    const double* params, QDMI_Operation_Property prop, const size_t size,
+    size_t numSites, const AWS_QDMI_Site* sites, size_t numParams,
+    const double* params, QDMI_Operation_Property prop, size_t size,
     void* value, size_t* sizeRet) {
   if (session == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
-  return session->queryOperationProperty(
-      operation, num_sites,
-      reinterpret_cast<const AWS_QDMI_Site_impl_d* const*>(sites), num_params,
-      params, prop, size, value, sizeRet);
+  return session // NOLINT(readability-static-accessed-through-instance)
+      ->queryOperationProperty(
+          operation, numSites,
+          reinterpret_cast<const AWS_QDMI_Site_impl_d* const*>(sites),
+          numParams, params, prop, size, value, sizeRet);
 }

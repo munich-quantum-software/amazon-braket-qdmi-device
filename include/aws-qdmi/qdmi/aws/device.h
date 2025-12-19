@@ -278,10 +278,12 @@ int AWS_QDMI_device_session_query_site_property(AWS_QDMI_Device_Session session,
  */
 int AWS_QDMI_device_session_query_operation_property(
     AWS_QDMI_Device_Session session, AWS_QDMI_Operation operation,
-    size_t num_sites, const AWS_QDMI_Site* sites, size_t num_params,
+    size_t numSites, const AWS_QDMI_Site* sites, size_t numParams,
     const double* params, QDMI_Operation_Property prop, size_t size,
     void* value, size_t* sizeRet);
 
 #ifdef __cplusplus
 }
 #endif
+
+// NOLINTEND(performance-enum-size,modernize-use-using,modernize-redundant-void-arg)

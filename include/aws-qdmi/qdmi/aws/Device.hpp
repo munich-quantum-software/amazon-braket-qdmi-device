@@ -40,13 +40,17 @@
 
 #include <atomic>
 #include <aws/braket/BraketClient.h>
+#include <cstddef>
+#include <cstdint>
 #include <future>
+#include <limits>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <random>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 // Forward declarations
@@ -148,15 +152,15 @@ public:
   auto freeDeviceJob(AWS_QDMI_Device_Job job) -> void;
   auto queryDeviceProperty(QDMI_Device_Property prop, size_t size, void* value,
                            size_t* sizeRet) const -> QDMI_STATUS;
-  auto querySiteProperty(AWS_QDMI_Site_impl_d* site, QDMI_Site_Property prop,
-                         size_t size, void* value, size_t* sizeRet) const
-      -> QDMI_STATUS;
-  auto queryOperationProperty(AWS_QDMI_Operation_impl_d* operation,
-                              size_t num_sites,
-                              const AWS_QDMI_Site_impl_d* const* sites,
-                              size_t num_params, const double* params,
-                              QDMI_Operation_Property prop, size_t size,
-                              void* value, size_t* sizeRet) const
+  static auto querySiteProperty(AWS_QDMI_Site_impl_d* site,
+                                QDMI_Site_Property prop, size_t size,
+                                void* value, size_t* sizeRet) -> QDMI_STATUS;
+  static auto queryOperationProperty(AWS_QDMI_Operation_impl_d* operation,
+                                     size_t numSites,
+                                     const AWS_QDMI_Site_impl_d* const* sites,
+                                     size_t numParams, const double* params,
+                                     QDMI_Operation_Property prop, size_t size,
+                                     void* value, size_t* sizeRet)
       -> QDMI_STATUS;
 
 private:
@@ -192,8 +196,8 @@ struct AWS_QDMI_Site_impl_d {
  */
 struct AWS_QDMI_Operation_impl_d {
   std::string name_;
-  size_t num_qubits_ = 0;
-  size_t num_params_ = 0;
+  size_t numQubits_ = 0;
+  size_t numParams_ = 0;
   double fidelity_ = 0.0;
   std::vector<std::vector<AWS_QDMI_Site_impl_d*>> applicable_sites_;
 };
