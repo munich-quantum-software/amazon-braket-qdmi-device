@@ -28,8 +28,9 @@ struct PairHash {
     -> std::vector<AWS_QDMI_Site> {
   size_t size = 0;
   if (AWS_QDMI_device_session_query_device_property(
-          session, QDMI_DEVICE_PROPERTY_SITES, 0, nullptr, &size) !=
-      QDMI_SUCCESS) {
+          session,
+          static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_SITES), 0,
+          nullptr, &size) != QDMI_SUCCESS) {
     throw std::runtime_error("Failed to query sites");
   }
   if (size == 0) {
@@ -37,7 +38,8 @@ struct PairHash {
   }
   std::vector<AWS_QDMI_Site> sites(size / sizeof(AWS_QDMI_Site));
   if (AWS_QDMI_device_session_query_device_property(
-          session, QDMI_DEVICE_PROPERTY_SITES, size,
+          session,
+          static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_SITES), size,
           static_cast<void *>(sites.data()), nullptr) != QDMI_SUCCESS) {
     throw std::runtime_error("Failed to query sites");
   }
@@ -47,8 +49,9 @@ struct PairHash {
     -> std::vector<AWS_QDMI_Operation> {
   size_t size = 0;
   if (AWS_QDMI_device_session_query_device_property(
-          session, QDMI_DEVICE_PROPERTY_OPERATIONS, 0, nullptr, &size) !=
-      QDMI_SUCCESS) {
+          session,
+          static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_OPERATIONS), 0,
+          nullptr, &size) != QDMI_SUCCESS) {
     throw std::runtime_error("Failed to query operations");
   }
   if (size == 0) {
@@ -56,8 +59,10 @@ struct PairHash {
   }
   std::vector<AWS_QDMI_Operation> operations(size / sizeof(AWS_QDMI_Operation));
   if (AWS_QDMI_device_session_query_device_property(
-          session, QDMI_DEVICE_PROPERTY_OPERATIONS, size,
-          static_cast<void *>(operations.data()), nullptr) != QDMI_SUCCESS) {
+          session,
+          static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_OPERATIONS),
+          size, static_cast<void *>(operations.data()),
+          nullptr) != QDMI_SUCCESS) {
     throw std::runtime_error("Failed to query operations");
   }
   return operations;
@@ -275,23 +280,110 @@ TEST_F(AWSQDMIJobSpecificationTest, JobGetResults) {
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
+TEST_F(AWSQDMIJobSpecificationTest, JobTaskArn) {
+  // Task ARN is AWS-specific; allow not-supported
+  size_t size = 0;
+  const auto status = AWS_QDMI_device_job_query_property(
+      job,
+      static_cast<QDMI_Device_Job_Property>(QDMI_DEVICE_JOB_PROPERTY_TASKARN),
+      0, nullptr, &size);
+  EXPECT_THAT(status, testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+  if (status == QDMI_SUCCESS && size > 0) {
+    std::string arn(size - 1, '\0');
+    EXPECT_THAT(AWS_QDMI_device_job_query_property(
+                    job,
+                    static_cast<QDMI_Device_Job_Property>(
+                        QDMI_DEVICE_JOB_PROPERTY_TASKARN),
+                    size,
+                    reinterpret_cast<void *>(const_cast<char *>(arn.data())),
+                    nullptr),
+                testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+  }
+}
+
 TEST_F(AWSQDMISpecificationTest, QueryDeviceProperty) {
   AWS_QDMI_Device_Session uninitializedSession = nullptr;
   ASSERT_EQ(AWS_QDMI_device_session_alloc(&uninitializedSession), QDMI_SUCCESS);
-  EXPECT_EQ(
-      AWS_QDMI_device_session_query_device_property(
-          uninitializedSession, QDMI_DEVICE_PROPERTY_NAME, 0, nullptr, nullptr),
-      QDMI_ERROR_BADSTATE);
   EXPECT_EQ(AWS_QDMI_device_session_query_device_property(
-                nullptr, QDMI_DEVICE_PROPERTY_NAME, 0, nullptr, nullptr),
+                uninitializedSession,
+                static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_NAME), 0,
+                nullptr, nullptr),
+            QDMI_ERROR_BADSTATE);
+  EXPECT_EQ(AWS_QDMI_device_session_query_device_property(
+                nullptr,
+                static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_NAME), 0,
+                nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
   EXPECT_EQ(AWS_QDMI_device_session_query_device_property(
-                session, QDMI_DEVICE_PROPERTY_MAX, 0, nullptr, nullptr),
+                session,
+                static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_MAX), 0,
+                nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
   EXPECT_THAT(
       AWS_QDMI_device_session_query_device_property(
-          session, QDMI_DEVICE_PROPERTY_COUPLINGMAP, 0, nullptr, nullptr),
+          session,
+          static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_COUPLINGMAP),
+          0, nullptr, nullptr),
       testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+}
+
+TEST_F(AWSQDMISpecificationTest, AwsSpecificDeviceProperties) {
+  size_t size = 0;
+  // Provider
+  EXPECT_THAT(
+      AWS_QDMI_device_session_query_device_property(
+          session,
+          static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_PROVIDER), 0,
+          nullptr, &size),
+      testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+  if (size > 0) {
+    std::string provider(size - 1, '\0');
+    EXPECT_THAT(
+        AWS_QDMI_device_session_query_device_property(
+            session,
+            static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_PROVIDER),
+            size, reinterpret_cast<void *>(const_cast<char *>(provider.data())),
+            nullptr),
+        testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+  }
+
+  // Device ARN
+  size = 0;
+  EXPECT_THAT(
+      AWS_QDMI_device_session_query_device_property(
+          session,
+          static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICEARN), 0,
+          nullptr, &size),
+      testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+  if (size > 0) {
+    std::string arn(size - 1, '\0');
+    EXPECT_THAT(
+        AWS_QDMI_device_session_query_device_property(
+            session,
+            static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICEARN),
+            size, reinterpret_cast<void *>(const_cast<char *>(arn.data())),
+            nullptr),
+        testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+  }
+
+  // Device type
+  size = 0;
+  EXPECT_THAT(
+      AWS_QDMI_device_session_query_device_property(
+          session,
+          static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICETYPE), 0,
+          nullptr, &size),
+      testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+  if (size > 0) {
+    std::string dtype(size - 1, '\0');
+    EXPECT_THAT(
+        AWS_QDMI_device_session_query_device_property(
+            session,
+            static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICETYPE),
+            size, reinterpret_cast<void *>(const_cast<char *>(dtype.data())),
+            nullptr),
+        testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+  }
 }
 
 TEST_F(AWSQDMISpecificationTest, QuerySiteProperty) {

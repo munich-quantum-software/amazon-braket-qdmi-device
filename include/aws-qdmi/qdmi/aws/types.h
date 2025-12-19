@@ -4,9 +4,6 @@
 
 #pragma once
 
-/* AWS-specific version for this implementation */
-#define AWS_QDMI_VERSION "0.1.0"
-
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -46,7 +46,7 @@ if(NOT TARGET ${TARGET_NAME})
   # Make QDMI version available
   target_compile_definitions(${TARGET_NAME}
                              PRIVATE QDMI_VERSION="${QDMI_VERSION}")
-  target_compile_definitions(${TARGET_NAME} PRIVATE AWS_QDMI_VERSION="1.0.0")
+  target_compile_definitions(${TARGET_NAME} PRIVATE AWS_QDMI_VERSION="0.1.0")
 
   # Generate additional alias for the target required for
   # generate_device_defs_executable function in the tests

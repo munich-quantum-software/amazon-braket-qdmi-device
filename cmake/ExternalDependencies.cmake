@@ -61,11 +61,19 @@ if(NOT AWSSDK_FOUND)
   set(BUILD_ONLY
       "core;s3;braket"
       CACHE STRING "" FORCE)
+  set(ENABLE_TESTING
+      OFF
+      CACHE BOOL "Disable building unit and integration tests" FORCE)
+  set(AUTORUN_UNIT_TESTS
+      OFF
+      CACHE BOOL "Disable automatically running unit tests after building"
+            FORCE)
 
   FetchContent_Declare(
     awssdk
     GIT_REPOSITORY https://github.com/aws/aws-sdk-cpp.git
     GIT_TAG ${AWSSDK_VERSION})
+
   # Downloads and builds the SDK in-tree if not found system-wide
   FetchContent_MakeAvailable(awssdk)
 endif()
