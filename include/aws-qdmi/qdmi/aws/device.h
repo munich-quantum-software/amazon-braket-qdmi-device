@@ -69,10 +69,6 @@ extern "C" {
 #define QDMI_DEVICE_PROPERTY_DEVICETYPE                                        \
   102 /* string: Device type ("QPU", "SIMULATOR") */
 
-/* AWS-specific program format */
-#define QDMI_PROGRAM_FORMAT_BRAKET_IR                                          \
-  100 /* Braket's native IR format (JSON-based) */
-
 /* AWS-specific session parameters - use 100+ to avoid conflicts */
 #define QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN                                \
   100 /* string: Device ARN (required, region extracted automatically) */
