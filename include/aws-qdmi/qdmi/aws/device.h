@@ -9,22 +9,23 @@ SPDX-License-Identifier: MIT
 
 /** @file
  * @brief AWS Braket implementation of the QDMI device interface.
- * 
- * This header provides an AWS Braket-specific implementation of the QDMI 
- * specification. It enables any QDMI-compliant quantum software to target 
+ *
+ * This header provides an AWS Braket-specific implementation of the QDMI
+ * specification. It enables any QDMI-compliant quantum software to target
  * AWS Braket devices by simply linking against this library.
- * 
- * KEY CONCEPTS: 
+ *
+ * KEY CONCEPTS:
  * - ARN: Amazon Resource Name - unique identifier for AWS resources
  * - Session: A connection to a quantum device or simulator
  * - Job: A quantum circuit/program submitted for execution (OpenQASM only)
  * - Site: A physical qubit in the processor
  * - Operation: A quantum gate that can be applied to qubits
- * 
+ *
  * TYPICAL WORKFLOW:
  * 1. Initialize: AWS_QDMI_device_initialize()
  * 2. Create session: AWS_QDMI_device_session_alloc()
- * 3. Configure session: AWS_QDMI_device_session_set_parameter() (device ARN, S3 bucket)
+ * 3. Configure session: AWS_QDMI_device_session_set_parameter() (device ARN, S3
+ * bucket)
  * 4. Initialize session: AWS_QDMI_device_session_init()
  * 5. Query device: AWS_QDMI_device_session_query_device_property()
  * 6. Create job: AWS_QDMI_device_session_create_device_job()
@@ -33,7 +34,7 @@ SPDX-License-Identifier: MIT
  * 9. Wait for completion: AWS_QDMI_device_job_wait()
  * 10. Get results: AWS_QDMI_device_job_get_results()
  * 11. Cleanup: AWS_QDMI_device_job_free(), AWS_QDMI_device_session_free()
- * 
+ *
  * QDMI Project: https://github.com/Munich-Quantum-Software-Stack/QDMI
  */
 
@@ -71,20 +72,26 @@ extern "C" {
 
 /* AWS-specific device properties (extensions beyond standard QDMI)
  * These use values 100+ to avoid conflicts with standard QDMI properties */
-#define QDMI_DEVICE_PROPERTY_PROVIDER 100   /* string: Hardware provider ("IonQ", "Rigetti", etc.) */
-#define QDMI_DEVICE_PROPERTY_DEVICEARN 101  /* string: AWS ARN of the device */
-#define QDMI_DEVICE_PROPERTY_DEVICETYPE 102 /* string: Device type ("QPU", "SIMULATOR") */
+#define QDMI_DEVICE_PROPERTY_PROVIDER                                          \
+  100 /* string: Hardware provider ("IonQ", "Rigetti", etc.) */
+#define QDMI_DEVICE_PROPERTY_DEVICEARN 101 /* string: AWS ARN of the device */
+#define QDMI_DEVICE_PROPERTY_DEVICETYPE                                        \
+  102 /* string: Device type ("QPU", "SIMULATOR") */
 
 /* AWS-specific program format */
-#define QDMI_PROGRAM_FORMAT_BRAKET_IR 100   /* Braket's native IR format (JSON-based) */
+#define QDMI_PROGRAM_FORMAT_BRAKET_IR                                          \
+  100 /* Braket's native IR format (JSON-based) */
 
 /* AWS-specific session parameters - use 100+ to avoid conflicts */
-#define QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN 100 /* string: Device ARN (required, region extracted automatically) */
-#define QDMI_DEVICE_SESSION_PARAMETER_S3BUCKET 101  /* string: S3 bucket for results (required for job submission) */
-#define QDMI_DEVICE_SESSION_PARAMETER_REGION 102    /* string: AWS region override (optional, auto-extracted from ARN) */
+#define QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN                                \
+  100 /* string: Device ARN (required, region extracted automatically) */
+#define QDMI_DEVICE_SESSION_PARAMETER_S3BUCKET                                 \
+  101 /* string: S3 bucket for results (required for job submission) */
+#define QDMI_DEVICE_SESSION_PARAMETER_REGION                                   \
+  102 /* string: AWS region override (optional, auto-extracted from ARN) */
 
 /* AWS-specific job property */
-#define QDMI_DEVICE_JOB_PROPERTY_TASKARN 100       /* string: AWS Braket task ARN */
+#define QDMI_DEVICE_JOB_PROPERTY_TASKARN 100 /* string: AWS Braket task ARN */
 
 /* ============================================================================
  * AWS QDMI Device Session Interface
@@ -93,14 +100,14 @@ extern "C" {
 
 /**
  * @brief A handle for a device session.
- * @details An opaque pointer to a type defined by the AWS Braket device 
+ * @details An opaque pointer to a type defined by the AWS Braket device
  * implementation that encapsulates all information about a session.
  */
 typedef struct AWS_QDMI_Device_Session_impl_d *AWS_QDMI_Device_Session;
 
 /**
  * @brief A handle for a device job.
- * @details An opaque pointer to a type defined by the AWS Braket device 
+ * @details An opaque pointer to a type defined by the AWS Braket device
  * implementation that encapsulates all information about a job.
  */
 typedef struct AWS_QDMI_Device_Job_impl_d *AWS_QDMI_Device_Job;
@@ -128,7 +135,7 @@ int AWS_QDMI_device_finalize(void);
  * @param session Pointer to store the allocated session.
  * @return QDMI_SUCCESS on success, error code otherwise.
  */
-int AWS_QDMI_device_session_alloc(AWS_QDMI_Device_Session* session);
+int AWS_QDMI_device_session_alloc(AWS_QDMI_Device_Session *session);
 
 /**
  * @brief Initialize a device session.
@@ -152,8 +159,8 @@ void AWS_QDMI_device_session_free(AWS_QDMI_Device_Session session);
  * @return QDMI_SUCCESS on success, error code otherwise.
  */
 int AWS_QDMI_device_session_set_parameter(AWS_QDMI_Device_Session session,
-                                           QDMI_Device_Session_Parameter param,
-                                           size_t size, const void* value);
+                                          QDMI_Device_Session_Parameter param,
+                                          size_t size, const void *value);
 
 /**
  * @brief Query a device property through a session.
@@ -166,7 +173,7 @@ int AWS_QDMI_device_session_set_parameter(AWS_QDMI_Device_Session session,
  */
 int AWS_QDMI_device_session_query_device_property(
     AWS_QDMI_Device_Session session, QDMI_Device_Property prop, size_t size,
-    void* value, size_t* sizeRet);
+    void *value, size_t *sizeRet);
 
 /**
  * @brief Create a device job within a session.
@@ -175,7 +182,7 @@ int AWS_QDMI_device_session_query_device_property(
  * @return QDMI_SUCCESS on success, error code otherwise.
  */
 int AWS_QDMI_device_session_create_device_job(AWS_QDMI_Device_Session session,
-                                               AWS_QDMI_Device_Job* job);
+                                              AWS_QDMI_Device_Job *job);
 
 /**
  * @brief Free a device job.
@@ -192,8 +199,8 @@ void AWS_QDMI_device_job_free(AWS_QDMI_Device_Job job);
  * @return QDMI_SUCCESS on success, error code otherwise.
  */
 int AWS_QDMI_device_job_set_parameter(AWS_QDMI_Device_Job job,
-                                       QDMI_Device_Job_Parameter param,
-                                       size_t size, const void* value);
+                                      QDMI_Device_Job_Parameter param,
+                                      size_t size, const void *value);
 
 /**
  * @brief Query a job property.
@@ -205,9 +212,9 @@ int AWS_QDMI_device_job_set_parameter(AWS_QDMI_Device_Job job,
  * @return QDMI_SUCCESS on success, error code otherwise.
  */
 int AWS_QDMI_device_job_query_property(AWS_QDMI_Device_Job job,
-                                        QDMI_Device_Job_Property prop,
-                                        size_t size, void* value,
-                                        size_t* sizeRet);
+                                       QDMI_Device_Job_Property prop,
+                                       size_t size, void *value,
+                                       size_t *sizeRet);
 
 /**
  * @brief Submit a job to the device.
@@ -229,8 +236,7 @@ int AWS_QDMI_device_job_cancel(AWS_QDMI_Device_Job job);
  * @param status Pointer to store the job status.
  * @return QDMI_SUCCESS on success, error code otherwise.
  */
-int AWS_QDMI_device_job_check(AWS_QDMI_Device_Job job,
-                               QDMI_Job_Status* status);
+int AWS_QDMI_device_job_check(AWS_QDMI_Device_Job job, QDMI_Job_Status *status);
 
 /**
  * @brief Wait for a job to complete.
@@ -250,8 +256,8 @@ int AWS_QDMI_device_job_wait(AWS_QDMI_Device_Job job, size_t timeout);
  * @return QDMI_SUCCESS on success, error code otherwise.
  */
 int AWS_QDMI_device_job_get_results(AWS_QDMI_Device_Job job,
-                                     QDMI_Job_Result result, size_t size,
-                                     void* data, size_t* sizeRet);
+                                    QDMI_Job_Result result, size_t size,
+                                    void *data, size_t *sizeRet);
 
 /**
  * @brief Query a site property.
@@ -263,9 +269,11 @@ int AWS_QDMI_device_job_get_results(AWS_QDMI_Device_Job job,
  * @param sizeRet Pointer to store the actual size (can be NULL).
  * @return QDMI_SUCCESS on success, error code otherwise.
  */
-int AWS_QDMI_device_session_query_site_property(
-    AWS_QDMI_Device_Session session, AWS_QDMI_Site site,
-    QDMI_Site_Property prop, size_t size, void* value, size_t* sizeRet);
+int AWS_QDMI_device_session_query_site_property(AWS_QDMI_Device_Session session,
+                                                AWS_QDMI_Site site,
+                                                QDMI_Site_Property prop,
+                                                size_t size, void *value,
+                                                size_t *sizeRet);
 
 /**
  * @brief Query an operation property.
@@ -283,9 +291,9 @@ int AWS_QDMI_device_session_query_site_property(
  */
 int AWS_QDMI_device_session_query_operation_property(
     AWS_QDMI_Device_Session session, AWS_QDMI_Operation operation,
-    size_t num_sites, const AWS_QDMI_Site* sites, size_t num_params,
-    const double* params, QDMI_Operation_Property prop, size_t size,
-    void* value, size_t* sizeRet);
+    size_t num_sites, const AWS_QDMI_Site *sites, size_t num_params,
+    const double *params, QDMI_Operation_Property prop, size_t size,
+    void *value, size_t *sizeRet);
 
 #ifdef __cplusplus
 }

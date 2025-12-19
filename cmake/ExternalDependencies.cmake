@@ -1,6 +1,5 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM
-# Copyright (c) 2025 Munich Quantum Software Company GmbH
-# All rights reserved.
+# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM Copyright (c) 2025
+# Munich Quantum Software Company GmbH All rights reserved.
 #
 # SPDX-License-Identifier: MIT
 #
@@ -11,7 +10,6 @@
 include(FetchContent)
 include(CMakeDependentOption)
 set(FETCH_PACKAGES "")
-
 
 if(BUILD_TESTS)
   set(gtest_force_shared_crt
@@ -24,8 +22,11 @@ if(BUILD_TESTS)
   set(GTEST_VERSION
       1.17.0
       CACHE STRING "Google Test version")
-  set(GTEST_URL https://github.com/google/googletest/archive/refs/tags/v${GTEST_VERSION}.tar.gz)
-  FetchContent_Declare(googletest URL ${GTEST_URL} FIND_PACKAGE_ARGS ${GTEST_VERSION} NAMES GTest)
+  set(GTEST_URL
+      https://github.com/google/googletest/archive/refs/tags/v${GTEST_VERSION}.tar.gz
+  )
+  FetchContent_Declare(googletest URL ${GTEST_URL} FIND_PACKAGE_ARGS
+                                      ${GTEST_VERSION} NAMES GTest)
   list(APPEND FETCH_PACKAGES googletest)
 endif()
 
@@ -53,13 +54,14 @@ find_package(AWSSDK COMPONENTS braket s3 core)
 if(NOT AWSSDK_FOUND)
   include(FetchContent)
 
-  set(AWSSDK_VERSION 1.11.714 CACHE STRING "AWS SDK version")
+  set(AWSSDK_VERSION
+      1.11.714
+      CACHE STRING "AWS SDK version")
 
   FetchContent_Declare(
-      awssdk
-      GIT_REPOSITORY https://github.com/aws/aws-sdk-cpp.git
-      GIT_TAG ${AWSSDK_VERSION}
-  )
+    awssdk
+    GIT_REPOSITORY https://github.com/aws/aws-sdk-cpp.git
+    GIT_TAG ${AWSSDK_VERSION})
 
   # Downloads and configures the SDK
   FetchContent_GetProperties(awssdk)
@@ -67,10 +69,7 @@ if(NOT AWSSDK_FOUND)
     FetchContent_Populate(awssdk)
 
     # Build the SDK as an external project
-    add_subdirectory(
-      ${awssdk_SOURCE_DIR} ${awssdk_BINARY_DIR}
-      EXCLUDE_FROM_ALL
-    )
+    add_subdirectory(${awssdk_SOURCE_DIR} ${awssdk_BINARY_DIR} EXCLUDE_FROM_ALL)
   endif()
 endif()
 
