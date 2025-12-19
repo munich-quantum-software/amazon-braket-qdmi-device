@@ -1440,8 +1440,8 @@ int AWS_QDMI_device_session_query_site_property(AWS_QDMI_Device_Session session,
   if (session == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
-  return session
-      ->querySiteProperty( // NOLINT(readability-static-accessed-through-instance)
+  return session // NOLINT(readability-static-accessed-through-instance)
+      ->querySiteProperty(
           site, prop, size, value, sizeRet);
 }
 
