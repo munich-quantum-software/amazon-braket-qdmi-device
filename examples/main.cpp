@@ -1,4 +1,4 @@
-#include "aws_qdmi/device.h"
+#include "aws-qdmi/qdmi/aws/device.h"
 #include <cstring>
 #include <iostream>
 #include <iomanip>
@@ -78,7 +78,8 @@ int main() {
     printSeparator("TEST 3: Session Configuration");
 
     // Test setting device ARN (required)
-    const char* deviceArn = "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
+    const char* envDeviceArn = std::getenv("AWS_DEVICE_ARN");
+    const char* deviceArn = envDeviceArn ? envDeviceArn : "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
     std::cout << "\n  Setting DEVICEARN parameter:\n";
     printQDMI("AWS_QDMI_device_session_set_parameter(session, DEVICEARN, ...)", 
               "(stored for BraketClient::GetDevice)");
@@ -91,7 +92,8 @@ int main() {
     allPassed &= (ret == QDMI_SUCCESS);
 
     // Test setting S3 bucket (required for job submission / result retrieval)
-    const char* s3Bucket = "amazon-braket-my-first-bucket";
+    const char* envS3Bucket = std::getenv("AWS_S3_BUCKET");
+    const char* s3Bucket = envS3Bucket ? envS3Bucket : "amazon-braket-my-first-bucket";
     std::cout << "\n  Setting S3BUCKET parameter:\n";
     printQDMI("AWS_QDMI_device_session_set_parameter(session, S3BUCKET, ...)",
               "(stored for CreateQuantumTask::SetOutputS3Bucket)");
@@ -104,7 +106,8 @@ int main() {
     allPassed &= (ret == QDMI_SUCCESS);
 
     // Test setting region (optional - should work)
-    const char* region = "us-east-1";
+    const char* envRegion = std::getenv("AWS_DEFAULT_REGION");
+    const char* region = envRegion ? envRegion : "us-east-1";
     std::cout << "\n  Setting REGION parameter (optional):\n";
     printQDMI("AWS_QDMI_device_session_set_parameter(session, REGION, ...)",
               "(stored for ClientConfiguration::region)");

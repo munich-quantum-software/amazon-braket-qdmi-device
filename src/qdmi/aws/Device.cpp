@@ -50,7 +50,7 @@
  * 
  */
 
-#include "aws_qdmi_device_impl.hpp"
+#include "aws-qdmi/qdmi/aws/Device.hpp"
 
 #include <aws/braket/BraketClient.h>
 #include <aws/braket/model/CancelQuantumTaskRequest.h>

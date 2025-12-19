@@ -38,7 +38,7 @@
 
 #pragma once
 
-#include "aws_qdmi/device.h"
+#include "device.h"
 
 #include <aws/braket/BraketClient.h>
 

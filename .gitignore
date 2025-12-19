@@ -45,3 +45,6 @@ build
 
 # IDE files
 .vscode/
+
+# cache files
+.cache
