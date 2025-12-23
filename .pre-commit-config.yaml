@@ -74,6 +74,7 @@ repos:
     rev: v1.40.0
     hooks:
       - id: typos
+        exclude: (^|/)\.clang-tidy$
 
   # Catch common capitalization mistakes
   - repo: local
