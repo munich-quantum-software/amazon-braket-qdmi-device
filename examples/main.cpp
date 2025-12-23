@@ -577,7 +577,7 @@ int main() {
                         << values[i] << " shots";
               // Add bar chart
               std::cout << "  ";
-              int const barLen = static_cast<int>(values[i] * 10 / shots);
+              int const barLen = (shots > 0) ? static_cast<int>(values[i] * 10 / shots) : 0;
               for (int b = 0; b < barLen; ++b) {
                 std::cout << "█";
               }
