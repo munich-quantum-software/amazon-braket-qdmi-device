@@ -66,14 +66,14 @@ Additionally, set the default region and device ARN to use the example and tests
 ```bash
 export AWS_DEFAULT_REGION="us-east-1"
 export AWS_DEVICE_ARN="arn:aws:braket:::device/quantum-simulator/amazon/sv1"
-export AWS_S3_BUCKET="amazon-braket-your-bucket-name"   
+export AWS_S3_BUCKET="amazon-braket-your-bucket-name"
 ```
 
 ### Build & Install
 
 A minimal set of steps to build and run the example (portable across systems):
 
-1) Configure (create the `build/` directory and generate build files):
+1. Configure (create the `build/` directory and generate build files):
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
@@ -81,14 +81,14 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 
 You can choose `Release` instead of `Debug` for optimized builds.
 
-2) Build (use an appropriate parallelism level for your platform):
+2. Build (use an appropriate parallelism level for your platform):
 
 ```bash
 cmake --build build -- -j$(nproc)
 # On macOS, you can use: cmake --build build -- -j$(sysctl -n hw.ncpu)
 ```
 
-3) Install (optional — installs to the specified prefix):
+3. Install (optional — installs to the specified prefix):
 
 ```bash
 cmake --install build --prefix /usr/local
@@ -96,7 +96,7 @@ cmake --install build --prefix /usr/local
 # cmake --install build --prefix $HOME/.local
 ```
 
-4) Run the example:
+4. Run the example:
 
 ```bash
 ./build/examples/aws_qdmi_example
@@ -105,9 +105,9 @@ cmake --install build --prefix /usr/local
 Hint: export your AWS credentials before running the example (as described above).
 
 Notes
+
 - If you have a system-installed AWS SDK, you can point CMake to it with `-DCMAKE_PREFIX_PATH=/path/to/aws-sdk-cpp` or set `AWSSDK_DIR`/`AWSSDK_ROOT` appropriately.
 - The project will fetch/build the AWS SDK and QDMI dependency automatically if not found system-wide (see `cmake/ExternalDependencies.cmake`).
-
 
 ### CMake Options
 
@@ -170,7 +170,7 @@ int main() {
         OPENQASM 3.0;
         qubit[2] q;
         h q[0];
-        cnot q[0], q[1];
+        cx q[0], q[1];
         bit[2] c = measure q;
     )";
     AWS_QDMI_device_job_set_parameter(

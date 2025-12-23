@@ -52,8 +52,6 @@ find_package(AWSSDK COMPONENTS braket s3 core)
 
 # If not found, fetch from GitHub
 if(NOT AWSSDK_FOUND)
-  include(FetchContent)
-
   set(AWSSDK_VERSION
       1.11.714
       CACHE STRING "AWS SDK version")

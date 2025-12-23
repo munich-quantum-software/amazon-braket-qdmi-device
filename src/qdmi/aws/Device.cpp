@@ -531,7 +531,7 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
       op->name_ = gateName;
 
       // Heuristic for qubit count based on name
-      if (gateName == "cnot" || gateName == "cz" || gateName == "swap" ||
+      if (gateName == "cx" || gateName == "cz" || gateName == "swap" ||
           gateName == "xx" || gateName == "yy" || gateName == "zz" ||
           gateName == "xy" || gateName == "cp" || gateName == "iswap" ||
           gateName == "pswap" || gateName == "ecr" || gateName == "cy" ||

@@ -55,7 +55,6 @@ jobs:
       runs-on: ${{ matrix.runs-on }}
       compiler: ${{ matrix.compiler }}
       config: ${{ matrix.config }}
-      cmake-args: -DMQT_CORE_WITH_GMP=ON
 
   cpp-tests-windows:
     name: 🇨‌ Test 🏁

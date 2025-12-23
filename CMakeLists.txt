@@ -21,6 +21,8 @@ include(cmake/ExternalDependencies.cmake)
 # set the include directory for the build tree
 set(INCLUDE_BUILD_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
+include(GNUInstallDirs)
+
 if(INSTALL)
   if(APPLE)
     set(BASEPOINT @loader_path)

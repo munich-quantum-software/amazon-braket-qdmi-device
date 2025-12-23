@@ -82,7 +82,7 @@ repos:
       - id: disallow-caps
         name: Disallow improper capitalization
         language: pygrep
-        entry: Cmake|CCache|Github|Mqt|Tum|MQTopt|MQTref
+        entry: Cmake|CCache|Github|Tum
         exclude: .pre-commit-config.yaml
 
   # Check JSON schemata

@@ -189,7 +189,7 @@ protected:
     }
 
     // set program/format/shots
-    const char* program = "OPENQASM 3.0;\nqubit[2] q;\nh q[0];\ncnot q[0], "
+    const char* program = "OPENQASM 3.0;\nqubit[2] q;\nh q[0];\ncx q[0], "
                           "q[1];\nbit[2] c;\nc = measure q;\n";
     AWS_QDMI_device_job_set_parameter(shared_job,
                                       QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
@@ -395,7 +395,7 @@ TEST_F(AWSQDMIJobSpecificationTest, JobSetParameterProgram) {
   const char* program = "OPENQASM 3.0;\n"
                         "qubit[2] q;\n"
                         "h q[0];\n"
-                        "cnot q[0], q[1];\n"
+                        "cx q[0], q[1];\n"
                         "bit[2] c;\n"
                         "c = measure q;\n";
   EXPECT_THAT(

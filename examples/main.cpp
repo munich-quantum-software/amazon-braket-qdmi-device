@@ -321,7 +321,7 @@ int main() {
     const char* program = "OPENQASM 3.0;\n"
                           "qubit[2] q;\n"
                           "h q[0];\n"
-                          "cnot q[0], q[1];\n"
+                          "cx q[0], q[1];\n"
                           "bit[2] c;\n"
                           "c = measure q;\n";
 
