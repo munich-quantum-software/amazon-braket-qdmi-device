@@ -57,33 +57,57 @@ You can provide AWS credentials using environment variables (recommended for qui
 ```bash
 export AWS_ACCESS_KEY_ID="your_access_key_id"
 export AWS_SECRET_ACCESS_KEY="your_secret_access_key"
-# Optional: temporary session token
+# Optional: temporary session token if applicable
 export AWS_SESSION_TOKEN="your_session_token"
-# Default region used by the SDK if not provided via session/device ARN
-export AWS_REGION="us-east-1"
 ```
 
-### Building
+Additionally, set the default region and device ARN to use the example and tests, i.e., for the SV1 simulator:
 
 ```bash
-# Clone the repository
-git clone https://github.com/munich-quantum-software/aws-qdmi.git
-cd aws-qdmi
-
-# Create build directory
-mkdir build && cd build
-
-# Configure (adjust paths as needed)
-cmake .. \
-  -DQDMI_DIR=/path/to/QDMI \
-  -DCMAKE_PREFIX_PATH=/path/to/aws-sdk-cpp/install
-
-# Build
-make -j$(nproc)
-
-# Run example
-./aws_qdmi_example
+export AWS_DEFAULT_REGION="us-east-1"
+export AWS_DEVICE_ARN="arn:aws:braket:::device/quantum-simulator/amazon/sv1"
+export AWS_S3_BUCKET="amazon-braket-your-bucket-name"   
 ```
+
+### Build & Install
+
+A minimal set of steps to build and run the example (portable across systems):
+
+1) Configure (create the `build/` directory and generate build files):
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+```
+
+You can choose `Release` instead of `Debug` for optimized builds.
+
+2) Build (use an appropriate parallelism level for your platform):
+
+```bash
+cmake --build build -- -j$(nproc)
+# On macOS, you can use: cmake --build build -- -j$(sysctl -n hw.ncpu)
+```
+
+3) Install (optional — installs to the specified prefix):
+
+```bash
+cmake --install build --prefix /usr/local
+# or a user-local prefix:
+# cmake --install build --prefix $HOME/.local
+```
+
+4) Run the example:
+
+```bash
+./build/examples/aws_qdmi_example
+```
+
+Hint: export your AWS credentials before running the example (as described above).
+
+Notes
+- If you have a system-installed AWS SDK, you can point CMake to it with `-DCMAKE_PREFIX_PATH=/path/to/aws-sdk-cpp` or set `AWSSDK_DIR`/`AWSSDK_ROOT` appropriately.
+- The project will fetch/build the AWS SDK and QDMI dependency automatically if not found system-wide (see `cmake/ExternalDependencies.cmake`).
+
 
 ### CMake Options
 
@@ -99,7 +123,7 @@ make -j$(nproc)
 ### Basic Example
 
 ```cpp
-#include <aws_qdmi/device.h>
+#include "aws-qdmi/qdmi/aws/device.h"
 #include <cstring>
 #include <iostream>
 
@@ -237,7 +261,8 @@ int main() {
 
 ```bash
 # Set environment variables for testing
-export AWS_REGION=us-east-1
+# Required: AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and optionally AWS_SESSION_TOKEN) or configured ~/.aws/credentials
+export AWS_DEFAULT_REGION=us-east-1
 export AWS_DEVICE_ARN=arn:aws:braket:::device/quantum-simulator/amazon/sv1
 export AWS_S3_BUCKET=my-braket-results-bucket
 
@@ -253,15 +278,16 @@ aws-qdmi/
 ├── CMakeLists.txt                  # Build configuration
 ├── README.md                       # This file
 ├── include/
-│   ├── aws_qdmi/
-│   │   └── device.h                # Public API header (QDMI implementation)
-│   └── aws_qdmi_device_impl.hpp    # Internal implementation header
+│   └── aws-qdmi/qdmi/aws/
+│       ├── device.h                # Public API header (QDMI implementation)
+│       └── Device.hpp              # Additional public/internal headers
 ├── src/
-│   └── aws_qdmi_device_impl.cpp    # Implementation (QDMI↔AWS Braket)
+│   └── qdmi/aws/
+│       └── Device.cpp              # Implementation (QDMI↔AWS Braket)
 ├── examples/
-│   └── main.cpp                    # Verbose example showing all mappings
+│   └── main.cpp                    # Verbose example showing workflow
 └── test/
-    └── test_aws_qdmi_device_integration.cpp  # Integration tests
+    └── test_device.cpp            # Integration and spec tests
 ```
 
 ## Architecture
