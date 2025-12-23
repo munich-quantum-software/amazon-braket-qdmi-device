@@ -287,9 +287,6 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
     return QDMI_ERROR_FATAL;
   }
 
-  auto readableJson = json.View().WriteReadable();
-  std::cout << readableJson << "\n";
-
   auto view = json.View();
   if (!view.ValueExists("paradigm")) {
     return QDMI_ERROR_FATAL;
@@ -867,7 +864,9 @@ auto AWS_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
   // 5. Call BraketClient::CreateQuantumTask()
   // ============================================================================
 
-  if (program_.empty() || session_->getDeviceArn().empty()) {
+  if (program_.empty()) {
+    return QDMI_ERROR_INVALIDARGUMENT;
+  } else if (session_->getDeviceArn().empty()) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
