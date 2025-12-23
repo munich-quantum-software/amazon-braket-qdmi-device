@@ -287,6 +287,9 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
     return QDMI_ERROR_FATAL;
   }
 
+  auto readableJson = json.View().WriteReadable();
+  std::cout << readableJson << "\n";
+
   auto view = json.View();
   if (!view.ValueExists("paradigm")) {
     return QDMI_ERROR_FATAL;
@@ -446,34 +449,56 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
 
   // 2. Parse Connectivity
   connectivity_.clear();
-  auto connectivityObj = paradigm.GetObject("connectivity");
-  if (connectivityObj.GetBool("fullyConnected")) {
+
+  // Lambda to fill full connectivity
+  auto fillFullConnectivity = [&]() {
     for (size_t i = 0; i < qubitsNum_; ++i) {
       for (size_t j = i + 1; j < qubitsNum_; ++j) {
         connectivity_.emplace_back(sites_ptr_[i], sites_ptr_[j]);
         connectivity_.emplace_back(sites_ptr_[j], sites_ptr_[i]);
       }
     }
-  } else {
-    auto graph = connectivityObj.GetObject("connectivityGraph");
-    auto map = graph.GetAllObjects();
-    for (const auto& [sourceStr, targets] : map) {
-      const size_t sourceIdx = std::stoi(sourceStr);
-      if (sourceIdx >= qubitsNum_) {
-        continue;
-      }
+  };
 
-      auto targetArray = targets.AsArray();
-      for (size_t k = 0; k < targetArray.GetLength(); ++k) {
-        const size_t targetIdx = std::stoi(targetArray[k].AsString());
-        if (targetIdx >= qubitsNum_) {
+  // 1. Check connectivity key
+  if (paradigm.ValueExists("connectivity")) {
+    const auto connectivityObj = paradigm.GetObject("connectivity");
+
+    if (connectivityObj.ValueExists("fullyConnected") &&
+        connectivityObj.GetBool("fullyConnected")) {
+      fillFullConnectivity();
+    } else if (connectivityObj.ValueExists("connectivityGraph")) {
+      const auto graph = connectivityObj.GetObject("connectivityGraph");
+      const auto map = graph.GetAllObjects();
+
+      for (const auto& [sourceStr, targets] : map) {
+        const size_t sourceIdx = static_cast<size_t>(std::stoi(sourceStr));
+        if (sourceIdx >= qubitsNum_)
           continue;
-        }
 
-        connectivity_.emplace_back(sites_ptr_[sourceIdx],
-                                   sites_ptr_[targetIdx]);
+        const auto targetArray = targets.AsArray();
+        for (size_t k = 0; k < targetArray.GetLength(); ++k) {
+          const size_t targetIdx =
+              static_cast<size_t>(std::stoi(targetArray[k].AsString()));
+          if (targetIdx >= qubitsNum_)
+            continue;
+
+          connectivity_.emplace_back(sites_ptr_[sourceIdx],
+                                     sites_ptr_[targetIdx]);
+        }
       }
     }
+  } else if (paradigm.ValueExists("braketSchemaHeader")) {
+    const auto header = paradigm.GetObject("braketSchemaHeader");
+    if (header.ValueExists("name")) {
+      const Aws::String name = header.GetString("name");
+      if (name.find("simulator") != Aws::String::npos) {
+        fillFullConnectivity();
+      }
+    }
+  } else {
+    std::cerr
+        << "No connectivity info or braketSchemaHeader found in paradigm\n";
   }
 
   // 3. Parse Native Gate Set and Properties
