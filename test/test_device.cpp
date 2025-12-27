@@ -14,13 +14,6 @@
 
 namespace {
 /// Hash function for a pair
-struct PairHash {
-  template <class T, class U>
-  auto operator()(const std::pair<T, U>& p) const noexcept -> std::size_t {
-    // Use the hash of the first and second element of the pair
-    return std::hash<T>{}(p.first) ^ std::hash<U>{}(p.second);
-  }
-};
 [[nodiscard]] auto querySites(AWS_QDMI_Device_Session session)
     -> std::vector<AWS_QDMI_Site> {
   size_t size = 0;
@@ -356,6 +349,7 @@ TEST_F(AWSQDMISpecificationTest, SessionSetParameter) {
   EXPECT_EQ(AWS_QDMI_device_session_set_parameter(
                 session, QDMI_DEVICE_SESSION_PARAMETER_MAX, 0, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
+  AWS_QDMI_device_session_free(uninitializedSession);
 }
 
 TEST_F(AWSQDMISpecificationTest, JobCreate) {
@@ -372,6 +366,7 @@ TEST_F(AWSQDMISpecificationTest, JobCreate) {
   EXPECT_THAT(AWS_QDMI_device_session_create_device_job(session, &job),
               testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
   AWS_QDMI_device_job_free(job);
+  AWS_QDMI_device_session_free(uninitializedSession);
 }
 
 TEST_F(AWSQDMISpecificationTest, JobSetParameter) {
@@ -562,6 +557,7 @@ TEST_F(AWSQDMISpecificationTest, QueryDeviceProperty) {
           static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_COUPLINGMAP),
           0, nullptr, nullptr),
       testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+  AWS_QDMI_device_session_free(uninitializedSession);
 }
 
 TEST_F(AWSQDMISpecificationTest, AwsSpecificDeviceProperties) {
@@ -771,14 +767,7 @@ TEST_F(AWSQDMISpecificationTest, QueryDeviceStatus) {
   }
 }
 
-class AWSDeviceTest : public AWSQDMISpecificationTest {
-protected:
-  void SetUp() override { AWSQDMISpecificationTest::SetUp(); }
-
-  void TearDown() override { AWSQDMISpecificationTest::TearDown(); }
-};
-
-TEST_F(AWSDeviceTest, QuerySiteData) {
+TEST_F(AWSQDMISpecificationTest, QuerySiteData) {
   std::vector<AWS_QDMI_Site> sites;
   EXPECT_NO_THROW(sites = querySites(session))
       << "Devices must provide a sites";
@@ -798,7 +787,7 @@ TEST_F(AWSDeviceTest, QuerySiteData) {
   }
 }
 
-TEST_F(AWSDeviceTest, QueryOperationData) {
+TEST_F(AWSQDMISpecificationTest, QueryOperationData) {
   std::vector<AWS_QDMI_Operation> operations;
   EXPECT_NO_THROW(operations = queryOperations(session));
   for (auto* operation : operations) {

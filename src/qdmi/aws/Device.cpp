@@ -470,16 +470,20 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
 
       for (const auto& [sourceStr, targets] : map) {
         const size_t sourceIdx = static_cast<size_t>(std::stoi(sourceStr));
-        if (sourceIdx >= qubitsNum_)
+        if (sourceIdx >= qubitsNum_) {
+          std::cerr << "Warning: Invalid source qubit index " << sourceIdx
+                    << " in connectivity graph\n";
           continue;
-
+        }
         const auto targetArray = targets.AsArray();
         for (size_t k = 0; k < targetArray.GetLength(); ++k) {
           const size_t targetIdx =
               static_cast<size_t>(std::stoi(targetArray[k].AsString()));
-          if (targetIdx >= qubitsNum_)
+          if (targetIdx >= qubitsNum_) {
+            std::cerr << "Warning: Invalid target qubit index " << targetIdx
+                      << " in connectivity graph\n";
             continue;
-
+          }
           connectivity_.emplace_back(sites_ptr_[sourceIdx],
                                      sites_ptr_[targetIdx]);
         }
