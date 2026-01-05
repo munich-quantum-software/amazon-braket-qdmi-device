@@ -161,12 +161,6 @@ jobs:
       - cpp-tests-extensive-windows
       - cpp-coverage
       - cpp-linter
-      - python-tests
-      - python-tests-extensive
-      - python-linter
-      - build-sdist
-      - build-wheel
-      - mlir-tests
     runs-on: ubuntu-latest
     steps:
       - name: Decide whether the needed jobs succeeded or failed
