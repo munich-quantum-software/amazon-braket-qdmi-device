@@ -24,7 +24,7 @@ jobs:
           - runs-on: ubuntu-24.04
             compiler: gcc
             config: Debug
-    uses: ./.github/workflows/ci/cpp-tests-ubuntu.yml
+    uses: ./.github/workflows/cpp-tests-ubuntu.yml
     with:
       runs-on: ${{ matrix.runs-on }}
       compiler: ${{ matrix.compiler }}
@@ -46,7 +46,7 @@ jobs:
           - runs-on: macos-14
             compiler: clang
             config: Debug
-    uses: ./.github/workflows/ci/cpp-tests-macos.yml
+    uses: ./.github/workflows/cpp-tests-macos.yml
     with:
       runs-on: ${{ matrix.runs-on }}
       compiler: ${{ matrix.compiler }}
@@ -68,7 +68,7 @@ jobs:
           - runs-on: windows-2022
             compiler: msvc
             config: Debug
-    uses: ./.github/workflows/ci/cpp-tests-windows.yml
+    uses: ./.github/workflows/cpp-tests-windows.yml
     with:
       runs-on: ${{ matrix.runs-on }}
       compiler: ${{ matrix.compiler }}
