@@ -1,0 +1,86 @@
+name: 🇨 • Tests • windows
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: >
+          The Windows runner image to use. Defaults to 'windows-latest'.
+          This can be any valid Windows runner image, such as 'windows-2022' or 'windows-2025'.
+        default: "windows-latest"
+        type: string
+      config:
+        description: >
+          The build type to use. Defaults to 'Release'.
+          This can be any valid CMake build type, such as 'Debug' or 'Release'.
+        default: "Release"
+        type: string
+      compiler:
+        description: >
+          The compiler to use. Defaults to 'msvc'.
+          This can be 'msvc' or 'clang'.
+          If 'clang' is selected, '-T ClangCL' is automatically added to the CMake arguments.
+        default: "msvc"
+        type: string
+      cmake-args:
+        description: >
+          Additional arguments to pass to CMake. Defaults to an empty string.
+          This can be any valid CMake argument, such as '-DBUILD_SHARED_LIBS=ON'.
+        default: ""
+        type: string
+    secrets:
+      AWS_S3_BUCKET:
+        required: false
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  cpp-tests-windows:
+    name: 🏁 ${{ inputs.runs-on }} ${{ inputs.compiler }} ${{ inputs.config }}
+    runs-on: ${{ inputs.runs-on }}
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
+      CTEST_PARALLEL_LEVEL: 4
+      FORCE_COLOR: 3
+    steps:
+      # check out the repository (including submodules and all history)
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      # configure CMake in the specified mode, optionally with additional arguments
+      - name: Configure CMake
+        env:
+          CONFIG: ${{ inputs.config }}
+          CMAKE_ARGS: ${{ inputs.cmake-args }}
+          COMPILER: ${{ inputs.compiler }}
+        run: |
+          cmake_args=$CMAKE_ARGS
+          if [ "$COMPILER" == "clang" ]; then
+            cmake_args="$cmake_args -T ClangCL"
+          fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=$CONFIG $cmake_args
+      # build the project in the specified mode with retries
+      - name: Build
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2 # Windows builds with MSVC are flaky and frequently run out of heap space
+        env:
+          CONFIG: ${{ inputs.config }}
+        with:
+          timeout_minutes: 15
+          max_attempts: 5
+          shell: bash
+          retry_on: error
+          command: cmake --build build --config $CONFIG
+      # run the tests
+      - name: Test
+        env:
+          CONFIG: ${{ inputs.config }}
+          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: ctest -C $CONFIG --output-on-failure --test-dir build --repeat until-pass:3 --timeout 600

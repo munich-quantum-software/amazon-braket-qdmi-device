@@ -1,0 +1,116 @@
+name: 🇨 • Tests • ubuntu
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: >
+          The ubuntu runner image to use. Defaults to 'ubuntu-latest'.
+          This can be any valid ubuntu runner image, such as 'ubuntu-22.04', 'ubuntu-24.04', or their ARM variants 'ubuntu-22.04-arm', 'ubuntu-24.04-arm'.
+        default: "ubuntu-latest"
+        type: string
+      config:
+        description: >
+          The build type to use. Defaults to 'Release'.
+          This can be any valid CMake build type, such as 'Debug' or 'Release'.
+        default: "Release"
+        type: string
+      compiler:
+        description: >
+          The compiler to use. Defaults to 'gcc'.
+          This can be 'gcc', 'clang', or 'clang-XX'.
+          If 'gcc' is selected, this will use the default GCC compiler.
+          If 'clang' is selected, the default Clang compiler will be used.
+          A specific version of Clang, including MLIR, can be requested via 'clang-XX', where XX is the version number (e.g., 'clang-20').
+        default: "gcc"
+        type: string
+      cmake-args:
+        description: >
+          Additional arguments to pass to CMake. Defaults to an empty string.
+          This can be any valid CMake argument, such as '-DBUILD_SHARED_LIBS=ON'.
+        default: ""
+        type: string
+    secrets:
+      AWS_S3_BUCKET:
+        required: false
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+
+jobs:
+  cpp-tests-ubuntu:
+    name: 🐧 ${{ inputs.runs-on }} ${{ inputs.compiler }} ${{ inputs.config }}
+    runs-on: ${{ inputs.runs-on }}
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
+      CTEST_PARALLEL_LEVEL: 4
+      FORCE_COLOR: 3
+    steps:
+      # check out the repository (including submodules and all history)
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      # set up mold as linker for faster C++ builds
+      - name: Set up mold as linker
+        uses: rui314/setup-mold@725a8794d15fc7563f59595bd9556495c0564878 # v1
+      # make sure ninja is installed
+      - name: Install Ninja
+        run: pipx install ninja
+      # set up default system Clang
+      - if: ${{ inputs.compiler == 'clang' }}
+        name: Set up default system Clang
+        run: |
+          echo "CC=clang" >> $GITHUB_ENV
+          echo "CXX=clang++" >> $GITHUB_ENV
+      # set up Clang with a specific version (including MLIR)
+      - if: ${{ startsWith(inputs.compiler, 'clang-') }}
+        name: Set up Clang
+        env:
+          COMPILER: ${{ inputs.compiler }}
+          TEMP_DIR: ${{ runner.temp }}
+        run: |
+          # Extract version from compiler input in the form 'clang-<version>'
+          if [[ "$COMPILER" =~ ^clang-([0-9]+(\.[0-9]+)?)$ ]]; then
+            version="${BASH_REMATCH[1]}"
+          else
+            echo "Error: Compiler input '$COMPILER' is not in the expected format 'clang-<version>' (numeric version only)."
+            exit 1
+          fi
+          sudo apt-get update
+          wget https://apt.llvm.org/llvm.sh -O "$TEMP_DIR/llvm_install.sh"
+          chmod +x "$TEMP_DIR/llvm_install.sh"
+          if sudo "$TEMP_DIR/llvm_install.sh" "$version"; then
+            sudo apt-get install -y libmlir-$version-dev \
+                                    mlir-$version-tools \
+                                    clang-$version \
+                                    clang-tools-$version \
+             || exit 1
+          else
+            echo "Installation from script failed."
+            exit 1
+          fi
+          # Safe environment variable assignment (version is safe due to above check)
+          echo "CC=clang-$version" >> $GITHUB_ENV
+          echo "CXX=clang++-$version" >> $GITHUB_ENV
+          echo "MLIR_DIR=/usr/lib/llvm-$version/lib/cmake/mlir" >> $GITHUB_ENV
+          echo "LLVM_DIR=/usr/lib/llvm-$version/lib/cmake/llvm" >> $GITHUB_ENV
+      # configure CMake in the specified mode, optionally with additional arguments
+      - name: Configure CMake
+        env:
+          CONFIG: ${{ inputs.config }}
+          CMAKE_ARGS: ${{ inputs.cmake-args }}
+        run: cmake -G Ninja -S . -B build -DCMAKE_BUILD_TYPE=$CONFIG $CMAKE_ARGS
+      # build the project in the specified mode
+      - name: Build
+        env:
+          CONFIG: ${{ inputs.config }}
+        run: cmake --build build --config $CONFIG
+      # run the tests
+      - name: Test
+        env:
+          CONFIG: ${{ inputs.config }}
+          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: ctest -C $CONFIG --output-on-failure --test-dir build --repeat until-pass:3 --timeout 600

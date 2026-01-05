@@ -1,0 +1,115 @@
+name: 🇨 • Tests • macos
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: >
+          The macOS runner image to use. Defaults to 'macos-latest'.
+          This can be any valid macOS runner image, such as 'macos-13', 'macos-14', or 'macos-15'.
+        default: "macos-latest"
+        type: string
+      config:
+        description: >
+          The build type to use. Defaults to 'Release'.
+          This can be any valid CMake build type, such as 'Debug' or 'Release'.
+        default: "Release"
+        type: string
+      compiler:
+        description: >
+          The compiler to use. Defaults to 'clang'.
+          This can be 'clang', `clang-XX`, or 'gcc-XX'.
+          If 'clang' is selected, the default Apple Clang compiler is used.
+          If 'gcc-XX' is selected, this will use `gcc-XX` from Homebrew, where XX is the version number (e.g., 'gcc-14').
+          A specific version of Clang, including MLIR, can be requested via 'clang-XX', where XX is the version number (e.g., 'clang-20').
+        default: "clang"
+        type: string
+      cmake-args:
+        description: >
+          Additional arguments to pass to CMake. Defaults to an empty string.
+          This can be any valid CMake argument, such as '-DBUILD_SHARED_LIBS=ON'.
+        default: ""
+        type: string
+    secrets:
+      AWS_S3_BUCKET:
+        required: false
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+
+jobs:
+  cpp-tests-macos:
+    name: 🍎 ${{ inputs.runs-on }} ${{ inputs.compiler }} ${{ inputs.config }}
+    runs-on: ${{ inputs.runs-on }}
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
+      CTEST_PARALLEL_LEVEL: 4
+      FORCE_COLOR: 3
+    steps:
+      # check out the repository (including submodules and all history)
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      # make sure ninja is installed
+      - name: Install Ninja
+        run: brew install ninja
+      # set up gcc if specified
+      - if: ${{ startsWith(inputs.compiler, 'gcc-') }}
+        name: Set up GCC
+        env:
+          COMPILER: ${{ inputs.compiler }}
+        run: |
+          COMPILER=$(echo "$COMPILER" | sed 's/[^a-zA-Z0-9-]//g' | tr -d '\n')
+          if [[ "$COMPILER" =~ ^gcc-[0-9]+$ ]]; then
+            version=$(echo "$COMPILER" | sed 's/gcc-//')
+            brew install gcc@$version
+            echo "CC=gcc-$version" >> $GITHUB_ENV
+            echo "CXX=g++-$version" >> $GITHUB_ENV
+          else
+            echo "Invalid compiler specified: $COMPILER" >&2
+            exit 1
+          fi
+      # set up clang if specified
+      - if: ${{ startsWith(inputs.compiler, 'clang-') }}
+        name: Set up Clang
+        env:
+          COMPILER: ${{ inputs.compiler }}
+        run: |
+          COMPILER=$(echo "$COMPILER" | sed 's/[^a-zA-Z0-9-]//g' | tr -d '\n')
+          if [[ "$COMPILER" =~ ^clang-[0-9]+$ ]]; then
+            version=$(echo "$COMPILER" | sed 's/clang-//')
+            brew install llvm@$version
+            SDK_PATH=$(xcrun --sdk macosx --show-sdk-path)
+            echo "SDKROOT=$SDK_PATH" >> $GITHUB_ENV
+            LLVM_PREFIX=$(brew --prefix llvm@$version)
+            echo "CC=$LLVM_PREFIX/bin/clang" >> $GITHUB_ENV
+            echo "CXX=$LLVM_PREFIX/bin/clang++" >> $GITHUB_ENV
+            # Link against Homebrew Clang's libc++ and unwind library to resolve symbol conflicts
+            echo "LDFLAGS=$LDFLAGS -L$LLVM_PREFIX/lib/c++ -L$LLVM_PREFIX/lib/unwind -lunwind" >> $GITHUB_ENV
+            echo "LLVM_DIR=$LLVM_PREFIX/lib/cmake/llvm" >> $GITHUB_ENV
+            echo "MLIR_DIR=$LLVM_PREFIX/lib/cmake/mlir" >> $GITHUB_ENV
+            echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
+          else
+            echo "Invalid compiler specified: $COMPILER" >&2
+            exit 1
+          fi
+      # configure CMake in the specified mode, optionally with additional arguments
+      - name: Configure CMake
+        env:
+          CONFIG: ${{ inputs.config }}
+          CMAKE_ARGS: ${{ inputs.cmake-args }}
+        run: cmake -G Ninja -S . -B build -DCMAKE_BUILD_TYPE=$CONFIG $CMAKE_ARGS
+      # build the project in the specified mode
+      - name: Build
+        env:
+          CONFIG: ${{ inputs.config }}
+        run: cmake --build build --config $CONFIG
+      # run the tests
+      - name: Test
+        env:
+          CONFIG: ${{ inputs.config }}
+          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: ctest -C $CONFIG --output-on-failure --test-dir build --repeat until-pass:3 --timeout 600
