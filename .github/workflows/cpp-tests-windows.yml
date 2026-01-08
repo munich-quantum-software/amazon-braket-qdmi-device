@@ -53,6 +53,11 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
+      # install curl via vcpkg
+      - name:  Install curl (AWS SDK C++ dependency)
+        run: |
+          vcpkg install curl: x64-windows
+          echo "CMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
       # configure CMake in the specified mode, optionally with additional arguments
       - name: Configure CMake
         env:
@@ -63,6 +68,9 @@ jobs:
           cmake_args=$CMAKE_ARGS
           if [ "$COMPILER" == "clang" ]; then
             cmake_args="$cmake_args -T ClangCL"
+          fi
+          if [ -n "$CMAKE_TOOLCHAIN_FILE" ]; then
+            cmake_args="$cmake_args -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE"
           fi
           cmake -S . -B build -DCMAKE_BUILD_TYPE=$CONFIG $cmake_args
       # build the project in the specified mode with retries

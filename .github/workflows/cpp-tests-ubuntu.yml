@@ -57,6 +57,9 @@ jobs:
       # make sure ninja is installed
       - name: Install Ninja
         run: pipx install ninja
+      # install AWS SDK C++ dependencies
+      - name: Install AWS SDK dependencies
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev zlib1g-dev libssl-dev
       # set up default system Clang
       - if: ${{ inputs.compiler == 'clang' }}
         name: Set up default system Clang
