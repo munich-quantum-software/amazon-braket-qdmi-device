@@ -53,11 +53,11 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
-      # install curl via vcpkg
-      - name: Install curl (AWS SDK C++ dependency)
+      # install AWS SDK C++ dependency via vcpkg
+      - name: Install curl
         run: |
-          vcpkg install curl: x64-windows
-          echo "CMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
+          vcpkg install curl:x64-windows
+          echo "CMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" >> $GITHUB_ENV
       # configure CMake in the specified mode, optionally with additional arguments
       - name: Configure CMake
         env:
