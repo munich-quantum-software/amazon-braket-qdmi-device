@@ -44,8 +44,7 @@ FetchContent_Declare(
   qdmi
   GIT_REPOSITORY https://github.com/${QDMI_REPO_OWNER}/qdmi.git
   GIT_TAG ${QDMI_REV}
-  FIND_PACKAGE_ARGS ${QDMI_VERSION}
-  SYSTEM)
+  FIND_PACKAGE_ARGS ${QDMI_VERSION} SYSTEM)
 list(APPEND FETCH_PACKAGES qdmi)
 
 # Try to find system-installed AWS SDK first
