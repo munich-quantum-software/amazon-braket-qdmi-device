@@ -115,7 +115,7 @@ jobs:
           cmake -G Ninja -S . -B build \
             -DCMAKE_BUILD_TYPE=$CONFIG \
             -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
-            -DAWS_SDK_WARNINGS_AS_ERRORS=OFF \
+            -DAWS_SDK_WARNINGS_ARE_ERRORS=OFF \
             $CMAKE_ARGS
       # build the project in the specified mode
       - name: Build

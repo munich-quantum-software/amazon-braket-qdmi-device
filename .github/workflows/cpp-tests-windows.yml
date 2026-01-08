@@ -37,7 +37,7 @@ on:
 
 defaults:
   run:
-    shell: bash
+    shell: pwsh
 
 jobs:
   cpp-tests-windows:
@@ -57,7 +57,8 @@ jobs:
       - name: Install curl
         run: |
           vcpkg install curl:x64-windows
-          echo "CMAKE_TOOLCHAIN_FILE=$(cygpath -w $VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake)" >> $GITHUB_ENV
+          $toolchain = Join-Path $env:VCPKG_ROOT "scripts/buildsystems/vcpkg.cmake"
+          "CMAKE_TOOLCHAIN_FILE=$toolchain" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       # configure CMake in the specified mode, optionally with additional arguments
       - name: Configure CMake
         env:
@@ -65,11 +66,14 @@ jobs:
           CMAKE_ARGS: ${{ inputs.cmake-args }}
           COMPILER: ${{ inputs.compiler }}
         run: |
-          cmake_args=$CMAKE_ARGS
-          if [ "$COMPILER" == "clang" ]; then
-            cmake_args="$cmake_args -T ClangCL"
-          fi
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=$CONFIG -DCMAKE_TOOLCHAIN_FILE="$CMAKE_TOOLCHAIN_FILE" $cmake_args
+          $cmakeArgs = $env:CMAKE_ARGS
+          if ($env:COMPILER -eq "clang") {
+            $cmakeArgs = "$cmakeArgs -T ClangCL"
+          }
+          cmake -S . -B build `
+            -DCMAKE_BUILD_TYPE=$env:CONFIG `
+            "-DCMAKE_TOOLCHAIN_FILE=$env:CMAKE_TOOLCHAIN_FILE" `
+            $cmakeArgs
       # build the project in the specified mode with retries
       - name: Build
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2 # Windows builds with MSVC are flaky and frequently run out of heap space
