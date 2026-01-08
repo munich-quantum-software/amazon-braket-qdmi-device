@@ -82,7 +82,7 @@ repos:
       - id: disallow-caps
         name: Disallow improper capitalization
         language: pygrep
-        entry: Cmake|CCache|Github|Tum
+        entry: Cmake|CCache|Github
         exclude: .pre-commit-config.yaml
 
   # Check JSON schemata
@@ -92,21 +92,3 @@ repos:
       - id: check-dependabot
       - id: check-github-workflows
       - id: check-readthedocs
-
-  # Tidy up BibTeX files
-  - repo: https://github.com/FlamingTempura/bibtex-tidy
-    rev: v1.14.0
-    hooks:
-      - id: bibtex-tidy
-        args:
-          [
-            "--align=20",
-            "--curly",
-            "--months",
-            "--blank-lines",
-            "--sort",
-            "--strip-enclosing-braces",
-            "--sort-fields",
-            "--trailing-commas",
-            "--remove-empty-fields",
-          ]

@@ -868,9 +868,7 @@ auto AWS_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
   // 5. Call BraketClient::CreateQuantumTask()
   // ============================================================================
 
-  if (program_.empty()) {
-    return QDMI_ERROR_INVALIDARGUMENT;
-  } else if (session_->getDeviceArn().empty()) {
+  if (program_.empty() || session_->getDeviceArn().empty()) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 

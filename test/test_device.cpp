@@ -13,7 +13,6 @@
 #include <vector>
 
 namespace {
-/// Hash function for a pair
 [[nodiscard]] auto querySites(AWS_QDMI_Device_Session session)
     -> std::vector<AWS_QDMI_Site> {
   size_t size = 0;
@@ -222,8 +221,7 @@ protected:
               shared_job,
               static_cast<QDMI_Device_Job_Property>(
                   QDMI_DEVICE_JOB_PROPERTY_TASKARN),
-              arnSize, reinterpret_cast<void*>(const_cast<char*>(arn.data())),
-              nullptr) == QDMI_SUCCESS) {
+              arnSize, arn.data(), nullptr) == QDMI_SUCCESS) {
         has_task_arn = true;
         task_arn = arn;
       }
@@ -243,12 +241,12 @@ protected:
                                             0, nullptr,
                                             &shotsSize) == QDMI_SUCCESS &&
             shotsSize > 0) {
-          std::string shots(shotsSize - 1, '\0');
+          std::string shotsStr(shotsSize - 1, '\0');
           if (AWS_QDMI_device_job_get_results(shared_job, QDMI_JOB_RESULT_SHOTS,
-                                              shotsSize, shots.data(),
+                                              shotsSize, shotsStr.data(),
                                               nullptr) == QDMI_SUCCESS) {
             has_shots = true;
-            shots_data = shots;
+            shots_data = shotsStr;
           }
         }
         // fetch histogram keys
