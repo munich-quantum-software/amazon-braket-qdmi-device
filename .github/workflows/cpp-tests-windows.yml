@@ -70,6 +70,7 @@ jobs:
 
       - name: Configure CMake
         env:
+          CONFIG: ${{ inputs.config }}
           CMAKE_ARGS: ${{ inputs.cmake-args }}
           COMPILER: ${{ inputs.compiler }}
         run: |
@@ -82,6 +83,7 @@ jobs:
           cmake -S . -B build `
             -G "Visual Studio 17 2022" `
             -A x64 `
+            -DCMAKE_BUILD_TYPE=$env:CONFIG `
             "-DCMAKE_TOOLCHAIN_FILE=$env:CMAKE_TOOLCHAIN_FILE" `
             -DUSE_SHARED_CRT=ON `
             -DENABLE_UNITY_BUILD=ON `

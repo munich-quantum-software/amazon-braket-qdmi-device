@@ -48,7 +48,7 @@ FetchContent_Declare(
 list(APPEND FETCH_PACKAGES qdmi)
 
 if(WIN32 AND NOT DEFINED AWSSDK_FLAGS_SET)
-  # Ensure MSVC uses shared CRT and unity build
+  # Windows-specific AWS SDK flags
   set(USE_SHARED_CRT
       ON
       CACHE BOOL "" FORCE)
@@ -58,6 +58,7 @@ if(WIN32 AND NOT DEFINED AWSSDK_FLAGS_SET)
   set(AWSSDK_FLAGS_SET
       TRUE
       CACHE INTERNAL "" FORCE)
+  set(CMAKE_SHARED_LINKER_FLAGS_DEBUGOPT "")
 endif()
 
 # Try to find system-installed AWS SDK first
