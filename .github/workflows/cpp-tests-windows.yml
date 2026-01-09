@@ -98,7 +98,7 @@ jobs:
           max_attempts: 5
           shell: pwsh
           retry_on: error
-          command: cmake --build build --config $CONFIG -- /m
+          command: cmake --build build --config $env:CONFIG -- /m
 
       - name: Test
         env:
