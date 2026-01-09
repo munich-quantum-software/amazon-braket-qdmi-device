@@ -57,7 +57,15 @@ jobs:
       - name: Install curl
         run: |
           vcpkg install curl:x64-windows
-          $toolchain = Join-Path $env:VCPKG_ROOT "scripts/buildsystems/vcpkg.cmake"
+
+          $vcpkgExe = (Get-Command vcpkg).Source
+          $vcpkgRoot = Split-Path -Parent $vcpkgExe
+          $toolchain = Join-Path $vcpkgRoot "scripts/buildsystems/vcpkg.cmake"
+
+          if (-Not (Test-Path $toolchain)) {
+            Write-Error "vcpkg toolchain file not found at $toolchain"
+          }
+
           "CMAKE_TOOLCHAIN_FILE=$toolchain" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       # configure CMake in the specified mode, optionally with additional arguments
       - name: Configure CMake
