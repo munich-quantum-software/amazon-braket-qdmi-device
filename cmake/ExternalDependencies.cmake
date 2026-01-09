@@ -26,7 +26,7 @@ if(BUILD_TESTS)
       https://github.com/google/googletest/archive/refs/tags/v${GTEST_VERSION}.tar.gz
   )
   FetchContent_Declare(googletest URL ${GTEST_URL} FIND_PACKAGE_ARGS
-                                      ${GTEST_VERSION} NAMES GTest SYSTEM)
+                                      ${GTEST_VERSION} NAMES GTest)
   list(APPEND FETCH_PACKAGES googletest)
 endif()
 
@@ -44,7 +44,7 @@ FetchContent_Declare(
   qdmi
   GIT_REPOSITORY https://github.com/${QDMI_REPO_OWNER}/qdmi.git
   GIT_TAG ${QDMI_REV}
-  FIND_PACKAGE_ARGS ${QDMI_VERSION} SYSTEM)
+  FIND_PACKAGE_ARGS ${QDMI_VERSION})
 list(APPEND FETCH_PACKAGES qdmi)
 
 # Try to find system-installed AWS SDK first
@@ -73,8 +73,7 @@ if(NOT AWSSDK_FOUND)
   FetchContent_Declare(
     awssdk
     GIT_REPOSITORY https://github.com/aws/aws-sdk-cpp.git
-    GIT_TAG ${AWSSDK_VERSION}
-    SYSTEM)
+    GIT_TAG ${AWSSDK_VERSION})
 
   # Downloads and builds the SDK in-tree if not found system-wide
   FetchContent_MakeAvailable(awssdk)
