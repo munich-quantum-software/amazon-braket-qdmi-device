@@ -53,8 +53,8 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
-      # install AWS SDK C++ dependency via vcpkg
-      - name: Install curl
+
+      - name: Install curl via vcpkg
         run: |
           vcpkg install curl:x64-windows
 
@@ -67,7 +67,7 @@ jobs:
           }
 
           "CMAKE_TOOLCHAIN_FILE=$toolchain" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-      # configure CMake in the specified mode, optionally with additional arguments
+
       - name: Configure CMake
         env:
           CONFIG: ${{ inputs.config }}
@@ -75,14 +75,21 @@ jobs:
           COMPILER: ${{ inputs.compiler }}
         run: |
           $cmakeArgs = $env:CMAKE_ARGS
+
+          $generator = "Visual Studio 17 2022"
+          $arch = "x64"
+
           if ($env:COMPILER -eq "clang") {
             $cmakeArgs = "$cmakeArgs -T ClangCL"
           }
+
           cmake -S . -B build `
+            -G "$generator" `
+            -A $arch `
             -DCMAKE_BUILD_TYPE=$env:CONFIG `
             "-DCMAKE_TOOLCHAIN_FILE=$env:CMAKE_TOOLCHAIN_FILE" `
             $cmakeArgs
-      # build the project in the specified mode with retries
+
       - name: Build
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2 # Windows builds with MSVC are flaky and frequently run out of heap space
         env:
@@ -92,8 +99,8 @@ jobs:
           max_attempts: 5
           shell: bash
           retry_on: error
-          command: cmake --build build --config $CONFIG
-      # run the tests
+          command: cmake --build build --config $CONFIG -- /m
+
       - name: Test
         env:
           CONFIG: ${{ inputs.config }}
