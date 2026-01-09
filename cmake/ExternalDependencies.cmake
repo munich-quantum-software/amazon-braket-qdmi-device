@@ -47,6 +47,19 @@ FetchContent_Declare(
   FIND_PACKAGE_ARGS ${QDMI_VERSION})
 list(APPEND FETCH_PACKAGES qdmi)
 
+if(WIN32 AND NOT DEFINED AWSSDK_FLAGS_SET)
+  # Ensure MSVC uses shared CRT and unity build
+  set(USE_SHARED_CRT
+      ON
+      CACHE BOOL "" FORCE)
+  set(ENABLE_UNITY_BUILD
+      ON
+      CACHE BOOL "" FORCE)
+  set(AWSSDK_FLAGS_SET
+      TRUE
+      CACHE INTERNAL "" FORCE)
+endif()
+
 # Try to find system-installed AWS SDK first
 find_package(AWSSDK COMPONENTS braket s3 core)
 
