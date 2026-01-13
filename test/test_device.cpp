@@ -426,10 +426,10 @@ TEST_F(AWSQDMIJobSpecificationTest, QueryJobId) {
   ASSERT_EQ(AWS_QDMI_device_job_query_property(job, QDMI_DEVICE_JOB_PROPERTY_ID,
                                                0, nullptr, &size),
             QDMI_SUCCESS);
-  ASSERT_GT(size, 0);
-  std::string id(size - 1, '\0');
+  ASSERT_EQ(size, sizeof(int));
+  int id = 0;
   EXPECT_EQ(AWS_QDMI_device_job_query_property(job, QDMI_DEVICE_JOB_PROPERTY_ID,
-                                               size, id.data(), nullptr),
+                                               sizeof(id), &id, nullptr),
             QDMI_SUCCESS);
 }
 
@@ -737,11 +737,11 @@ TEST_F(AWSQDMISpecificationTest, QueryDeviceDurationUnit) {
 }
 
 TEST_F(AWSQDMISpecificationTest, QuerySiteIndex) {
-  size_t id = 0;
+  uint64_t id = 0;
   EXPECT_NO_THROW(for (auto* site : querySites(session)) {
     EXPECT_EQ(AWS_QDMI_device_session_query_site_property(
-                  session, site, QDMI_SITE_PROPERTY_INDEX, sizeof(size_t), &id,
-                  nullptr),
+                  session, site, QDMI_SITE_PROPERTY_INDEX, sizeof(uint64_t),
+                  &id, nullptr),
               QDMI_SUCCESS)
         << "Devices must provide a site id";
   }) << "Devices must provide a list of sites";

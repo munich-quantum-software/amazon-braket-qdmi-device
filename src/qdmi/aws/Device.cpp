@@ -150,11 +150,6 @@ namespace aws_qdmi {
  */
 Device::Device()
     : name_("AWS Braket Device"), provider_("AWS"), deviceType_("QPU") {
-
-  // AWS is the cloud provider
-  // ARN (Amazon Resource Name) identifies the specific quantum device
-  // Quantum Processing Unit
-  // Will be populated when device capabilities are queried
   status_.store(QDMI_DEVICE_STATUS_IDLE);
 }
 
@@ -911,10 +906,10 @@ auto AWS_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
     const std::string prefix = "qdmi-tasks/" + std::to_string(id_);
     request.SetOutputS3KeyPrefix(prefix.c_str());
   } else {
-    // If no bucket provided, AWS SDK might fail or use a default if configured
-    // in environment. Ideally we should return error if bucket is missing, but
-    // let's try to proceed.
-    std::cerr << "Warning: No S3 bucket provided for task results.\n";
+    std::cerr << "Error: S3 bucket must be configured to store task results.\n";
+    status_.store(QDMI_JOB_STATUS_FAILED);
+    aws_qdmi::Device::get().decreaseRunningJobs();
+    return QDMI_ERROR_INVALIDARGUMENT;
   }
 
   auto outcome = session_->getClient()->CreateQuantumTask(request);

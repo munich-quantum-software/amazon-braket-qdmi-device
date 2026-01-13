@@ -1,10 +1,3 @@
-# Copyright (c) 2023 - 2025 Chair for Design Automation, TUM Copyright (c) 2025
-# Munich Quantum Software Company GmbH All rights reserved.
-#
-# SPDX-License-Identifier: MIT
-#
-# Licensed under the MIT License
-
 # Set target name
 set(TARGET_NAME aws-qdmi-device)
 
@@ -15,9 +8,6 @@ set(QDMI_PREFIX "AWS")
 if(NOT TARGET ${TARGET_NAME})
   add_library(${TARGET_NAME} STATIC)
 
-  # Generate prefixed QDMI headers
-  generate_prefixed_qdmi_headers(${QDMI_PREFIX})
-  file(GLOB_RECURSE QDMI_HDRS ${CMAKE_CURRENT_BINARY_DIR}/include/aws_qdmi/**.h)
   # Add sources to target
   target_sources(${TARGET_NAME} PRIVATE Device.cpp)
 
@@ -28,10 +18,10 @@ if(NOT TARGET ${TARGET_NAME})
            HEADERS
            BASE_DIRS
            ${INCLUDE_BUILD_DIR}
-           ${CMAKE_CURRENT_BINARY_DIR}/include
            FILES
            ${INCLUDE_BUILD_DIR}/aws-qdmi/qdmi/aws/Device.hpp
-           ${QDMI_HDRS})
+           ${INCLUDE_BUILD_DIR}/aws-qdmi/qdmi/aws/device.h
+           ${INCLUDE_BUILD_DIR}/aws-qdmi/qdmi/aws/types.h)
 
   # Add link libraries
   target_link_libraries(
@@ -46,8 +36,8 @@ if(NOT TARGET ${TARGET_NAME})
   # Make QDMI version available
   target_compile_definitions(${TARGET_NAME}
                              PRIVATE QDMI_VERSION="${QDMI_VERSION}")
-  target_compile_definitions(${TARGET_NAME} PRIVATE AWS_QDMI_VERSION="0.1.0")
-
+  target_compile_definitions(${TARGET_NAME}
+                             PRIVATE AWS_QDMI_VERSION="${PROJECT_VERSION}")
   # Generate additional alias for the target required for
   # generate_device_defs_executable function in the tests
   add_library(qdmi::aws_device ALIAS ${TARGET_NAME})
