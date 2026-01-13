@@ -88,25 +88,30 @@ jobs:
             echo "Error: Compiler input '$COMPILER' is not in the expected format 'clang-<version>' (numeric version only)."
             exit 1
           fi
+
+          # We rely on APT's built-in cryptographic verification of repository metadata and individual packages, providing supply-chain integrity guarantees
+          sudo apt-get install -y wget gnupg lsb-release
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo gpg --dearmor -o /usr/share/keyrings/llvm-archive-keyring.gpg
+          OS_CODENAME=$(lsb_release -cs)
+          echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] \
+          https://apt.llvm.org/${OS_CODENAME}/ \
+          llvm-toolchain-${OS_CODENAME}-${version} main" \
+          | sudo tee /etc/apt/sources.list.d/llvm.list
           sudo apt-get update
-          wget https://apt.llvm.org/llvm.sh -O "$TEMP_DIR/llvm_install.sh"
-          chmod +x "$TEMP_DIR/llvm_install.sh"
-          if sudo "$TEMP_DIR/llvm_install.sh" "$version"; then
-            sudo apt-get install -y libmlir-$version-dev \
-                                    mlir-$version-tools \
-                                    clang-$version \
-                                    clang-tools-$version \
-             || exit 1
-          else
-            echo "Installation from script failed."
-            exit 1
-          fi
+          sudo apt-get install -y \
+            libmlir-${version}-dev \
+            mlir-${version}-tools \
+            clang-${version} \
+            clang-tools-${version}
+
           # Safe environment variable assignment (version is safe due to above check)
           echo "CC=clang-$version" >> $GITHUB_ENV
           echo "CXX=clang++-$version" >> $GITHUB_ENV
           echo "MLIR_DIR=/usr/lib/llvm-$version/lib/cmake/mlir" >> $GITHUB_ENV
           echo "LLVM_DIR=/usr/lib/llvm-$version/lib/cmake/llvm" >> $GITHUB_ENV
-      # configure CMake in the specified mode, optionally with additional arguments
+
+      # Configure CMake in the specified mode, optionally with additional arguments
       - name: Configure CMake
         env:
           CONFIG: ${{ inputs.config }}
