@@ -278,6 +278,12 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
   }
 
   const auto& device = outcome.GetResult();
+  name_ = device.GetDeviceName();
+  provider_ = device.GetProviderName();
+  deviceType_ = (device.GetDeviceType() == Aws::Braket::Model::DeviceType::QPU)
+                    ? "QPU"
+                    : "Simulator";
+
   const auto& capabilitiesStr =
       device.GetDeviceCapabilities(); // Returns JSON string
 
@@ -709,6 +715,14 @@ auto AWS_QDMI_Device_Session_impl_d::queryDeviceProperty(
                     connectivity_, prop, size, value, sizeRet)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_QUBITSNUM, size_t, qubitsNum_,
                             prop, size, value, sizeRet)
+  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_NAME, name_.c_str(), prop, size,
+                      value, sizeRet)
+  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_PROVIDER, provider_.c_str(), prop,
+                      size, value, sizeRet)
+  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_DEVICEARN, deviceArn_.c_str(), prop,
+                      size, value, sizeRet)
+  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_DEVICETYPE, deviceType_.c_str(),
+                      prop, size, value, sizeRet)
   ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_DURATIONUNIT, "us", prop, size,
                       value, sizeRet)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_DURATIONSCALEFACTOR, double,
@@ -722,7 +736,7 @@ auto AWS_QDMI_Device_Session_impl_d::querySiteProperty(
     AWS_QDMI_Site_impl_d* site, const QDMI_Site_Property prop,
     const size_t size, void* value, size_t* sizeRet) -> QDMI_STATUS {
   if (site == nullptr || (value != nullptr && size == 0) ||
-      prop >= QDMI_SITE_PROPERTY_MAX) {
+      prop == QDMI_SITE_PROPERTY_MAX) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
@@ -750,7 +764,7 @@ auto AWS_QDMI_Device_Session_impl_d::queryOperationProperty(
   if (operation == nullptr || (value != nullptr && size == 0) ||
       (sites != nullptr && numSites == 0) ||
       (params != nullptr && numParams == 0) ||
-      prop >= QDMI_OPERATION_PROPERTY_MAX) {
+      prop == QDMI_OPERATION_PROPERTY_MAX) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
@@ -816,7 +830,7 @@ auto AWS_QDMI_Device_Job_impl_d::setParameter(
 auto AWS_QDMI_Device_Job_impl_d::queryProperty(
     const QDMI_Device_Job_Property prop, const size_t size, void* value,
     size_t* sizeRet) const -> QDMI_STATUS {
-  if ((value != nullptr && size == 0) || prop >= QDMI_DEVICE_JOB_PROPERTY_MAX) {
+  if ((value != nullptr && size == 0) || prop == QDMI_DEVICE_JOB_PROPERTY_MAX) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 

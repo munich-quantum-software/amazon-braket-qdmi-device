@@ -122,6 +122,9 @@ private:
   std::string region_;
   std::string deviceArn_;
   std::string s3Bucket_;
+  std::string name_;
+  std::string provider_;
+  std::string deviceType_;
 
   // Device architecture data
   std::vector<std::unique_ptr<AWS_QDMI_Site_impl_d>> sites_;

@@ -166,6 +166,15 @@ protected:
           strlen(s3BucketEnv) + 1, s3BucketEnv);
     }
 
+    const char* regionEnv = std::getenv("AWS_DEFAULT_REGION");
+    if (regionEnv != nullptr) {
+      AWS_QDMI_device_session_set_parameter(
+          shared_session,
+          static_cast<QDMI_Device_Session_Parameter>(
+              QDMI_DEVICE_SESSION_PARAMETER_REGION),
+          strlen(regionEnv) + 1, regionEnv);
+    }
+
     if (AWS_QDMI_device_session_init(shared_session) != QDMI_SUCCESS) {
       GTEST_SKIP() << "session_init failed in SetUpTestSuite; skipping job "
                       "submission tests";
@@ -181,7 +190,7 @@ protected:
     }
 
     // set program/format/shots
-    const char* program = "OPENQASM 3.0;\nqubit[2] q;\nh q[0];\ncx q[0], "
+    const char* program = "OPENQASM 3.0;\nqubit[2] q;\nh q[0];\ncnot q[0], "
                           "q[1];\nbit[2] c;\nc = measure q;\n";
     AWS_QDMI_device_job_set_parameter(shared_job,
                                       QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
@@ -361,8 +370,8 @@ TEST_F(AWSQDMISpecificationTest, JobCreate) {
             QDMI_ERROR_INVALIDARGUMENT);
   EXPECT_EQ(AWS_QDMI_device_session_create_device_job(nullptr, &job),
             QDMI_ERROR_INVALIDARGUMENT);
-  EXPECT_THAT(AWS_QDMI_device_session_create_device_job(session, &job),
-              testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+  EXPECT_EQ(AWS_QDMI_device_session_create_device_job(session, &job),
+            QDMI_SUCCESS);
   AWS_QDMI_device_job_free(job);
   AWS_QDMI_device_session_free(uninitializedSession);
 }
@@ -375,10 +384,10 @@ TEST_F(AWSQDMISpecificationTest, JobSetParameter) {
 
 TEST_F(AWSQDMIJobSpecificationTest, JobSetParameter) {
   QDMI_Program_Format value = QDMI_PROGRAM_FORMAT_QASM3;
-  EXPECT_THAT(
+  EXPECT_EQ(
       AWS_QDMI_device_job_set_parameter(
           job, QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT, sizeof(value), &value),
-      testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+      QDMI_SUCCESS);
   EXPECT_EQ(AWS_QDMI_device_job_set_parameter(
                 job, QDMI_DEVICE_JOB_PARAMETER_MAX, 0, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
@@ -388,13 +397,13 @@ TEST_F(AWSQDMIJobSpecificationTest, JobSetParameterProgram) {
   const char* program = "OPENQASM 3.0;\n"
                         "qubit[2] q;\n"
                         "h q[0];\n"
-                        "cx q[0], q[1];\n"
+                        "cnot q[0], q[1];\n"
                         "bit[2] c;\n"
                         "c = measure q;\n";
-  EXPECT_THAT(
-      AWS_QDMI_device_job_set_parameter(job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
-                                        strlen(program) + 1, program),
-      testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+  EXPECT_EQ(AWS_QDMI_device_job_set_parameter(job,
+                                              QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
+                                              strlen(program) + 1, program),
+            QDMI_SUCCESS);
 }
 
 TEST_F(AWSQDMISpecificationTest, JobQueryProperty) {
@@ -404,9 +413,9 @@ TEST_F(AWSQDMISpecificationTest, JobQueryProperty) {
 }
 
 TEST_F(AWSQDMIJobSpecificationTest, JobQueryProperty) {
-  EXPECT_THAT(AWS_QDMI_device_job_query_property(
-                  job, QDMI_DEVICE_JOB_PROPERTY_ID, 0, nullptr, nullptr),
-              testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+  EXPECT_EQ(AWS_QDMI_device_job_query_property(job, QDMI_DEVICE_JOB_PROPERTY_ID,
+                                               0, nullptr, nullptr),
+            QDMI_SUCCESS);
   EXPECT_EQ(AWS_QDMI_device_job_query_property(
                 job, QDMI_DEVICE_JOB_PROPERTY_MAX, 0, nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
@@ -414,17 +423,14 @@ TEST_F(AWSQDMIJobSpecificationTest, JobQueryProperty) {
 
 TEST_F(AWSQDMIJobSpecificationTest, QueryJobId) {
   size_t size = 0;
-  const auto status = AWS_QDMI_device_job_query_property(
-      job, QDMI_DEVICE_JOB_PROPERTY_ID, 0, nullptr, &size);
-  ASSERT_THAT(status, testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
-  if (status == QDMI_ERROR_NOTSUPPORTED) {
-    GTEST_SKIP() << "Job ID property is not supported by the device";
-  }
+  ASSERT_EQ(AWS_QDMI_device_job_query_property(job, QDMI_DEVICE_JOB_PROPERTY_ID,
+                                               0, nullptr, &size),
+            QDMI_SUCCESS);
   ASSERT_GT(size, 0);
   std::string id(size - 1, '\0');
-  EXPECT_THAT(AWS_QDMI_device_job_query_property(
-                  job, QDMI_DEVICE_JOB_PROPERTY_ID, size, id.data(), nullptr),
-              testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+  EXPECT_EQ(AWS_QDMI_device_job_query_property(job, QDMI_DEVICE_JOB_PROPERTY_ID,
+                                               size, id.data(), nullptr),
+            QDMI_SUCCESS);
 }
 
 TEST_F(AWSQDMISpecificationTest, JobSubmit) {
@@ -456,7 +462,7 @@ TEST_F(AWSQDMISpecificationTest, JobCheck) {
 TEST_F(AWSQDMIJobSpecificationTest, JobCheck) {
   QDMI_Job_Status jobStatus = QDMI_JOB_STATUS_RUNNING;
   const auto status = AWS_QDMI_device_job_check(job, &jobStatus);
-  ASSERT_THAT(status, testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+  ASSERT_EQ(status, QDMI_SUCCESS);
 }
 
 TEST_F(AWSQDMISpecificationTest, JobWait) {
@@ -468,8 +474,7 @@ TEST_F(AWSQDMIJobSpecificationTest, JobWait) {
     GTEST_SKIP() << "Job was not submitted in suite setup";
   }
   // Check the stored wait result
-  EXPECT_THAT(wait_result, testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED,
-                                          QDMI_ERROR_TIMEOUT));
+  EXPECT_EQ(wait_result, QDMI_SUCCESS);
 }
 
 TEST_F(AWSQDMISpecificationTest, JobGetResults) {
@@ -489,14 +494,14 @@ TEST_F(AWSQDMIJobSpecificationTest, JobGetResults) {
   EXPECT_GT(shots_data.size(), 0u);
   // Ensure the API can be called again for size and retrieval
   size_t shotsSize = 0;
-  EXPECT_THAT(AWS_QDMI_device_job_get_results(job, QDMI_JOB_RESULT_SHOTS, 0,
-                                              nullptr, &shotsSize),
-              testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+  EXPECT_EQ(AWS_QDMI_device_job_get_results(job, QDMI_JOB_RESULT_SHOTS, 0,
+                                            nullptr, &shotsSize),
+            QDMI_SUCCESS);
   if (shotsSize > 0) {
     std::string buf(shotsSize - 1, '\0');
-    EXPECT_THAT(AWS_QDMI_device_job_get_results(job, QDMI_JOB_RESULT_SHOTS,
-                                                shotsSize, buf.data(), nullptr),
-                testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+    EXPECT_EQ(AWS_QDMI_device_job_get_results(job, QDMI_JOB_RESULT_SHOTS,
+                                              shotsSize, buf.data(), nullptr),
+              QDMI_SUCCESS);
   }
 }
 
@@ -508,6 +513,17 @@ TEST_F(AWSQDMIJobSpecificationTest, JobGetResultsHistKeys) {
     GTEST_SKIP() << "Histogram not available for this job";
   }
   EXPECT_GT(hist_keys.size(), 0u);
+
+  // For a Bell state, we expect 00 and 11
+  bool found00 = false;
+  bool found11 = false;
+  for (const auto& key : hist_keys) {
+    if (key == "00")
+      found00 = true;
+    if (key == "11")
+      found11 = true;
+  }
+  EXPECT_TRUE(found00 || found11) << "Neither 00 nor 11 found in histogram";
 }
 
 TEST_F(AWSQDMIJobSpecificationTest, JobGetResultsHistValues) {
@@ -519,6 +535,12 @@ TEST_F(AWSQDMIJobSpecificationTest, JobGetResultsHistValues) {
   }
   EXPECT_EQ(hist_values.size(), hist_keys.size());
   EXPECT_GT(hist_values.size(), 0u);
+
+  size_t totalShots = 0;
+  for (auto count : hist_values) {
+    totalShots += count;
+  }
+  EXPECT_EQ(totalShots, 100u);
 }
 
 TEST_F(AWSQDMIJobSpecificationTest, JobTaskArn) {
@@ -561,59 +583,58 @@ TEST_F(AWSQDMISpecificationTest, QueryDeviceProperty) {
 TEST_F(AWSQDMISpecificationTest, AwsSpecificDeviceProperties) {
   size_t size = 0;
   // Provider
-  EXPECT_THAT(
-      AWS_QDMI_device_session_query_device_property(
-          session,
-          static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_PROVIDER), 0,
-          nullptr, &size),
-      testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+  const auto providerStatus = AWS_QDMI_device_session_query_device_property(
+      session, static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_PROVIDER),
+      0, nullptr, &size);
+  ASSERT_EQ(providerStatus, QDMI_SUCCESS);
   if (size > 0) {
     std::string provider(size - 1, '\0');
-    EXPECT_THAT(
+    EXPECT_EQ(
         AWS_QDMI_device_session_query_device_property(
             session,
             static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_PROVIDER),
             size, reinterpret_cast<void*>(const_cast<char*>(provider.data())),
             nullptr),
-        testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+        QDMI_SUCCESS);
+    EXPECT_FALSE(provider.empty());
   }
 
   // Device ARN
   size = 0;
-  EXPECT_THAT(
-      AWS_QDMI_device_session_query_device_property(
-          session,
-          static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICEARN), 0,
-          nullptr, &size),
-      testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+  const auto arnStatus = AWS_QDMI_device_session_query_device_property(
+      session,
+      static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICEARN), 0,
+      nullptr, &size);
+  ASSERT_EQ(arnStatus, QDMI_SUCCESS);
   if (size > 0) {
     std::string arn(size - 1, '\0');
-    EXPECT_THAT(
+    EXPECT_EQ(
         AWS_QDMI_device_session_query_device_property(
             session,
             static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICEARN),
             size, reinterpret_cast<void*>(const_cast<char*>(arn.data())),
             nullptr),
-        testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+        QDMI_SUCCESS);
+    EXPECT_FALSE(arn.empty());
   }
 
   // Device type
   size = 0;
-  EXPECT_THAT(
-      AWS_QDMI_device_session_query_device_property(
-          session,
-          static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICETYPE), 0,
-          nullptr, &size),
-      testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+  const auto typeStatus = AWS_QDMI_device_session_query_device_property(
+      session,
+      static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICETYPE), 0,
+      nullptr, &size);
+  ASSERT_EQ(typeStatus, QDMI_SUCCESS);
   if (size > 0) {
     std::string dtype(size - 1, '\0');
-    EXPECT_THAT(
+    EXPECT_EQ(
         AWS_QDMI_device_session_query_device_property(
             session,
             static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICETYPE),
             size, reinterpret_cast<void*>(const_cast<char*>(dtype.data())),
             nullptr),
-        testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+        QDMI_SUCCESS);
+    EXPECT_FALSE(dtype.empty());
   }
 }
 
@@ -629,9 +650,9 @@ TEST_F(AWSQDMISpecificationTest, QuerySiteProperty) {
   EXPECT_EQ(AWS_QDMI_device_session_query_site_property(
                 session, site, QDMI_SITE_PROPERTY_MAX, 0, nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
-  EXPECT_THAT(AWS_QDMI_device_session_query_site_property(
-                  session, site, QDMI_SITE_PROPERTY_NAME, 0, nullptr, nullptr),
-              testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+  EXPECT_EQ(AWS_QDMI_device_session_query_site_property(
+                session, site, QDMI_SITE_PROPERTY_NAME, 0, nullptr, nullptr),
+            QDMI_SUCCESS);
 }
 
 TEST_F(AWSQDMISpecificationTest, QueryOperationProperty) {
@@ -644,10 +665,10 @@ TEST_F(AWSQDMISpecificationTest, QueryOperationProperty) {
                 session, operation, 0, nullptr, 0, nullptr,
                 QDMI_OPERATION_PROPERTY_MAX, 0, nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
-  EXPECT_THAT(AWS_QDMI_device_session_query_operation_property(
-                  session, operation, 0, nullptr, 0, nullptr,
-                  QDMI_OPERATION_PROPERTY_QUBITSNUM, 0, nullptr, nullptr),
-              testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+  EXPECT_EQ(AWS_QDMI_device_session_query_operation_property(
+                session, operation, 0, nullptr, 0, nullptr,
+                QDMI_OPERATION_PROPERTY_QUBITSNUM, 0, nullptr, nullptr),
+            QDMI_SUCCESS);
 }
 
 TEST_F(AWSQDMISpecificationTest, QueryDeviceName) {
@@ -711,10 +732,8 @@ TEST_F(AWSQDMISpecificationTest, QueryDeviceDurationUnit) {
   const auto result = AWS_QDMI_device_session_query_device_property(
       session, QDMI_DEVICE_PROPERTY_DURATIONSCALEFACTOR, sizeof(double),
       &scaleFactor, nullptr);
-  EXPECT_THAT(result, testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
-  if (result == QDMI_SUCCESS) {
-    EXPECT_GT(scaleFactor, 0.);
-  }
+  EXPECT_EQ(result, QDMI_SUCCESS);
+  EXPECT_GT(scaleFactor, 0.);
 }
 
 TEST_F(AWSQDMISpecificationTest, QuerySiteIndex) {
@@ -757,12 +776,10 @@ TEST_F(AWSQDMISpecificationTest, QueryDeviceStatus) {
   QDMI_Device_Status status = QDMI_DEVICE_STATUS_OFFLINE;
   const auto result = AWS_QDMI_device_session_query_device_property(
       session, QDMI_DEVICE_PROPERTY_STATUS, sizeof(status), &status, nullptr);
-  EXPECT_THAT(result, testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
-  if (result == QDMI_SUCCESS) {
-    EXPECT_TRUE(status == QDMI_DEVICE_STATUS_IDLE ||
-                status == QDMI_DEVICE_STATUS_BUSY ||
-                status == QDMI_DEVICE_STATUS_OFFLINE);
-  }
+  ASSERT_EQ(result, QDMI_SUCCESS);
+  EXPECT_TRUE(status == QDMI_DEVICE_STATUS_IDLE ||
+              status == QDMI_DEVICE_STATUS_BUSY ||
+              status == QDMI_DEVICE_STATUS_OFFLINE);
 }
 
 TEST_F(AWSQDMISpecificationTest, QuerySiteData) {
@@ -814,16 +831,14 @@ TEST_F(AWSQDMISpecificationTest, QueryOperationData) {
     result = AWS_QDMI_device_session_query_operation_property(
         session, operation, 0, nullptr, 0, nullptr,
         QDMI_OPERATION_PROPERTY_QUBITSNUM, sizeof(size_t), &numQubits, nullptr);
-    EXPECT_THAT(result, testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
-    if (result == QDMI_SUCCESS) {
-      EXPECT_GT(numQubits, 0);
-    }
+    EXPECT_EQ(result, QDMI_SUCCESS);
+    EXPECT_GT(numQubits, 0);
 
     size_t numParameters = 0;
     result = AWS_QDMI_device_session_query_operation_property(
         session, operation, 0, nullptr, 0, nullptr,
         QDMI_OPERATION_PROPERTY_PARAMETERSNUM, sizeof(size_t), &numParameters,
         nullptr);
-    EXPECT_THAT(result, testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+    EXPECT_EQ(result, QDMI_SUCCESS);
   }
 }
