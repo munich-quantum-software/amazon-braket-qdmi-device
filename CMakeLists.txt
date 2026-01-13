@@ -1,5 +1,5 @@
 # set required cmake version
-cmake_minimum_required(VERSION 3.24...4.0)
+cmake_minimum_required(VERSION 3.25...4.0)
 
 project(
   aws-qdmi

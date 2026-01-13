@@ -87,6 +87,9 @@ jobs:
             "-DCMAKE_TOOLCHAIN_FILE=$env:CMAKE_TOOLCHAIN_FILE" `
             -DUSE_SHARED_CRT=ON `
             -DENABLE_UNITY_BUILD=ON `
+            -DBUILD_SHARED_LIBS=OFF `
+            -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF `
+            -DAWS_SDK_WARNINGS_ARE_ERRORS=OFF `
             $cmakeArgs
 
       - name: Build
