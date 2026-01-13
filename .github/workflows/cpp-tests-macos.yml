@@ -86,7 +86,7 @@ jobs:
             echo "CC=$LLVM_PREFIX/bin/clang" >> $GITHUB_ENV
             echo "CXX=$LLVM_PREFIX/bin/clang++" >> $GITHUB_ENV
             # Link against Homebrew Clang's libc++ and unwind library to resolve symbol conflicts
-            echo "LDFLAGS=$LDFLAGS -L$LLVM_PREFIX/lib/c++ -L$LLVM_PREFIX/lib/unwind -lunwind" >> $GITHUB_ENV
+            echo "LDFLAGS=-L$LLVM_PREFIX/lib/c++ -L$LLVM_PREFIX/lib/unwind -lunwind $LDFLAGS" >> $GITHUB_ENV
             echo "LLVM_DIR=$LLVM_PREFIX/lib/cmake/llvm" >> $GITHUB_ENV
             echo "MLIR_DIR=$LLVM_PREFIX/lib/cmake/mlir" >> $GITHUB_ENV
             echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
@@ -102,9 +102,7 @@ jobs:
         run: cmake -G Ninja -S . -B build -DCMAKE_BUILD_TYPE=$CONFIG $CMAKE_ARGS
       # build the project in the specified mode
       - name: Build
-        env:
-          CONFIG: ${{ inputs.config }}
-        run: cmake --build build --config $CONFIG
+        run: cmake --build
       # run the tests
       - name: Test
         env:
@@ -112,4 +110,5 @@ jobs:
           AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEVICE_ARN: "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
         run: ctest -C $CONFIG --output-on-failure --test-dir build --repeat until-pass:3 --timeout 600

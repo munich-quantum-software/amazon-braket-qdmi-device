@@ -110,5 +110,6 @@ jobs:
           AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEVICE_ARN: "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
         run: |
           ctest --test-dir build -C $env:CONFIG --output-on-failure --repeat until-pass:3 --timeout 600

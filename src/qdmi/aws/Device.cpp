@@ -43,9 +43,9 @@
 #include "aws-qdmi/qdmi/aws/Device.hpp"
 
 #include "aws-qdmi/qdmi/aws/device.h"
+#include "aws-qdmi/qdmi/aws/types.h"
 #include "aws/braket/model/QuantumTaskStatus.h"
 #include "aws/core/utils/Array.h"
-#include "aws_qdmi/types.h"
 #include "qdmi/constants.h"
 
 #include <aws/braket/BraketClient.h>

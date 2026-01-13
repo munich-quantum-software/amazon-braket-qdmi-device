@@ -48,7 +48,7 @@ extern "C" {
 #include "qdmi/types.h"     // IWYU pragma: export
 
 /* Include AWS-specific types */
-#include "aws_qdmi/types.h" // IWYU pragma: export
+#include "aws-qdmi/qdmi/aws/types.h" // IWYU pragma: export
 
 /** @defgroup aws_qdmi_device_interface AWS QDMI Device Interface
  *  @brief AWS Braket implementation of the QDMI device interface.
