@@ -90,7 +90,8 @@ if(NOT AWSSDK_FOUND)
   FetchContent_Declare(
     awssdk
     GIT_REPOSITORY https://github.com/aws/aws-sdk-cpp.git
-    GIT_TAG ${AWSSDK_VERSION} SYSTEM)
+    GIT_TAG ${AWSSDK_VERSION}
+    SYSTEM)
 
   # Downloads and builds the SDK in-tree if not found system-wide
   FetchContent_MakeAvailable(awssdk)
