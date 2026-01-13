@@ -266,9 +266,9 @@ int AWS_QDMI_device_session_query_site_property(AWS_QDMI_Device_Session session,
  * @brief Query an operation property.
  * @param session The session.
  * @param operation The operation to query.
- * @param num_sites Number of sites (for site-specific queries).
+ * @param numSites Number of sites (for site-specific queries).
  * @param sites Array of sites (can be NULL).
- * @param num_params Number of parameters (for parameter-specific queries).
+ * @param numParams Number of parameters (for parameter-specific queries).
  * @param params Array of parameters (can be NULL).
  * @param prop The property to query.
  * @param size Size of the value buffer.

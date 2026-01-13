@@ -112,10 +112,15 @@ int main() {
     allPassed &= (ret == QDMI_SUCCESS);
 
     // Test setting S3 bucket (required for job submission / result retrieval)
-    const char* envS3Bucket = std::getenv("AWS_S3_BUCKET");
-    const char* s3Bucket = (envS3Bucket != nullptr)
-                               ? envS3Bucket
-                               : "amazon-braket-my-first-bucket";
+    const char* s3Bucket = std::getenv("AWS_S3_BUCKET");
+    if (s3Bucket == nullptr) {
+      std::cerr << "Error: AWS_S3_BUCKET environment variable is not set.\n"
+                << "This is required for job submission and result retrieval.\n"
+                << "Please set it before running this example:\n"
+                << "  export AWS_S3_BUCKET=amazon-braket-bucket-name\n";
+      AWS_QDMI_device_session_free(session);
+      return 1;
+    }
     std::cout << "\n  Setting S3BUCKET parameter:\n";
     printQDMI("AWS_QDMI_device_session_set_parameter(session, S3BUCKET, ...)",
               "(stored for CreateQuantumTask::SetOutputS3Bucket)");

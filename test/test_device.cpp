@@ -523,7 +523,8 @@ TEST_F(AWSQDMIJobSpecificationTest, JobGetResultsHistKeys) {
     if (key == "11")
       found11 = true;
   }
-  EXPECT_TRUE(found00 || found11) << "Neither 00 nor 11 found in histogram";
+  EXPECT_TRUE(found00 && found11)
+      << "Did not find expected histogram keys '00' and '11'";
 }
 
 TEST_F(AWSQDMIJobSpecificationTest, JobGetResultsHistValues) {

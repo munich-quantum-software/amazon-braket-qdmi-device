@@ -29,6 +29,12 @@ on:
           This can be any valid CMake argument, such as '-DBUILD_SHARED_LIBS=ON'.
         default: ""
         type: string
+      device-arn:
+        description: >
+          The AWS Braket device ARN to use for tests that require a quantum device.
+          This can be any valid AWS Braket device ARN, such as 'arn:aws:braket:::device/quantum-simulator/amazon/sv1'.
+        default: "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
+        type: string
     secrets:
       AWS_S3_BUCKET:
         required: false
@@ -79,7 +85,6 @@ jobs:
         name: Set up Clang
         env:
           COMPILER: ${{ inputs.compiler }}
-          TEMP_DIR: ${{ runner.temp }}
         run: |
           # Extract version from compiler input in the form 'clang-<version>'
           if [[ "$COMPILER" =~ ^clang-([0-9]+(\.[0-9]+)?)$ ]]; then
@@ -134,5 +139,5 @@ jobs:
           AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEVICE_ARN: "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
+          AWS_DEVICE_ARN: ${{ inputs.device-arn }}
         run: ctest -C $CONFIG --output-on-failure --test-dir build --repeat until-pass:3 --timeout 600

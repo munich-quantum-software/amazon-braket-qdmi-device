@@ -89,26 +89,20 @@
     }                                                                          \
   } // NOLINT(bugprone-macro-parentheses)
 
-#ifdef _WIN32
-#define STRNCPY(dest, src, size)                                               \
-  strncpy_s(static_cast<char*>(dest), size, src, size);
-#else
-#define STRNCPY(dest, src, size) strncpy(static_cast<char*>(dest), src, size);
-#endif
-
 #define ADD_STRING_PROPERTY(prop_name, prop_value, prop, size, value,          \
                             size_ret)                                          \
   {                                                                            \
     if ((prop) == (prop_name)) {                                               \
+      const size_t len = strlen((prop_value));                                 \
       if ((value) != nullptr) {                                                \
-        if ((size) < strlen((prop_value)) + 1) {                               \
+        if ((size) < len + 1) {                                                \
           return QDMI_ERROR_INVALIDARGUMENT;                                   \
         }                                                                      \
-        STRNCPY(value, (prop_value), size);                                    \
-        static_cast<char*>(value)[(size) - 1] = '\0';                          \
+        memcpy(value, (prop_value), len);                                      \
+        static_cast<char*>(value)[len] = '\0';                                 \
       }                                                                        \
       if ((size_ret) != nullptr) {                                             \
-        *(size_ret) = strlen((prop_value)) + 1;                                \
+        *(size_ret) = len + 1;                                                 \
       }                                                                        \
       return QDMI_SUCCESS;                                                     \
     }                                                                          \

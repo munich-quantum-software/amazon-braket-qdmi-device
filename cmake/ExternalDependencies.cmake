@@ -72,9 +72,11 @@ if(NOT AWSSDK_FOUND)
   set(BUILD_ONLY
       "core;s3;braket"
       CACHE STRING "" FORCE)
-  set(ENABLE_TESTING
+  set(AWS_SDK_ENABLE_TESTING
       OFF
       CACHE BOOL "Disable building unit and integration tests" FORCE)
+  set(ENABLE_TESTING ${AWS_SDK_ENABLE_TESTING})
+
   set(AUTORUN_UNIT_TESTS
       OFF
       CACHE BOOL "Disable automatically running unit tests after building"
@@ -91,6 +93,9 @@ if(NOT AWSSDK_FOUND)
 
   # Downloads and builds the SDK in-tree if not found system-wide
   FetchContent_MakeAvailable(awssdk)
+
+  # Unset the local override so it doesn't affect the rest of the project
+  unset(ENABLE_TESTING)
 endif()
 
 # Make all declared dependencies available.
