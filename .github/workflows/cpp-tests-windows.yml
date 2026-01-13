@@ -56,7 +56,7 @@ jobs:
 
       - name: Install curl via vcpkg
         run: |
-          vcpkg install curl:x64-windows
+          vcpkg install curl:x64-windows-static
 
           $vcpkgExe = (Get-Command vcpkg).Source
           $vcpkgRoot = Split-Path -Parent $vcpkgExe
@@ -85,7 +85,8 @@ jobs:
             -A x64 `
             -DCMAKE_BUILD_TYPE=$env:CONFIG `
             "-DCMAKE_TOOLCHAIN_FILE=$env:CMAKE_TOOLCHAIN_FILE" `
-            -DUSE_SHARED_CRT=ON `
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static `
+            -DUSE_SHARED_CRT=OFF `
             -DENABLE_UNITY_BUILD=ON `
             -DBUILD_SHARED_LIBS=OFF `
             -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF `
@@ -109,4 +110,5 @@ jobs:
           AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        run: ctest -C $CONFIG --output-on-failure --test-dir build --repeat until-pass:3 --timeout 600
+        run: |
+          ctest --test-dir build -C $env:CONFIG --output-on-failure --repeat until-pass:3 --timeout 600
