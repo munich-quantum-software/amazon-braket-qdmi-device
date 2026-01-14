@@ -610,14 +610,12 @@ auto AWS_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
   }
   client_ = std::make_unique<Aws::Braket::BraketClient>(config);
 
-  status_ = Status::INITIALIZED;
-
   // Always fetch device architecture
   const auto ret = fetchDeviceArchitecture();
   if (ret != QDMI_SUCCESS) {
     return ret;
   }
-
+  status_ = Status::INITIALIZED;
   return QDMI_SUCCESS;
 }
 
