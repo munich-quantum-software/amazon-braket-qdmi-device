@@ -383,27 +383,41 @@ TEST_F(AWSQDMISpecificationTest, JobSetParameter) {
 }
 
 TEST_F(AWSQDMIJobSpecificationTest, JobSetParameter) {
-  QDMI_Program_Format value = QDMI_PROGRAM_FORMAT_QASM3;
-  EXPECT_EQ(
-      AWS_QDMI_device_job_set_parameter(
-          job, QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT, sizeof(value), &value),
+  AWS_QDMI_Device_Job freshJob = nullptr;
+  ASSERT_EQ(
+      AWS_QDMI_device_session_create_device_job(shared_session, &freshJob),
       QDMI_SUCCESS);
+
+  QDMI_Program_Format value = QDMI_PROGRAM_FORMAT_QASM3;
   EXPECT_EQ(AWS_QDMI_device_job_set_parameter(
-                job, QDMI_DEVICE_JOB_PARAMETER_MAX, 0, nullptr),
+                freshJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT,
+                sizeof(value), &value),
+            QDMI_SUCCESS);
+  EXPECT_EQ(AWS_QDMI_device_job_set_parameter(
+                freshJob, QDMI_DEVICE_JOB_PARAMETER_MAX, 0, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
+
+  AWS_QDMI_device_job_free(freshJob);
 }
 
 TEST_F(AWSQDMIJobSpecificationTest, JobSetParameterProgram) {
+  AWS_QDMI_Device_Job freshJob = nullptr;
+  ASSERT_EQ(
+      AWS_QDMI_device_session_create_device_job(shared_session, &freshJob),
+      QDMI_SUCCESS);
+
   const char* program = "OPENQASM 3.0;\n"
                         "qubit[2] q;\n"
                         "h q[0];\n"
                         "cnot q[0], q[1];\n"
                         "bit[2] c;\n"
                         "c = measure q;\n";
-  EXPECT_EQ(AWS_QDMI_device_job_set_parameter(job,
+  EXPECT_EQ(AWS_QDMI_device_job_set_parameter(freshJob,
                                               QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
                                               strlen(program) + 1, program),
             QDMI_SUCCESS);
+
+  AWS_QDMI_device_job_free(freshJob);
 }
 
 TEST_F(AWSQDMISpecificationTest, JobQueryProperty) {
