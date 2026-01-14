@@ -68,7 +68,7 @@ if(WIN32 AND NOT DEFINED AWSSDK_FLAGS_SET)
 endif()
 
 # Try to find system-installed AWS SDK first
-find_package(AWSSDK COMPONENTS braket s3 core)
+find_package(AWSSDK QUIET COMPONENTS braket s3 core)
 
 # If not found, fetch from GitHub
 if(NOT AWSSDK_FOUND)

@@ -57,6 +57,7 @@ jobs:
 
           if (-Not (Test-Path $toolchain)) {
             Write-Error "vcpkg toolchain file not found at $toolchain"
+            exit 1
           }
 
           "CMAKE_TOOLCHAIN_FILE=$toolchain" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
@@ -94,4 +95,4 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEVICE_ARN: ${{ inputs.device-arn }}
         run: |
-          ctest -C $env:CONFIG --output-on-failure --test-dir build --repeat until-pass:3 --timeout 600
+          ctest -C $env:CONFIG --output-on-failure --test-dir build --timeout 600
