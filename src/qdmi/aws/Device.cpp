@@ -1164,6 +1164,10 @@ auto AWS_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
  */
 auto AWS_QDMI_Device_Job_impl_d::fetchResults() const -> QDMI_STATUS {
   const std::scoped_lock<std::mutex> lock(jobMutex_);
+  return fetchResultsInternal();
+}
+
+auto AWS_QDMI_Device_Job_impl_d::fetchResultsInternal() const -> QDMI_STATUS {
   if (resultsFetched_) {
     return QDMI_SUCCESS;
   }
@@ -1264,13 +1268,14 @@ auto AWS_QDMI_Device_Job_impl_d::getResults(const QDMI_Job_Result result,
     return QDMI_ERROR_BADSTATE;
   }
 
+  const std::scoped_lock<std::mutex> lock(jobMutex_);
+
   // Fetch results from S3 if not already done
-  QDMI_STATUS const fetchStatus = fetchResults();
+  QDMI_STATUS const fetchStatus = fetchResultsInternal();
   if (fetchStatus != QDMI_SUCCESS) {
     return fetchStatus;
   }
 
-  const std::scoped_lock<std::mutex> lock(jobMutex_);
   if (result == QDMI_JOB_RESULT_SHOTS) {
     // Return comma-separated shot results: "00,11,00,11,..."
     // Size includes null terminator

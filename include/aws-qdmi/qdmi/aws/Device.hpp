@@ -228,8 +228,9 @@ private:
   mutable std::string outputS3Directory_;
   mutable std::mutex jobMutex_;
 
-  // Helper to fetch and parse results from S3
-  auto fetchResults() const -> QDMI_STATUS;
+  // Helpers to fetch and parse results from S3
+  auto fetchResults() const -> QDMI_STATUS;         // Locks and calls internal
+  auto fetchResultsInternal() const -> QDMI_STATUS; // Assumes jobMutex_ is held
 
 public:
   explicit AWS_QDMI_Device_Job_impl_d(AWS_QDMI_Device_Session_impl_d* session)
