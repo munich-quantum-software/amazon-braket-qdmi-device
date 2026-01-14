@@ -210,10 +210,9 @@ protected:
       if (submit_status == QDMI_ERROR_NOTSUPPORTED) {
         GTEST_SKIP() << "job_submit not supported; skipping job result tests";
         return;
-      } else {
-        GTEST_FAIL() << "job_submit failed with status " << submit_status;
-        return;
       }
+      GTEST_FAIL() << "job_submit failed with status " << submit_status;
+      return;
     }
     submitted_ok = true;
 
@@ -608,8 +607,7 @@ TEST_F(AWSQDMISpecificationTest, AwsSpecificDeviceProperties) {
         AWS_QDMI_device_session_query_device_property(
             session,
             static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_PROVIDER),
-            size, reinterpret_cast<void*>(const_cast<char*>(provider.data())),
-            nullptr),
+            size, provider.data(), nullptr),
         QDMI_SUCCESS);
     EXPECT_FALSE(provider.empty());
   }
@@ -627,8 +625,7 @@ TEST_F(AWSQDMISpecificationTest, AwsSpecificDeviceProperties) {
         AWS_QDMI_device_session_query_device_property(
             session,
             static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICEARN),
-            size, reinterpret_cast<void*>(const_cast<char*>(arn.data())),
-            nullptr),
+            size, arn.data(), nullptr),
         QDMI_SUCCESS);
     EXPECT_FALSE(arn.empty());
   }
@@ -646,8 +643,7 @@ TEST_F(AWSQDMISpecificationTest, AwsSpecificDeviceProperties) {
         AWS_QDMI_device_session_query_device_property(
             session,
             static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICETYPE),
-            size, reinterpret_cast<void*>(const_cast<char*>(dtype.data())),
-            nullptr),
+            size, dtype.data(), nullptr),
         QDMI_SUCCESS);
     EXPECT_FALSE(dtype.empty());
   }
