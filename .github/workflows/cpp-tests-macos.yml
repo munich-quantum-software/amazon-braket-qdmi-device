@@ -104,8 +104,7 @@ jobs:
       - name: Configure CMake
         env:
           CONFIG: ${{ inputs.config }}
-          CMAKE_ARGS: ${{ inputs.cmake-args }}
-        run: cmake -G Ninja -S . -B build -DCMAKE_BUILD_TYPE=$CONFIG $CMAKE_ARGS
+        run: cmake -G Ninja -S . -B build -DCMAKE_BUILD_TYPE=$CONFIG
       # build the project in the specified mode
       - name: Build
         run: cmake --build build

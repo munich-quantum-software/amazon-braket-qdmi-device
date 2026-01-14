@@ -77,15 +77,8 @@ jobs:
       - name: Configure CMake
         env:
           CONFIG: ${{ inputs.config }}
-          CMAKE_ARGS: ${{ inputs.cmake-args }}
           COMPILER: ${{ inputs.compiler }}
         run: |
-          $cmakeArgs = $env:CMAKE_ARGS
-
-          if ($env:COMPILER -eq "clang") {
-            $cmakeArgs = "$cmakeArgs -T ClangCL"
-          }
-
           cmake -S . -B build `
             -G "Visual Studio 17 2022" `
             -A x64 `
@@ -96,8 +89,7 @@ jobs:
             -DENABLE_UNITY_BUILD=ON `
             -DBUILD_SHARED_LIBS=OFF `
             -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF `
-            -DAWS_SDK_WARNINGS_ARE_ERRORS=OFF `
-            $cmakeArgs
+            -DAWS_SDK_WARNINGS_ARE_ERRORS=OFF
 
       - name: Build
         uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2 # Windows builds with MSVC are flaky and frequently run out of heap space

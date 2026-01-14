@@ -120,13 +120,11 @@ jobs:
       - name: Configure CMake
         env:
           CONFIG: ${{ inputs.config }}
-          CMAKE_ARGS: ${{ inputs.cmake-args }}
         run: |
           cmake -G Ninja -S . -B build \
             -DCMAKE_BUILD_TYPE=$CONFIG \
             -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
-            -DAWS_SDK_WARNINGS_ARE_ERRORS=OFF \
-            $CMAKE_ARGS
+            -DAWS_SDK_WARNINGS_ARE_ERRORS=OFF
       # build the project in the specified mode
       - name: Build
         env:
