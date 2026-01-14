@@ -21,12 +21,6 @@ on:
           If 'clang' is selected, '-T ClangCL' is automatically added to the CMake arguments.
         default: "msvc"
         type: string
-      cmake-args:
-        description: >
-          Additional arguments to pass to CMake. Defaults to an empty string.
-          This can be any valid CMake argument, such as '-DBUILD_SHARED_LIBS=ON'.
-        default: ""
-        type: string
       device-arn:
         description: >
           The AWS Braket device ARN to use for tests that require a quantum device.
