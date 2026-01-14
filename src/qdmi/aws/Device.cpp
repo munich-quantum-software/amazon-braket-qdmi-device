@@ -787,6 +787,12 @@ auto AWS_QDMI_Device_Job_impl_d::setParameter(
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
+  const auto currentStatus = status_.load();
+  if (currentStatus != QDMI_JOB_STATUS_CREATED) {
+    return QDMI_ERROR_BADSTATE;
+  }
+
+  const std::scoped_lock<std::mutex> lock(jobMutex_);
   if (param == QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM) {
     if (size != sizeof(size_t)) {
       return QDMI_ERROR_INVALIDARGUMENT;
@@ -823,6 +829,7 @@ auto AWS_QDMI_Device_Job_impl_d::queryProperty(
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
+  const std::scoped_lock<std::mutex> lock(jobMutex_);
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_JOB_PROPERTY_ID, int, id_, prop, size,
                             value, sizeRet)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_JOB_PROPERTY_PROGRAMFORMAT,
@@ -875,8 +882,14 @@ auto AWS_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
-  status_.store(QDMI_JOB_STATUS_QUEUED);
-  aws_qdmi::Device::get().increaseRunningJobs();
+  {
+    const std::scoped_lock<std::mutex> lock(jobMutex_);
+    status_.store(QDMI_JOB_STATUS_QUEUED);
+    if (!isRunningCounted_) {
+      aws_qdmi::Device::get().increaseRunningJobs();
+      isRunningCounted_ = true;
+    }
+  }
 
   Aws::Braket::Model::CreateQuantumTaskRequest request;
   request.SetDeviceArn(session_->getDeviceArn().c_str());
@@ -901,8 +914,12 @@ auto AWS_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
     request.SetOutputS3KeyPrefix(prefix.c_str());
   } else {
     std::cerr << "Error: S3 bucket must be configured to store task results.\n";
+    const std::scoped_lock<std::mutex> lock(jobMutex_);
     status_.store(QDMI_JOB_STATUS_FAILED);
-    aws_qdmi::Device::get().decreaseRunningJobs();
+    if (isRunningCounted_) {
+      aws_qdmi::Device::get().decreaseRunningJobs();
+      isRunningCounted_ = false;
+    }
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
@@ -910,8 +927,12 @@ auto AWS_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
   if (!outcome.IsSuccess()) {
     std::cerr << "Failed to submit task: " << outcome.GetError().GetMessage()
               << "\n";
+    const std::scoped_lock<std::mutex> lock(jobMutex_);
     status_.store(QDMI_JOB_STATUS_FAILED);
-    aws_qdmi::Device::get().decreaseRunningJobs();
+    if (isRunningCounted_) {
+      aws_qdmi::Device::get().decreaseRunningJobs();
+      isRunningCounted_ = false;
+    }
     return QDMI_ERROR_NOTSUPPORTED;
   }
 
@@ -970,8 +991,14 @@ auto AWS_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
     return QDMI_ERROR_NOTSUPPORTED;
   }
 
-  status_.store(QDMI_JOB_STATUS_CANCELED);
-  aws_qdmi::Device::get().decreaseRunningJobs();
+  {
+    const std::scoped_lock<std::mutex> lock(jobMutex_);
+    status_.store(QDMI_JOB_STATUS_CANCELED);
+    if (isRunningCounted_) {
+      aws_qdmi::Device::get().decreaseRunningJobs();
+      isRunningCounted_ = false;
+    }
+  }
   return QDMI_SUCCESS;
 }
 
@@ -1019,6 +1046,17 @@ auto AWS_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
     return QDMI_SUCCESS;
   }
 
+  // If already terminal, don't poll again
+  {
+    const std::scoped_lock<std::mutex> lock(jobMutex_);
+    const auto current = status_.load();
+    if (current == QDMI_JOB_STATUS_DONE || current == QDMI_JOB_STATUS_FAILED ||
+        current == QDMI_JOB_STATUS_CANCELED) {
+      *status = current;
+      return QDMI_SUCCESS;
+    }
+  }
+
   Aws::Braket::Model::GetQuantumTaskRequest request;
   request.SetQuantumTaskArn(taskArn_.c_str());
 
@@ -1031,29 +1069,40 @@ auto AWS_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
 
   const auto& taskStatus = outcome.GetResult().GetStatus();
   QDMI_Job_Status newStatus = QDMI_JOB_STATUS_CREATED;
-  if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::CREATED) {
-    newStatus = QDMI_JOB_STATUS_CREATED;
-  } else if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::QUEUED) {
-    newStatus = QDMI_JOB_STATUS_QUEUED;
-  } else if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::RUNNING) {
-    newStatus = QDMI_JOB_STATUS_RUNNING;
-  } else if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::COMPLETED) {
-    newStatus = QDMI_JOB_STATUS_DONE;
-    // Store S3 location for result retrieval
-    outputS3Bucket_ = outcome.GetResult().GetOutputS3Bucket();
-    outputS3Directory_ = outcome.GetResult().GetOutputS3Directory();
-    aws_qdmi::Device::get().decreaseRunningJobs();
-  } else if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::FAILED) {
-    newStatus = QDMI_JOB_STATUS_FAILED;
-    aws_qdmi::Device::get().decreaseRunningJobs();
-  } else if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::CANCELLED) {
-    newStatus = QDMI_JOB_STATUS_CANCELED;
-    aws_qdmi::Device::get().decreaseRunningJobs();
-  } else {
-    newStatus = status_.load();
+
+  {
+    const std::scoped_lock<std::mutex> lock(jobMutex_);
+    if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::CREATED) {
+      newStatus = QDMI_JOB_STATUS_CREATED;
+    } else if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::QUEUED) {
+      newStatus = QDMI_JOB_STATUS_QUEUED;
+    } else if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::RUNNING) {
+      newStatus = QDMI_JOB_STATUS_RUNNING;
+    } else if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::COMPLETED) {
+      newStatus = QDMI_JOB_STATUS_DONE;
+      // Store S3 location for result retrieval
+      outputS3Bucket_ = outcome.GetResult().GetOutputS3Bucket();
+      outputS3Directory_ = outcome.GetResult().GetOutputS3Directory();
+    } else if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::FAILED) {
+      newStatus = QDMI_JOB_STATUS_FAILED;
+    } else if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::CANCELLED) {
+      newStatus = QDMI_JOB_STATUS_CANCELED;
+    } else {
+      newStatus = status_.load();
+    }
+
+    status_.store(newStatus);
+
+    // Only decrement if we transition to a terminal state AND we were being
+    // counted
+    if (isRunningCounted_ && (newStatus == QDMI_JOB_STATUS_DONE ||
+                              newStatus == QDMI_JOB_STATUS_FAILED ||
+                              newStatus == QDMI_JOB_STATUS_CANCELED)) {
+      aws_qdmi::Device::get().decreaseRunningJobs();
+      isRunningCounted_ = false;
+    }
   }
 
-  status_.store(newStatus);
   *status = newStatus;
   return QDMI_SUCCESS;
 }
@@ -1116,6 +1165,7 @@ auto AWS_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
  * - counts_: {"00": 52, "11": 48} (histogram)
  */
 auto AWS_QDMI_Device_Job_impl_d::fetchResults() const -> QDMI_STATUS {
+  const std::scoped_lock<std::mutex> lock(jobMutex_);
   if (resultsFetched_) {
     return QDMI_SUCCESS;
   }
@@ -1222,6 +1272,7 @@ auto AWS_QDMI_Device_Job_impl_d::getResults(const QDMI_Job_Result result,
     return fetchStatus;
   }
 
+  const std::scoped_lock<std::mutex> lock(jobMutex_);
   if (result == QDMI_JOB_RESULT_SHOTS) {
     // Return comma-separated shot results: "00,11,00,11,..."
     // Size includes null terminator

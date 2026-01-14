@@ -213,6 +213,7 @@ private:
   AWS_QDMI_Device_Session_impl_d* session_;
   int id_ = 0;
   mutable std::atomic<QDMI_Job_Status> status_{QDMI_JOB_STATUS_CREATED};
+  mutable bool isRunningCounted_ = false;
 
   QDMI_Program_Format format_ = QDMI_PROGRAM_FORMAT_QASM3;
   std::string program_;
@@ -225,6 +226,7 @@ private:
   mutable bool resultsFetched_ = false;
   mutable std::string outputS3Bucket_;
   mutable std::string outputS3Directory_;
+  mutable std::mutex jobMutex_;
 
   // Helper to fetch and parse results from S3
   auto fetchResults() const -> QDMI_STATUS;
