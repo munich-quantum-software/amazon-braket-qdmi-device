@@ -62,16 +62,13 @@ jobs:
       fail-fast: false
       matrix:
         runs-on: [windows-2022, windows-11-arm]
-        compiler: [msvc]
         config: [Release]
         include:
           - runs-on: windows-2022
-            compiler: msvc
             config: Debug
     uses: ./.github/workflows/cpp-tests-windows.yml
     with:
       runs-on: ${{ matrix.runs-on }}
-      compiler: ${{ matrix.compiler }}
       config: ${{ matrix.config }}
     secrets:
       AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET || '' }}

@@ -14,13 +14,6 @@ on:
           This can be any valid CMake build type, such as 'Debug' or 'Release'.
         default: "Release"
         type: string
-      compiler:
-        description: >
-          The compiler to use. Defaults to 'msvc'.
-          This can be 'msvc' or 'clang'.
-          If 'clang' is selected, '-T ClangCL' is automatically added to the CMake arguments.
-        default: "msvc"
-        type: string
       device-arn:
         description: >
           The AWS Braket device ARN to use for tests that require a quantum device.
@@ -41,7 +34,7 @@ defaults:
 
 jobs:
   cpp-tests-windows:
-    name: 🏁 ${{ inputs.runs-on }} ${{ inputs.compiler }} ${{ inputs.config }}
+    name: 🏁 ${{ inputs.runs-on }} ${{ inputs.config }}
     runs-on: ${{ inputs.runs-on }}
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: 4
@@ -71,7 +64,7 @@ jobs:
       - name: Configure CMake
         env:
           CONFIG: ${{ inputs.config }}
-          COMPILER: ${{ inputs.compiler }}
+        # automatically selects the MSVC compiler
         run: |
           cmake -S . -B build `
             -G "Visual Studio 17 2022" `
@@ -83,7 +76,7 @@ jobs:
             -DAWS_SDK_WARNINGS_ARE_ERRORS=OFF
 
       - name: Build
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2 # Windows builds with MSVC are flaky and frequently run out of heap space
+        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         env:
           CONFIG: ${{ inputs.config }}
         with:
