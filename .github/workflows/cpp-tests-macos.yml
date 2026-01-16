@@ -50,7 +50,7 @@ jobs:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
         with:
           submodules: recursive
-          fetch-depth: 0
+          fetch-depth: 1
       # make sure ninja is installed
       - name: Install Ninja
         run: brew install ninja
@@ -98,15 +98,15 @@ jobs:
       - name: Configure CMake
         env:
           CONFIG: ${{ inputs.config }}
-        run: cmake -G Ninja -S . -B build -DCMAKE_BUILD_TYPE=$CONFIG
+        run: cmake -G Ninja -S . -B build -DCMAKE_BUILD_TYPE="$CONFIG"
       # build the project in the specified mode
       - name: Build
         run: cmake --build build
-      # run the tests
+      # run the tests (for retry for transient AWS connectivity failures)
       - name: Test
         env:
           AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEVICE_ARN: ${{ inputs.device-arn }}
-        run: ctest --output-on-failure --test-dir build --timeout 600
+        run: ctest --output-on-failure --test-dir build --timeout 600 --repeat after-timeout:3

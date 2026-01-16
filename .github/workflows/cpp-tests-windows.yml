@@ -45,7 +45,7 @@ jobs:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
         with:
           submodules: recursive
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Install curl via vcpkg
         run: |
@@ -86,7 +86,7 @@ jobs:
           shell: pwsh
           retry_on: error
           command: cmake --build build --config $env:CONFIG -- /m
-
+      # run the tests (for retry for transient AWS connectivity failures)
       - name: Test
         env:
           CONFIG: ${{ inputs.config }}
@@ -95,4 +95,4 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEVICE_ARN: ${{ inputs.device-arn }}
         run: |
-          ctest -C $env:CONFIG --output-on-failure --test-dir build --timeout 600
+          ctest -C $env:CONFIG --output-on-failure --test-dir build --timeout 600 --repeat after-timeout:3
