@@ -42,6 +42,11 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 1
+      # Install build dependencies
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev
       # Configure CMake in the specified mode, optionally with additional arguments
       - name: Configure CMake
         env:
