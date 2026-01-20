@@ -172,7 +172,6 @@ auto Device::sessionFree(AMAZON_BRAKET_QDMI_Device_Session session) -> void {
 auto Device::queryProperty(const QDMI_Device_Property prop, const size_t size,
                            void* value, size_t* sizeRet) const -> QDMI_STATUS {
   // Validate arguments and reject MAX sentinel value
-  // Note: We allow AWS-specific extensions (100+) so don't check < MAX
   if ((value != nullptr && size == 0) || prop == QDMI_DEVICE_PROPERTY_MAX) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }

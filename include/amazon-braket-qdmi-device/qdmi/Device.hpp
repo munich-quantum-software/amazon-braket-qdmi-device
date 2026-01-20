@@ -57,12 +57,6 @@
 #include "qdmi/constants.h" // IWYU pragma: export
 #include "qdmi/types.h"     // IWYU pragma: export
 
-/* ============================================================================
- * Amazon Braket-Specific Extensions
- * ============================================================================
- * These extend the standard QDMI types with AWS-specific functionality.
- */
-
 // Forward declarations
 struct AMAZON_BRAKET_QDMI_Site_impl_d;
 struct AMAZON_BRAKET_QDMI_Operation_impl_d;
