@@ -63,8 +63,6 @@
  * These extend the standard QDMI types with AWS-specific functionality.
  */
 
-#include "amazon-braket-qdmi-device/qdmi/constants.h"
-
 // Forward declarations
 struct AMAZON_BRAKET_QDMI_Site_impl_d;
 struct AMAZON_BRAKET_QDMI_Operation_impl_d;

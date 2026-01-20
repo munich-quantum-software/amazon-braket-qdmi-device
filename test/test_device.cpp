@@ -1,4 +1,3 @@
-#include "amazon-braket-qdmi-device/qdmi/constants.h"
 #include "amazon_braket_qdmi/device.h"
 
 #include <cstddef>

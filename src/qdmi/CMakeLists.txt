@@ -27,7 +27,6 @@ if(NOT TARGET ${TARGET_NAME})
            ${CMAKE_CURRENT_BINARY_DIR}/include
            FILES
            ${INCLUDE_BUILD_DIR}/amazon-braket-qdmi-device/qdmi/Device.hpp
-           ${INCLUDE_BUILD_DIR}/amazon-braket-qdmi-device/qdmi/constants.h
            ${QDMI_HDRS})
 
   # Add link libraries
