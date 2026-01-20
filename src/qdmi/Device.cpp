@@ -189,12 +189,6 @@ auto Device::queryProperty(const QDMI_Device_Property prop, const size_t size,
                             prop, size, value, sizeRet)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_NEEDSCALIBRATION, size_t, 0,
                             prop, size, value, sizeRet)
-  ADD_STRING_PROPERTY(AMAZON_BRAKET_PROPERTY_PROVIDER, provider_.c_str(), prop,
-                      size, value, sizeRet)
-  ADD_STRING_PROPERTY(AMAZON_BRAKET_PROPERTY_DEVICEARN, deviceArn_.c_str(),
-                      prop, size, value, sizeRet)
-  ADD_STRING_PROPERTY(AMAZON_BRAKET_PROPERTY_DEVICETYPE, deviceType_.c_str(),
-                      prop, size, value, sizeRet)
 
   return QDMI_ERROR_NOTSUPPORTED;
 }
@@ -585,6 +579,21 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
     return QDMI_ERROR_BADSTATE;
   }
 
+  // Check for environment variables if parameters not set
+  if (deviceArn_.empty()) {
+    const char* envArn = std::getenv("AWS_DEVICE_ARN");
+    if (envArn != nullptr) {
+      deviceArn_ = envArn;
+    }
+  }
+
+  if (s3Bucket_.empty()) {
+    const char* envBucket = std::getenv("AWS_S3_BUCKET");
+    if (envBucket != nullptr) {
+      s3Bucket_ = envBucket;
+    }
+  }
+
   // Extract region from ARN if not explicitly set
   // ARN format: arn:aws:braket:<region>::device/... or
   // arn:aws:braket:::<device> (global)
@@ -629,37 +638,20 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
-  // Validate parameter: must be standard QDMI param, CUSTOM param, or
-  // AWS-specific param
+  // Validate parameter: must be standard QDMI param, CUSTOM param
   const bool isStandardParam = param < QDMI_DEVICE_SESSION_PARAMETER_MAX;
   const bool isCustomParam = (param == QDMI_DEVICE_SESSION_PARAMETER_CUSTOM1 ||
                               param == QDMI_DEVICE_SESSION_PARAMETER_CUSTOM2 ||
                               param == QDMI_DEVICE_SESSION_PARAMETER_CUSTOM3 ||
                               param == QDMI_DEVICE_SESSION_PARAMETER_CUSTOM4 ||
                               param == QDMI_DEVICE_SESSION_PARAMETER_CUSTOM5);
-  const bool isAWSParam = (param == AMAZON_BRAKET_SESSION_PARAMETER_REGION ||
-                           param == AMAZON_BRAKET_SESSION_PARAMETER_DEVICEARN ||
-                           param == AMAZON_BRAKET_SESSION_PARAMETER_S3BUCKET);
 
-  if (!isStandardParam && !isCustomParam && !isAWSParam) {
+  if (!isStandardParam && !isCustomParam) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
   if (status_ != Status::ALLOCATED) {
     return QDMI_ERROR_BADSTATE;
-  }
-
-  if (param == AMAZON_BRAKET_SESSION_PARAMETER_REGION) {
-    region_ = std::string(static_cast<const char*>(value), size - 1);
-    return QDMI_SUCCESS;
-  }
-  if (param == AMAZON_BRAKET_SESSION_PARAMETER_DEVICEARN) {
-    deviceArn_ = std::string(static_cast<const char*>(value), size - 1);
-    return QDMI_SUCCESS;
-  }
-  if (param == AMAZON_BRAKET_SESSION_PARAMETER_S3BUCKET) {
-    s3Bucket_ = std::string(static_cast<const char*>(value), size - 1);
-    return QDMI_SUCCESS;
   }
 
   return QDMI_ERROR_NOTSUPPORTED;
@@ -707,12 +699,6 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
                             prop, size, value, sizeRet)
   ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_NAME, name_.c_str(), prop, size,
                       value, sizeRet)
-  ADD_STRING_PROPERTY(AMAZON_BRAKET_PROPERTY_PROVIDER, provider_.c_str(), prop,
-                      size, value, sizeRet)
-  ADD_STRING_PROPERTY(AMAZON_BRAKET_PROPERTY_DEVICEARN, deviceArn_.c_str(),
-                      prop, size, value, sizeRet)
-  ADD_STRING_PROPERTY(AMAZON_BRAKET_PROPERTY_DEVICETYPE, deviceType_.c_str(),
-                      prop, size, value, sizeRet)
   ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_DURATIONUNIT, "us", prop, size,
                       value, sizeRet)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_DURATIONSCALEFACTOR, double,
@@ -839,8 +825,6 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
                       size, value, sizeRet)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_JOB_PROPERTY_SHOTSNUM, size_t, shots_,
                             prop, size, value, sizeRet)
-  ADD_STRING_PROPERTY(AMAZON_BRAKET_JOB_PROPERTY_TASKARN, taskArn_.c_str(),
-                      prop, size, value, sizeRet)
 
   return QDMI_ERROR_NOTSUPPORTED;
 }

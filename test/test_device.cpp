@@ -73,25 +73,10 @@ protected:
         << "Failed to allocate a session";
 
     const char* deviceArnEnv = std::getenv("AWS_DEVICE_ARN");
-    const std::string deviceArn =
-        (deviceArnEnv != nullptr)
-            ? deviceArnEnv
-            : "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
-
-    AMAZON_BRAKET_QDMI_device_session_set_parameter(
-        session,
-        static_cast<QDMI_Device_Session_Parameter>(
-            AMAZON_BRAKET_SESSION_PARAMETER_DEVICEARN),
-        deviceArn.length() + 1, deviceArn.c_str());
+    (void)deviceArnEnv; // Suppress unused warning, handled by library env read
 
     const char* s3BucketEnv = std::getenv("AWS_S3_BUCKET");
-    if (s3BucketEnv != nullptr) {
-      AMAZON_BRAKET_QDMI_device_session_set_parameter(
-          session,
-          static_cast<QDMI_Device_Session_Parameter>(
-              AMAZON_BRAKET_SESSION_PARAMETER_S3BUCKET),
-          strlen(s3BucketEnv) + 1, s3BucketEnv);
-    }
+    (void)s3BucketEnv; // Suppress unused warning, handled by library env read
 
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS)
         << "Failed to initialize a session. Potential errors: Wrong or missing "
@@ -153,33 +138,13 @@ protected:
     }
 
     const char* deviceArnEnv = std::getenv("AWS_DEVICE_ARN");
-    const std::string deviceArn =
-        (deviceArnEnv != nullptr)
-            ? deviceArnEnv
-            : "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
-    AMAZON_BRAKET_QDMI_device_session_set_parameter(
-        shared_session,
-        static_cast<QDMI_Device_Session_Parameter>(
-            AMAZON_BRAKET_SESSION_PARAMETER_DEVICEARN),
-        deviceArn.length() + 1, deviceArn.c_str());
+    (void)deviceArnEnv; // Suppress unused warning
 
     const char* s3BucketEnv = std::getenv("AWS_S3_BUCKET");
-    if (s3BucketEnv != nullptr) {
-      AMAZON_BRAKET_QDMI_device_session_set_parameter(
-          shared_session,
-          static_cast<QDMI_Device_Session_Parameter>(
-              AMAZON_BRAKET_SESSION_PARAMETER_S3BUCKET),
-          strlen(s3BucketEnv) + 1, s3BucketEnv);
-    }
+    (void)s3BucketEnv; // Suppress unused warning
 
     const char* regionEnv = std::getenv("AWS_DEFAULT_REGION");
-    if (regionEnv != nullptr) {
-      AMAZON_BRAKET_QDMI_device_session_set_parameter(
-          shared_session,
-          static_cast<QDMI_Device_Session_Parameter>(
-              AMAZON_BRAKET_SESSION_PARAMETER_REGION),
-          strlen(regionEnv) + 1, regionEnv);
-    }
+    (void)regionEnv; // Unused variable warning suppression
 
     if (AMAZON_BRAKET_QDMI_device_session_init(shared_session) !=
         QDMI_SUCCESS) {
@@ -223,24 +188,9 @@ protected:
     }
     submitted_ok = true;
 
-    // get task arn if available
+    // get task arn if available - Removed as Job Property removed
     size_t arnSize = 0;
-    if (AMAZON_BRAKET_QDMI_device_job_query_property(
-            shared_job,
-            static_cast<QDMI_Device_Job_Property>(
-                AMAZON_BRAKET_JOB_PROPERTY_TASKARN),
-            0, nullptr, &arnSize) == QDMI_SUCCESS &&
-        arnSize > 0) {
-      std::string arn(arnSize - 1, '\0');
-      if (AMAZON_BRAKET_QDMI_device_job_query_property(
-              shared_job,
-              static_cast<QDMI_Device_Job_Property>(
-                  AMAZON_BRAKET_JOB_PROPERTY_TASKARN),
-              arnSize, arn.data(), nullptr) == QDMI_SUCCESS) {
-        has_task_arn = true;
-        task_arn = arn;
-      }
-    }
+    (void)arnSize; // Unused variable warning suppression
 
     // wait for completion (timeout: 120 seconds)
     wait_result = AMAZON_BRAKET_QDMI_device_job_wait(shared_job, 120000);
@@ -600,62 +550,7 @@ TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceProperty) {
 }
 
 TEST_F(AmazonBraketQDMISpecificationTest, AwsSpecificDeviceProperties) {
-  size_t size = 0;
-  // Provider
-  const auto providerStatus =
-      AMAZON_BRAKET_QDMI_device_session_query_device_property(
-          session,
-          static_cast<QDMI_Device_Property>(AMAZON_BRAKET_PROPERTY_PROVIDER), 0,
-          nullptr, &size);
-  ASSERT_EQ(providerStatus, QDMI_SUCCESS);
-  if (size > 0) {
-    std::string provider(size - 1, '\0');
-    EXPECT_EQ(
-        AMAZON_BRAKET_QDMI_device_session_query_device_property(
-            session,
-            static_cast<QDMI_Device_Property>(AMAZON_BRAKET_PROPERTY_PROVIDER),
-            size, provider.data(), nullptr),
-        QDMI_SUCCESS);
-    EXPECT_FALSE(provider.empty());
-  }
-
-  // Device ARN
-  size = 0;
-  const auto arnStatus =
-      AMAZON_BRAKET_QDMI_device_session_query_device_property(
-          session,
-          static_cast<QDMI_Device_Property>(AMAZON_BRAKET_PROPERTY_DEVICEARN),
-          0, nullptr, &size);
-  ASSERT_EQ(arnStatus, QDMI_SUCCESS);
-  if (size > 0) {
-    std::string arn(size - 1, '\0');
-    EXPECT_EQ(
-        AMAZON_BRAKET_QDMI_device_session_query_device_property(
-            session,
-            static_cast<QDMI_Device_Property>(AMAZON_BRAKET_PROPERTY_DEVICEARN),
-            size, arn.data(), nullptr),
-        QDMI_SUCCESS);
-    EXPECT_FALSE(arn.empty());
-  }
-
-  // Device type
-  size = 0;
-  const auto typeStatus =
-      AMAZON_BRAKET_QDMI_device_session_query_device_property(
-          session,
-          static_cast<QDMI_Device_Property>(AMAZON_BRAKET_PROPERTY_DEVICETYPE),
-          0, nullptr, &size);
-  ASSERT_EQ(typeStatus, QDMI_SUCCESS);
-  if (size > 0) {
-    std::string dtype(size - 1, '\0');
-    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
-                  session,
-                  static_cast<QDMI_Device_Property>(
-                      AMAZON_BRAKET_PROPERTY_DEVICETYPE),
-                  size, dtype.data(), nullptr),
-              QDMI_SUCCESS);
-    EXPECT_FALSE(dtype.empty());
-  }
+  // AwsSpecificDeviceProperties removed as properties were removed
 }
 
 TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteProperty) {
