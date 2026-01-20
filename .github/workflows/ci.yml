@@ -18,16 +18,13 @@ jobs:
       fail-fast: false
       matrix:
         runs-on: [ubuntu-24.04, ubuntu-24.04-arm]
-        compiler: [gcc]
         config: [Release]
         include:
           - runs-on: ubuntu-24.04
-            compiler: gcc
             config: Debug
     uses: ./.github/workflows/cpp-tests-ubuntu.yml
     with:
       runs-on: ${{ matrix.runs-on }}
-      compiler: ${{ matrix.compiler }}
       config: ${{ matrix.config }}
     secrets:
       AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET || '' }}
@@ -40,16 +37,13 @@ jobs:
       fail-fast: false
       matrix:
         runs-on: [macos-15-intel, macos-15]
-        compiler: [clang]
         config: [Release]
         include:
           - runs-on: macos-15
-            compiler: clang
             config: Debug
     uses: ./.github/workflows/cpp-tests-macos.yml
     with:
       runs-on: ${{ matrix.runs-on }}
-      compiler: ${{ matrix.compiler }}
       config: ${{ matrix.config }}
     secrets:
       AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET || '' }}

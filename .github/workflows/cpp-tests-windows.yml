@@ -47,21 +47,6 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      - name: Install curl via vcpkg
-        run: |
-          vcpkg install curl:x64-windows-static
-
-          $vcpkgExe = (Get-Command vcpkg).Source
-          $vcpkgRoot = Split-Path -Parent $vcpkgExe
-          $toolchain = Join-Path $vcpkgRoot "scripts/buildsystems/vcpkg.cmake"
-
-          if (-Not (Test-Path $toolchain)) {
-            Write-Error "vcpkg toolchain file not found at $toolchain"
-            exit 1
-          }
-
-          "CMAKE_TOOLCHAIN_FILE=$toolchain" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-
       - name: Configure CMake
         env:
           CONFIG: ${{ inputs.config }}
@@ -71,8 +56,6 @@ jobs:
             -G "Visual Studio 17 2022" `
             -A x64 `
             -DCMAKE_BUILD_TYPE=$env:CONFIG `
-            -DCMAKE_TOOLCHAIN_FILE="$env:CMAKE_TOOLCHAIN_FILE" `
-            -DVCPKG_TARGET_TRIPLET=x64-windows-static `
             -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF `
             -DAWS_SDK_WARNINGS_ARE_ERRORS=OFF
 
