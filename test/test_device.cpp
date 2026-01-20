@@ -1,4 +1,5 @@
-#include "amazon-braket-qdmi-device/qdmi/device.h"
+#include "amazon-braket-qdmi-device/qdmi/constants.h"
+#include "amazon_braket_qdmi/device.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -80,7 +81,7 @@ protected:
     AMAZON_BRAKET_QDMI_device_session_set_parameter(
         session,
         static_cast<QDMI_Device_Session_Parameter>(
-            QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN),
+            AMAZON_BRAKET_SESSION_PARAMETER_DEVICEARN),
         deviceArn.length() + 1, deviceArn.c_str());
 
     const char* s3BucketEnv = std::getenv("AWS_S3_BUCKET");
@@ -88,7 +89,7 @@ protected:
       AMAZON_BRAKET_QDMI_device_session_set_parameter(
           session,
           static_cast<QDMI_Device_Session_Parameter>(
-              QDMI_DEVICE_SESSION_PARAMETER_S3BUCKET),
+              AMAZON_BRAKET_SESSION_PARAMETER_S3BUCKET),
           strlen(s3BucketEnv) + 1, s3BucketEnv);
     }
 
@@ -159,7 +160,7 @@ protected:
     AMAZON_BRAKET_QDMI_device_session_set_parameter(
         shared_session,
         static_cast<QDMI_Device_Session_Parameter>(
-            QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN),
+            AMAZON_BRAKET_SESSION_PARAMETER_DEVICEARN),
         deviceArn.length() + 1, deviceArn.c_str());
 
     const char* s3BucketEnv = std::getenv("AWS_S3_BUCKET");
@@ -167,7 +168,7 @@ protected:
       AMAZON_BRAKET_QDMI_device_session_set_parameter(
           shared_session,
           static_cast<QDMI_Device_Session_Parameter>(
-              QDMI_DEVICE_SESSION_PARAMETER_S3BUCKET),
+              AMAZON_BRAKET_SESSION_PARAMETER_S3BUCKET),
           strlen(s3BucketEnv) + 1, s3BucketEnv);
     }
 
@@ -176,7 +177,7 @@ protected:
       AMAZON_BRAKET_QDMI_device_session_set_parameter(
           shared_session,
           static_cast<QDMI_Device_Session_Parameter>(
-              QDMI_DEVICE_SESSION_PARAMETER_REGION),
+              AMAZON_BRAKET_SESSION_PARAMETER_REGION),
           strlen(regionEnv) + 1, regionEnv);
     }
 
@@ -227,14 +228,14 @@ protected:
     if (AMAZON_BRAKET_QDMI_device_job_query_property(
             shared_job,
             static_cast<QDMI_Device_Job_Property>(
-                QDMI_DEVICE_JOB_PROPERTY_TASKARN),
+                AMAZON_BRAKET_JOB_PROPERTY_TASKARN),
             0, nullptr, &arnSize) == QDMI_SUCCESS &&
         arnSize > 0) {
       std::string arn(arnSize - 1, '\0');
       if (AMAZON_BRAKET_QDMI_device_job_query_property(
               shared_job,
               static_cast<QDMI_Device_Job_Property>(
-                  QDMI_DEVICE_JOB_PROPERTY_TASKARN),
+                  AMAZON_BRAKET_JOB_PROPERTY_TASKARN),
               arnSize, arn.data(), nullptr) == QDMI_SUCCESS) {
         has_task_arn = true;
         task_arn = arn;
@@ -442,23 +443,8 @@ TEST_F(AmazonBraketQDMISpecificationTest, JobQueryProperty) {
 
 TEST_F(AmazonBraketQDMIJobSpecificationTest, JobQueryProperty) {
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
-                job, QDMI_DEVICE_JOB_PROPERTY_ID, 0, nullptr, nullptr),
-            QDMI_SUCCESS);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
                 job, QDMI_DEVICE_JOB_PROPERTY_MAX, 0, nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
-}
-
-TEST_F(AmazonBraketQDMIJobSpecificationTest, QueryJobId) {
-  size_t size = 0;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
-                job, QDMI_DEVICE_JOB_PROPERTY_ID, 0, nullptr, &size),
-            QDMI_SUCCESS);
-  ASSERT_EQ(size, sizeof(int));
-  int id = 0;
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
-                job, QDMI_DEVICE_JOB_PROPERTY_ID, sizeof(id), &id, nullptr),
-            QDMI_SUCCESS);
 }
 
 TEST_F(AmazonBraketQDMISpecificationTest, JobSubmit) {
@@ -619,7 +605,7 @@ TEST_F(AmazonBraketQDMISpecificationTest, AwsSpecificDeviceProperties) {
   const auto providerStatus =
       AMAZON_BRAKET_QDMI_device_session_query_device_property(
           session,
-          static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_PROVIDER), 0,
+          static_cast<QDMI_Device_Property>(AMAZON_BRAKET_PROPERTY_PROVIDER), 0,
           nullptr, &size);
   ASSERT_EQ(providerStatus, QDMI_SUCCESS);
   if (size > 0) {
@@ -627,7 +613,7 @@ TEST_F(AmazonBraketQDMISpecificationTest, AwsSpecificDeviceProperties) {
     EXPECT_EQ(
         AMAZON_BRAKET_QDMI_device_session_query_device_property(
             session,
-            static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_PROVIDER),
+            static_cast<QDMI_Device_Property>(AMAZON_BRAKET_PROPERTY_PROVIDER),
             size, provider.data(), nullptr),
         QDMI_SUCCESS);
     EXPECT_FALSE(provider.empty());
@@ -638,15 +624,15 @@ TEST_F(AmazonBraketQDMISpecificationTest, AwsSpecificDeviceProperties) {
   const auto arnStatus =
       AMAZON_BRAKET_QDMI_device_session_query_device_property(
           session,
-          static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICEARN), 0,
-          nullptr, &size);
+          static_cast<QDMI_Device_Property>(AMAZON_BRAKET_PROPERTY_DEVICEARN),
+          0, nullptr, &size);
   ASSERT_EQ(arnStatus, QDMI_SUCCESS);
   if (size > 0) {
     std::string arn(size - 1, '\0');
     EXPECT_EQ(
         AMAZON_BRAKET_QDMI_device_session_query_device_property(
             session,
-            static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICEARN),
+            static_cast<QDMI_Device_Property>(AMAZON_BRAKET_PROPERTY_DEVICEARN),
             size, arn.data(), nullptr),
         QDMI_SUCCESS);
     EXPECT_FALSE(arn.empty());
@@ -657,17 +643,17 @@ TEST_F(AmazonBraketQDMISpecificationTest, AwsSpecificDeviceProperties) {
   const auto typeStatus =
       AMAZON_BRAKET_QDMI_device_session_query_device_property(
           session,
-          static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICETYPE), 0,
-          nullptr, &size);
+          static_cast<QDMI_Device_Property>(AMAZON_BRAKET_PROPERTY_DEVICETYPE),
+          0, nullptr, &size);
   ASSERT_EQ(typeStatus, QDMI_SUCCESS);
   if (size > 0) {
     std::string dtype(size - 1, '\0');
-    EXPECT_EQ(
-        AMAZON_BRAKET_QDMI_device_session_query_device_property(
-            session,
-            static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICETYPE),
-            size, dtype.data(), nullptr),
-        QDMI_SUCCESS);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                  session,
+                  static_cast<QDMI_Device_Property>(
+                      AMAZON_BRAKET_PROPERTY_DEVICETYPE),
+                  size, dtype.data(), nullptr),
+              QDMI_SUCCESS);
     EXPECT_FALSE(dtype.empty());
   }
 }

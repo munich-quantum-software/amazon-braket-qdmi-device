@@ -12,7 +12,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(BUILD_TESTS "Build tests" ON)
-option(BUILD_EXAMPLES "Build examples" ON)
 option(INSTALL "Enable installation" ON)
 
 # Add path for custom modules
@@ -45,9 +44,4 @@ if(BUILD_TESTS)
   enable_testing()
   include(GoogleTest)
   add_subdirectory(test)
-endif()
-
-# add example code
-if(BUILD_EXAMPLES)
-  add_subdirectory(examples)
 endif()

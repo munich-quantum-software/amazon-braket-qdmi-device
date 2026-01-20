@@ -36,7 +36,7 @@
 
 #pragma once
 
-#include "device.h"
+#include "amazon_braket_qdmi/device.h"
 
 #include <atomic>
 #include <aws/braket/BraketClient.h>
@@ -52,6 +52,18 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+/* Include QDMI standard headers - they have their own extern "C" guards */
+#include "qdmi/constants.h" // IWYU pragma: export
+#include "qdmi/types.h"     // IWYU pragma: export
+
+/* ============================================================================
+ * Amazon Braket-Specific Extensions
+ * ============================================================================
+ * These extend the standard QDMI types with AWS-specific functionality.
+ */
+
+#include "amazon-braket-qdmi-device/qdmi/constants.h"
 
 // Forward declarations
 struct AMAZON_BRAKET_QDMI_Site_impl_d;

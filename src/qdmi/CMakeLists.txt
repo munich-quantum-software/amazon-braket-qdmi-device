@@ -2,11 +2,17 @@
 set(TARGET_NAME amazon-braket-qdmi-device)
 
 # Set prefix for QDMI
-set(QDMI_PREFIX "AWS")
+set(QDMI_PREFIX "AMAZON_BRAKET")
 
 # If the target is not already defined
 if(NOT TARGET ${TARGET_NAME})
+
   add_library(${TARGET_NAME} STATIC)
+
+  # Generate prefixed QDMI headers
+  generate_prefixed_qdmi_headers(${QDMI_PREFIX})
+  file(GLOB_RECURSE QDMI_HDRS
+       ${CMAKE_CURRENT_BINARY_DIR}/include/amazon_braket_qdmi/**.h)
 
   # Add sources to target
   target_sources(${TARGET_NAME} PRIVATE Device.cpp)
@@ -18,10 +24,11 @@ if(NOT TARGET ${TARGET_NAME})
            HEADERS
            BASE_DIRS
            ${INCLUDE_BUILD_DIR}
+           ${CMAKE_CURRENT_BINARY_DIR}/include
            FILES
-           ${INCLUDE_BUILD_DIR}/amazon-braket-qdmi-device/qdmi/Device.h
-           ${INCLUDE_BUILD_DIR}/amazon-braket-qdmi-device/qdmi/device.h
-           ${INCLUDE_BUILD_DIR}/amazon-braket-qdmi-device/qdmi/types.h)
+           ${INCLUDE_BUILD_DIR}/amazon-braket-qdmi-device/qdmi/Device.hpp
+           ${INCLUDE_BUILD_DIR}/amazon-braket-qdmi-device/qdmi/constants.h
+           ${QDMI_HDRS})
 
   # Add link libraries
   target_link_libraries(
