@@ -1,4 +1,4 @@
-#include "aws-qdmi/qdmi/aws/device.h"
+#include "amazon-braket-qdmi-device/qdmi/device.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -13,10 +13,10 @@
 #include <vector>
 
 namespace {
-[[nodiscard]] auto querySites(AWS_QDMI_Device_Session session)
-    -> std::vector<AWS_QDMI_Site> {
+[[nodiscard]] auto querySites(AMAZON_BRAKET_QDMI_Device_Session session)
+    -> std::vector<AMAZON_BRAKET_QDMI_Site> {
   size_t size = 0;
-  if (AWS_QDMI_device_session_query_device_property(
+  if (AMAZON_BRAKET_QDMI_device_session_query_device_property(
           session,
           static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_SITES), 0,
           nullptr, &size) != QDMI_SUCCESS) {
@@ -25,8 +25,9 @@ namespace {
   if (size == 0) {
     throw std::runtime_error("No sites available");
   }
-  std::vector<AWS_QDMI_Site> sites(size / sizeof(AWS_QDMI_Site));
-  if (AWS_QDMI_device_session_query_device_property(
+  std::vector<AMAZON_BRAKET_QDMI_Site> sites(size /
+                                             sizeof(AMAZON_BRAKET_QDMI_Site));
+  if (AMAZON_BRAKET_QDMI_device_session_query_device_property(
           session,
           static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_SITES), size,
           static_cast<void*>(sites.data()), nullptr) != QDMI_SUCCESS) {
@@ -34,10 +35,10 @@ namespace {
   }
   return sites;
 }
-[[nodiscard]] auto queryOperations(AWS_QDMI_Device_Session session)
-    -> std::vector<AWS_QDMI_Operation> {
+[[nodiscard]] auto queryOperations(AMAZON_BRAKET_QDMI_Device_Session session)
+    -> std::vector<AMAZON_BRAKET_QDMI_Operation> {
   size_t size = 0;
-  if (AWS_QDMI_device_session_query_device_property(
+  if (AMAZON_BRAKET_QDMI_device_session_query_device_property(
           session,
           static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_OPERATIONS), 0,
           nullptr, &size) != QDMI_SUCCESS) {
@@ -46,8 +47,9 @@ namespace {
   if (size == 0) {
     throw std::runtime_error("No operations available");
   }
-  std::vector<AWS_QDMI_Operation> operations(size / sizeof(AWS_QDMI_Operation));
-  if (AWS_QDMI_device_session_query_device_property(
+  std::vector<AMAZON_BRAKET_QDMI_Operation> operations(
+      size / sizeof(AMAZON_BRAKET_QDMI_Operation));
+  if (AMAZON_BRAKET_QDMI_device_session_query_device_property(
           session,
           static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_OPERATIONS),
           size, static_cast<void*>(operations.data()),
@@ -58,15 +60,15 @@ namespace {
 }
 } // namespace
 
-class AWSQDMISpecificationTest : public ::testing::Test {
+class AmazonBraketQDMISpecificationTest : public ::testing::Test {
 protected:
-  AWS_QDMI_Device_Session session = nullptr;
+  AMAZON_BRAKET_QDMI_Device_Session session = nullptr;
 
   void SetUp() override {
-    ASSERT_EQ(AWS_QDMI_device_initialize(), QDMI_SUCCESS)
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS)
         << "Failed to initialize the device";
 
-    ASSERT_EQ(AWS_QDMI_device_session_alloc(&session), QDMI_SUCCESS)
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&session), QDMI_SUCCESS)
         << "Failed to allocate a session";
 
     const char* deviceArnEnv = std::getenv("AWS_DEVICE_ARN");
@@ -75,7 +77,7 @@ protected:
             ? deviceArnEnv
             : "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
 
-    AWS_QDMI_device_session_set_parameter(
+    AMAZON_BRAKET_QDMI_device_session_set_parameter(
         session,
         static_cast<QDMI_Device_Session_Parameter>(
             QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN),
@@ -83,14 +85,14 @@ protected:
 
     const char* s3BucketEnv = std::getenv("AWS_S3_BUCKET");
     if (s3BucketEnv != nullptr) {
-      AWS_QDMI_device_session_set_parameter(
+      AMAZON_BRAKET_QDMI_device_session_set_parameter(
           session,
           static_cast<QDMI_Device_Session_Parameter>(
               QDMI_DEVICE_SESSION_PARAMETER_S3BUCKET),
           strlen(s3BucketEnv) + 1, s3BucketEnv);
     }
 
-    ASSERT_EQ(AWS_QDMI_device_session_init(session), QDMI_SUCCESS)
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS)
         << "Failed to initialize a session. Potential errors: Wrong or missing "
            "authentication information, device status is offline, or in "
            "maintenance.";
@@ -98,18 +100,19 @@ protected:
 
   void TearDown() override {
     if (session != nullptr) {
-      AWS_QDMI_device_session_free(session);
+      AMAZON_BRAKET_QDMI_device_session_free(session);
       session = nullptr;
     }
-    AWS_QDMI_device_finalize();
+    AMAZON_BRAKET_QDMI_device_finalize();
   }
 };
 
-class AWSQDMIJobSpecificationTest : public AWSQDMISpecificationTest {
+class AmazonBraketQDMIJobSpecificationTest
+    : public AmazonBraketQDMISpecificationTest {
 protected:
   // Shared job and session for the whole test suite
-  static AWS_QDMI_Device_Session shared_session;
-  static AWS_QDMI_Device_Job shared_job;
+  static AMAZON_BRAKET_QDMI_Device_Session shared_session;
+  static AMAZON_BRAKET_QDMI_Device_Job shared_job;
 
   // Collected data
   static bool submitted_ok;
@@ -122,7 +125,7 @@ protected:
   static std::vector<std::string> hist_keys;
   static std::vector<size_t> hist_values;
 
-  AWS_QDMI_Device_Job job = nullptr;
+  AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
 
   static void SetUpTestSuite() {
     // Create a session for the shared job
@@ -136,12 +139,14 @@ protected:
     hist_keys.clear();
     hist_values.clear();
 
-    if (AWS_QDMI_device_initialize() != QDMI_SUCCESS) {
-      GTEST_FAIL() << "AWS_QDMI_device_initialize failed in SetUpTestSuite";
+    if (AMAZON_BRAKET_QDMI_device_initialize() != QDMI_SUCCESS) {
+      GTEST_FAIL()
+          << "AMAZON_BRAKET_QDMI_device_initialize failed in SetUpTestSuite";
       return;
     }
 
-    if (AWS_QDMI_device_session_alloc(&shared_session) != QDMI_SUCCESS) {
+    if (AMAZON_BRAKET_QDMI_device_session_alloc(&shared_session) !=
+        QDMI_SUCCESS) {
       GTEST_FAIL() << "session_alloc failed in SetUpTestSuite";
       return;
     }
@@ -151,7 +156,7 @@ protected:
         (deviceArnEnv != nullptr)
             ? deviceArnEnv
             : "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
-    AWS_QDMI_device_session_set_parameter(
+    AMAZON_BRAKET_QDMI_device_session_set_parameter(
         shared_session,
         static_cast<QDMI_Device_Session_Parameter>(
             QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN),
@@ -159,7 +164,7 @@ protected:
 
     const char* s3BucketEnv = std::getenv("AWS_S3_BUCKET");
     if (s3BucketEnv != nullptr) {
-      AWS_QDMI_device_session_set_parameter(
+      AMAZON_BRAKET_QDMI_device_session_set_parameter(
           shared_session,
           static_cast<QDMI_Device_Session_Parameter>(
               QDMI_DEVICE_SESSION_PARAMETER_S3BUCKET),
@@ -168,21 +173,22 @@ protected:
 
     const char* regionEnv = std::getenv("AWS_DEFAULT_REGION");
     if (regionEnv != nullptr) {
-      AWS_QDMI_device_session_set_parameter(
+      AMAZON_BRAKET_QDMI_device_session_set_parameter(
           shared_session,
           static_cast<QDMI_Device_Session_Parameter>(
               QDMI_DEVICE_SESSION_PARAMETER_REGION),
           strlen(regionEnv) + 1, regionEnv);
     }
 
-    if (AWS_QDMI_device_session_init(shared_session) != QDMI_SUCCESS) {
+    if (AMAZON_BRAKET_QDMI_device_session_init(shared_session) !=
+        QDMI_SUCCESS) {
       GTEST_SKIP() << "session_init failed in SetUpTestSuite; skipping job "
                       "submission tests";
       return;
     }
 
     // create job
-    if (AWS_QDMI_device_session_create_device_job(
+    if (AMAZON_BRAKET_QDMI_device_session_create_device_job(
             shared_session, &shared_job) != QDMI_SUCCESS) {
       GTEST_SKIP() << "create_device_job failed in SetUpTestSuite; skipping "
                       "job submission tests";
@@ -192,19 +198,19 @@ protected:
     // set program/format/shots
     const char* program = "OPENQASM 3.0;\nqubit[2] q;\nh q[0];\ncnot q[0], "
                           "q[1];\nbit[2] c;\nc = measure q;\n";
-    AWS_QDMI_device_job_set_parameter(shared_job,
-                                      QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
-                                      strlen(program) + 1, program);
+    AMAZON_BRAKET_QDMI_device_job_set_parameter(
+        shared_job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM, strlen(program) + 1,
+        program);
     QDMI_Program_Format format = QDMI_PROGRAM_FORMAT_QASM3;
-    AWS_QDMI_device_job_set_parameter(shared_job,
-                                      QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT,
-                                      sizeof(format), &format);
+    AMAZON_BRAKET_QDMI_device_job_set_parameter(
+        shared_job, QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT, sizeof(format),
+        &format);
     size_t shots = 100;
-    AWS_QDMI_device_job_set_parameter(
+    AMAZON_BRAKET_QDMI_device_job_set_parameter(
         shared_job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(shots), &shots);
 
     // submit
-    const auto submit_status = AWS_QDMI_device_job_submit(shared_job);
+    const auto submit_status = AMAZON_BRAKET_QDMI_device_job_submit(shared_job);
     if (submit_status != QDMI_SUCCESS) {
       // allow not-supported
       if (submit_status == QDMI_ERROR_NOTSUPPORTED) {
@@ -218,14 +224,14 @@ protected:
 
     // get task arn if available
     size_t arnSize = 0;
-    if (AWS_QDMI_device_job_query_property(
+    if (AMAZON_BRAKET_QDMI_device_job_query_property(
             shared_job,
             static_cast<QDMI_Device_Job_Property>(
                 QDMI_DEVICE_JOB_PROPERTY_TASKARN),
             0, nullptr, &arnSize) == QDMI_SUCCESS &&
         arnSize > 0) {
       std::string arn(arnSize - 1, '\0');
-      if (AWS_QDMI_device_job_query_property(
+      if (AMAZON_BRAKET_QDMI_device_job_query_property(
               shared_job,
               static_cast<QDMI_Device_Job_Property>(
                   QDMI_DEVICE_JOB_PROPERTY_TASKARN),
@@ -236,35 +242,36 @@ protected:
     }
 
     // wait for completion (timeout: 120 seconds)
-    wait_result = AWS_QDMI_device_job_wait(shared_job, 120000);
+    wait_result = AMAZON_BRAKET_QDMI_device_job_wait(shared_job, 120000);
 
     if (wait_result == QDMI_SUCCESS) {
       // check final status
       QDMI_Job_Status finalStatus = QDMI_JOB_STATUS_CREATED;
-      if (AWS_QDMI_device_job_check(shared_job, &finalStatus) == QDMI_SUCCESS &&
+      if (AMAZON_BRAKET_QDMI_device_job_check(shared_job, &finalStatus) ==
+              QDMI_SUCCESS &&
           finalStatus == QDMI_JOB_STATUS_DONE) {
         // fetch SHOTS
         size_t shotsSize = 0;
-        if (AWS_QDMI_device_job_get_results(shared_job, QDMI_JOB_RESULT_SHOTS,
-                                            0, nullptr,
-                                            &shotsSize) == QDMI_SUCCESS &&
+        if (AMAZON_BRAKET_QDMI_device_job_get_results(
+                shared_job, QDMI_JOB_RESULT_SHOTS, 0, nullptr, &shotsSize) ==
+                QDMI_SUCCESS &&
             shotsSize > 0) {
           std::string shotsStr(shotsSize - 1, '\0');
-          if (AWS_QDMI_device_job_get_results(shared_job, QDMI_JOB_RESULT_SHOTS,
-                                              shotsSize, shotsStr.data(),
-                                              nullptr) == QDMI_SUCCESS) {
+          if (AMAZON_BRAKET_QDMI_device_job_get_results(
+                  shared_job, QDMI_JOB_RESULT_SHOTS, shotsSize, shotsStr.data(),
+                  nullptr) == QDMI_SUCCESS) {
             has_shots = true;
             shots_data = shotsStr;
           }
         }
         // fetch histogram keys
         size_t keysSize = 0;
-        if (AWS_QDMI_device_job_get_results(
+        if (AMAZON_BRAKET_QDMI_device_job_get_results(
                 shared_job, QDMI_JOB_RESULT_HIST_KEYS, 0, nullptr, &keysSize) ==
                 QDMI_SUCCESS &&
             keysSize > 0) {
           std::vector<char> keysData(keysSize);
-          if (AWS_QDMI_device_job_get_results(
+          if (AMAZON_BRAKET_QDMI_device_job_get_results(
                   shared_job, QDMI_JOB_RESULT_HIST_KEYS, keysSize,
                   keysData.data(), nullptr) == QDMI_SUCCESS) {
             // parse null-separated keys
@@ -278,14 +285,14 @@ protected:
         }
         // fetch histogram values
         size_t valuesSize = 0;
-        if (AWS_QDMI_device_job_get_results(
+        if (AMAZON_BRAKET_QDMI_device_job_get_results(
                 shared_job, QDMI_JOB_RESULT_HIST_VALUES, 0, nullptr,
                 &valuesSize) == QDMI_SUCCESS &&
             valuesSize > 0) {
           if (valuesSize % sizeof(size_t) == 0) {
             const size_t n = valuesSize / sizeof(size_t);
             hist_values.resize(n);
-            if (AWS_QDMI_device_job_get_results(
+            if (AMAZON_BRAKET_QDMI_device_job_get_results(
                     shared_job, QDMI_JOB_RESULT_HIST_VALUES, valuesSize,
                     hist_values.data(), nullptr) == QDMI_SUCCESS) {
               has_hist = !hist_keys.empty() && !hist_values.empty();
@@ -298,14 +305,14 @@ protected:
 
   static void TearDownTestSuite() {
     if (shared_job != nullptr) {
-      AWS_QDMI_device_job_free(shared_job);
+      AMAZON_BRAKET_QDMI_device_job_free(shared_job);
       shared_job = nullptr;
     }
     if (shared_session != nullptr) {
-      AWS_QDMI_device_session_free(shared_session);
+      AMAZON_BRAKET_QDMI_device_session_free(shared_session);
       shared_session = nullptr;
     }
-    AWS_QDMI_device_finalize();
+    AMAZON_BRAKET_QDMI_device_finalize();
   }
 
   void SetUp() override {
@@ -319,91 +326,99 @@ protected:
 };
 
 // Static member definitions
-AWS_QDMI_Device_Session AWSQDMIJobSpecificationTest::shared_session = nullptr;
-AWS_QDMI_Device_Job AWSQDMIJobSpecificationTest::shared_job = nullptr;
-bool AWSQDMIJobSpecificationTest::submitted_ok = false;
-int AWSQDMIJobSpecificationTest::wait_result = QDMI_ERROR_NOTSUPPORTED;
-bool AWSQDMIJobSpecificationTest::has_task_arn = false;
-std::string AWSQDMIJobSpecificationTest::task_arn;
-bool AWSQDMIJobSpecificationTest::has_shots = false;
-std::string AWSQDMIJobSpecificationTest::shots_data;
-bool AWSQDMIJobSpecificationTest::has_hist = false;
-std::vector<std::string> AWSQDMIJobSpecificationTest::hist_keys;
-std::vector<size_t> AWSQDMIJobSpecificationTest::hist_values;
+AMAZON_BRAKET_QDMI_Device_Session
+    AmazonBraketQDMIJobSpecificationTest::shared_session = nullptr;
+AMAZON_BRAKET_QDMI_Device_Job AmazonBraketQDMIJobSpecificationTest::shared_job =
+    nullptr;
+bool AmazonBraketQDMIJobSpecificationTest::submitted_ok = false;
+int AmazonBraketQDMIJobSpecificationTest::wait_result = QDMI_ERROR_NOTSUPPORTED;
+bool AmazonBraketQDMIJobSpecificationTest::has_task_arn = false;
+std::string AmazonBraketQDMIJobSpecificationTest::task_arn;
+bool AmazonBraketQDMIJobSpecificationTest::has_shots = false;
+std::string AmazonBraketQDMIJobSpecificationTest::shots_data;
+bool AmazonBraketQDMIJobSpecificationTest::has_hist = false;
+std::vector<std::string> AmazonBraketQDMIJobSpecificationTest::hist_keys;
+std::vector<size_t> AmazonBraketQDMIJobSpecificationTest::hist_values;
 
-TEST_F(AWSQDMISpecificationTest, SessionAlloc) {
-  EXPECT_EQ(AWS_QDMI_device_session_alloc(nullptr), QDMI_ERROR_INVALIDARGUMENT);
+TEST_F(AmazonBraketQDMISpecificationTest, SessionAlloc) {
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(nullptr),
+            QDMI_ERROR_INVALIDARGUMENT);
 }
 
-TEST_F(AWSQDMISpecificationTest, SessionInit) {
-  EXPECT_EQ(AWS_QDMI_device_session_init(session), QDMI_ERROR_BADSTATE);
-  EXPECT_EQ(AWS_QDMI_device_session_init(nullptr), QDMI_ERROR_INVALIDARGUMENT);
+TEST_F(AmazonBraketQDMISpecificationTest, SessionInit) {
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
+            QDMI_ERROR_BADSTATE);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(nullptr),
+            QDMI_ERROR_INVALIDARGUMENT);
 }
 
-TEST_F(AWSQDMISpecificationTest, SessionSetParameter) {
-  AWS_QDMI_Device_Session uninitializedSession = nullptr;
-  ASSERT_EQ(AWS_QDMI_device_session_alloc(&uninitializedSession), QDMI_SUCCESS);
-  EXPECT_THAT(AWS_QDMI_device_session_set_parameter(
+TEST_F(AmazonBraketQDMISpecificationTest, SessionSetParameter) {
+  AMAZON_BRAKET_QDMI_Device_Session uninitializedSession = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&uninitializedSession),
+            QDMI_SUCCESS);
+  EXPECT_THAT(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                   uninitializedSession, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
                   20, "https://example.com"),
               testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED,
                              QDMI_ERROR_INVALIDARGUMENT));
-  EXPECT_EQ(AWS_QDMI_device_session_set_parameter(
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL, 20,
                 "https://example.com"),
             QDMI_ERROR_BADSTATE);
-  EXPECT_EQ(AWS_QDMI_device_session_set_parameter(
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 session, QDMI_DEVICE_SESSION_PARAMETER_MAX, 0, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
-  AWS_QDMI_device_session_free(uninitializedSession);
+  AMAZON_BRAKET_QDMI_device_session_free(uninitializedSession);
 }
 
-TEST_F(AWSQDMISpecificationTest, JobCreate) {
-  AWS_QDMI_Device_Session uninitializedSession = nullptr;
-  AWS_QDMI_Device_Job job = nullptr;
-  ASSERT_EQ(AWS_QDMI_device_session_alloc(&uninitializedSession), QDMI_SUCCESS);
-  EXPECT_EQ(
-      AWS_QDMI_device_session_create_device_job(uninitializedSession, &job),
-      QDMI_ERROR_BADSTATE);
-  EXPECT_EQ(AWS_QDMI_device_session_create_device_job(session, nullptr),
-            QDMI_ERROR_INVALIDARGUMENT);
-  EXPECT_EQ(AWS_QDMI_device_session_create_device_job(nullptr, &job),
-            QDMI_ERROR_INVALIDARGUMENT);
-  EXPECT_EQ(AWS_QDMI_device_session_create_device_job(session, &job),
+TEST_F(AmazonBraketQDMISpecificationTest, JobCreate) {
+  AMAZON_BRAKET_QDMI_Device_Session uninitializedSession = nullptr;
+  AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&uninitializedSession),
             QDMI_SUCCESS);
-  AWS_QDMI_device_job_free(job);
-  AWS_QDMI_device_session_free(uninitializedSession);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(
+                uninitializedSession, &job),
+            QDMI_ERROR_BADSTATE);
+  EXPECT_EQ(
+      AMAZON_BRAKET_QDMI_device_session_create_device_job(session, nullptr),
+      QDMI_ERROR_INVALIDARGUMENT);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(nullptr, &job),
+            QDMI_ERROR_INVALIDARGUMENT);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job),
+            QDMI_SUCCESS);
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+  AMAZON_BRAKET_QDMI_device_session_free(uninitializedSession);
 }
 
-TEST_F(AWSQDMISpecificationTest, JobSetParameter) {
-  EXPECT_EQ(AWS_QDMI_device_job_set_parameter(
+TEST_F(AmazonBraketQDMISpecificationTest, JobSetParameter) {
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
                 nullptr, QDMI_DEVICE_JOB_PARAMETER_MAX, 0, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
-TEST_F(AWSQDMIJobSpecificationTest, JobSetParameter) {
-  AWS_QDMI_Device_Job freshJob = nullptr;
-  ASSERT_EQ(
-      AWS_QDMI_device_session_create_device_job(shared_session, &freshJob),
-      QDMI_SUCCESS);
+TEST_F(AmazonBraketQDMIJobSpecificationTest, JobSetParameter) {
+  AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(shared_session,
+                                                                &freshJob),
+            QDMI_SUCCESS);
 
   QDMI_Program_Format value = QDMI_PROGRAM_FORMAT_QASM3;
-  EXPECT_EQ(AWS_QDMI_device_job_set_parameter(
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
                 freshJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT,
                 sizeof(value), &value),
             QDMI_SUCCESS);
-  EXPECT_EQ(AWS_QDMI_device_job_set_parameter(
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
                 freshJob, QDMI_DEVICE_JOB_PARAMETER_MAX, 0, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
 
-  AWS_QDMI_device_job_free(freshJob);
+  AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
-TEST_F(AWSQDMIJobSpecificationTest, JobSetParameterProgram) {
-  AWS_QDMI_Device_Job freshJob = nullptr;
-  ASSERT_EQ(
-      AWS_QDMI_device_session_create_device_job(shared_session, &freshJob),
-      QDMI_SUCCESS);
+TEST_F(AmazonBraketQDMIJobSpecificationTest, JobSetParameterProgram) {
+  AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(shared_session,
+                                                                &freshJob),
+            QDMI_SUCCESS);
 
   const char* program = "OPENQASM 3.0;\n"
                         "qubit[2] q;\n"
@@ -411,78 +426,81 @@ TEST_F(AWSQDMIJobSpecificationTest, JobSetParameterProgram) {
                         "cnot q[0], q[1];\n"
                         "bit[2] c;\n"
                         "c = measure q;\n";
-  EXPECT_EQ(AWS_QDMI_device_job_set_parameter(freshJob,
-                                              QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
-                                              strlen(program) + 1, program),
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                freshJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
+                strlen(program) + 1, program),
             QDMI_SUCCESS);
 
-  AWS_QDMI_device_job_free(freshJob);
+  AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
-TEST_F(AWSQDMISpecificationTest, JobQueryProperty) {
-  EXPECT_EQ(AWS_QDMI_device_job_query_property(
+TEST_F(AmazonBraketQDMISpecificationTest, JobQueryProperty) {
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
                 nullptr, QDMI_DEVICE_JOB_PROPERTY_MAX, 0, nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
-TEST_F(AWSQDMIJobSpecificationTest, JobQueryProperty) {
-  EXPECT_EQ(AWS_QDMI_device_job_query_property(job, QDMI_DEVICE_JOB_PROPERTY_ID,
-                                               0, nullptr, nullptr),
+TEST_F(AmazonBraketQDMIJobSpecificationTest, JobQueryProperty) {
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                job, QDMI_DEVICE_JOB_PROPERTY_ID, 0, nullptr, nullptr),
             QDMI_SUCCESS);
-  EXPECT_EQ(AWS_QDMI_device_job_query_property(
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
                 job, QDMI_DEVICE_JOB_PROPERTY_MAX, 0, nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
-TEST_F(AWSQDMIJobSpecificationTest, QueryJobId) {
+TEST_F(AmazonBraketQDMIJobSpecificationTest, QueryJobId) {
   size_t size = 0;
-  ASSERT_EQ(AWS_QDMI_device_job_query_property(job, QDMI_DEVICE_JOB_PROPERTY_ID,
-                                               0, nullptr, &size),
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                job, QDMI_DEVICE_JOB_PROPERTY_ID, 0, nullptr, &size),
             QDMI_SUCCESS);
   ASSERT_EQ(size, sizeof(int));
   int id = 0;
-  EXPECT_EQ(AWS_QDMI_device_job_query_property(job, QDMI_DEVICE_JOB_PROPERTY_ID,
-                                               sizeof(id), &id, nullptr),
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                job, QDMI_DEVICE_JOB_PROPERTY_ID, sizeof(id), &id, nullptr),
             QDMI_SUCCESS);
 }
 
-TEST_F(AWSQDMISpecificationTest, JobSubmit) {
-  EXPECT_EQ(AWS_QDMI_device_job_submit(nullptr), QDMI_ERROR_INVALIDARGUMENT);
+TEST_F(AmazonBraketQDMISpecificationTest, JobSubmit) {
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(nullptr),
+            QDMI_ERROR_INVALIDARGUMENT);
 }
 
-TEST_F(AWSQDMIJobSpecificationTest, JobSubmit) {
+TEST_F(AmazonBraketQDMIJobSpecificationTest, JobSubmit) {
   if (!submitted_ok) {
     GTEST_SKIP() << "Shared job was not submitted in suite setup";
   }
   EXPECT_TRUE(submitted_ok);
 }
 
-TEST_F(AWSQDMISpecificationTest, JobCancel) {
-  EXPECT_EQ(AWS_QDMI_device_job_cancel(nullptr), QDMI_ERROR_INVALIDARGUMENT);
+TEST_F(AmazonBraketQDMISpecificationTest, JobCancel) {
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_cancel(nullptr),
+            QDMI_ERROR_INVALIDARGUMENT);
 }
 
-TEST_F(AWSQDMIJobSpecificationTest, JobCancel) {
-  const auto status = AWS_QDMI_device_job_cancel(job);
+TEST_F(AmazonBraketQDMIJobSpecificationTest, JobCancel) {
+  const auto status = AMAZON_BRAKET_QDMI_device_job_cancel(job);
   ASSERT_THAT(status, testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_INVALIDARGUMENT,
                                      QDMI_ERROR_NOTSUPPORTED));
 }
 
-TEST_F(AWSQDMISpecificationTest, JobCheck) {
-  EXPECT_EQ(AWS_QDMI_device_job_check(nullptr, nullptr),
+TEST_F(AmazonBraketQDMISpecificationTest, JobCheck) {
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
-TEST_F(AWSQDMIJobSpecificationTest, JobCheck) {
+TEST_F(AmazonBraketQDMIJobSpecificationTest, JobCheck) {
   QDMI_Job_Status jobStatus = QDMI_JOB_STATUS_RUNNING;
-  const auto status = AWS_QDMI_device_job_check(job, &jobStatus);
+  const auto status = AMAZON_BRAKET_QDMI_device_job_check(job, &jobStatus);
   ASSERT_EQ(status, QDMI_SUCCESS);
 }
 
-TEST_F(AWSQDMISpecificationTest, JobWait) {
-  EXPECT_EQ(AWS_QDMI_device_job_wait(nullptr, 0), QDMI_ERROR_INVALIDARGUMENT);
+TEST_F(AmazonBraketQDMISpecificationTest, JobWait) {
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(nullptr, 0),
+            QDMI_ERROR_INVALIDARGUMENT);
 }
 
-TEST_F(AWSQDMIJobSpecificationTest, JobWait) {
+TEST_F(AmazonBraketQDMIJobSpecificationTest, JobWait) {
   if (!submitted_ok) {
     GTEST_SKIP() << "Job was not submitted in suite setup";
   }
@@ -490,13 +508,13 @@ TEST_F(AWSQDMIJobSpecificationTest, JobWait) {
   EXPECT_EQ(wait_result, QDMI_SUCCESS);
 }
 
-TEST_F(AWSQDMISpecificationTest, JobGetResults) {
-  EXPECT_EQ(AWS_QDMI_device_job_get_results(nullptr, QDMI_JOB_RESULT_MAX, 0,
-                                            nullptr, nullptr),
+TEST_F(AmazonBraketQDMISpecificationTest, JobGetResults) {
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
+                nullptr, QDMI_JOB_RESULT_MAX, 0, nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
-TEST_F(AWSQDMIJobSpecificationTest, JobGetResults) {
+TEST_F(AmazonBraketQDMIJobSpecificationTest, JobGetResults) {
   if (!submitted_ok) {
     GTEST_SKIP() << "Job was not submitted in suite setup";
   }
@@ -507,18 +525,18 @@ TEST_F(AWSQDMIJobSpecificationTest, JobGetResults) {
   EXPECT_GT(shots_data.size(), 0u);
   // Ensure the API can be called again for size and retrieval
   size_t shotsSize = 0;
-  EXPECT_EQ(AWS_QDMI_device_job_get_results(job, QDMI_JOB_RESULT_SHOTS, 0,
-                                            nullptr, &shotsSize),
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
+                job, QDMI_JOB_RESULT_SHOTS, 0, nullptr, &shotsSize),
             QDMI_SUCCESS);
   if (shotsSize > 0) {
     std::string buf(shotsSize - 1, '\0');
-    EXPECT_EQ(AWS_QDMI_device_job_get_results(job, QDMI_JOB_RESULT_SHOTS,
-                                              shotsSize, buf.data(), nullptr),
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
+                  job, QDMI_JOB_RESULT_SHOTS, shotsSize, buf.data(), nullptr),
               QDMI_SUCCESS);
   }
 }
 
-TEST_F(AWSQDMIJobSpecificationTest, JobGetResultsHistKeys) {
+TEST_F(AmazonBraketQDMIJobSpecificationTest, JobGetResultsHistKeys) {
   if (!submitted_ok) {
     GTEST_SKIP() << "Job was not submitted in suite setup";
   }
@@ -540,7 +558,7 @@ TEST_F(AWSQDMIJobSpecificationTest, JobGetResultsHistKeys) {
       << "Did not find expected histogram keys '00' and '11'";
 }
 
-TEST_F(AWSQDMIJobSpecificationTest, JobGetResultsHistValues) {
+TEST_F(AmazonBraketQDMIJobSpecificationTest, JobGetResultsHistValues) {
   if (!submitted_ok) {
     GTEST_SKIP() << "Job was not submitted in suite setup";
   }
@@ -557,7 +575,7 @@ TEST_F(AWSQDMIJobSpecificationTest, JobGetResultsHistValues) {
   EXPECT_EQ(totalShots, 100u);
 }
 
-TEST_F(AWSQDMIJobSpecificationTest, JobTaskArn) {
+TEST_F(AmazonBraketQDMIJobSpecificationTest, JobTaskArn) {
   if (!submitted_ok) {
     GTEST_SKIP() << "Job was not submitted in suite setup";
   }
@@ -567,44 +585,47 @@ TEST_F(AWSQDMIJobSpecificationTest, JobTaskArn) {
   EXPECT_FALSE(task_arn.empty());
 }
 
-TEST_F(AWSQDMISpecificationTest, QueryDeviceProperty) {
-  AWS_QDMI_Device_Session uninitializedSession = nullptr;
-  ASSERT_EQ(AWS_QDMI_device_session_alloc(&uninitializedSession), QDMI_SUCCESS);
-  EXPECT_EQ(AWS_QDMI_device_session_query_device_property(
+TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceProperty) {
+  AMAZON_BRAKET_QDMI_Device_Session uninitializedSession = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&uninitializedSession),
+            QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
                 uninitializedSession,
                 static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_NAME), 0,
                 nullptr, nullptr),
             QDMI_ERROR_BADSTATE);
-  EXPECT_EQ(AWS_QDMI_device_session_query_device_property(
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
                 nullptr,
                 static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_NAME), 0,
                 nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
-  EXPECT_EQ(AWS_QDMI_device_session_query_device_property(
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
                 session,
                 static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_MAX), 0,
                 nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
   EXPECT_THAT(
-      AWS_QDMI_device_session_query_device_property(
+      AMAZON_BRAKET_QDMI_device_session_query_device_property(
           session,
           static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_COUPLINGMAP),
           0, nullptr, nullptr),
       testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
-  AWS_QDMI_device_session_free(uninitializedSession);
+  AMAZON_BRAKET_QDMI_device_session_free(uninitializedSession);
 }
 
-TEST_F(AWSQDMISpecificationTest, AwsSpecificDeviceProperties) {
+TEST_F(AmazonBraketQDMISpecificationTest, AwsSpecificDeviceProperties) {
   size_t size = 0;
   // Provider
-  const auto providerStatus = AWS_QDMI_device_session_query_device_property(
-      session, static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_PROVIDER),
-      0, nullptr, &size);
+  const auto providerStatus =
+      AMAZON_BRAKET_QDMI_device_session_query_device_property(
+          session,
+          static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_PROVIDER), 0,
+          nullptr, &size);
   ASSERT_EQ(providerStatus, QDMI_SUCCESS);
   if (size > 0) {
     std::string provider(size - 1, '\0');
     EXPECT_EQ(
-        AWS_QDMI_device_session_query_device_property(
+        AMAZON_BRAKET_QDMI_device_session_query_device_property(
             session,
             static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_PROVIDER),
             size, provider.data(), nullptr),
@@ -614,15 +635,16 @@ TEST_F(AWSQDMISpecificationTest, AwsSpecificDeviceProperties) {
 
   // Device ARN
   size = 0;
-  const auto arnStatus = AWS_QDMI_device_session_query_device_property(
-      session,
-      static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICEARN), 0,
-      nullptr, &size);
+  const auto arnStatus =
+      AMAZON_BRAKET_QDMI_device_session_query_device_property(
+          session,
+          static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICEARN), 0,
+          nullptr, &size);
   ASSERT_EQ(arnStatus, QDMI_SUCCESS);
   if (size > 0) {
     std::string arn(size - 1, '\0');
     EXPECT_EQ(
-        AWS_QDMI_device_session_query_device_property(
+        AMAZON_BRAKET_QDMI_device_session_query_device_property(
             session,
             static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICEARN),
             size, arn.data(), nullptr),
@@ -632,15 +654,16 @@ TEST_F(AWSQDMISpecificationTest, AwsSpecificDeviceProperties) {
 
   // Device type
   size = 0;
-  const auto typeStatus = AWS_QDMI_device_session_query_device_property(
-      session,
-      static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICETYPE), 0,
-      nullptr, &size);
+  const auto typeStatus =
+      AMAZON_BRAKET_QDMI_device_session_query_device_property(
+          session,
+          static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICETYPE), 0,
+          nullptr, &size);
   ASSERT_EQ(typeStatus, QDMI_SUCCESS);
   if (size > 0) {
     std::string dtype(size - 1, '\0');
     EXPECT_EQ(
-        AWS_QDMI_device_session_query_device_property(
+        AMAZON_BRAKET_QDMI_device_session_query_device_property(
             session,
             static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_DEVICETYPE),
             size, dtype.data(), nullptr),
@@ -649,78 +672,78 @@ TEST_F(AWSQDMISpecificationTest, AwsSpecificDeviceProperties) {
   }
 }
 
-TEST_F(AWSQDMISpecificationTest, QuerySiteProperty) {
-  AWS_QDMI_Site site = querySites(session).front();
+TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteProperty) {
+  AMAZON_BRAKET_QDMI_Site site = querySites(session).front();
   EXPECT_EQ(
-      AWS_QDMI_device_session_query_site_property(
+      AMAZON_BRAKET_QDMI_device_session_query_site_property(
           session, nullptr, QDMI_SITE_PROPERTY_INDEX, 0, nullptr, nullptr),
       QDMI_ERROR_INVALIDARGUMENT);
-  EXPECT_EQ(AWS_QDMI_device_session_query_site_property(
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
                 nullptr, site, QDMI_SITE_PROPERTY_INDEX, 0, nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
-  EXPECT_EQ(AWS_QDMI_device_session_query_site_property(
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
                 session, site, QDMI_SITE_PROPERTY_MAX, 0, nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
-  EXPECT_EQ(AWS_QDMI_device_session_query_site_property(
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
                 session, site, QDMI_SITE_PROPERTY_NAME, 0, nullptr, nullptr),
             QDMI_SUCCESS);
 }
 
-TEST_F(AWSQDMISpecificationTest, QueryOperationProperty) {
-  AWS_QDMI_Operation operation = queryOperations(session).front();
-  EXPECT_EQ(AWS_QDMI_device_session_query_operation_property(
+TEST_F(AmazonBraketQDMISpecificationTest, QueryOperationProperty) {
+  AMAZON_BRAKET_QDMI_Operation operation = queryOperations(session).front();
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
                 nullptr, operation, 0, nullptr, 0, nullptr,
                 QDMI_OPERATION_PROPERTY_NAME, 0, nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
-  EXPECT_EQ(AWS_QDMI_device_session_query_operation_property(
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
                 session, operation, 0, nullptr, 0, nullptr,
                 QDMI_OPERATION_PROPERTY_MAX, 0, nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
-  EXPECT_EQ(AWS_QDMI_device_session_query_operation_property(
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
                 session, operation, 0, nullptr, 0, nullptr,
                 QDMI_OPERATION_PROPERTY_QUBITSNUM, 0, nullptr, nullptr),
             QDMI_SUCCESS);
 }
 
-TEST_F(AWSQDMISpecificationTest, QueryDeviceName) {
+TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceName) {
   size_t size = 0;
-  ASSERT_EQ(AWS_QDMI_device_session_query_device_property(
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
                 session, QDMI_DEVICE_PROPERTY_NAME, 0, nullptr, &size),
             QDMI_SUCCESS)
       << "Devices must provide a name";
   std::string value(size - 1, '\0');
   ASSERT_EQ(
-      AWS_QDMI_device_session_query_device_property(
+      AMAZON_BRAKET_QDMI_device_session_query_device_property(
           session, QDMI_DEVICE_PROPERTY_NAME, size, value.data(), nullptr),
       QDMI_SUCCESS)
       << "Devices must provide a name";
   EXPECT_FALSE(value.empty()) << "Devices must provide a name";
 }
 
-TEST_F(AWSQDMISpecificationTest, QueryDeviceVersion) {
+TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceVersion) {
   size_t size = 0;
-  ASSERT_EQ(AWS_QDMI_device_session_query_device_property(
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
                 session, QDMI_DEVICE_PROPERTY_VERSION, 0, nullptr, &size),
             QDMI_SUCCESS)
       << "Devices must provide a version";
   std::string value(size - 1, '\0');
   ASSERT_EQ(
-      AWS_QDMI_device_session_query_device_property(
+      AMAZON_BRAKET_QDMI_device_session_query_device_property(
           session, QDMI_DEVICE_PROPERTY_VERSION, size, value.data(), nullptr),
       QDMI_SUCCESS)
       << "Devices must provide a version";
   EXPECT_FALSE(value.empty()) << "Devices must provide a version";
 }
 
-TEST_F(AWSQDMISpecificationTest, QueryDeviceLibraryVersion) {
+TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceLibraryVersion) {
   size_t size = 0;
   ASSERT_EQ(
-      AWS_QDMI_device_session_query_device_property(
+      AMAZON_BRAKET_QDMI_device_session_query_device_property(
           session, QDMI_DEVICE_PROPERTY_LIBRARYVERSION, 0, nullptr, &size),
       QDMI_SUCCESS)
       << "Devices must provide a library version";
   std::string value(size - 1, '\0');
-  ASSERT_EQ(AWS_QDMI_device_session_query_device_property(
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
                 session, QDMI_DEVICE_PROPERTY_LIBRARYVERSION, size,
                 value.data(), nullptr),
             QDMI_SUCCESS)
@@ -728,29 +751,29 @@ TEST_F(AWSQDMISpecificationTest, QueryDeviceLibraryVersion) {
   EXPECT_FALSE(value.empty()) << "Devices must provide a library version";
 }
 
-TEST_F(AWSQDMISpecificationTest, QueryDeviceDurationUnit) {
+TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceDurationUnit) {
   size_t size = 0;
-  ASSERT_EQ(AWS_QDMI_device_session_query_device_property(
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
                 session, QDMI_DEVICE_PROPERTY_DURATIONUNIT, 0, nullptr, &size),
             QDMI_SUCCESS);
   std::string value(size - 1, '\0');
-  ASSERT_EQ(AWS_QDMI_device_session_query_device_property(
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
                 session, QDMI_DEVICE_PROPERTY_DURATIONUNIT, size, value.data(),
                 nullptr),
             QDMI_SUCCESS);
   EXPECT_THAT(value, testing::AnyOf("ns", "us", "ms"));
   double scaleFactor = 0.;
-  const auto result = AWS_QDMI_device_session_query_device_property(
+  const auto result = AMAZON_BRAKET_QDMI_device_session_query_device_property(
       session, QDMI_DEVICE_PROPERTY_DURATIONSCALEFACTOR, sizeof(double),
       &scaleFactor, nullptr);
   EXPECT_EQ(result, QDMI_SUCCESS);
   EXPECT_GT(scaleFactor, 0.);
 }
 
-TEST_F(AWSQDMISpecificationTest, QuerySiteIndex) {
+TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteIndex) {
   uint64_t id = 0;
   EXPECT_NO_THROW(for (auto* site : querySites(session)) {
-    EXPECT_EQ(AWS_QDMI_device_session_query_site_property(
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
                   session, site, QDMI_SITE_PROPERTY_INDEX, sizeof(uint64_t),
                   &id, nullptr),
               QDMI_SUCCESS)
@@ -758,16 +781,16 @@ TEST_F(AWSQDMISpecificationTest, QuerySiteIndex) {
   }) << "Devices must provide a list of sites";
 }
 
-TEST_F(AWSQDMISpecificationTest, QueryOperationName) {
+TEST_F(AmazonBraketQDMISpecificationTest, QueryOperationName) {
   size_t nameSize = 0;
   EXPECT_NO_THROW(for (auto* operation : queryOperations(session)) {
-    EXPECT_EQ(AWS_QDMI_device_session_query_operation_property(
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
                   session, operation, 0, nullptr, 0, nullptr,
                   QDMI_OPERATION_PROPERTY_NAME, 0, nullptr, &nameSize),
               QDMI_SUCCESS)
         << "Devices must provide a operation name";
     std::string name(nameSize - 1, '\0');
-    EXPECT_EQ(AWS_QDMI_device_session_query_operation_property(
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
                   session, operation, 0, nullptr, 0, nullptr,
                   QDMI_OPERATION_PROPERTY_NAME, nameSize, name.data(), nullptr),
               QDMI_SUCCESS)
@@ -775,17 +798,17 @@ TEST_F(AWSQDMISpecificationTest, QueryOperationName) {
   }) << "Devices must provide a list of operations";
 }
 
-TEST_F(AWSQDMISpecificationTest, QueryDeviceQubitNum) {
+TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceQubitNum) {
   size_t numQubits = 0;
-  EXPECT_EQ(AWS_QDMI_device_session_query_device_property(
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
                 session, QDMI_DEVICE_PROPERTY_QUBITSNUM, sizeof(size_t),
                 &numQubits, nullptr),
             QDMI_SUCCESS);
 }
 
-TEST_F(AWSQDMISpecificationTest, QueryDeviceStatus) {
+TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceStatus) {
   QDMI_Device_Status status = QDMI_DEVICE_STATUS_OFFLINE;
-  const auto result = AWS_QDMI_device_session_query_device_property(
+  const auto result = AMAZON_BRAKET_QDMI_device_session_query_device_property(
       session, QDMI_DEVICE_PROPERTY_STATUS, sizeof(status), &status, nullptr);
   ASSERT_EQ(result, QDMI_SUCCESS);
   EXPECT_TRUE(status == QDMI_DEVICE_STATUS_IDLE ||
@@ -793,43 +816,43 @@ TEST_F(AWSQDMISpecificationTest, QueryDeviceStatus) {
               status == QDMI_DEVICE_STATUS_OFFLINE);
 }
 
-TEST_F(AWSQDMISpecificationTest, QuerySiteData) {
-  std::vector<AWS_QDMI_Site> sites;
+TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteData) {
+  std::vector<AMAZON_BRAKET_QDMI_Site> sites;
   EXPECT_NO_THROW(sites = querySites(session))
       << "Devices must provide a sites";
   EXPECT_GT(sites.size(), 0);
   for (auto* site : sites) {
     uint64_t t1 = 0;
-    EXPECT_EQ(AWS_QDMI_device_session_query_site_property(
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
                   session, site, QDMI_SITE_PROPERTY_T1, sizeof(uint64_t), &t1,
                   nullptr),
               QDMI_SUCCESS);
 
     uint64_t t2 = 0;
-    EXPECT_EQ(AWS_QDMI_device_session_query_site_property(
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
                   session, site, QDMI_SITE_PROPERTY_T2, sizeof(uint64_t), &t2,
                   nullptr),
               QDMI_SUCCESS);
   }
 }
 
-TEST_F(AWSQDMISpecificationTest, QueryOperationData) {
-  std::vector<AWS_QDMI_Operation> operations;
+TEST_F(AmazonBraketQDMISpecificationTest, QueryOperationData) {
+  std::vector<AMAZON_BRAKET_QDMI_Operation> operations;
   EXPECT_NO_THROW(operations = queryOperations(session));
   for (auto* operation : operations) {
     size_t nameSize = 0;
-    ASSERT_EQ(AWS_QDMI_device_session_query_operation_property(
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
                   session, operation, 0, nullptr, 0, nullptr,
                   QDMI_OPERATION_PROPERTY_NAME, 0, nullptr, &nameSize),
               QDMI_SUCCESS);
     std::string name(nameSize - 1, '\0');
-    EXPECT_EQ(AWS_QDMI_device_session_query_operation_property(
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
                   session, operation, 0, nullptr, 0, nullptr,
                   QDMI_OPERATION_PROPERTY_NAME, nameSize, name.data(), nullptr),
               QDMI_SUCCESS);
 
     double fidelity = 0;
-    auto result = AWS_QDMI_device_session_query_operation_property(
+    auto result = AMAZON_BRAKET_QDMI_device_session_query_operation_property(
         session, operation, 0, nullptr, 0, nullptr,
         QDMI_OPERATION_PROPERTY_FIDELITY, sizeof(double), &fidelity, nullptr);
     EXPECT_THAT(result, testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
@@ -839,14 +862,14 @@ TEST_F(AWSQDMISpecificationTest, QueryOperationData) {
     }
 
     size_t numQubits = 0;
-    result = AWS_QDMI_device_session_query_operation_property(
+    result = AMAZON_BRAKET_QDMI_device_session_query_operation_property(
         session, operation, 0, nullptr, 0, nullptr,
         QDMI_OPERATION_PROPERTY_QUBITSNUM, sizeof(size_t), &numQubits, nullptr);
     EXPECT_EQ(result, QDMI_SUCCESS);
     EXPECT_GT(numQubits, 0);
 
     size_t numParameters = 0;
-    result = AWS_QDMI_device_session_query_operation_property(
+    result = AMAZON_BRAKET_QDMI_device_session_query_operation_property(
         session, operation, 0, nullptr, 0, nullptr,
         QDMI_OPERATION_PROPERTY_PARAMETERSNUM, sizeof(size_t), &numParameters,
         nullptr);

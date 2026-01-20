@@ -1,5 +1,5 @@
 /** @file
- * @brief Defines AWS Braket-specific types for the QDMI device interface.
+ * @brief Defines Amazon Braket-specific types for the QDMI device interface.
  */
 
 #pragma once
@@ -13,18 +13,19 @@ extern "C" {
 // NOLINTBEGIN(modernize-use-using)
 
 /**
- * @brief A handle for a site on an AWS Braket device.
+ * @brief A handle for a site on an Amazon Braket device.
  * @details An opaque pointer to an AWS-specific implementation of the QDMI
  * site concept. A site represents a physical qubit location on the device.
  */
-typedef struct AWS_QDMI_Site_impl_d* AWS_QDMI_Site;
+typedef struct AMAZON_BRAKET_QDMI_Site_impl_d* AMAZON_BRAKET_QDMI_Site;
 
 /**
- * @brief A handle for an operation on an AWS Braket device.
+ * @brief A handle for an operation on an Amazon Braket device.
  * @details An opaque pointer to an AWS-specific implementation of the QDMI
  * operation concept. An operation represents a quantum gate or instruction.
  */
-typedef struct AWS_QDMI_Operation_impl_d* AWS_QDMI_Operation;
+typedef struct AMAZON_BRAKET_QDMI_Operation_impl_d*
+    AMAZON_BRAKET_QDMI_Operation;
 
 // NOLINTEND(modernize-use-using)
 

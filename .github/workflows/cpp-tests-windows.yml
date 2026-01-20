@@ -16,8 +16,8 @@ on:
         type: string
       device-arn:
         description: >
-          The AWS Braket device ARN to use for tests that require a quantum device.
-          This can be any valid AWS Braket device ARN, such as 'arn:aws:braket:::device/quantum-simulator/amazon/sv1'.
+          The Amazon Braket device ARN to use for tests that require a quantum device.
+          This can be any valid Amazon Braket device ARN, such as 'arn:aws:braket:::device/quantum-simulator/amazon/sv1'.
         default: "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
         type: string
     secrets:

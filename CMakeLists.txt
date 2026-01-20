@@ -2,10 +2,10 @@
 cmake_minimum_required(VERSION 3.25...4.0)
 
 project(
-  aws-qdmi
+  amazon-braket-qdmi-device
   VERSION 0.1.0
   LANGUAGES C CXX
-  DESCRIPTION "AWS Braket QDMI Implementation")
+  DESCRIPTION "Amazon Braket QDMI Device Implementation")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -38,7 +38,7 @@ if(INSTALL)
 endif()
 
 # add main library code
-add_subdirectory(src/qdmi/aws)
+add_subdirectory(src/qdmi)
 
 # add test code
 if(BUILD_TESTS)

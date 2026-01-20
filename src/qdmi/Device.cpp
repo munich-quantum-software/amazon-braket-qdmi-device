@@ -1,26 +1,27 @@
 /** @file
- * @brief QDMI device implementation for AWS Braket.
+ * @brief QDMI device implementation for Amazon Braket.
  *
  * This file implements the Quantum Device Management Interface (QDMI)
- * specification for AWS Braket, Amazon's quantum computing service.
+ * specification for Amazon Braket, Amazon's quantum computing service.
  *
  * QDMI Project: https://github.com/Munich-Quantum-Software-Stack/QDMI
  *
  * ============================================================================
- * Purpose: QDMI Adapter for AWS Braket
+ * Purpose: QDMI Adapter for Amazon Braket
  * ============================================================================
  *
- * You can target AWS Braket devices by simply linking against this library
+ * You can target Amazon Braket devices by simply linking against this library
  * instead of another QDMI implementation. Your OpenQASM circuits will
- * execute on AWS Braket simulators or real quantum hardware.
+ * execute on Amazon Braket simulators or real quantum hardware.
  *
  * ============================================================================
- * QDMI to AWS Braket Mapping
+ * QDMI to Amazon Braket Mapping
  * ============================================================================
  *
- * This implementation translates QDMI standard calls into AWS Braket SDK calls:
+ * This implementation translates QDMI standard calls into Amazon Braket SDK
+ * calls:
  *
- * QDMI Concept          | AWS Braket Equivalent
+ * QDMI Concept          | Amazon Braket Equivalent
  * ----------------------|--------------------------------------------------
  * Device                | BraketClient + GetDeviceRequest/Result
  * Device Status         | DeviceStatus enum (ONLINE, OFFLINE, RETIRED)
@@ -40,10 +41,10 @@
  *
  */
 
-#include "aws-qdmi/qdmi/aws/Device.hpp"
+#include "amazon-braket-qdmi-device/qdmi/Device.hpp"
 
-#include "aws-qdmi/qdmi/aws/device.h"
-#include "aws-qdmi/qdmi/aws/types.h"
+#include "amazon-braket-qdmi-device/qdmi/device.h"
+#include "amazon-braket-qdmi-device/qdmi/types.h"
 #include "aws/braket/model/QuantumTaskStatus.h"
 #include "aws/core/utils/Array.h"
 #include "qdmi/constants.h"
@@ -127,7 +128,7 @@
     }                                                                          \
   }
 
-namespace aws_qdmi {
+namespace AMAZON_BRAKET_QDMI {
 
 /**
  * Device constructor - initializes the global device singleton.
@@ -143,15 +144,17 @@ namespace aws_qdmi {
  * - Random number generation for unique job IDs
  */
 Device::Device()
-    : name_("AWS Braket Device"), provider_("AWS"), deviceType_("QPU") {
+    : name_("Amazon Braket QMDI Device"), provider_("AWS"), deviceType_("QPU") {
   status_.store(QDMI_DEVICE_STATUS_IDLE);
 }
 
-auto Device::sessionAlloc(AWS_QDMI_Device_Session* session) -> QDMI_STATUS {
+auto Device::sessionAlloc(AMAZON_BRAKET_QDMI_Device_Session* session)
+    -> QDMI_STATUS {
   if (session == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
-  auto uniqueSession = std::make_unique<AWS_QDMI_Device_Session_impl_d>();
+  auto uniqueSession =
+      std::make_unique<AMAZON_BRAKET_QDMI_Device_Session_impl_d>();
   const std::scoped_lock<std::mutex> lock(sessionsMutex_);
   const auto& it =
       sessions_.emplace(uniqueSession.get(), std::move(uniqueSession)).first;
@@ -159,7 +162,7 @@ auto Device::sessionAlloc(AWS_QDMI_Device_Session* session) -> QDMI_STATUS {
   return QDMI_SUCCESS;
 }
 
-auto Device::sessionFree(AWS_QDMI_Device_Session session) -> void {
+auto Device::sessionFree(AMAZON_BRAKET_QDMI_Device_Session session) -> void {
   if (session != nullptr) {
     const std::scoped_lock<std::mutex> lock(sessionsMutex_);
     if (const auto& it = sessions_.find(session); it != sessions_.end()) {
@@ -180,8 +183,8 @@ auto Device::queryProperty(const QDMI_Device_Property prop, const size_t size,
                       value, sizeRet)
   ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_VERSION, "1.0.0", prop, size, value,
                       sizeRet)
-  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_LIBRARYVERSION, AWS_QDMI_VERSION,
-                      prop, size, value, sizeRet)
+  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_LIBRARYVERSION,
+                      AMAZON_BRAKET_QDMI_VERSION, prop, size, value, sizeRet)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_STATUS, QDMI_Device_Status,
                             status_.load(), prop, size, value, sizeRet)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_QUBITSNUM, size_t, qubitsNum_,
@@ -219,14 +222,14 @@ auto Device::decreaseRunningJobs() -> void {
   }
 }
 
-} // namespace aws_qdmi
+} // namespace AMAZON_BRAKET_QDMI
 
 // ============================================================================
 // Session Implementation
 // ============================================================================
 
 /**
- * Fetches the quantum device architecture from AWS Braket.
+ * Fetches the quantum device architecture from Amazon Braket.
  *
  * This function queries the device capabilities to understand:
  * - Number of qubits (sites)
@@ -235,7 +238,7 @@ auto Device::decreaseRunningJobs() -> void {
  * - Coherence times (T1, T2) for each qubit
  * - Gate fidelities
  *
- * AWS Braket returns device capabilities as JSON containing:
+ * Amazon Braket returns device capabilities as JSON containing:
  * - paradigm.qubitCount: Number of qubits
  * - paradigm.connectivity: Graph of qubit connections
  * - paradigm.nativeGateSet: List of supported quantum gates
@@ -243,13 +246,14 @@ auto Device::decreaseRunningJobs() -> void {
  *
  * @return QDMI_SUCCESS on successful fetch, error code otherwise
  */
-auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
+auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture()
+    -> QDMI_STATUS {
   if (deviceArn_.empty() || client_ == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
   // ============================================================================
-  // AWS Braket GetDevice API Call
+  // Amazon Braket GetDevice API Call
   // ============================================================================
   Aws::Braket::Model::GetDeviceRequest request;
   request.SetDeviceArn(deviceArn_.c_str());
@@ -299,7 +303,7 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
   sites_map_.clear();
 
   for (size_t i = 0; i < qubitsNum_; ++i) {
-    auto site = std::make_unique<AWS_QDMI_Site_impl_d>();
+    auto site = std::make_unique<AMAZON_BRAKET_QDMI_Site_impl_d>();
     site->id_ = i;
     site->name_ = "Q" + std::to_string(i);
     // Default values, ideally parsed from "provider" section if available
@@ -526,7 +530,7 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
     for (size_t i = 0; i < gateSet.GetLength(); ++i) {
       const std::string gateName = gateSet[i].AsString();
 
-      auto op = std::make_unique<AWS_QDMI_Operation_impl_d>();
+      auto op = std::make_unique<AMAZON_BRAKET_QDMI_Operation_impl_d>();
       op->name_ = gateName;
 
       // Heuristic for qubit count based on name
@@ -575,10 +579,10 @@ auto AWS_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() -> QDMI_STATUS {
  *
  * A session must be initialized before it can create and submit jobs.
  *
- * AWS Regions: AWS Braket is available in specific regions (us-east-1,
+ * AWS Regions: Amazon Braket is available in specific regions (us-east-1,
  * us-west-2, etc.)
  */
-auto AWS_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
+auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
   if (status_ != Status::ALLOCATED) {
     return QDMI_ERROR_BADSTATE;
   }
@@ -619,7 +623,7 @@ auto AWS_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
   return QDMI_SUCCESS;
 }
 
-auto AWS_QDMI_Device_Session_impl_d::setParameter(
+auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
     const QDMI_Device_Session_Parameter param, const size_t size,
     const void* value) -> QDMI_STATUS {
   // Check for invalid arguments
@@ -663,8 +667,8 @@ auto AWS_QDMI_Device_Session_impl_d::setParameter(
   return QDMI_ERROR_NOTSUPPORTED;
 }
 
-auto AWS_QDMI_Device_Session_impl_d::createDeviceJob(AWS_QDMI_Device_Job* job)
-    -> QDMI_STATUS {
+auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::createDeviceJob(
+    AMAZON_BRAKET_QDMI_Device_Job* job) -> QDMI_STATUS {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -672,21 +676,21 @@ auto AWS_QDMI_Device_Session_impl_d::createDeviceJob(AWS_QDMI_Device_Job* job)
     return QDMI_ERROR_BADSTATE;
   }
 
-  auto uniqueJob = std::make_unique<AWS_QDMI_Device_Job_impl_d>(this);
+  auto uniqueJob = std::make_unique<AMAZON_BRAKET_QDMI_Device_Job_impl_d>(this);
   const std::scoped_lock<std::mutex> lock(jobsMutex_);
   *job = jobs_.emplace(uniqueJob.get(), std::move(uniqueJob)).first->first;
   return QDMI_SUCCESS;
 }
 
-auto AWS_QDMI_Device_Session_impl_d::freeDeviceJob(AWS_QDMI_Device_Job job)
-    -> void {
+auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::freeDeviceJob(
+    AMAZON_BRAKET_QDMI_Device_Job job) -> void {
   if (job != nullptr) {
     const std::scoped_lock<std::mutex> lock(jobsMutex_);
     jobs_.erase(job);
   }
 }
 
-auto AWS_QDMI_Device_Session_impl_d::queryDeviceProperty(
+auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
     const QDMI_Device_Property prop, const size_t size, void* value,
     size_t* sizeRet) const -> QDMI_STATUS {
   if (status_ != Status::INITIALIZED) {
@@ -694,11 +698,12 @@ auto AWS_QDMI_Device_Session_impl_d::queryDeviceProperty(
   }
 
   // Session-specific properties
-  ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_SITES, AWS_QDMI_Site, sites_ptr_, prop,
-                    size, value, sizeRet)
-  ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_OPERATIONS, AWS_QDMI_Operation,
-                    operations_ptr_, prop, size, value, sizeRet)
-  ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_COUPLINGMAP, AWS_QDMI_Site,
+  ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_SITES, AMAZON_BRAKET_QDMI_Site,
+                    sites_ptr_, prop, size, value, sizeRet)
+  ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_OPERATIONS,
+                    AMAZON_BRAKET_QDMI_Operation, operations_ptr_, prop, size,
+                    value, sizeRet)
+  ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_COUPLINGMAP, AMAZON_BRAKET_QDMI_Site,
                     connectivity_, prop, size, value, sizeRet)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_QUBITSNUM, size_t, qubitsNum_,
                             prop, size, value, sizeRet)
@@ -716,11 +721,12 @@ auto AWS_QDMI_Device_Session_impl_d::queryDeviceProperty(
                             1.0, prop, size, value, sizeRet)
 
   // Delegate to device singleton for other properties
-  return aws_qdmi::Device::get().queryProperty(prop, size, value, sizeRet);
+  return AMAZON_BRAKET_QDMI::Device::get().queryProperty(prop, size, value,
+                                                         sizeRet);
 }
 
-auto AWS_QDMI_Device_Session_impl_d::querySiteProperty(
-    AWS_QDMI_Site_impl_d* site, const QDMI_Site_Property prop,
+auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::querySiteProperty(
+    AMAZON_BRAKET_QDMI_Site_impl_d* site, const QDMI_Site_Property prop,
     const size_t size, void* value, size_t* sizeRet) -> QDMI_STATUS {
   if (site == nullptr || (value != nullptr && size == 0) ||
       prop == QDMI_SITE_PROPERTY_MAX) {
@@ -743,9 +749,9 @@ auto AWS_QDMI_Device_Session_impl_d::querySiteProperty(
   return QDMI_ERROR_NOTSUPPORTED;
 }
 
-auto AWS_QDMI_Device_Session_impl_d::queryOperationProperty(
-    AWS_QDMI_Operation_impl_d* operation, const size_t numSites,
-    const AWS_QDMI_Site_impl_d* const* sites, const size_t numParams,
+auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryOperationProperty(
+    AMAZON_BRAKET_QDMI_Operation_impl_d* operation, const size_t numSites,
+    const AMAZON_BRAKET_QDMI_Site_impl_d* const* sites, const size_t numParams,
     const double* params, const QDMI_Operation_Property prop, const size_t size,
     void* value, size_t* sizeRet) -> QDMI_STATUS {
   if (operation == nullptr || (value != nullptr && size == 0) ||
@@ -768,11 +774,11 @@ auto AWS_QDMI_Device_Session_impl_d::queryOperationProperty(
 }
 
 // Job implementation
-auto AWS_QDMI_Device_Job_impl_d::free() -> void {
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::free() -> void {
   session_->freeDeviceJob(this);
 }
 
-auto AWS_QDMI_Device_Job_impl_d::setParameter(
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
     const QDMI_Device_Job_Parameter param, const size_t size, const void* value)
     -> QDMI_STATUS {
   if ((value != nullptr && size == 0) ||
@@ -820,7 +826,7 @@ auto AWS_QDMI_Device_Job_impl_d::setParameter(
   return QDMI_ERROR_NOTSUPPORTED;
 }
 
-auto AWS_QDMI_Device_Job_impl_d::queryProperty(
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
     const QDMI_Device_Job_Property prop, const size_t size, void* value,
     size_t* sizeRet) const -> QDMI_STATUS {
   if ((value != nullptr && size == 0) || prop == QDMI_DEVICE_JOB_PROPERTY_MAX) {
@@ -843,14 +849,14 @@ auto AWS_QDMI_Device_Job_impl_d::queryProperty(
   return QDMI_ERROR_NOTSUPPORTED;
 }
 
-auto AWS_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
   const auto currentStatus = status_.load();
   if (currentStatus != QDMI_JOB_STATUS_CREATED) {
     return QDMI_ERROR_BADSTATE;
   }
 
   // ============================================================================
-  // AWS Braket CreateQuantumTask API Call
+  // Amazon Braket CreateQuantumTask API Call
   // ============================================================================
   // Purpose: Submit a quantum circuit for execution on the target device
   //
@@ -884,7 +890,7 @@ auto AWS_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
     status_.store(QDMI_JOB_STATUS_QUEUED);
     if (!isRunningCounted_) {
-      aws_qdmi::Device::get().increaseRunningJobs();
+      AMAZON_BRAKET_QDMI::Device::get().increaseRunningJobs();
       isRunningCounted_ = true;
     }
   }
@@ -915,7 +921,7 @@ auto AWS_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
     status_.store(QDMI_JOB_STATUS_FAILED);
     if (isRunningCounted_) {
-      aws_qdmi::Device::get().decreaseRunningJobs();
+      AMAZON_BRAKET_QDMI::Device::get().decreaseRunningJobs();
       isRunningCounted_ = false;
     }
     return QDMI_ERROR_INVALIDARGUMENT;
@@ -928,7 +934,7 @@ auto AWS_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
     status_.store(QDMI_JOB_STATUS_FAILED);
     if (isRunningCounted_) {
-      aws_qdmi::Device::get().decreaseRunningJobs();
+      AMAZON_BRAKET_QDMI::Device::get().decreaseRunningJobs();
       isRunningCounted_ = false;
     }
     return QDMI_ERROR_NOTSUPPORTED;
@@ -939,7 +945,7 @@ auto AWS_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
   return QDMI_SUCCESS;
 }
 
-auto AWS_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
   const auto currentStatus = status_.load();
 
   if (currentStatus == QDMI_JOB_STATUS_CREATED) {
@@ -953,7 +959,7 @@ auto AWS_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
   }
 
   // ============================================================================
-  // AWS Braket CancelQuantumTask API Call
+  // Amazon Braket CancelQuantumTask API Call
   // ============================================================================
   //
   // AWS SDK Usage:
@@ -993,21 +999,21 @@ auto AWS_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
     status_.store(QDMI_JOB_STATUS_CANCELED);
     if (isRunningCounted_) {
-      aws_qdmi::Device::get().decreaseRunningJobs();
+      AMAZON_BRAKET_QDMI::Device::get().decreaseRunningJobs();
       isRunningCounted_ = false;
     }
   }
   return QDMI_SUCCESS;
 }
 
-auto AWS_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
     -> QDMI_STATUS {
   if (status == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
   // ============================================================================
-  // AWS Braket GetQuantumTask API Call
+  // Amazon Braket GetQuantumTask API Call
   // ============================================================================
   // Purpose: Poll the current status of a submitted quantum task
   //
@@ -1096,7 +1102,7 @@ auto AWS_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
     if (isRunningCounted_ && (newStatus == QDMI_JOB_STATUS_DONE ||
                               newStatus == QDMI_JOB_STATUS_FAILED ||
                               newStatus == QDMI_JOB_STATUS_CANCELED)) {
-      aws_qdmi::Device::get().decreaseRunningJobs();
+      AMAZON_BRAKET_QDMI::Device::get().decreaseRunningJobs();
       isRunningCounted_ = false;
     }
   }
@@ -1105,7 +1111,7 @@ auto AWS_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
   return QDMI_SUCCESS;
 }
 
-auto AWS_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
     -> QDMI_STATUS {
   const auto currentStatus = status_.load();
   if (currentStatus == QDMI_JOB_STATUS_CREATED) {
@@ -1151,7 +1157,7 @@ auto AWS_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
  * Fetch results from S3 and parse into QDMI format.
  *
  * Downloads results.json from S3 and parses the measurements array.
- * AWS Braket stores results in format:
+ * Amazon Braket stores results in format:
  * {
  *   "measurements": [[0,0], [1,1], [0,0], ...],
  *   "measuredQubits": [0, 1],
@@ -1162,12 +1168,13 @@ auto AWS_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
  * - shotsString_: "00,11,00,..." (comma-separated bitstrings)
  * - counts_: {"00": 52, "11": 48} (histogram)
  */
-auto AWS_QDMI_Device_Job_impl_d::fetchResults() const -> QDMI_STATUS {
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResults() const -> QDMI_STATUS {
   const std::scoped_lock<std::mutex> lock(jobMutex_);
   return fetchResultsInternal();
 }
 
-auto AWS_QDMI_Device_Job_impl_d::fetchResultsInternal() const -> QDMI_STATUS {
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal() const
+    -> QDMI_STATUS {
   if (resultsFetched_) {
     return QDMI_SUCCESS;
   }
@@ -1255,10 +1262,9 @@ auto AWS_QDMI_Device_Job_impl_d::fetchResultsInternal() const -> QDMI_STATUS {
  * - HIST_VALUES: Count for each outcome [52, 48]
  * - STATEVECTOR/PROBABILITIES: Only from simulators (not supported yet)
  */
-auto AWS_QDMI_Device_Job_impl_d::getResults(const QDMI_Job_Result result,
-                                            const size_t size, void* data,
-                                            size_t* sizeRet) const
-    -> QDMI_STATUS {
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::getResults(
+    const QDMI_Job_Result result, const size_t size, void* data,
+    size_t* sizeRet) const -> QDMI_STATUS {
   if ((data != nullptr && size == 0) || result >= QDMI_JOB_RESULT_MAX) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -1378,13 +1384,13 @@ std::mutex
     gAWSInitMutex; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 } // namespace
 
-int AWS_QDMI_device_initialize() {
+int AMAZON_BRAKET_QDMI_device_initialize() {
   const std::lock_guard<std::mutex> lock(gAWSInitMutex);
   if (!gAWSInitialized) {
     Aws::InitAPI(gAWSOptions);
     gAWSInitialized = true;
   }
-  std::ignore = aws_qdmi::Device::get();
+  std::ignore = AMAZON_BRAKET_QDMI::Device::get();
   return QDMI_SUCCESS;
 }
 
@@ -1401,7 +1407,7 @@ int AWS_QDMI_device_initialize() {
  *
  * @return QDMI_SUCCESS on successful finalization
  */
-int AWS_QDMI_device_finalize() {
+int AMAZON_BRAKET_QDMI_device_finalize() {
   const std::lock_guard<std::mutex> lock(gAWSInitMutex);
   if (gAWSInitialized) {
     Aws::ShutdownAPI(gAWSOptions);
@@ -1410,33 +1416,35 @@ int AWS_QDMI_device_finalize() {
   return QDMI_SUCCESS;
 }
 
-int AWS_QDMI_device_session_alloc(AWS_QDMI_Device_Session* session) {
-  return aws_qdmi::Device::get().sessionAlloc(session);
+int AMAZON_BRAKET_QDMI_device_session_alloc(
+    AMAZON_BRAKET_QDMI_Device_Session* session) {
+  return AMAZON_BRAKET_QDMI::Device::get().sessionAlloc(session);
 }
 
-int AWS_QDMI_device_session_init(AWS_QDMI_Device_Session session) {
+int AMAZON_BRAKET_QDMI_device_session_init(
+    AMAZON_BRAKET_QDMI_Device_Session session) {
   if (session == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   return session->init();
 }
 
-void AWS_QDMI_device_session_free(AWS_QDMI_Device_Session session) {
-  aws_qdmi::Device::get().sessionFree(session);
+void AMAZON_BRAKET_QDMI_device_session_free(
+    AMAZON_BRAKET_QDMI_Device_Session session) {
+  AMAZON_BRAKET_QDMI::Device::get().sessionFree(session);
 }
 
-int AWS_QDMI_device_session_set_parameter(AWS_QDMI_Device_Session session,
-                                          QDMI_Device_Session_Parameter param,
-                                          const size_t size,
-                                          const void* value) {
+int AMAZON_BRAKET_QDMI_device_session_set_parameter(
+    AMAZON_BRAKET_QDMI_Device_Session session,
+    QDMI_Device_Session_Parameter param, const size_t size, const void* value) {
   if (session == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   return session->setParameter(param, size, value);
 }
 
-int AWS_QDMI_device_session_query_device_property(
-    AWS_QDMI_Device_Session session, const QDMI_Device_Property prop,
+int AMAZON_BRAKET_QDMI_device_session_query_device_property(
+    AMAZON_BRAKET_QDMI_Device_Session session, const QDMI_Device_Property prop,
     const size_t size, void* value, size_t* sizeRet) {
   if (session == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
@@ -1444,82 +1452,82 @@ int AWS_QDMI_device_session_query_device_property(
   return session->queryDeviceProperty(prop, size, value, sizeRet);
 }
 
-int AWS_QDMI_device_session_create_device_job(AWS_QDMI_Device_Session session,
-                                              AWS_QDMI_Device_Job* job) {
+int AMAZON_BRAKET_QDMI_device_session_create_device_job(
+    AMAZON_BRAKET_QDMI_Device_Session session,
+    AMAZON_BRAKET_QDMI_Device_Job* job) {
   if (session == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   return session->createDeviceJob(job);
 }
 
-void AWS_QDMI_device_job_free(AWS_QDMI_Device_Job job) {
+void AMAZON_BRAKET_QDMI_device_job_free(AMAZON_BRAKET_QDMI_Device_Job job) {
   if (job != nullptr) {
     job->free();
   }
 }
 
-int AWS_QDMI_device_job_set_parameter(AWS_QDMI_Device_Job job,
-                                      const QDMI_Device_Job_Parameter param,
-                                      const size_t size, const void* value) {
+int AMAZON_BRAKET_QDMI_device_job_set_parameter(
+    AMAZON_BRAKET_QDMI_Device_Job job, const QDMI_Device_Job_Parameter param,
+    const size_t size, const void* value) {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   return job->setParameter(param, size, value);
 }
 
-int AWS_QDMI_device_job_query_property(AWS_QDMI_Device_Job job,
-                                       const QDMI_Device_Job_Property prop,
-                                       const size_t size, void* value,
-                                       size_t* sizeRet) {
+int AMAZON_BRAKET_QDMI_device_job_query_property(
+    AMAZON_BRAKET_QDMI_Device_Job job, const QDMI_Device_Job_Property prop,
+    const size_t size, void* value, size_t* sizeRet) {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   return job->queryProperty(prop, size, value, sizeRet);
 }
 
-int AWS_QDMI_device_job_submit(AWS_QDMI_Device_Job job) {
+int AMAZON_BRAKET_QDMI_device_job_submit(AMAZON_BRAKET_QDMI_Device_Job job) {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   return job->submit();
 }
 
-int AWS_QDMI_device_job_cancel(AWS_QDMI_Device_Job job) {
+int AMAZON_BRAKET_QDMI_device_job_cancel(AMAZON_BRAKET_QDMI_Device_Job job) {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   return job->cancel();
 }
 
-int AWS_QDMI_device_job_check(AWS_QDMI_Device_Job job,
-                              QDMI_Job_Status* status) {
+int AMAZON_BRAKET_QDMI_device_job_check(AMAZON_BRAKET_QDMI_Device_Job job,
+                                        QDMI_Job_Status* status) {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   return job->check(status);
 }
 
-int AWS_QDMI_device_job_wait(AWS_QDMI_Device_Job job, const size_t timeout) {
+int AMAZON_BRAKET_QDMI_device_job_wait(AMAZON_BRAKET_QDMI_Device_Job job,
+                                       const size_t timeout) {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   return job->wait(timeout);
 }
 
-int AWS_QDMI_device_job_get_results(AWS_QDMI_Device_Job job,
-                                    QDMI_Job_Result result, const size_t size,
-                                    void* data, size_t* sizeRet) {
+int AMAZON_BRAKET_QDMI_device_job_get_results(AMAZON_BRAKET_QDMI_Device_Job job,
+                                              QDMI_Job_Result result,
+                                              const size_t size, void* data,
+                                              size_t* sizeRet) {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   return job->getResults(result, size, data, sizeRet);
 }
 
-int AWS_QDMI_device_session_query_site_property(AWS_QDMI_Device_Session session,
-                                                AWS_QDMI_Site site,
-                                                QDMI_Site_Property prop,
-                                                const size_t size, void* value,
-                                                size_t* sizeRet) {
+int AMAZON_BRAKET_QDMI_device_session_query_site_property(
+    AMAZON_BRAKET_QDMI_Device_Session session, AMAZON_BRAKET_QDMI_Site site,
+    QDMI_Site_Property prop, const size_t size, void* value, size_t* sizeRet) {
   if (session == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -1527,9 +1535,10 @@ int AWS_QDMI_device_session_query_site_property(AWS_QDMI_Device_Session session,
       ->querySiteProperty(site, prop, size, value, sizeRet);
 }
 
-int AWS_QDMI_device_session_query_operation_property(
-    AWS_QDMI_Device_Session session, AWS_QDMI_Operation operation,
-    size_t numSites, const AWS_QDMI_Site* sites, size_t numParams,
+int AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+    AMAZON_BRAKET_QDMI_Device_Session session,
+    AMAZON_BRAKET_QDMI_Operation operation, size_t numSites,
+    const AMAZON_BRAKET_QDMI_Site* sites, size_t numParams,
     const double* params, QDMI_Operation_Property prop, size_t size,
     void* value, size_t* sizeRet) {
   if (session == nullptr) {
@@ -1538,6 +1547,6 @@ int AWS_QDMI_device_session_query_operation_property(
   return session // NOLINT(readability-static-accessed-through-instance)
       ->queryOperationProperty(
           operation, numSites,
-          reinterpret_cast<const AWS_QDMI_Site_impl_d* const*>(sites),
+          reinterpret_cast<const AMAZON_BRAKET_QDMI_Site_impl_d* const*>(sites),
           numParams, params, prop, size, value, sizeRet);
 }

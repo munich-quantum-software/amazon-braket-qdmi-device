@@ -1,5 +1,5 @@
 # Set target name
-set(TARGET_NAME aws-qdmi-device)
+set(TARGET_NAME amazon-braket-qdmi-device)
 
 # Set prefix for QDMI
 set(QDMI_PREFIX "AWS")
@@ -19,9 +19,9 @@ if(NOT TARGET ${TARGET_NAME})
            BASE_DIRS
            ${INCLUDE_BUILD_DIR}
            FILES
-           ${INCLUDE_BUILD_DIR}/aws-qdmi/qdmi/aws/Device.hpp
-           ${INCLUDE_BUILD_DIR}/aws-qdmi/qdmi/aws/device.h
-           ${INCLUDE_BUILD_DIR}/aws-qdmi/qdmi/aws/types.h)
+           ${INCLUDE_BUILD_DIR}/amazon-braket-qdmi-device/qdmi/Device.h
+           ${INCLUDE_BUILD_DIR}/amazon-braket-qdmi-device/qdmi/device.h
+           ${INCLUDE_BUILD_DIR}/amazon-braket-qdmi-device/qdmi/types.h)
 
   # Add link libraries
   target_link_libraries(
@@ -36,8 +36,8 @@ if(NOT TARGET ${TARGET_NAME})
   # Make QDMI version available
   target_compile_definitions(${TARGET_NAME}
                              PRIVATE QDMI_VERSION="${QDMI_VERSION}")
-  target_compile_definitions(${TARGET_NAME}
-                             PRIVATE AWS_QDMI_VERSION="${PROJECT_VERSION}")
+  target_compile_definitions(
+    ${TARGET_NAME} PRIVATE AMAZON_BRAKET_QDMI_VERSION="${PROJECT_VERSION}")
   # Generate additional alias for the target required for
   # generate_device_defs_executable function in the tests
   add_library(qdmi::aws_device ALIAS ${TARGET_NAME})

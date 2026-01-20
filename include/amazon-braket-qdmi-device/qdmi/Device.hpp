@@ -16,16 +16,16 @@
  *   └─ Provides unique job IDs
  *
  * Device_Session
- *   ├─ Represents connection to AWS Braket
+ *   ├─ Represents connection to Amazon Braket
  *   ├─ Stores device topology (qubits, gates, connectivity)
  *   ├─ Creates and manages jobs
- *   └─ Wraps AWS Braket Client
+ *   └─ Wraps Amazon Braket Client
  *
  * Device_Job
  *   ├─ Represents a quantum task/circuit
  *   ├─ Handles async execution
  *   ├─ Stores results (measurement outcomes)
- *   └─ Maps to AWS Braket Quantum Task
+ *   └─ Maps to Amazon Braket Quantum Task
  *
  * Site
  *   └─ Represents a physical qubit with coherence times
@@ -54,14 +54,14 @@
 #include <vector>
 
 // Forward declarations
-struct AWS_QDMI_Site_impl_d;
-struct AWS_QDMI_Operation_impl_d;
-struct AWS_QDMI_Device_Job_impl_d;
+struct AMAZON_BRAKET_QDMI_Site_impl_d;
+struct AMAZON_BRAKET_QDMI_Operation_impl_d;
+struct AMAZON_BRAKET_QDMI_Device_Job_impl_d;
 
-namespace aws_qdmi {
+namespace AMAZON_BRAKET_QDMI {
 
 /**
- * @brief Main device singleton managing AWS Braket device access.
+ * @brief Main device singleton managing Amazon Braket device access.
  */
 class Device final {
   std::string name_;
@@ -71,8 +71,8 @@ class Device final {
   size_t qubitsNum_ = 0;
   std::atomic<QDMI_Device_Status> status_{QDMI_DEVICE_STATUS_OFFLINE};
 
-  std::unordered_map<AWS_QDMI_Device_Session,
-                     std::unique_ptr<AWS_QDMI_Device_Session_impl_d>>
+  std::unordered_map<AMAZON_BRAKET_QDMI_Device_Session,
+                     std::unique_ptr<AMAZON_BRAKET_QDMI_Device_Session_impl_d>>
       sessions_;
   mutable std::mutex sessionsMutex_;
 
@@ -97,8 +97,8 @@ public:
 
   ~Device() = default;
 
-  auto sessionAlloc(AWS_QDMI_Device_Session* session) -> QDMI_STATUS;
-  auto sessionFree(AWS_QDMI_Device_Session session) -> void;
+  auto sessionAlloc(AMAZON_BRAKET_QDMI_Device_Session* session) -> QDMI_STATUS;
+  auto sessionFree(AMAZON_BRAKET_QDMI_Device_Session session) -> void;
   auto queryProperty(QDMI_Device_Property prop, size_t size, void* value,
                      size_t* sizeRet) const -> QDMI_STATUS;
   auto generateUniqueID() -> int;
@@ -107,12 +107,12 @@ public:
   auto decreaseRunningJobs() -> void;
 };
 
-} // namespace aws_qdmi
+} // namespace AMAZON_BRAKET_QDMI
 
 /**
  * @brief Device session implementation.
  */
-struct AWS_QDMI_Device_Session_impl_d {
+struct AMAZON_BRAKET_QDMI_Device_Session_impl_d {
 private:
   enum class Status : uint8_t {
     ALLOCATED,
@@ -127,21 +127,23 @@ private:
   std::string deviceType_;
 
   // Device architecture data
-  std::vector<std::unique_ptr<AWS_QDMI_Site_impl_d>> sites_;
-  std::vector<AWS_QDMI_Site_impl_d*> sites_ptr_;
-  std::unordered_map<std::string, AWS_QDMI_Site_impl_d*> sites_map_;
+  std::vector<std::unique_ptr<AMAZON_BRAKET_QDMI_Site_impl_d>> sites_;
+  std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*> sites_ptr_;
+  std::unordered_map<std::string, AMAZON_BRAKET_QDMI_Site_impl_d*> sites_map_;
 
-  std::vector<std::unique_ptr<AWS_QDMI_Operation_impl_d>> operations_;
-  std::vector<AWS_QDMI_Operation_impl_d*> operations_ptr_;
-  std::unordered_map<std::string, AWS_QDMI_Operation_impl_d*> operations_map_;
+  std::vector<std::unique_ptr<AMAZON_BRAKET_QDMI_Operation_impl_d>> operations_;
+  std::vector<AMAZON_BRAKET_QDMI_Operation_impl_d*> operations_ptr_;
+  std::unordered_map<std::string, AMAZON_BRAKET_QDMI_Operation_impl_d*>
+      operations_map_;
 
-  std::vector<std::pair<AWS_QDMI_Site_impl_d*, AWS_QDMI_Site_impl_d*>>
+  std::vector<std::pair<AMAZON_BRAKET_QDMI_Site_impl_d*,
+                        AMAZON_BRAKET_QDMI_Site_impl_d*>>
       connectivity_;
 
   size_t qubitsNum_ = 0;
 
-  std::unordered_map<AWS_QDMI_Device_Job,
-                     std::unique_ptr<AWS_QDMI_Device_Job_impl_d>>
+  std::unordered_map<AMAZON_BRAKET_QDMI_Device_Job,
+                     std::unique_ptr<AMAZON_BRAKET_QDMI_Device_Job_impl_d>>
       jobs_;
   mutable std::mutex jobsMutex_;
 
@@ -151,20 +153,18 @@ public:
   auto init() -> QDMI_STATUS;
   auto setParameter(QDMI_Device_Session_Parameter param, size_t size,
                     const void* value) -> QDMI_STATUS;
-  auto createDeviceJob(AWS_QDMI_Device_Job* job) -> QDMI_STATUS;
-  auto freeDeviceJob(AWS_QDMI_Device_Job job) -> void;
+  auto createDeviceJob(AMAZON_BRAKET_QDMI_Device_Job* job) -> QDMI_STATUS;
+  auto freeDeviceJob(AMAZON_BRAKET_QDMI_Device_Job job) -> void;
   auto queryDeviceProperty(QDMI_Device_Property prop, size_t size, void* value,
                            size_t* sizeRet) const -> QDMI_STATUS;
-  static auto querySiteProperty(AWS_QDMI_Site_impl_d* site,
+  static auto querySiteProperty(AMAZON_BRAKET_QDMI_Site_impl_d* site,
                                 QDMI_Site_Property prop, size_t size,
                                 void* value, size_t* sizeRet) -> QDMI_STATUS;
-  static auto queryOperationProperty(AWS_QDMI_Operation_impl_d* operation,
-                                     size_t numSites,
-                                     const AWS_QDMI_Site_impl_d* const* sites,
-                                     size_t numParams, const double* params,
-                                     QDMI_Operation_Property prop, size_t size,
-                                     void* value, size_t* sizeRet)
-      -> QDMI_STATUS;
+  static auto queryOperationProperty(
+      AMAZON_BRAKET_QDMI_Operation_impl_d* operation, size_t numSites,
+      const AMAZON_BRAKET_QDMI_Site_impl_d* const* sites, size_t numParams,
+      const double* params, QDMI_Operation_Property prop, size_t size,
+      void* value, size_t* sizeRet) -> QDMI_STATUS;
 
 private:
   auto fetchDeviceArchitecture() -> QDMI_STATUS;
@@ -181,13 +181,13 @@ private:
   [[nodiscard]] auto getRegion() const -> const std::string& { return region_; }
 
   // Allow Job to access session internals
-  friend struct AWS_QDMI_Device_Job_impl_d;
+  friend struct AMAZON_BRAKET_QDMI_Device_Job_impl_d;
 };
 
 /**
  * @brief Site implementation structure.
  */
-struct AWS_QDMI_Site_impl_d {
+struct AMAZON_BRAKET_QDMI_Site_impl_d {
   std::string name_;
   size_t id_ = 0;
   uint64_t t1_ = 0; // T1 coherence time in microseconds
@@ -197,20 +197,20 @@ struct AWS_QDMI_Site_impl_d {
 /**
  * @brief Operation implementation structure.
  */
-struct AWS_QDMI_Operation_impl_d {
+struct AMAZON_BRAKET_QDMI_Operation_impl_d {
   std::string name_;
   size_t numQubits_ = 0;
   size_t numParams_ = 0;
   double fidelity_ = 0.0;
-  std::vector<std::vector<AWS_QDMI_Site_impl_d*>> applicable_sites_;
+  std::vector<std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*>> applicable_sites_;
 };
 
 /**
  * @brief Device job implementation.
  */
-struct AWS_QDMI_Device_Job_impl_d {
+struct AMAZON_BRAKET_QDMI_Device_Job_impl_d {
 private:
-  AWS_QDMI_Device_Session_impl_d* session_;
+  AMAZON_BRAKET_QDMI_Device_Session_impl_d* session_;
   int id_ = 0;
   mutable std::atomic<QDMI_Job_Status> status_{QDMI_JOB_STATUS_CREATED};
   mutable bool isRunningCounted_ = false;
@@ -233,8 +233,10 @@ private:
   auto fetchResultsInternal() const -> QDMI_STATUS; // Assumes jobMutex_ is held
 
 public:
-  explicit AWS_QDMI_Device_Job_impl_d(AWS_QDMI_Device_Session_impl_d* session)
-      : session_(session), id_(aws_qdmi::Device::get().generateUniqueID()) {}
+  explicit AMAZON_BRAKET_QDMI_Device_Job_impl_d(
+      AMAZON_BRAKET_QDMI_Device_Session_impl_d* session)
+      : session_(session),
+        id_(AMAZON_BRAKET_QDMI::Device::get().generateUniqueID()) {}
 
   auto free() -> void;
   auto setParameter(QDMI_Device_Job_Parameter param, size_t size,
