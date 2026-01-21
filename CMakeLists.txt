@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(BUILD_TESTS "Build tests" ON)
+option(BUILD_AMAZON_BRAKET_TESTS "Build tests" ON)
 option(INSTALL "Enable installation" ON)
 
 # Add path for custom modules
@@ -40,7 +40,7 @@ endif()
 add_subdirectory(src/qdmi)
 
 # add test code
-if(BUILD_TESTS)
+if(BUILD_AMAZON_BRAKET_TESTS)
   enable_testing()
   include(GoogleTest)
   add_subdirectory(test)
