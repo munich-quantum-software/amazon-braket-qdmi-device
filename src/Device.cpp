@@ -142,7 +142,7 @@ namespace AMAZON_BRAKET_QDMI {
  * - Random number generation for unique job IDs
  */
 Device::Device()
-    : name_("Amazon Braket QMDI Device"), provider_("AWS"), deviceType_("QPU") {
+    : name_("Amazon Braket QDMI Device"), provider_("AWS"), deviceType_("QPU") {
   status_.store(QDMI_DEVICE_STATUS_IDLE);
 }
 
