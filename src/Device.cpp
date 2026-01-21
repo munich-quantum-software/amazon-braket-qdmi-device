@@ -41,7 +41,7 @@
  *
  */
 
-#include "amazon-braket-qdmi-device/qdmi/Device.hpp"
+#include "amazon-braket-qdmi-device/Device.hpp"
 
 #include "aws/core/utils/Array.h"
 #include "qdmi/constants.h"

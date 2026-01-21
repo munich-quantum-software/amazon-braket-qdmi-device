@@ -65,7 +65,7 @@ set(QDMI_TARGET_NAME "amazon-braket-qdmi-device")
 
 # add main library code
 if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
-  add_subdirectory(src/qdmi)
+  add_subdirectory(src)
 endif()
 
 # add test code
