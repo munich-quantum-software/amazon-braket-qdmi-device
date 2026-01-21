@@ -7,7 +7,7 @@ set(QDMI_PREFIX "AMAZON_BRAKET")
 # If the target is not already defined
 if(NOT TARGET ${TARGET_NAME})
 
-  add_library(${TARGET_NAME} STATIC)
+  add_library(${TARGET_NAME} SHARED)
 
   # Generate prefixed QDMI headers
   generate_prefixed_qdmi_headers(${QDMI_PREFIX})

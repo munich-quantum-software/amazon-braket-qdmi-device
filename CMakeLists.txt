@@ -1,5 +1,5 @@
 # set required cmake version
-cmake_minimum_required(VERSION 3.25...4.0)
+cmake_minimum_required(VERSION 3.25...4.2)
 
 project(
   amazon-braket-qdmi-device
@@ -7,12 +7,50 @@ project(
   LANGUAGES C CXX
   DESCRIPTION "Amazon Braket QDMI Device Implementation")
 
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  set(CMAKE_BUILD_TYPE
+      Release
+      CACHE STRING "Choose the type of build." FORCE)
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release"
+                                               "MinSizeRel" "RelWithDebInfo")
+endif()
+
+option(
+  USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE
+  "Use an installed version of the Amazon Braket QDMI Device to build tests"
+  OFF)
+
+if(USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
+  find_package(amazon-braket-qdmi-device REQUIRED ${PROJECT_VERSION})
+endif()
+
+# Generate compile_commands.json to make it easier to work with clang based
+# tools
+set(CMAKE_EXPORT_COMPILE_COMMANDS
+    ON
+    CACHE BOOL "Export compile commands" FORCE)
+
+set(CMAKE_VERIFY_INTERFACE_HEADER_SETS
+    ON
+    CACHE BOOL "Verify interface header sets" FORCE)
+
+set(QDMI_PREFIX "AMAZON_BRAKET")
+
+# check if this is the master project or used via add_subdirectory
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+  set(AMAZON_BRAKET_QDMI_MASTER_PROJECT ON)
+else()
+  set(AMAZON_BRAKET_QDMI_MASTER_PROJECT OFF)
+endif()
+
+option(BUILD_AMAZON_BRAKET_TESTS
+       "Build tests for the Amazon Braket QDMI device"
+       ${AMAZON_BRAKET_QDMI_MASTER_PROJECT})
+option(INSTALL "Enable installation" ON)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
-option(BUILD_AMAZON_BRAKET_TESTS "Build tests" ON)
-option(INSTALL "Enable installation" ON)
 
 # Add path for custom modules
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -22,22 +60,13 @@ include(cmake/ExternalDependencies.cmake)
 # set the include directory for the build tree
 set(INCLUDE_BUILD_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-include(GNUInstallDirs)
-
-if(INSTALL)
-  if(APPLE)
-    set(BASEPOINT @loader_path)
-  else()
-    set(BASEPOINT $ORIGIN)
-  endif()
-  set(CMAKE_INSTALL_RPATH ${BASEPOINT} ${BASEPOINT}/${CMAKE_INSTALL_LIBDIR}
-                          ${BASEPOINT}/../${CMAKE_INSTALL_LIBDIR})
-  set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-  set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
-endif()
+# Set target name
+set(QDMI_TARGET_NAME "amazon-braket-qdmi-device")
 
 # add main library code
-add_subdirectory(src/qdmi)
+if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
+  add_subdirectory(src/qdmi)
+endif()
 
 # add test code
 if(BUILD_AMAZON_BRAKET_TESTS)
