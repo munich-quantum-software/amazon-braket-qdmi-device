@@ -10,5 +10,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/amazon-braket-qdmi-device-targets.cmake")
 
 if(NOT amazon-braket-qdmi-device_FIND_QUIETLY)
   message(
-    STATUS "Found MY QDMI Device version ${amazon-braket-qdmi-device_VERSION}")
+    STATUS
+      "Found Amazon Braket QDMI Device version ${amazon-braket-qdmi-device_VERSION}"
+  )
 endif()

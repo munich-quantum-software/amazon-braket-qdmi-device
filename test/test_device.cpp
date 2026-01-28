@@ -548,10 +548,6 @@ TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceProperty) {
   AMAZON_BRAKET_QDMI_device_session_free(uninitializedSession);
 }
 
-TEST_F(AmazonBraketQDMISpecificationTest, AwsSpecificDeviceProperties) {
-  // AwsSpecificDeviceProperties removed as properties were removed
-}
-
 TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteProperty) {
   AMAZON_BRAKET_QDMI_Site site = querySites(session).front();
   EXPECT_EQ(
