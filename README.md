@@ -1,13 +1,13 @@
-# AWS QDMI Device
+# Amazon Braket QDMI Device
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://isocpp.org/std/the-standard)
 
-AWS Braket implementation of the [Quantum Device Management Interface (QDMI)](https://github.com/Munich-Quantum-Software-Stack/QDMI) specification.
+Amazon Braket implementation of the [Quantum Device Management Interface (QDMI)](https://github.com/Munich-Quantum-Software-Stack/QDMI) specification.
 
 ## Overview
 
-This library enables **any QDMI-compliant quantum software** to run on AWS Braket quantum devices without code changes. Simply link against this library instead of another QDMI implementation, and your OpenQASM circuits will execute on AWS Braket simulators or real quantum hardware.
+This library enables **any QDMI-compliant quantum software** to run on Amazon Braket quantum devices without code changes. Simply link against this library instead of another QDMI implementation, and your OpenQASM circuits will execute on Amazon Braket simulators or real quantum hardware.
 
 ### What is QDMI?
 
@@ -18,7 +18,7 @@ QDMI (Quantum Device Management Interface) is a standardized C API for quantum d
 - Managing job lifecycle (e.g., submit, cancel, get results)
 - Accessing qubit and gate information (e.g., T1/T2 times, fidelities)
 
-### QDMI to AWS Braket Mapping
+### QDMI to Amazon Braket Mapping
 
 | QDMI Function                                 | AWS SDK Counterpart                    |
 | --------------------------------------------- | -------------------------------------- |
@@ -31,9 +31,9 @@ QDMI (Quantum Device Management Interface) is a standardized C API for quantum d
 | `AMAZON_BRAKET_QDMI_device_job_get_results()` | `S3Client::GetObject()` (results.json) |
 | `AMAZON_BRAKET_QDMI_device_finalize()`        | `Aws::ShutdownAPI()`                   |
 
-### Supported AWS Braket Devices
+### Supported Amazon Braket Devices
 
-This implementation supports all AWS Braket devices:
+This implementation supports all Amazon Braket devices:
 
 | Device Type         | Examples                                                       |
 | ------------------- | -------------------------------------------------------------- |
