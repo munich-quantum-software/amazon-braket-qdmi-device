@@ -1,0 +1,1 @@
+"""Amazon Braket namespace package."""

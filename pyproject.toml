@@ -1,0 +1,152 @@
+[build-system]
+requires = ["scikit-build-core>=0.11.6"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "amazon-braket-qdmi"
+version = "0.1.0"
+requires-python = ">=3.10"
+
+description = "Amazon Braket QDMI Device Implementation"
+readme = "README.md"
+authors = [
+  { name = "Patrick Hopf", email = "patrick@munichquantum.software" },
+  { name = "Lukas Burgholzer", email = "lukas@munichquantum.software" }
+]
+
+license = "Apache-2.0"
+
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Natural Language :: English",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: C++",
+  "Programming Language :: Python",
+  "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://github.com/munich-quantum-software/aws-qdmi-device"
+Issues = "https://github.com/munich-quantum-software/aws-qdmi-device/issues"
+
+[project.scripts]
+amazon-braket-qdmi = "amazon.braket.qdmi.__main__:main"
+
+[dependency-groups]
+test = [
+  "pytest>=9.0.1",
+  "pytest-console-scripts>=1.4.1",
+  "pytest-cov>=7.0.0",
+  "pytest-sugar>=1.1.1",
+  "pytest-xdist>=3.8.0",
+]
+dev = [
+  {include-group = "test"},
+  "nox>=2025.11.12",
+  "ty==0.0.5",
+]
+
+
+[tool.scikit-build]
+minimum-version = "build-system.requires"
+cmake.version = "CMakeLists.txt"
+ninja.make-fallback = true
+build-dir = "build/{wheel_tag}/{build_type}"
+build.targets = ["amazon-braket-qdmi-device"]
+wheel.py-api = "py310"
+wheel.expand-macos-universal-tags = true
+wheel.packages = ["python/amazon"]
+wheel.install-dir = "amazon/braket/qdmi/data"
+
+sdist.include = ["python/amazon/braket/qdmi/_version.py"]
+sdist.exclude = [
+  "**/docs",
+  "**/test",
+  "sitecustomize.py",
+  ".*",
+]
+
+[tool.scikit-build.cmake.define]
+BUILD_AMAZON_BRAKET_TESTS = "OFF"
+
+[[tool.scikit-build.generate]]
+path = "amazon/braket/qdmi/_version.py"
+template = '''
+version = "${version}"
+'''
+
+
+[tool.pytest]
+minversion = "9.0"
+strict = true
+addopts = [
+  "-ra",
+  "--numprocesses=auto", # Automatically use all available CPU cores for parallel testing
+]
+filterwarnings = [
+  "error",
+]
+log_level = "INFO"
+testpaths = ["test/python"]
+
+
+[tool.coverage]
+run.source = ["amazon.braket.qdmi"]
+run.disable_warnings = [
+  "no-sysmon",
+]
+report.exclude_also = [
+  '\.\.\.',
+  'if TYPE_CHECKING:',
+  'raise AssertionError',
+  'raise NotImplementedError',
+  'def __dir__()',  # Ignore __dir__ method that exists mainly for better IDE support
+  '@overload'  # Overloads are only for static typing
+]
+
+
+[tool.ruff]
+line-length = 120
+namespace-packages = ["amazon"]
+preview = true
+fix = true
+unsafe-fixes = true
+show-fixes = true
+src = ["python"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  "C90",     # <...> too complex
+  "COM812",  # Conflicts with formatter
+  "PLR09",   # Too many <...>
+  "PLR2004", # Magic value used in comparison
+  "S101",    # Use of assert detected
+  "S404",    # `subprocess` module is possibly insecure
+  "TID252"   # Prefer absolute imports over relative imports from parent modules
+]
+future-annotations = true
+
+[tool.ruff.lint.isort]
+known-first-party = ["amazon.braket.qdmi"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"python/amazon/braket/qdmi/__main__.py" = ["T201"]
+"test/python/**" = ["T20", "INP001"]
+
+
+[tool.cibuildwheel]
+build = "cp3*"
+skip = ["cp313t-*"]
+archs = "auto64"
+test-groups = ["test"]
+test-sources = ["test/python"]
+test-command = "pytest test/python"
+build-frontend = "build[uv]"
+enable = ["cpython-freethreading"]
