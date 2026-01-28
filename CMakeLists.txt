@@ -21,18 +21,13 @@ option(
   OFF)
 
 if(USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
-  find_package(amazon-braket-qdmi-device REQUIRED ${PROJECT_VERSION})
+  find_package(amazon-braket-qdmi-device ${PROJECT_VERSION} REQUIRED)
 endif()
 
 # Generate compile_commands.json to make it easier to work with clang based
 # tools
-set(CMAKE_EXPORT_COMPILE_COMMANDS
-    ON
-    CACHE BOOL "Export compile commands" FORCE)
-
-set(CMAKE_VERIFY_INTERFACE_HEADER_SETS
-    ON
-    CACHE BOOL "Verify interface header sets" FORCE)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_VERIFY_INTERFACE_HEADER_SETS ON)
 
 set(QDMI_PREFIX "AMAZON_BRAKET")
 
