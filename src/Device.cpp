@@ -295,16 +295,12 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture()
     site->id_ = i;
     site->name_ = "Q" + std::to_string(i);
 
-    // Simulators don't have T1/T2 decoherence times
-    site->t1_ = 0;
-    site->t2_ = 0;
-
     sites_ptr_.push_back(site.get());
     sites_map_[site->name_] = site.get();
     sites_.push_back(std::move(site));
   }
 
-  // 2. Build Full Connectivity (simulators are fully connected)
+  // 2. Build Full Connectivity (for simulators)
   // Stored as flat list with alternating source/target per QDMI spec:
   // source at index 2n, target at index 2n+1
   connectivity_.clear();

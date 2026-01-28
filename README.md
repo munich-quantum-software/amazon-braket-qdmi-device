@@ -33,12 +33,12 @@ QDMI (Quantum Device Management Interface) is a standardized C API for quantum d
 
 ### Supported Amazon Braket Devices
 
-This implementation supports all Amazon Braket devices:
+This implementation currently only supports simulator Amazon Braket devices:
 
 | Device Type         | Examples                                                       |
 | ------------------- | -------------------------------------------------------------- |
 | **Simulators**      | SV1 (State Vector), DM1 (Density Matrix), TN1 (Tensor Network) |
-| **Gate-based QPUs** | IonQ Aria/Forte, IQM Garnet, Rigetti Ankaa                     |
+| **Gate-based QPUs** | TODO                                                           |
 
 ## Quick Start
 

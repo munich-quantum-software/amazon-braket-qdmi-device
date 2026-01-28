@@ -703,16 +703,18 @@ TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteData) {
   EXPECT_GT(sites.size(), 0);
   for (auto* site : sites) {
     uint64_t t1 = 0;
-    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
-                  session, site, QDMI_SITE_PROPERTY_T1, sizeof(uint64_t), &t1,
-                  nullptr),
-              QDMI_SUCCESS);
+    // T1/T2 may not be supported for simulators
+    EXPECT_THAT(AMAZON_BRAKET_QDMI_device_session_query_site_property(
+                    session, site, QDMI_SITE_PROPERTY_T1, sizeof(uint64_t), &t1,
+                    nullptr),
+                testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
 
     uint64_t t2 = 0;
-    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
-                  session, site, QDMI_SITE_PROPERTY_T2, sizeof(uint64_t), &t2,
-                  nullptr),
-              QDMI_SUCCESS);
+    // T1/T2 may not be supported for simulators
+    EXPECT_THAT(AMAZON_BRAKET_QDMI_device_session_query_site_property(
+                    session, site, QDMI_SITE_PROPERTY_T2, sizeof(uint64_t), &t2,
+                    nullptr),
+                testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
   }
 }
 
