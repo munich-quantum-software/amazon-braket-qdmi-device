@@ -1,0 +1,86 @@
+name: 📦 • Install and Test
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: >
+          The runner image to use.
+        default: "ubuntu-latest"
+        type: string
+      cmake-args:
+        description: "Additional arguments to pass to CMake"
+        default: ""
+        type: string
+      device-arn:
+        description: >
+          The Amazon Braket device ARN to use for tests that require a quantum device.
+        default: "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
+        type: string
+    secrets:
+      AWS_S3_BUCKET:
+        required: false
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  cpp-tests-install:
+    name: 📦 ${{ inputs.runs-on }}
+    runs-on: ${{ inputs.runs-on }}
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
+      CTEST_PARALLEL_LEVEL: 4
+      FORCE_COLOR: 3
+    steps:
+      # check out the repository (including submodules and all history)
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      # Install build dependencies (Ubuntu only)
+      - name: Install Dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev
+      # set up ccache for faster C++ builds
+      - name: Setup ccache
+        uses: Chocobo1/setup-ccache-action@82d1328f966f98dcd2df44e757ae08076d3c9a6b # v1.5.2
+        with:
+          prepend_symlinks_to_path: false
+          override_cache_key: c++-tests-install-${{ inputs.runs-on }}
+      # set up mold as linker for faster C++ builds
+      - name: Set up mold as linker
+        uses: rui314/setup-mold@725a8794d15fc7563f59595bd9556495c0564878 # v1
+      # make sure ninja is installed
+      - name: Install Ninja
+        run: pipx install ninja
+      # configure CMake
+      - name: Configure CMake for Installation
+        run: cmake -S . -B install-build -DCMAKE_BUILD_TYPE=Release ${{ inputs.cmake-args }}
+      # build the project
+      - name: Build the project
+        run: cmake --build install-build --config Release
+      # install the project
+      - name: Install Amazon Braket QDMI Device
+        run: cmake --install install-build --prefix install-dir
+      # configure CMake for using the installed library
+      - name: Configure CMake for use of installed library
+        run:
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DUSE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE=ON
+          -DCMAKE_PREFIX_PATH=install-dir ${{ inputs.cmake-args }}
+      # build the project
+      - name: Build examples and tests with installed library
+        run: cmake --build build --config Release
+      # run the tests
+      - name: Test
+        env:
+          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEVICE_ARN: ${{ inputs.device-arn }}
+        run: ctest -C Release --output-on-failure --test-dir build --repeat until-pass:3 --timeout 600

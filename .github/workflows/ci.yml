@@ -68,3 +68,17 @@ jobs:
       AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET || '' }}
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
+
+  cpp-install-tests:
+    name: 📦 Install
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on: [ubuntu-24.04, macos-15, windows-2025]
+    uses: ./.github/workflows/cpp-install-tests.yml
+    with:
+      runs-on: ${{ matrix.runs-on }}
+    secrets:
+      AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET || '' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
