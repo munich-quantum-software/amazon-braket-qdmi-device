@@ -140,9 +140,9 @@ private:
   std::unordered_map<std::string, AMAZON_BRAKET_QDMI_Operation_impl_d*>
       operations_map_;
 
-  std::vector<std::pair<AMAZON_BRAKET_QDMI_Site_impl_d*,
-                        AMAZON_BRAKET_QDMI_Site_impl_d*>>
-      connectivity_;
+  /// Coupling map stored as a flat list of site pointers with alternating
+  /// source/target entries (source at index 2n, target at index 2n+1)
+  std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*> connectivity_;
 
   size_t qubitsNum_ = 0;
 

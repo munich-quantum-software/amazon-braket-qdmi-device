@@ -1,8 +1,8 @@
 /** @file
- * @brief QDMI device implementation for Amazon Braket.
+ * @brief QDMI device implementation for Amazon Braket
  *
  * This file implements the Quantum Device Management Interface (QDMI)
- * specification for Amazon Braket, Amazon's quantum computing service.
+ * specification for Amazon Braket.
  *
  * QDMI Project: https://github.com/Munich-Quantum-Software-Stack/QDMI
  *
@@ -10,9 +10,9 @@
  * Purpose: QDMI Adapter for Amazon Braket
  * ============================================================================
  *
- * You can target Amazon Braket devices by simply linking against this library
+ * You can target Amazon Braket devices by linking against this library
  * instead of another QDMI implementation. Your OpenQASM circuits will
- * execute on Amazon Braket simulators or real quantum hardware.
+ * execute on Amazon Braket.
  *
  * ============================================================================
  * QDMI to Amazon Braket Mapping
@@ -24,7 +24,6 @@
  * QDMI Concept          | Amazon Braket Equivalent
  * ----------------------|--------------------------------------------------
  * Device                | BraketClient + GetDeviceRequest/Result
- * Device Status         | DeviceStatus enum (ONLINE, OFFLINE, RETIRED)
  * Session               | BraketClient instance with credentials
  *
  * Job                   | QuantumTask
@@ -35,9 +34,9 @@
  * Program               | Action field (OpenQASM string wrapped in JSON)
  * Shots                 | CreateQuantumTaskRequest::SetShots()
  *
- * Site (Qubit)          | Parsed from DeviceCapabilities JSON (qubitCount)
- * Operation (Gate)      | Parsed from nativeGateSet / supportedOperations
- * Coupling Map          | Parsed from connectivity graph
+ * Site (Qubit)          | Parsed from paradigm.qubitCount
+ * Operation (Gate)      | Parsed from action.braket.ir.openqasm.program
+ * Coupling Map          | Full connectivity (for simulators)
  *
  */
 
@@ -220,20 +219,12 @@ auto Device::decreaseRunningJobs() -> void {
 // ============================================================================
 
 /**
- * Fetches the quantum device architecture from Amazon Braket.
+ * Fetches the device architecture from Amazon Braket.
  *
- * This function queries the device capabilities to understand:
+ * This function queries the device capabilities:
  * - Number of qubits (sites)
  * - Qubit connectivity (which qubits can interact)
  * - Available quantum gates/operations
- * - Coherence times (T1, T2) for each qubit
- * - Gate fidelities
- *
- * Amazon Braket returns device capabilities as JSON containing:
- * - paradigm.qubitCount: Number of qubits
- * - paradigm.connectivity: Graph of qubit connections
- * - paradigm.nativeGateSet: List of supported quantum gates
- * - provider: Hardware specifications
  *
  * @return QDMI_SUCCESS on successful fetch, error code otherwise
  */
@@ -268,6 +259,11 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture()
                     ? "QPU"
                     : "Simulator";
 
+  // Currently, only simulators are supported
+  if (deviceType_ == "QPU") {
+    return QDMI_ERROR_NOTSUPPORTED;
+  }
+
   const auto& capabilitiesStr =
       device.GetDeviceCapabilities(); // Returns JSON string
 
@@ -286,6 +282,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture()
   if (!paradigm.ValueExists("qubitCount")) {
     return QDMI_ERROR_FATAL;
   }
+
   // 1. Parse Qubit Count
   qubitsNum_ = paradigm.GetInteger("qubitCount");
 
@@ -297,264 +294,75 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture()
     auto site = std::make_unique<AMAZON_BRAKET_QDMI_Site_impl_d>();
     site->id_ = i;
     site->name_ = "Q" + std::to_string(i);
-    // Default values, ideally parsed from "provider" section if available
-    site->t1_ = 50000;
-    site->t2_ = 30000;
+
+    // Simulators don't have T1/T2 decoherence times
+    site->t1_ = 0;
+    site->t2_ = 0;
 
     sites_ptr_.push_back(site.get());
     sites_map_[site->name_] = site.get();
     sites_.push_back(std::move(site));
   }
 
-  // Optional: Parse Provider Properties (T1, T2)
-  // Strategy: Check multiple locations based on vendor schemas (IonQ, IQM, AQT,
-  // Standardized)
-
-  // 1. Try Standardized Properties (e.g. IBEX-Q1)
-  if (view.ValueExists("standardized")) {
-    auto standardized = view.GetObject("standardized");
-    if (standardized.ValueExists("T1")) {
-      auto t1Obj = standardized.GetObject("T1");
-      if (t1Obj.ValueExists("value")) {
-        const uint64_t t1Val = static_cast<uint64_t>(t1Obj.GetDouble("value") *
-                                                     1e6); // Convert s to us
-        for (auto* site : sites_ptr_) {
-          site->t1_ = t1Val;
-        }
-      }
-    }
-    if (standardized.ValueExists("T2")) {
-      auto t2Obj = standardized.GetObject("T2");
-      if (t2Obj.ValueExists("value")) {
-        const uint64_t t2Val = static_cast<uint64_t>(t2Obj.GetDouble("value") *
-                                                     1e6); // Convert s to us
-        for (auto* site : sites_ptr_) {
-          site->t2_ = t2Val;
-        }
-      }
-    }
-  }
-
-  // 2. Try Provider Properties (Vendor Specific)
-  if (view.ValueExists("provider")) {
-    auto provider = view.GetObject("provider");
-
-    // IQM Schema: provider.properties.one_qubit.<id>.T1
-    if (provider.ValueExists("properties")) {
-      auto props = provider.GetObject("properties");
-
-      // IQM Style
-      if (props.ValueExists("one_qubit")) {
-        auto oneQubit = props.GetObject("one_qubit");
-        auto oneQubitMap = oneQubit.GetAllObjects();
-        for (const auto& [qubitIdxStr, qProps] : oneQubitMap) {
-          try {
-            const size_t idx = std::stoi(qubitIdxStr);
-            if (idx < sites_ptr_.size()) {
-              auto qPropsObj = qProps;
-              if (qPropsObj.ValueExists("T1")) {
-                sites_ptr_[idx]->t1_ =
-                    static_cast<uint64_t>(qPropsObj.GetDouble("T1") * 1e6);
-              }
-              if (qPropsObj.ValueExists("T2")) {
-                sites_ptr_[idx]->t2_ =
-                    static_cast<uint64_t>(qPropsObj.GetDouble("T2") * 1e6);
-              }
-            }
-          } catch (...) { // NOLINT(bugprone-empty-catch)
-            // Ignore parsing errors for optional T1/T2 values
-          }
-        }
-      }
-
-      // AQT Style: provider.properties.t1_s.value (Global)
-      if (props.ValueExists("t1_s")) {
-        auto t1Obj = props.GetObject("t1_s");
-        if (t1Obj.ValueExists("value")) {
-          const uint64_t t1Val =
-              static_cast<uint64_t>(t1Obj.GetDouble("value") * 1e6);
-          for (auto* site : sites_ptr_) {
-            site->t1_ = t1Val;
-          }
-        }
-      }
-      if (props.ValueExists("t2_coherence_time_s")) {
-        auto t2Obj = props.GetObject("t2_coherence_time_s");
-        if (t2Obj.ValueExists("value")) {
-          const uint64_t t2Val =
-              static_cast<uint64_t>(t2Obj.GetDouble("value") * 1e6);
-          for (auto* site : sites_ptr_) {
-            site->t2_ = t2Val;
-          }
-        }
-      }
-    }
-
-    // IonQ Schema: provider.timing.T1 (Global)
-    if (provider.ValueExists("timing")) {
-      auto timing = provider.GetObject("timing");
-      if (timing.ValueExists("T1")) {
-        const uint64_t t1Val =
-            static_cast<uint64_t>(timing.GetDouble("T1") * 1e6);
-        for (auto* site : sites_ptr_) {
-          site->t1_ = t1Val;
-        }
-      }
-      if (timing.ValueExists("T2")) {
-        const uint64_t t2Val =
-            static_cast<uint64_t>(timing.GetDouble("T2") * 1e6);
-        for (auto* site : sites_ptr_) {
-          site->t2_ = t2Val;
-        }
-      }
-    }
-
-    // Generic Schema: provider.1Q.<id>.T1
-    if (provider.ValueExists("1Q")) {
-      auto oneQ = provider.GetObject("1Q");
-      auto oneQMap = oneQ.GetAllObjects();
-      for (const auto& [qubitIdxStr, props] : oneQMap) {
-        try {
-          const size_t idx = std::stoi(qubitIdxStr);
-          if (idx < sites_ptr_.size()) {
-            auto propsObj = props;
-            if (propsObj.ValueExists("T1")) {
-              sites_ptr_[idx]->t1_ =
-                  static_cast<uint64_t>(propsObj.GetDouble("T1")); // Usually us
-            }
-            if (propsObj.ValueExists("T2")) {
-              sites_ptr_[idx]->t2_ =
-                  static_cast<uint64_t>(propsObj.GetDouble("T2")); // Usually us
-            }
-          }
-        } catch (...) { // NOLINT(bugprone-empty-catch)
-          // Ignore parsing errors for optional T1/T2 values
-        }
-      }
-    }
-  }
-
-  // 2. Parse Connectivity
+  // 2. Build Full Connectivity (simulators are fully connected)
+  // Stored as flat list with alternating source/target per QDMI spec:
+  // source at index 2n, target at index 2n+1
   connectivity_.clear();
-
-  // Lambda to fill full connectivity
-  auto fillFullConnectivity = [&]() {
-    for (size_t i = 0; i < qubitsNum_; ++i) {
-      for (size_t j = i + 1; j < qubitsNum_; ++j) {
-        connectivity_.emplace_back(sites_ptr_[i], sites_ptr_[j]);
-        connectivity_.emplace_back(sites_ptr_[j], sites_ptr_[i]);
-      }
+  for (size_t i = 0; i < qubitsNum_; ++i) {
+    for (size_t j = i + 1; j < qubitsNum_; ++j) {
+      // Edge i -> j
+      connectivity_.push_back(sites_ptr_[i]);
+      connectivity_.push_back(sites_ptr_[j]);
+      // Edge j -> i
+      connectivity_.push_back(sites_ptr_[j]);
+      connectivity_.push_back(sites_ptr_[i]);
     }
-  };
-
-  // 1. Check connectivity key
-  if (paradigm.ValueExists("connectivity")) {
-    const auto connectivityObj = paradigm.GetObject("connectivity");
-
-    if (connectivityObj.ValueExists("fullyConnected") &&
-        connectivityObj.GetBool("fullyConnected")) {
-      fillFullConnectivity();
-    } else if (connectivityObj.ValueExists("connectivityGraph")) {
-      const auto graph = connectivityObj.GetObject("connectivityGraph");
-      const auto map = graph.GetAllObjects();
-
-      for (const auto& [sourceStr, targets] : map) {
-        const size_t sourceIdx = static_cast<size_t>(std::stoi(sourceStr));
-        if (sourceIdx >= qubitsNum_) {
-          std::cerr << "Warning: Invalid source qubit index " << sourceIdx
-                    << " in connectivity graph\n";
-          continue;
-        }
-        const auto targetArray = targets.AsArray();
-        for (size_t k = 0; k < targetArray.GetLength(); ++k) {
-          const size_t targetIdx =
-              static_cast<size_t>(std::stoi(targetArray[k].AsString()));
-          if (targetIdx >= qubitsNum_) {
-            std::cerr << "Warning: Invalid target qubit index " << targetIdx
-                      << " in connectivity graph\n";
-            continue;
-          }
-          connectivity_.emplace_back(sites_ptr_[sourceIdx],
-                                     sites_ptr_[targetIdx]);
-        }
-      }
-    }
-  } else if (paradigm.ValueExists("braketSchemaHeader")) {
-    const auto header = paradigm.GetObject("braketSchemaHeader");
-    if (header.ValueExists("name")) {
-      const Aws::String name = header.GetString("name");
-      if (name.find("simulator") != Aws::String::npos) {
-        fillFullConnectivity();
-      }
-    }
-  } else {
-    std::cerr
-        << "No connectivity info or braketSchemaHeader found in paradigm\n";
   }
 
-  // 3. Parse Native Gate Set and Properties
+  // 3. Parse Supported Operations from action.braket.ir.openqasm.program
   operations_.clear();
   operations_ptr_.clear();
   operations_map_.clear();
 
-  Aws::Utils::Array<Aws::Utils::Json::JsonView> gateSet;
-  bool gateSetFound = false;
-
-  if (paradigm.ValueExists("nativeGateSet")) {
-    gateSet = paradigm.GetArray("nativeGateSet");
-    gateSetFound = true;
-  } else if (view.ValueExists("action")) {
+  if (view.ValueExists("action")) {
     auto action = view.GetObject("action");
     if (action.ValueExists("braket.ir.openqasm.program")) {
       auto openqasm = action.GetObject("braket.ir.openqasm.program");
-      // TODO: What's the difference between nativeGateSet and
-      // supportedOperations?
       if (openqasm.ValueExists("supportedOperations")) {
-        gateSet = openqasm.GetArray("supportedOperations");
-        gateSetFound = true;
+        auto gateSet = openqasm.GetArray("supportedOperations");
+
+        for (size_t i = 0; i < gateSet.GetLength(); ++i) {
+          const std::string gateName = gateSet[i].AsString();
+
+          auto op = std::make_unique<AMAZON_BRAKET_QDMI_Operation_impl_d>();
+          op->name_ = gateName;
+
+          // Determine qubit count based on gate name
+          if (gateName == "cnot" || gateName == "cz" || gateName == "swap" ||
+              gateName == "xx" || gateName == "yy" || gateName == "zz" ||
+              gateName == "xy" || gateName == "cphaseshift" ||
+              gateName == "cphaseshift00" || gateName == "cphaseshift01" ||
+              gateName == "cphaseshift10" || gateName == "iswap" ||
+              gateName == "pswap" || gateName == "ecr" || gateName == "cy" ||
+              gateName == "ms" || gateName == "gpi2") {
+            op->numQubits_ = 2;
+          } else if (gateName == "ccnot" || gateName == "cswap") {
+            op->numQubits_ = 3;
+          } else {
+            // Single-qubit gates: x, y, z, h, rx, ry, rz, s, si, t, ti, v, vi,
+            // i, phaseshift, gpi, unitary
+            op->numQubits_ = 1;
+          }
+
+          // Simulators have perfect fidelity
+          op->fidelity_ = 1.0;
+
+          operations_ptr_.push_back(op.get());
+          operations_map_[gateName] = op.get();
+          operations_.push_back(std::move(op));
+        }
       }
     }
-  }
-
-  // TODO: Check again with actual device schemas for fidelity and params
-  if (gateSetFound) {
-    for (size_t i = 0; i < gateSet.GetLength(); ++i) {
-      const std::string gateName = gateSet[i].AsString();
-
-      auto op = std::make_unique<AMAZON_BRAKET_QDMI_Operation_impl_d>();
-      op->name_ = gateName;
-
-      // Heuristic for qubit count based on name
-      if (gateName == "cx" || gateName == "cz" || gateName == "swap" ||
-          gateName == "xx" || gateName == "yy" || gateName == "zz" ||
-          gateName == "xy" || gateName == "cp" || gateName == "iswap" ||
-          gateName == "pswap" || gateName == "ecr" || gateName == "cy" ||
-          gateName == "MS" ||
-          gateName == "cc_prx") { // MS is IonQ 2-qubit, cc_prx is IQM 2-qubit?
-                                  // No, cc_prx is likely 2 or 3.
-        // Correction: cc_prx in IQM Garnet is listed. Usually cc implies
-        // controlled-controlled (3). But let's check if it's in the 2-qubit
-        // list. For safety, let's assume 2 for now unless we know it's 3
-        // (ccnot, cswap).
-        op->numQubits_ = 2;
-      } else if (gateName == "ccnot" || gateName == "cswap") {
-        op->numQubits_ = 3;
-      } else {
-        // Default to 1 qubit (x, y, z, h, rx, ry, rz, s, t, v, prx, GPI, GPI2,
-        // measure_ff)
-        op->numQubits_ = 1;
-      }
-
-      op->fidelity_ = 0.999; // Default, could parse from provider properties
-
-      operations_ptr_.push_back(op.get());
-      operations_map_[gateName] = op.get();
-      operations_.push_back(std::move(op));
-    }
-  } else {
-    std::cerr << "Warning: Could not find nativeGateSet or supportedOperations "
-                 "in device capabilities."
-              << '\n';
   }
 
   return QDMI_SUCCESS;
