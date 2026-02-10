@@ -1,3 +1,10 @@
+# Copyright (c) 2025 - 2026 Munich Quantum Software Company GmbH
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 include(GNUInstallDirs)
 
 # Generate QDMI headers with the specified prefix
@@ -12,8 +19,7 @@ file(GLOB_RECURSE PRIVATE_HEADER_FILES "${PROJECT_SOURCE_DIR}/include/*.hpp")
 file(GLOB_RECURSE PUBLIC_HEADER_FILES "${CMAKE_CURRENT_BINARY_DIR}/include/*.h")
 
 add_library(${QDMI_TARGET_NAME} SHARED)
-set_target_properties(${QDMI_TARGET_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS
-                                                     ON)
+set_target_properties(${QDMI_TARGET_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 target_compile_features(${QDMI_TARGET_NAME} PRIVATE cxx_std_20)
 get_target_property(qdmi_library_VERSION qdmi::qdmi VERSION)
 target_compile_definitions(
@@ -74,10 +80,9 @@ write_basic_package_version_file(
   VERSION ${PROJECT_VERSION}
   COMPATIBILITY SameMinorVersion)
 
-install(
-  FILES "${CMAKE_CURRENT_BINARY_DIR}/${QDMI_TARGET_NAME}-config.cmake"
-        "${CMAKE_CURRENT_BINARY_DIR}/${QDMI_TARGET_NAME}-config-version.cmake"
-  DESTINATION ${AMAZON_BRAKET_QDMI_CONFIG_INSTALL_DIR})
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${QDMI_TARGET_NAME}-config.cmake"
+              "${CMAKE_CURRENT_BINARY_DIR}/${QDMI_TARGET_NAME}-config-version.cmake"
+        DESTINATION ${AMAZON_BRAKET_QDMI_CONFIG_INSTALL_DIR})
 
 # cmake-format: off
 install(
@@ -100,6 +105,6 @@ install(
   DESTINATION ${AMAZON_BRAKET_QDMI_CONFIG_INSTALL_DIR}
   COMPONENT ${QDMI_TARGET_NAME}_Development)
 
-# Generate additional alias for the target required for
-# generate_device_defs_executable function in the tests
+# Generate additional alias for the target required for generate_device_defs_executable function in
+# the tests
 add_library(qdmi::aws_device ALIAS ${QDMI_TARGET_NAME})

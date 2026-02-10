@@ -1,3 +1,10 @@
+# Copyright (c) 2025 - 2026 Munich Quantum Software Company GmbH
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 # Declare all external dependencies and make sure that they are available.
 
 include(FetchContent)
@@ -16,11 +23,8 @@ if(BUILD_AMAZON_BRAKET_TESTS)
   set(GTEST_VERSION
       1.17.0
       CACHE STRING "Google Test version")
-  set(GTEST_URL
-      https://github.com/google/googletest/archive/refs/tags/v${GTEST_VERSION}.tar.gz
-  )
-  FetchContent_Declare(googletest URL ${GTEST_URL} FIND_PACKAGE_ARGS
-                                      ${GTEST_VERSION} NAMES GTest)
+  set(GTEST_URL https://github.com/google/googletest/archive/refs/tags/v${GTEST_VERSION}.tar.gz)
+  FetchContent_Declare(googletest URL ${GTEST_URL} FIND_PACKAGE_ARGS ${GTEST_VERSION} NAMES GTest)
   list(APPEND FETCH_PACKAGES googletest)
 endif()
 
@@ -39,30 +43,6 @@ FetchContent_Declare(
   GIT_TAG ${QDMI_REV}
   FIND_PACKAGE_ARGS ${QDMI_VERSION})
 list(APPEND FETCH_PACKAGES qdmi)
-
-if(WIN32 AND NOT DEFINED AWSSDK_FLAGS_SET)
-  # AWS SDK CI / Windows defaults
-  if(NOT DEFINED USE_SHARED_CRT)
-    set(USE_SHARED_CRT
-        ON
-        CACHE BOOL "" FORCE)
-  endif()
-
-  if(NOT DEFINED ENABLE_UNITY_BUILD)
-    set(ENABLE_UNITY_BUILD
-        ON
-        CACHE BOOL "" FORCE)
-  endif()
-
-  if(NOT DEFINED BUILD_SHARED_LIBS)
-    set(BUILD_SHARED_LIBS
-        OFF
-        CACHE BOOL "" FORCE)
-  endif()
-  set(AWSSDK_FLAGS_SET
-      TRUE
-      CACHE INTERNAL "" FORCE)
-endif()
 
 set(AWSSDK_VERSION
     1.11.714

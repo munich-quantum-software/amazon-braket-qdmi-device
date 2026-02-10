@@ -15,9 +15,7 @@
     ".td": "SLASH_STYLE",
     ".yaml": "POUND_STYLE",
     ".toml": "POUND_STYLE",
-    ".proto": "SLASH_STYLE",
-    ".cmake": "POUND_STYLE",
-    ".txt": "POUND_STYLE"
+    ".proto": "SLASH_STYLE"
   },
   "exclude": [
     "^\\.[^/]+",

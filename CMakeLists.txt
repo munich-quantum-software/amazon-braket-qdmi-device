@@ -1,3 +1,10 @@
+# Copyright (c) 2025 - 2026 Munich Quantum Software Company GmbH
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 # set required cmake version
 cmake_minimum_required(VERSION 3.25...4.2)
 
@@ -11,29 +18,26 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE
       Release
       CACHE STRING "Choose the type of build." FORCE)
-  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release"
-                                               "MinSizeRel" "RelWithDebInfo")
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel"
+                                               "RelWithDebInfo")
 endif()
 
-option(
-  USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE
-  "Use an installed version of the Amazon Braket QDMI Device to build tests"
-  OFF)
+option(USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE
+       "Use an installed version of the Amazon Braket QDMI Device to build tests" OFF)
 
 if(USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
   find_package(amazon-braket-qdmi-device ${PROJECT_VERSION} REQUIRED)
 endif()
 
-# Generate compile_commands.json to make it easier to work with clang based
-# tools
+# Generate compile_commands.json to make it easier to work with clang based tools
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_VERIFY_INTERFACE_HEADER_SETS ON)
 
 set(QDMI_PREFIX "AMAZON_BRAKET")
 
 # Check if this is the top-level project
-option(BUILD_AMAZON_BRAKET_TESTS
-       "Build tests for the Amazon Braket QDMI device" ${PROJECT_IS_TOP_LEVEL})
+option(BUILD_AMAZON_BRAKET_TESTS "Build tests for the Amazon Braket QDMI device"
+       ${PROJECT_IS_TOP_LEVEL})
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
