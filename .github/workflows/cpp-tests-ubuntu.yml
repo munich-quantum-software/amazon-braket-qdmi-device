@@ -53,9 +53,8 @@ jobs:
           CONFIG: ${{ inputs.config }}
         run: |
           cmake -S . -B build \
-            -DCMAKE_BUILD_TYPE="$CONFIG" \
-            -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
-            -DAWS_SDK_WARNINGS_ARE_ERRORS=OFF
+            -DCMAKE_BUILD_TYPE="$CONFIG"
+
       # build the project in the specified mode
       - name: Build
         run: cmake --build build
