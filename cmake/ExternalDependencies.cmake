@@ -1,4 +1,4 @@
-# Declare all external dependencies and make sure they are available.
+# Declare all external dependencies and make sure that they are available.
 
 include(FetchContent)
 include(CMakeDependentOption)
