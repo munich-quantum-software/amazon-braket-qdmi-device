@@ -58,8 +58,8 @@ option(AMAZON_BRAKET_QDMI_COVERAGE "Enable coverage instrumentation" OFF)
 if(AMAZON_BRAKET_QDMI_COVERAGE)
   if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     message(STATUS "Building with coverage instrumentation")
-    target_compile_options(${QDMI_TARGET_NAME} PUBLIC --coverage -O0 -g)
-    target_link_options(${QDMI_TARGET_NAME} PUBLIC --coverage)
+    target_compile_options(${QDMI_TARGET_NAME} PRIVATE --coverage -O0 -g)
+    target_link_options(${QDMI_TARGET_NAME} PRIVATE --coverage)
   else()
     message(WARNING "Coverage instrumentation is only supported with GCC/Clang")
   endif()
@@ -104,7 +104,3 @@ install(
   FILE ${QDMI_TARGET_NAME}-targets.cmake
   DESTINATION ${AMAZON_BRAKET_QDMI_CONFIG_INSTALL_DIR}
   COMPONENT ${QDMI_TARGET_NAME}_Development)
-
-# Generate additional alias for the target required for generate_device_defs_executable function in
-# the tests
-add_library(qdmi::aws_device ALIAS ${QDMI_TARGET_NAME})

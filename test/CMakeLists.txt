@@ -13,6 +13,9 @@ add_executable(${TARGET_NAME} test_device.cpp)
 target_link_libraries(${TARGET_NAME} PRIVATE amazon-braket-qdmi-device GTest::gtest
                                              GTest::gtest_main GTest::gmock)
 
+# Check if all functions are implemented by the device
+generate_device_defs_executable(${QDMI_PREFIX} TARGET ${QDMI_TARGET_NAME})
+
 # On Windows we need all runtime DLLs next to the test executable
 if(WIN32)
   add_custom_command(

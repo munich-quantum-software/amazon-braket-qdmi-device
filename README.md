@@ -7,7 +7,7 @@ Amazon Braket implementation of the [Quantum Device Management Interface (QDMI)]
 
 ## Overview
 
-This library enables **any QDMI-compliant quantum software** to run on Amazon Braket quantum devices without code changes. Simply link against this library instead of another QDMI implementation, and your OpenQASM circuits will execute on Amazon Braket simulators or real quantum hardware.
+This library enables **any QDMI-compliant quantum software** to run on Amazon Braket quantum devices without code changes. Simply link against this library instead of another QDMI implementation, and your OpenQASM circuits will execute on Amazon Braket simulators (and soon real quantum hardware).
 
 ### What is QDMI?
 
@@ -199,7 +199,6 @@ int main() {
 | Function                                                       | AWS SDK Counterpart            | Description                              |
 | -------------------------------------------------------------- | ------------------------------ | ---------------------------------------- |
 | `AMAZON_BRAKET_QDMI_device_session_alloc()`                    | (internal allocation)          | Allocate a new session                   |
-| `AMAZON_BRAKET_QDMI_device_session_set_parameter()`            | (not used)                     | Session is configured via Env Vars       |
 | `AMAZON_BRAKET_QDMI_device_session_init()`                     | `BraketClient` + `GetDevice()` | Initialize session and connect to device |
 | `AMAZON_BRAKET_QDMI_device_session_free()`                     | `BraketClient` destructor      | Free session resources                   |
 | `AMAZON_BRAKET_QDMI_device_session_query_device_property()`    | (parse GetDevice JSON)         | Query device properties                  |
@@ -252,7 +251,7 @@ aws-qdmi/
 │   │   └── device.h                # Public API header (QDMI implementation)
 │   └── AMAZON_BRAKET_QDMI_device_impl.hpp    # Internal implementation header
 ├── src/
-│   └── AMAZON_BRAKET_QDMI_device_impl.cpp    # Implementation (QDMI↔AWS Braket)
+│   └── AMAZON_BRAKET_QDMI_device_impl.cpp    # Implementation (QDMI↔Amazon Braket)
 └── test/
     └── test_AMAZON_BRAKET_QDMI_device_integration.cpp  # Integration tests
 ```
@@ -267,7 +266,7 @@ aws-qdmi/
                                   │
                                   ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        AWS QDMI Device                              │
+│                        Amazon Braket QDMI Device                              │
 │  ┌─────────────────────────────────────────────────────────────┐   │
 │  │ QDMI Functions              │ AWS SDK Calls                 │   │
 │  ├─────────────────────────────┼───────────────────────────────┤   │
@@ -280,7 +279,7 @@ aws-qdmi/
                                   │
                                   ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                          AWS Braket                                 │
+│                          Amazon Braket                                 │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │
 │  │ SV1 Simulator│  │ IonQ Aria    │  │ Rigetti Ankaa│  ...         │
 │  └──────────────┘  └──────────────┘  └──────────────┘              │
@@ -293,4 +292,4 @@ For issues related to:
 
 - **This library**: Open an issue on this repository
 - **QDMI specification**: See [QDMI repository](https://github.com/Munich-Quantum-Software-Stack/QDMI)
-- **AWS Braket**: See [AWS Braket documentation](https://docs.aws.amazon.com/braket/)
+- **Amazon Braket**: See [Amazon Braket documentation](https://docs.aws.amazon.com/braket/)

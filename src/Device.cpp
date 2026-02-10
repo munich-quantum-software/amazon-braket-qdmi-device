@@ -765,7 +765,6 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
   // - Cancellation is best-effort: if task is already executing, it may
   // complete
   // - Some devices may not support mid-execution cancellation
-  // - No refund for cancelled tasks on QPU hardware (charged for queue time)
   //
   // After cancellation:
   // - Task status becomes CANCELLED
