@@ -36,14 +36,8 @@ set(CMAKE_VERIFY_INTERFACE_HEADER_SETS ON)
 set(QDMI_PREFIX "AMAZON_BRAKET")
 
 # Check if this is the master project or used via add_subdirectory
-if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-  set(AMAZON_BRAKET_QDMI_MASTER_PROJECT ON)
-else()
-  set(AMAZON_BRAKET_QDMI_MASTER_PROJECT OFF)
-endif()
-
 option(BUILD_AMAZON_BRAKET_TESTS "Build tests for the Amazon Braket QDMI device"
-       ${AMAZON_BRAKET_QDMI_MASTER_PROJECT})
+       ${PROJECT_IS_TOP_LEVEL})
 
 option(INSTALL "Enable installation" ON)
 
