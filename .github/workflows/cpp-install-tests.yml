@@ -70,9 +70,7 @@ jobs:
         run: cmake --install install-build --prefix install-dir
       # configure CMake for using the installed library
       - name: Configure CMake for use of installed library
-        run:
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DUSE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE=ON
-          -DCMAKE_PREFIX_PATH=install-dir ${{ inputs.cmake-args }}
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DUSE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE=ON -DCMAKE_PREFIX_PATH=install-dir ${{ inputs.cmake-args }}
       # build the project
       - name: Build examples and tests with installed library
         run: cmake --build build --config Release
