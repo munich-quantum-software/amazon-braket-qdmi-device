@@ -41,8 +41,7 @@ jobs:
       CTEST_PARALLEL_LEVEL: 4
       FORCE_COLOR: 3
     steps:
-      # check out the repository (including submodules and all history)
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive
           fetch-depth: 0
@@ -51,16 +50,18 @@ jobs:
         env:
           CONFIG: ${{ inputs.config }}
         # automatically selects the MSVC compiler
+        # AWS SDK C++ assume a Visual Studio generator
         run: |
+
           cmake -S . -B build `
             -G "Visual Studio 17 2022" `
-            -A x64
+            -A x64 `
+            -DCMAKE_BUILD_TYPE=$CONFIG
 
       - name: Build
         env:
           CONFIG: ${{ inputs.config }}
         run: cmake --build build --config $env:CONFIG -- /m
-      # run the tests (for retry for transient AWS connectivity failures)
       - name: Test
         env:
           CONFIG: ${{ inputs.config }}
@@ -69,4 +70,4 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEVICE_ARN: ${{ inputs.device-arn }}
         run: |
-          ctest -C $env:CONFIG --output-on-failure --test-dir build --timeout 600 --repeat after-timeout:3
+          ctest -C $env:CONFIG --output-on-failure --test-dir build --repeat until-pass:3 --timeout 600
