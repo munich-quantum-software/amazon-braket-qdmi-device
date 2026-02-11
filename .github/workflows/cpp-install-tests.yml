@@ -74,7 +74,7 @@ jobs:
 
       # configure CMake
       - name: Configure CMake for Installation
-        run: cmake -S . -B install-build -DCMAKE_BUILD_TYPE=Release ${{ inputs.cmake-args }}
+        run: cmake -S . -B install-build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=$(pwd)/qdmi-install ${{ inputs.cmake-args }}
 
       # build the project
       - name: Build the project
@@ -86,7 +86,7 @@ jobs:
 
       # configure CMake for using the installed library
       - name: Configure CMake for use of installed library
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DUSE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE=ON -DCMAKE_PREFIX_PATH=$(pwd)/qdmi-install ${{ inputs.cmake-args }}
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DUSE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE=ON -DCMAKE_PREFIX_PATH="$(pwd)/install-dir;$(pwd)/qdmi-install" ${{ inputs.cmake-args }}
       # build the project
       - name: Build examples and tests with installed library
         run: cmake --build build --config Release
