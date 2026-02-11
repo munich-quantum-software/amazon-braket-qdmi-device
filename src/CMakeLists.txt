@@ -53,6 +53,17 @@ target_link_libraries(
   PUBLIC qdmi::qdmi
   PRIVATE AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket)
 
+# Set RPATH for installed library so it can find its dependencies in the same install prefix on
+# macOS and Linux. Skipped on Windows, where DLL lookup uses the executable folder or PATH.
+if(NOT WIN32)
+  set(RPATH_PREFIX $<IF:$<PLATFORM_ID:Darwin>,@loader_path,$ORIGIN>)
+  set_target_properties(
+    ${QDMI_TARGET_NAME}
+    PROPERTIES INSTALL_RPATH "${RPATH_PREFIX}/../lib:${RPATH_PREFIX}/../lib64"
+               INSTALL_RPATH_USE_LINK_PATH FALSE
+               MACOSX_RPATH TRUE)
+endif()
+
 option(AMAZON_BRAKET_QDMI_COVERAGE "Enable coverage instrumentation" OFF)
 
 if(AMAZON_BRAKET_QDMI_COVERAGE)

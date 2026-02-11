@@ -36,66 +36,65 @@ jobs:
       CTEST_PARALLEL_LEVEL: 4
       FORCE_COLOR: 3
     steps:
-      # check out the repository (including submodules and all history)
+      # Check out the repository (including submodules and all history)
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
         with:
           submodules: recursive
           fetch-depth: 0
 
-      # install build dependencies (Ubuntu only)
+      # Install build dependencies (Ubuntu only)
       - name: Install Dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
-      # set up ccache for faster C++ builds
+      # Set up ccache for faster C++ builds
       - name: Setup ccache
         uses: Chocobo1/setup-ccache-action@82d1328f966f98dcd2df44e757ae08076d3c9a6b # v1.5.2
         with:
           prepend_symlinks_to_path: false
           override_cache_key: c++-tests-install-${{ inputs.runs-on }}
 
-      # set up mold as linker for faster C++ builds
+      # Set up mold as linker for faster C++ builds
       - name: Set up mold as linker
         uses: rui314/setup-mold@725a8794d15fc7563f59595bd9556495c0564878 # v1
 
-      # make sure ninja is installed
+      # Make sure ninja is installed
       - name: Install Ninja
         run: pipx install ninja
 
-      # Configure and Install QDMI first
+      # Build and install QDMI with its dependencies (including AWS SDK)
       - name: Configure CMake for QDMI
         run: cmake -S . -B qdmi-build -DCMAKE_BUILD_TYPE=Release -DQDMI_INSTALL=ON
-      - name: Build and Install QDMI
-        run: |
-          cmake --build qdmi-build --config Release
-          cmake --install qdmi-build --prefix $(pwd)/qdmi-install
 
-      # configure CMake
-      - name: Configure CMake for Installation
-        run: cmake -S . -B install-build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=$(pwd)/qdmi-install ${{ inputs.cmake-args }}
+      - name: Build QDMI
+        run: cmake --build qdmi-build --config Release
 
-      # build the project
-      - name: Build the project
+      - name: Install AWS SDK
+        run: cmake --install qdmi-build/_deps/awssdk-build --prefix ${{ github.workspace }}/install-dir
+
+      - name: Install QDMI
+        run: cmake --install qdmi-build --prefix ${{ github.workspace }}/install-dir
+
+      # Build and install amazon-braket-qdmi-device using the installed dependencies
+      - name: Configure CMake for amazon-braket-qdmi-device
+        run: cmake -S . -B install-build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=${{ github.workspace }}/install-dir ${{ inputs.cmake-args }}
+
+      - name: Build amazon-braket-qdmi-device
         run: cmake --build install-build --config Release
 
-      # install AWS SDK libraries first
-      - name: Install AWS SDK
-        run: cmake --install install-build/_deps/awssdk-build --prefix $(pwd)/install-dir
+      - name: Install amazon-braket-qdmi-device
+        run: cmake --install install-build --prefix ${{ github.workspace }}/install-dir
 
-      # install the project
-      - name: Install Amazon Braket QDMI Device
-        run: cmake --install install-build --prefix install-dir
+      # Build tests using all installed libraries
+      - name: Configure tests with installed library
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DUSE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE=ON -DCMAKE_PREFIX_PATH=${{ github.workspace }}/install-dir ${{ inputs.cmake-args }}
 
-      # configure CMake for using the installed library
-      - name: Configure CMake for use of installed library
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DUSE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE=ON -DCMAKE_PREFIX_PATH="$(pwd)/install-dir;$(pwd)/qdmi-install" ${{ inputs.cmake-args }}
-      # build the project
-      - name: Build examples and tests with installed library
+      - name: Build tests
         run: cmake --build build --config Release
 
-      # run the tests
+      # Run the tests
       - name: Test
         env:
           AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
