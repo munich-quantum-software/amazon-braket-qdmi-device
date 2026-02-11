@@ -42,7 +42,7 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      # Install build dependencies (Ubuntu only)
+      # install build dependencies (Ubuntu only)
       - name: Install Dependencies
         if: runner.os == 'Linux'
         run: |
@@ -79,6 +79,10 @@ jobs:
       # build the project
       - name: Build the project
         run: cmake --build install-build --config Release
+
+      # install AWS SDK libraries first
+      - name: Install AWS SDK
+        run: cmake --install install-build/_deps/awssdk-build --prefix $(pwd)/install-dir
 
       # install the project
       - name: Install Amazon Braket QDMI Device
