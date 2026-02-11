@@ -44,14 +44,7 @@ FetchContent_Declare(
   FIND_PACKAGE_ARGS ${QDMI_VERSION})
 list(APPEND FETCH_PACKAGES qdmi)
 
-if(WIN32 AND NOT DEFINED AWSSDK_FLAGS_SET)
-  # AWS SDK CI / Windows defaults
-  if(NOT DEFINED USE_SHARED_CRT)
-    set(USE_SHARED_CRT
-        ON
-        CACHE BOOL "" FORCE)
-  endif()
-
+if(WIN32)
   if(NOT DEFINED ENABLE_UNITY_BUILD)
     set(ENABLE_UNITY_BUILD
         ON
@@ -63,9 +56,6 @@ if(WIN32 AND NOT DEFINED AWSSDK_FLAGS_SET)
         OFF
         CACHE BOOL "" FORCE)
   endif()
-  set(AWSSDK_FLAGS_SET
-      TRUE
-      CACHE INTERNAL "" FORCE)
 endif()
 
 set(AWSSDK_VERSION
