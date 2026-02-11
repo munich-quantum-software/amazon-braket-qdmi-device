@@ -41,39 +41,54 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
+
       # Install build dependencies (Ubuntu only)
       - name: Install Dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
+
       # set up ccache for faster C++ builds
       - name: Setup ccache
         uses: Chocobo1/setup-ccache-action@82d1328f966f98dcd2df44e757ae08076d3c9a6b # v1.5.2
         with:
           prepend_symlinks_to_path: false
           override_cache_key: c++-tests-install-${{ inputs.runs-on }}
+
       # set up mold as linker for faster C++ builds
       - name: Set up mold as linker
         uses: rui314/setup-mold@725a8794d15fc7563f59595bd9556495c0564878 # v1
+
       # make sure ninja is installed
       - name: Install Ninja
         run: pipx install ninja
+
+      # Configure and Install QDMI first
+      - name: Configure CMake for QDMI
+        run: cmake -S . -B qdmi-install -DCMAKE_BUILD_TYPE=Release -DQDMI_INSTALL=ON
+      - name: Build and Install QDMI
+        run: cmake --build qdmi-install --target install
+
       # configure CMake
       - name: Configure CMake for Installation
         run: cmake -S . -B install-build -DCMAKE_BUILD_TYPE=Release ${{ inputs.cmake-args }}
+
       # build the project
       - name: Build the project
         run: cmake --build install-build --config Release
+
       # install the project
       - name: Install Amazon Braket QDMI Device
         run: cmake --install install-build --prefix install-dir
+
       # configure CMake for using the installed library
       - name: Configure CMake for use of installed library
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DUSE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE=ON -DCMAKE_PREFIX_PATH=install-dir ${{ inputs.cmake-args }}
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DUSE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE=ON -DCMAKE_PREFIX_PATH=$(pwd)/qdmi-install ${{ inputs.cmake-args }}
       # build the project
       - name: Build examples and tests with installed library
         run: cmake --build build --config Release
+
       # run the tests
       - name: Test
         env:
