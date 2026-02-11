@@ -24,24 +24,32 @@ located_include_dir = dist.locate_file("amazon/braket/qdmi/data/include/amazon-b
 resolved_include_dir = Path(str(located_include_dir)).resolve(strict=True)
 
 AMAZON_BRAKET_QDMI_DATA = resolved_include_dir.parents[1]
-assert AMAZON_BRAKET_QDMI_DATA.exists(), f"AMAZON_BRAKET_QDMI_DATA does not exist: {AMAZON_BRAKET_QDMI_DATA}"
+if not AMAZON_BRAKET_QDMI_DATA.exists():
+    msg = f"AMAZON_BRAKET_QDMI_DATA does not exist: {AMAZON_BRAKET_QDMI_DATA}"
+    raise FileNotFoundError(msg)
 
 AMAZON_BRAKET_QDMI_LIBRARY_DIR = AMAZON_BRAKET_QDMI_DATA / "lib"
 if not AMAZON_BRAKET_QDMI_LIBRARY_DIR.exists():
     AMAZON_BRAKET_QDMI_LIBRARY_DIR = AMAZON_BRAKET_QDMI_DATA / "lib64"
-assert AMAZON_BRAKET_QDMI_LIBRARY_DIR.exists(), f"AMAZON_BRAKET_QDMI_LIBRARY_DIR does not exist: {AMAZON_BRAKET_QDMI_LIBRARY_DIR}"
+if not AMAZON_BRAKET_QDMI_LIBRARY_DIR.exists():
+    msg = f"AMAZON_BRAKET_QDMI_LIBRARY_DIR does not exist: {AMAZON_BRAKET_QDMI_LIBRARY_DIR}"
+    raise FileNotFoundError(msg)
 
 # the library is the sole file in the lib directory
 library_files = list(AMAZON_BRAKET_QDMI_LIBRARY_DIR.glob("*amazon-braket-qdmi-device*"))
 if not library_files:
     msg = f"No Amazon Braket QDMI library found in: {AMAZON_BRAKET_QDMI_LIBRARY_DIR}"
     raise FileNotFoundError(msg)
-AMAZON_BRAKET_QDMI_LIBRARY_PATH = library_files[0]
+AMAZON_BRAKET_QDMI_LIBRARY_PATH = min(library_files, key=lambda p: len(p.name))
 
 AMAZON_BRAKET_QDMI_INCLUDE_DIR = AMAZON_BRAKET_QDMI_DATA / "include"
-assert AMAZON_BRAKET_QDMI_INCLUDE_DIR.exists(), f"AMAZON_BRAKET_QDMI_INCLUDE_DIR does not exist: {AMAZON_BRAKET_QDMI_INCLUDE_DIR}"
+if not AMAZON_BRAKET_QDMI_INCLUDE_DIR.exists():
+    msg = f"AMAZON_BRAKET_QDMI_INCLUDE_DIR does not exist: {AMAZON_BRAKET_QDMI_INCLUDE_DIR}"
+    raise FileNotFoundError(msg)
 
 AMAZON_BRAKET_QDMI_CMAKE_DIR = AMAZON_BRAKET_QDMI_DATA / "share" / "cmake"
-assert AMAZON_BRAKET_QDMI_CMAKE_DIR.exists(), f"AMAZON_BRAKET_QDMI_CMAKE_DIR does not exist: {AMAZON_BRAKET_QDMI_CMAKE_DIR}"
+if not AMAZON_BRAKET_QDMI_CMAKE_DIR.exists():
+    msg = f"AMAZON_BRAKET_QDMI_CMAKE_DIR does not exist: {AMAZON_BRAKET_QDMI_CMAKE_DIR}"
+    raise FileNotFoundError(msg)
 
 del dist, located_include_dir, resolved_include_dir
