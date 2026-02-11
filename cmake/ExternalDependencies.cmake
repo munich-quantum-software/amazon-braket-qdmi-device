@@ -73,5 +73,18 @@ list(APPEND FETCH_PACKAGES awssdk)
 # Make all declared dependencies available.
 FetchContent_MakeAvailable(${FETCH_PACKAGES})
 
+# AWS SDK C++ adds a "DebugOpt" config on Windows which is often broken (missing linker flags). We
+# remove it to prevent "Missing variable is: CMAKE_SHARED_LINKER_FLAGS_DEBUGOPT" errors.
+if(CMAKE_CONFIGURATION_TYPES)
+  message(STATUS "Configurations: ${CMAKE_CONFIGURATION_TYPES}")
+endif()
+if(WIN32 AND CMAKE_CONFIGURATION_TYPES)
+  list(REMOVE_ITEM CMAKE_CONFIGURATION_TYPES "DebugOpt")
+  list(REMOVE_DUPLICATES CMAKE_CONFIGURATION_TYPES)
+  set(CMAKE_CONFIGURATION_TYPES
+      "${CMAKE_CONFIGURATION_TYPES}"
+      CACHE STRING "Supported configuration types" FORCE)
+endif()
+
 # Unset the local override so it doesn't affect the rest of the project
 unset(ENABLE_TESTING)
