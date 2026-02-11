@@ -68,7 +68,7 @@ jobs:
       - name: Configure CMake for QDMI
         run: cmake -S . -B qdmi-install -DCMAKE_BUILD_TYPE=Release -DQDMI_INSTALL=ON
       - name: Build and Install QDMI
-        run: cmake --build qdmi-install --target install
+        run: cmake --build qdmi-install --target install --config Release --prefix $(pwd)/qdmi-install
 
       # configure CMake
       - name: Configure CMake for Installation
