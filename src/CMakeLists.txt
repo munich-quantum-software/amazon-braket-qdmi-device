@@ -48,11 +48,11 @@ target_sources(
          FILES
          ${PUBLIC_HEADER_FILES})
 
+target_include_directories(${QDMI_TARGET_NAME} PRIVATE ${AMAZON_BRAKET_QDMI_AWS_INCLUDE_DIRS})
 target_link_libraries(
   ${QDMI_TARGET_NAME}
   PUBLIC qdmi::qdmi
-  PRIVATE AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket
-          qdmi::qdmi_project_warnings)
+  PRIVATE ${AMAZON_BRAKET_QDMI_AWS_DEPS} qdmi::qdmi_project_warnings)
 
 # Set RPATH for installed library so it can find its dependencies in the same install prefix on
 # macOS and Linux. Skipped on Windows, where DLL lookup uses the executable folder or PATH.

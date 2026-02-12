@@ -95,3 +95,18 @@ FetchContent_MakeAvailable(${FETCH_PACKAGES})
 
 # Unset the local override so it doesn't affect the rest of the project
 unset(ENABLE_TESTING)
+
+# After attempting to make awssdk available (either by finding or fetching), check how it has been
+# provided. Modern/FetchContent builds provide namespaced targets `AWS::*`, while older or static
+# installations may only provide variables. This logic abstracts away the difference, providing a
+# consistent set of variables for the rest of the project to use.
+if(TARGET AWS::aws-cpp-sdk-core)
+  # The modern target-based approach is available.
+  set(AMAZON_BRAKET_QDMI_AWS_DEPS AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket)
+  # Include directories are handled by the targets themselves, so this is empty.
+  set(AMAZON_BRAKET_QDMI_AWS_INCLUDE_DIRS "")
+else()
+  # Fallback to the legacy variable-based approach.
+  set(AMAZON_BRAKET_QDMI_AWS_DEPS ${AWSSDK_LIBRARIES})
+  set(AMAZON_BRAKET_QDMI_AWS_INCLUDE_DIRS ${AWSSDK_INCLUDE_DIRS})
+endif()
