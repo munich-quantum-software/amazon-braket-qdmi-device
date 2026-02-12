@@ -67,4 +67,4 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEVICE_ARN: ${{ inputs.device-arn }}
         run: |
-          ctest -C $env:CONFIG --output-on-failure --test-dir build --repeat until-pass:3 --timeout 600
+          ctest -C $env:CONFIG --output-on-failure --test-dir build --repeat after-timeout:3 --timeout 600

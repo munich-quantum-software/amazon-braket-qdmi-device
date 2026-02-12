@@ -669,7 +669,7 @@ TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteIndex) {
 TEST_F(AmazonBraketQDMISpecificationTest, QueryOperationName) {
   size_t nameSize = 0;
   EXPECT_NO_THROW(for (auto* operation : queryOperations(session)) {
-    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
                   session, operation, 0, nullptr, 0, nullptr,
                   QDMI_OPERATION_PROPERTY_NAME, 0, nullptr, &nameSize),
               QDMI_SUCCESS)

@@ -21,7 +21,7 @@ authors = [
   { name = "Lukas Burgholzer", email = "lukas@munichquantum.software" }
 ]
 
-license = "Apache-2.0"
+license = "MIT"
 
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -86,7 +86,7 @@ version = "${version}"
 '''
 
 
-[tool.pytest]
+[tool.pytest.ini_options]
 minversion = "9.0"
 strict = true
 addopts = [
