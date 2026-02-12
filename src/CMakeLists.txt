@@ -24,7 +24,7 @@ target_compile_features(${QDMI_TARGET_NAME} PRIVATE cxx_std_20)
 get_target_property(qdmi_library_VERSION qdmi::qdmi VERSION)
 target_compile_definitions(
   ${QDMI_TARGET_NAME} PRIVATE QDMI_VERSION="${qdmi_library_VERSION}"
-                              AMAZON_BRAKET_QDMI_VERSION="${PROJECT_VERSION}")
+                              AMAZON_BRAKET_QDMI_VERSION="${PROJECT_VERSION}" AWS_STATIC_LINK)
 target_sources(${QDMI_TARGET_NAME} PRIVATE ${SRC_FILES})
 
 target_sources(
