@@ -594,18 +594,21 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
 
   const std::scoped_lock<std::mutex> lock(jobMutex_);
   if (param == QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM) {
-    if (size != sizeof(size_t)) {
+    if (value == nullptr || size != sizeof(size_t)) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
     shots_ = *static_cast<const size_t*>(value);
     return QDMI_SUCCESS;
   }
   if (param == QDMI_DEVICE_JOB_PARAMETER_PROGRAM) {
+    if (value == nullptr || size == 0) {
+      return QDMI_ERROR_INVALIDARGUMENT;
+    }
     program_ = std::string(static_cast<const char*>(value), size - 1);
     return QDMI_SUCCESS;
   }
   if (param == QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT) {
-    if (size != sizeof(QDMI_Program_Format)) {
+    if (value == nullptr || size != sizeof(QDMI_Program_Format)) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
     const auto fmt = *static_cast<const QDMI_Program_Format*>(value);

@@ -44,8 +44,8 @@ This implementation currently only supports simulator Amazon Braket devices:
 
 ### Prerequisites
 
-- **C++17** compatible compiler (GCC 8+, Clang 7+, MSVC 2019+)
-- **CMake** 3.10+
+- **C++20** compatible compiler (GCC 10+, Clang 10+, MSVC 2019 16.8+)
+- **CMake** 3.24+
 - **AWS SDK for C++** with Braket and S3 components
 - **QDMI** headers ([Munich-Quantum-Software-Stack/QDMI](https://github.com/Munich-Quantum-Software-Stack/QDMI))
 - **AWS Credentials** configured (`~/.aws/credentials` or environment variables)
@@ -71,8 +71,8 @@ export AWS_S3_BUCKET="your-results-bucket"
 
 ```bash
 # Clone the repository
-git clone https://github.com/munich-quantum-software/aws-qdmi.git
-cd aws-qdmi
+git clone https://github.com/munich-quantum-software/aws-qdmi-device.git
+cd aws-qdmi-device
 
 # Create build directory
 mkdir build && cd build
@@ -247,13 +247,12 @@ aws-qdmi/
 ├── CMakeLists.txt                  # Build configuration
 ├── README.md                       # This file
 ├── include/
-│   ├── AMAZON_BRAKET_QDMI/
-│   │   └── device.h                # Public API header (QDMI implementation)
-│   └── AMAZON_BRAKET_QDMI_device_impl.hpp    # Internal implementation header
+│   └── amazon-braket-qdmi-device/
+│       └── Device.hpp                # Public API header (QDMI implementation)
 ├── src/
-│   └── AMAZON_BRAKET_QDMI_device_impl.cpp    # Implementation (QDMI↔Amazon Braket)
+│   └── Device.cpp    # Implementation (QDMI↔Amazon Braket)
 └── test/
-    └── test_AMAZON_BRAKET_QDMI_device_integration.cpp  # Integration tests
+    └── test_device.cpp  # Integration tests
 ```
 
 ## Architecture
@@ -261,28 +260,28 @@ aws-qdmi/
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        Your Application                             │
-│                    (QDMI-compliant code)                           │
+│                    (QDMI-compliant code)                            │
 └─────────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        Amazon Braket QDMI Device                              │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │ QDMI Functions              │ AWS SDK Calls                 │   │
-│  ├─────────────────────────────┼───────────────────────────────┤   │
-│  │ device_session_init()       │ BraketClient::GetDevice()     │   │
-│  │ device_job_submit()         │ CreateQuantumTask()           │   │
-│  │ device_job_check()          │ GetQuantumTask()              │   │
-│  │ device_job_get_results()    │ S3Client::GetObject()         │   │
-│  └─────────────────────────────┴───────────────────────────────┘   │
+│                        Amazon Braket QDMI Device                    │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │ QDMI Functions              │ AWS SDK Calls                 │    │
+│  ├─────────────────────────────┼───────────────────────────────┤    │
+│  │ device_session_init()       │ BraketClient::GetDevice()     │    │
+│  │ device_job_submit()         │ CreateQuantumTask()           │    │
+│  │ device_job_check()          │ GetQuantumTask()              │    │
+│  │ device_job_get_results()    │ S3Client::GetObject()         │    │
+│  └─────────────────────────────┴───────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                          Amazon Braket                                 │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │
-│  │ SV1 Simulator│  │ IonQ Aria    │  │ Rigetti Ankaa│  ...         │
-│  └──────────────┘  └──────────────┘  └──────────────┘              │
+│                          Amazon Braket                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │
+│  │ SV1 Simulator│  │ DM1 Simulator│  │ TN1 Simulator│  ...          │
+│  └──────────────┘  └──────────────┘  └──────────────┘               │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
