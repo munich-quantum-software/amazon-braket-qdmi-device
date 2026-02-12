@@ -10,9 +10,9 @@ set(TARGET_NAME amazon-braket-qdmi-device-tests)
 
 add_executable(${TARGET_NAME} test_device.cpp)
 
-target_link_libraries(${TARGET_NAME} PRIVATE amazon-braket-qdmi-device GTest::gtest
-                                             GTest::gtest_main GTest::gmock)
-
+target_link_libraries(
+  ${TARGET_NAME} PRIVATE amazon-braket-qdmi-device GTest::gtest GTest::gtest_main GTest::gmock
+                         qdmi::qdmi_project_warnings)
 # Check if all functions are implemented by the device
 generate_device_defs_executable(${QDMI_PREFIX} TARGET ${QDMI_TARGET_NAME})
 

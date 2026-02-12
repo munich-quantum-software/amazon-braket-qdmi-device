@@ -51,7 +51,8 @@ target_sources(
 target_link_libraries(
   ${QDMI_TARGET_NAME}
   PUBLIC qdmi::qdmi
-  PRIVATE AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket)
+  PRIVATE AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket
+          qdmi::qdmi_project_warnings)
 
 # Set RPATH for installed library so it can find its dependencies in the same install prefix on
 # macOS and Linux. Skipped on Windows, where DLL lookup uses the executable folder or PATH.
@@ -69,8 +70,8 @@ option(AMAZON_BRAKET_QDMI_COVERAGE "Enable coverage instrumentation" OFF)
 if(AMAZON_BRAKET_QDMI_COVERAGE)
   if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     message(STATUS "Building with coverage instrumentation")
-    target_compile_options(${QDMI_TARGET_NAME} PRIVATE --coverage -O0 -g)
-    target_link_options(${QDMI_TARGET_NAME} PRIVATE --coverage)
+    target_compile_options(${QDMI_TARGET_NAME} PUBLIC --coverage -O0 -g)
+    target_link_options(${QDMI_TARGET_NAME} PUBLIC --coverage)
   else()
     message(WARNING "Coverage instrumentation is only supported with GCC/Clang")
   endif()
