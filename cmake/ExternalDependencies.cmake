@@ -101,14 +101,14 @@ FetchContent_MakeAvailable(${FETCH_PACKAGES})
 # Unset the local override so it doesn't affect the rest of the project
 unset(ENABLE_TESTING)
 
-# Define/Fix Targets for Project Usage
+# Define/Fix targets for project usage
 if(TARGET AWS::aws-cpp-sdk-core)
   set(AMAZON_BRAKET_QDMI_AWS_DEPS AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket)
   set(AMAZON_BRAKET_QDMI_AWS_INCLUDE_DIRS "")
 
   # [Patch] Fix missing system links in static AWS SDK (similar to mqt-core's spdlog patch) This
   # fixes linker errors (LNK2019/Undefined symbols) on Windows/Mac
-  if(NOT BUILD_SHARED_LIBS)
+  if(AWSSDK_FOUND AND NOT BUILD_SHARED_LIBS)
     if(WIN32)
       set_property(
         TARGET AWS::aws-cpp-sdk-core
