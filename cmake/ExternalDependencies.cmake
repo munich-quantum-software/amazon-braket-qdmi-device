@@ -5,6 +5,8 @@
 #
 # Licensed under the MIT License
 
+# Declare all external dependencies and make sure that they are available.
+
 include(FetchContent)
 include(CMakeDependentOption)
 include(GNUInstallDirs)
@@ -42,58 +44,49 @@ FetchContent_Declare(
   FIND_PACKAGE_ARGS ${QDMI_VERSION})
 list(APPEND FETCH_PACKAGES qdmi)
 
-option(USE_INSTALLED_AWS_SDK "Whether to try to use an installed AWS SDK" ON)
+if(WIN32 AND NOT DEFINED ENABLE_UNITY_BUILD)
+  set(ENABLE_UNITY_BUILD
+      ON
+      CACHE
+        BOOL
+        "The AWS SDK will be built using a single unified .cpp file for each service library. Reduces the size of static library binaries."
+        FORCE)
+endif()
 
-# Force static builds for dependencies to ensure robustness on Windows/Mac
 if(NOT DEFINED BUILD_SHARED_LIBS)
   set(BUILD_SHARED_LIBS
       OFF
-      CACHE BOOL "Build static libraries by default" FORCE)
+      CACHE BOOL "All AWS libraries will be built as static objects" FORCE)
 endif()
-# Required for linking static AWS libs into the shared qdmi-device library
+
+# Essential for linking static AWS libs into Shared Library
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set(AWSSDK_VERSION
     1.11.714
     CACHE STRING "AWS SDK version")
 
-set(AWS_COMPONENTS braket s3 core)
+set(BUILD_ONLY
+    "core;s3;braket"
+    CACHE STRING "" FORCE)
+set(AWS_SDK_ENABLE_TESTING
+    OFF
+    CACHE BOOL "Disable building unit and integration tests" FORCE)
+set(ENABLE_TESTING ${AWS_SDK_ENABLE_TESTING})
 
-if(USE_INSTALLED_AWS_SDK)
-  find_package(AWSSDK ${AWSSDK_VERSION} QUIET COMPONENTS ${AWS_COMPONENTS})
-endif()
+set(AUTORUN_UNIT_TESTS
+    OFF
+    CACHE BOOL "Disable automatically running unit tests after building" FORCE)
+set(AWS_SDK_WARNINGS_ARE_ERRORS
+    OFF
+    CACHE BOOL "Disable warnings as errors" FORCE)
 
-if(AWSSDK_FOUND)
-  message(STATUS "Found installed AWS SDK: ${AWSSDK_VERSION}")
-else()
-  message(STATUS "AWS SDK not found, fetching from source...")
-  # Configuration for Source Build
-  set(BUILD_ONLY
-      "core;s3;braket"
-      CACHE STRING "" FORCE)
-  set(AWS_SDK_ENABLE_TESTING
-      OFF
-      CACHE BOOL "Disable building unit and integration tests" FORCE)
-  set(ENABLE_TESTING ${AWS_SDK_ENABLE_TESTING})
-  set(AUTORUN_UNIT_TESTS
-      OFF
-      CACHE BOOL "" FORCE)
-  set(AWS_SDK_WARNINGS_ARE_ERRORS
-      OFF
-      CACHE BOOL "" FORCE)
-
-  if(WIN32 AND NOT DEFINED ENABLE_UNITY_BUILD)
-    set(ENABLE_UNITY_BUILD
-        ON
-        CACHE BOOL "" FORCE)
-  endif()
-
-  FetchContent_Declare(
-    awssdk
-    GIT_REPOSITORY https://github.com/aws/aws-sdk-cpp.git
-    GIT_TAG ${AWSSDK_VERSION})
-  list(APPEND FETCH_PACKAGES awssdk)
-endif()
+FetchContent_Declare(
+  awssdk
+  GIT_REPOSITORY https://github.com/aws/aws-sdk-cpp.git
+  GIT_TAG ${AWSSDK_VERSION}
+  FIND_PACKAGE_ARGS ${AWSSDK_VERSION} COMPONENTS braket s3 core)
+list(APPEND FETCH_PACKAGES awssdk)
 
 # Make all declared dependencies available.
 FetchContent_MakeAvailable(${FETCH_PACKAGES})
@@ -101,45 +94,17 @@ FetchContent_MakeAvailable(${FETCH_PACKAGES})
 # Unset the local override so it doesn't affect the rest of the project
 unset(ENABLE_TESTING)
 
-# Define/Fix targets for project usage
+# After attempting to make awssdk available (either by finding or fetching), check how it has been
+# provided. Modern/FetchContent builds provide namespaced targets `AWS::*`, while older or static
+# installations may only provide variables. This logic abstracts away the difference, providing a
+# consistent set of variables for the rest of the project to use.
 if(TARGET AWS::aws-cpp-sdk-core)
+  # The modern target-based approach is available.
   set(AMAZON_BRAKET_QDMI_AWS_DEPS AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket)
+  # Include directories are handled by the targets themselves, so this is empty.
   set(AMAZON_BRAKET_QDMI_AWS_INCLUDE_DIRS "")
-
-  # [Patch] Fix missing system links in static AWS SDK (similar to mqt-core's spdlog patch) This
-  # fixes linker errors (LNK2019/Undefined symbols) on Windows/Mac
-  if(AWSSDK_FOUND AND NOT BUILD_SHARED_LIBS)
-    if(WIN32)
-      set_property(
-        TARGET AWS::aws-cpp-sdk-core
-        APPEND
-        PROPERTY INTERFACE_LINK_LIBRARIES
-                 winhttp
-                 wininet
-                 bcrypt
-                 userenv
-                 version
-                 ws2_32)
-    elseif(APPLE)
-      find_library(COREFOUNDATION_FW CoreFoundation)
-      find_library(SECURITY_FW Security)
-      find_package(CURL REQUIRED)
-      set_property(
-        TARGET AWS::aws-cpp-sdk-core
-        APPEND
-        PROPERTY INTERFACE_LINK_LIBRARIES ${COREFOUNDATION_FW} ${SECURITY_FW} CURL::libcurl)
-    elseif(UNIX)
-      find_package(CURL REQUIRED)
-      find_package(OpenSSL REQUIRED)
-      set_property(
-        TARGET AWS::aws-cpp-sdk-core
-        APPEND
-        PROPERTY INTERFACE_LINK_LIBRARIES CURL::libcurl OpenSSL::SSL OpenSSL::Crypto)
-    endif()
-  endif()
-
 else()
-  # Legacy Fallback
+  # Fallback to the legacy variable-based approach.
   set(AMAZON_BRAKET_QDMI_AWS_DEPS ${AWSSDK_LIBRARIES})
   set(AMAZON_BRAKET_QDMI_AWS_INCLUDE_DIRS ${AWSSDK_INCLUDE_DIRS})
 endif()
