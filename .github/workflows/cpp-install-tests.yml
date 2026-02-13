@@ -49,6 +49,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev
 
+      # Setup MSVC environment (Windows only) - REQUIRED for Ninja to find cl.exe
+      - name: Setup MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
       # Set up ccache for faster C++ builds
       - name: Setup ccache
         uses: Chocobo1/setup-ccache-action@82d1328f966f98dcd2df44e757ae08076d3c9a6b # v1.5.2
@@ -56,7 +61,7 @@ jobs:
           prepend_symlinks_to_path: false
           override_cache_key: c++-tests-install-${{ inputs.runs-on }}
 
-      # Set up mold as linker for faster C++ builds
+      # Set up mold as linker (Linux only)
       - name: Set up mold as linker
         if: runner.os == 'Linux'
         uses: rui314/setup-mold@725a8794d15fc7563f59595bd9556495c0564878 # v1
@@ -67,10 +72,10 @@ jobs:
 
       # Build and install QDMI with its dependencies (including AWS SDK)
       - name: Configure CMake for QDMI
-        run: cmake -S . -B qdmi-build -DCMAKE_BUILD_TYPE=Release -DQDMI_INSTALL=ON
+        run: cmake -S . -B qdmi-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DQDMI_INSTALL=ON
 
       - name: Build QDMI
-        run: cmake --build qdmi-build --config Release
+        run: cmake --build qdmi-build
 
       - name: Install AWS SDK
         run: cmake --install qdmi-build/_deps/awssdk-build --prefix ${{ github.workspace }}/install-dir
@@ -80,26 +85,25 @@ jobs:
 
       # Build and install amazon-braket-qdmi-device using the installed dependencies
       - name: Configure CMake for amazon-braket-qdmi-device
-        run: cmake -S . -B install-build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=${{ github.workspace }}/install-dir ${{ inputs.cmake-args }}
+        run: cmake -S . -B install-build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=${{ github.workspace }}/install-dir ${{ inputs.cmake-args }}
 
       - name: Build amazon-braket-qdmi-device
-        run: cmake --build install-build --config Release
+        run: cmake --build install-build
 
       - name: Install amazon-braket-qdmi-device
         run: cmake --install install-build --prefix ${{ github.workspace }}/install-dir
 
       # Build tests using all installed libraries
       - name: Configure tests with installed library
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DUSE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE=ON -DCMAKE_PREFIX_PATH=${{ github.workspace }}/install-dir ${{ inputs.cmake-args }}
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DUSE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE=ON -DCMAKE_PREFIX_PATH=${{ github.workspace }}/install-dir ${{ inputs.cmake-args }}
 
       - name: Build tests
-        run: cmake --build build --config Release
+        run: cmake --build build
 
-      # Run the tests
       - name: Test
         env:
           AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEVICE_ARN: ${{ inputs.device-arn }}
-        run: ctest -C Release --output-on-failure --test-dir build --repeat until-pass:3 --timeout 600
+        run: ctest --output-on-failure --test-dir build --repeat until-pass:3 --timeout 600
