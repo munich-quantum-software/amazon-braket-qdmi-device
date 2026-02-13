@@ -44,25 +44,23 @@ FetchContent_Declare(
   FIND_PACKAGE_ARGS ${QDMI_VERSION})
 list(APPEND FETCH_PACKAGES qdmi)
 
-if(WIN32)
-  if(NOT DEFINED ENABLE_UNITY_BUILD)
-    set(ENABLE_UNITY_BUILD
-        ON
-        CACHE
-          BOOL
-          "The AWS SDK will be built using a single unified .cpp file for each service library. Reduces the size of static library binaries."
-          FORCE)
-  endif()
-  # On Windows, LEGACY_BUILD=ON (required for Braket) adds a broken "DebugOpt" configuration that
-  # causes CMAKE_SHARED_LINKER_FLAGS_DEBUGOPT errors during generation. Forcing static libraries and
-  # enabling unity build avoids generating targets that rely on DebugOpt, preventing this error even
-  # in Release builds.
-  if(NOT DEFINED BUILD_SHARED_LIBS)
-    set(BUILD_SHARED_LIBS
-        OFF
-        CACHE BOOL "All AWS libraries will be built as static objects" FORCE)
-  endif()
+if(WIN32 AND NOT DEFINED ENABLE_UNITY_BUILD)
+  set(ENABLE_UNITY_BUILD
+      ON
+      CACHE
+        BOOL
+        "The AWS SDK will be built using a single unified .cpp file for each service library. Reduces the size of static library binaries."
+        FORCE)
 endif()
+
+if(NOT DEFINED BUILD_SHARED_LIBS)
+  set(BUILD_SHARED_LIBS
+      OFF
+      CACHE BOOL "All AWS libraries will be built as static objects" FORCE)
+endif()
+
+# Essential for linking static AWS libs into Shared Library
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set(AWSSDK_VERSION
     1.11.714
