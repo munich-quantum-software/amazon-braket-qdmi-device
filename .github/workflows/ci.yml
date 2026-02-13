@@ -87,6 +87,9 @@ jobs:
     name: 🐍 Wheels
     runs-on: ubuntu-24.04
     env:
+      CIBW_BUILD: "cp3*-manylinux*"
+      # Required for AWS SDK C++
+      CIBW_BEFORE_BUILD_LINUX: "yum install -y libcurl-devel"
       CMAKE_BUILD_PARALLEL_LEVEL: 4
       CTEST_PARALLEL_LEVEL: 4
       FORCE_COLOR: 3
