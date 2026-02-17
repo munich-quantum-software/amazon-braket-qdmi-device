@@ -111,8 +111,6 @@ protected:
   // Collected data
   static bool submitted_ok;
   static int wait_result;
-  static bool has_task_arn;
-  static std::string task_arn;
   static bool has_shots;
   static std::string shots_data;
   static bool has_hist;
@@ -125,8 +123,6 @@ protected:
     // Create a session for the shared job
     submitted_ok = false;
     wait_result = QDMI_ERROR_NOTSUPPORTED;
-    has_task_arn = false;
-    task_arn.clear();
     has_shots = false;
     shots_data.clear();
     has_hist = false;
@@ -195,10 +191,6 @@ protected:
       return;
     }
     submitted_ok = true;
-
-    // get task arn if available - Removed as Job Property removed
-    size_t arnSize = 0;
-    (void)arnSize; // Unused variable warning suppression
 
     // wait for completion (timeout: 120 seconds)
     wait_result = AMAZON_BRAKET_QDMI_device_job_wait(shared_job, 120000);
@@ -291,8 +283,6 @@ AMAZON_BRAKET_QDMI_Device_Job AmazonBraketQDMIJobSpecificationTest::shared_job =
     nullptr;
 bool AmazonBraketQDMIJobSpecificationTest::submitted_ok = false;
 int AmazonBraketQDMIJobSpecificationTest::wait_result = QDMI_ERROR_NOTSUPPORTED;
-bool AmazonBraketQDMIJobSpecificationTest::has_task_arn = false;
-std::string AmazonBraketQDMIJobSpecificationTest::task_arn;
 bool AmazonBraketQDMIJobSpecificationTest::has_shots = false;
 std::string AmazonBraketQDMIJobSpecificationTest::shots_data;
 bool AmazonBraketQDMIJobSpecificationTest::has_hist = false;
@@ -517,16 +507,6 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest, JobGetResultsHistValues) {
     totalShots += count;
   }
   EXPECT_EQ(totalShots, 100u);
-}
-
-TEST_F(AmazonBraketQDMIJobSpecificationTest, JobTaskArn) {
-  if (!submitted_ok) {
-    GTEST_SKIP() << "Job was not submitted in suite setup";
-  }
-  if (!has_task_arn) {
-    GTEST_SKIP() << "Task ARN not available for this device/job";
-  }
-  EXPECT_FALSE(task_arn.empty());
 }
 
 TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceProperty) {
