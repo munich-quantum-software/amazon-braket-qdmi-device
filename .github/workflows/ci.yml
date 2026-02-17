@@ -85,27 +85,44 @@ jobs:
 
   python-wheels:
     name: 🐍 Wheels
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on:
+          [
+            ubuntu-24.04,
+            ubuntu-24.04-arm,
+            macos-15,
+            macos-15-intel,
+            windows-2025,
+            windows-11-arm,
+          ]
+    runs-on: ${{ matrix.runs-on }}
     env:
-      CIBW_BUILD: "cp3*-manylinux*"
-      # Required for AWS SDK C++
-      CIBW_BEFORE_BUILD_LINUX: "yum install -y libcurl-devel"
       CMAKE_BUILD_PARALLEL_LEVEL: 4
       CTEST_PARALLEL_LEVEL: 4
       FORCE_COLOR: 3
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
         with:
-          submodules: recursive
-          fetch-depth: 0
+          enable-cache: true
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
       - uses: pypa/cibuildwheel@63fd63b352a9a8bdcc24791c9dbee952ee9a8abc # v3.3.0
       - name: Verify clean directory
         run: git diff --exit-code
       - name: Upload wheels
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: cibw-wheels-${{ runner.os }}
+          name: cibw-wheels-${{ matrix.runs-on }}
           path: wheelhouse/*.whl
+
+  python-sdist:
+    name: 🐍 SDist
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install the latest version of uv
         uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
         with:
