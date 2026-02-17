@@ -164,3 +164,26 @@ test-sources = ["test/python"]
 test-command = "pytest test/python"
 build-frontend = "build[uv]"
 enable = ["cpython-freethreading"]
+
+[tool.cibuildwheel.linux]
+before-all = "yum install -y curl-devel"
+
+[[tool.cibuildwheel.overrides]]
+select = "*-musllinux*"
+before-all = "apk add curl-dev"
+
+[tool.cibuildwheel.macos]
+environment = { MACOSX_DEPLOYMENT_TARGET = "11.0" }
+
+[tool.cibuildwheel.windows]
+before-build = "uv pip install delvewheel>=1.11.2"
+repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel} --namespace-pkg amazon"
+
+
+[tool.uv]
+cache-keys = [
+  { file = "pyproject.toml" },
+  { git = { commit = true, tags = true } },
+  { file = "src/**/*" },
+  { file = "include/**/*.hpp" },
+]
