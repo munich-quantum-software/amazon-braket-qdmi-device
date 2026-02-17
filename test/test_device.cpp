@@ -452,9 +452,7 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest, JobGetResults) {
   if (!submitted_ok) {
     GTEST_SKIP() << "Job was not submitted in suite setup";
   }
-  if (!has_shots) {
-    GTEST_SKIP() << "SHOTS results not available for this device/job";
-  }
+  ASSERT_TRUE(has_shots) << "SHOTS results must be available for all devices";
   // Basic checks on fetched shots data
   EXPECT_GT(shots_data.size(), 0u);
   // Ensure the API can be called again for size and retrieval
@@ -474,9 +472,8 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest, JobGetResultsHistKeys) {
   if (!submitted_ok) {
     GTEST_SKIP() << "Job was not submitted in suite setup";
   }
-  if (!has_hist) {
-    GTEST_SKIP() << "Histogram not available for this job";
-  }
+  ASSERT_TRUE(has_hist)
+      << "Histogram results must be available for all devices";
   EXPECT_GT(hist_keys.size(), 0u);
 
   // For a Bell state, we expect 00 and 11
@@ -496,9 +493,8 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest, JobGetResultsHistValues) {
   if (!submitted_ok) {
     GTEST_SKIP() << "Job was not submitted in suite setup";
   }
-  if (!has_hist) {
-    GTEST_SKIP() << "Histogram not available for this job";
-  }
+  ASSERT_TRUE(has_hist)
+      << "Histogram results must be available for all devices";
   EXPECT_EQ(hist_values.size(), hist_keys.size());
   EXPECT_GT(hist_values.size(), 0u);
 
