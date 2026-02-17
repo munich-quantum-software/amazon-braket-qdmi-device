@@ -7,10 +7,6 @@ on:
           The runner image to use.
         default: "ubuntu-latest"
         type: string
-      cmake-args:
-        description: "Additional arguments to pass to CMake"
-        default: ""
-        type: string
       device-arn:
         description: >
           The Amazon Braket device ARN to use for tests that require a quantum device.
@@ -36,23 +32,13 @@ jobs:
       CTEST_PARALLEL_LEVEL: 4
       FORCE_COLOR: 3
     steps:
-      # Check out the repository (including submodules and all history)
+      # Check out the repository
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          submodules: recursive
-          fetch-depth: 0
 
       # Install build dependencies (Ubuntu only)
       - name: Install Dependencies
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libcurl4-openssl-dev
-
-      # Setup MSVC environment (Windows only)
-      - name: Setup MSVC
-        if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
 
       # Set up ccache for faster C++ builds
       - name: Setup ccache
@@ -63,54 +49,31 @@ jobs:
 
       # Set up mold as linker (Linux only)
       - name: Set up mold as linker
-        if: runner.os == 'Linux'
         uses: rui314/setup-mold@725a8794d15fc7563f59595bd9556495c0564878 # v1
 
-      # Make sure ninja is installed
-      - name: Install Ninja
-        run: pipx install ninja
-
-      # Build and install QDMI with its dependencies (including AWS SDK)
+      # Build and install the Amazon Braket QDMI library
       - name: Configure CMake for QDMI
-        run: >
-          cmake -S . -B qdmi-build -G Ninja
-          -DCMAKE_BUILD_TYPE=Release
-          -DQDMI_INSTALL=ON
+        run: cmake -S . -B install-build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build QDMI
-        run: cmake --build qdmi-build
-
-      - name: Install AWS SDK
-        run: cmake --install qdmi-build/_deps/awssdk-build --prefix ${{ github.workspace }}/install-dir
+        run: cmake --build install-build --config Release
 
       - name: Install QDMI
-        run: cmake --install qdmi-build --prefix ${{ github.workspace }}/install-dir
-
-      # Build and install amazon-braket-qdmi-device using the installed dependencies
-      - name: Configure CMake for amazon-braket-qdmi-device
         run: >
-          cmake -S . -B install-build -G Ninja
-          -DCMAKE_BUILD_TYPE=Release
-          -DCMAKE_PREFIX_PATH=${{ github.workspace }}/install-dir
-          ${{ inputs.cmake-args }}
+          cmake --install install-build --config Release
+          --prefix install-dir
+          --component amazon-braket-qdmi-device_Runtime
+          --component amazon-braket-qdmi-device_Development
 
-      - name: Build amazon-braket-qdmi-device
-        run: cmake --build install-build
-
-      - name: Install amazon-braket-qdmi-device
-        run: cmake --install install-build --prefix ${{ github.workspace }}/install-dir
-
-      # Build tests using all installed libraries
-      - name: Configure tests with installed library
+      # Build tests using the installed QDMI device library
+      - name: Configure tests with the installed library
         run: >
-          cmake -S . -B build -G Ninja
-          -DCMAKE_BUILD_TYPE=Release
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
           -DUSE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE=ON
-          -DCMAKE_PREFIX_PATH=${{ github.workspace }}/install-dir
-          ${{ inputs.cmake-args }}
+          -DCMAKE_PREFIX_PATH=install-dir
 
       - name: Build tests
-        run: cmake --build build
+        run: cmake --build build --config Release
 
       - name: Test
         env:
@@ -118,4 +81,4 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEVICE_ARN: ${{ inputs.device-arn }}
-        run: ctest --output-on-failure --test-dir build --repeat until-pass:3 --timeout 600
+        run: ctest --config Release --output-on-failure --test-dir build --repeat until-pass:3 --timeout 600
