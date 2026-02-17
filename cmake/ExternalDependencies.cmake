@@ -31,7 +31,7 @@ endif()
 # cmake-format: off
 set(QDMI_VERSION 1.2.1
         CACHE STRING "QDMI version")
-set(QDMI_REV "70b815615475598c6194096a29c1b2340dd54a6c" # v1.2.x
+set(QDMI_REV "408da3081f15978822ea77d41200ef26cb363399" # v1.2.x
         CACHE STRING "QDMI identifier (tag, branch or commit hash)")
 set(QDMI_REPO_OWNER "Munich-Quantum-Software-Stack"
         CACHE STRING "QDMI repository owner (change when using a fork)")
@@ -44,67 +44,39 @@ FetchContent_Declare(
   FIND_PACKAGE_ARGS ${QDMI_VERSION})
 list(APPEND FETCH_PACKAGES qdmi)
 
-if(WIN32 AND NOT DEFINED ENABLE_UNITY_BUILD)
-  set(ENABLE_UNITY_BUILD
-      ON
-      CACHE
-        BOOL
-        "The AWS SDK will be built using a single unified .cpp file for each service library. Reduces the size of static library binaries."
-        FORCE)
-endif()
-
-if(NOT DEFINED BUILD_SHARED_LIBS)
+set(BUILD_TESTING_PREV ${BUILD_TESTING})
+set(BUILD_SHARED_LIBS_PREV ${BUILD_SHARED_LIBS})
+if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
+  set(AWSSDK_VERSION
+      1.11.752
+      CACHE STRING "AWS SDK version")
+  set(BUILD_TESTING
+      OFF
+      CACHE BOOL "Disable building unit and integration tests for AWS SDK" FORCE)
   set(BUILD_SHARED_LIBS
       OFF
-      CACHE BOOL "All AWS libraries will be built as static objects" FORCE)
+      CACHE BOOL "Disable building shared libraries for AWS SDK" FORCE)
+  set(BUILD_ONLY
+      "s3;braket"
+      CACHE STRING "" FORCE)
+  set(AWS_SDK_WARNINGS_ARE_ERRORS
+      OFF
+      CACHE BOOL "Disable warnings as errors" FORCE)
+  set("CPP_STANDARD"
+      20
+      CACHE STRING "C++ standard to use for AWS SDK" FORCE)
+  FetchContent_Declare(
+    awssdk
+    GIT_REPOSITORY https://github.com/aws/aws-sdk-cpp.git
+    GIT_TAG ${AWSSDK_VERSION}
+    FIND_PACKAGE_ARGS ${AWSSDK_VERSION} COMPONENTS braket s3 core)
+  list(APPEND FETCH_PACKAGES awssdk)
 endif()
-
-# Essential for linking static AWS libs into Shared Library
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-
-set(AWSSDK_VERSION
-    1.11.714
-    CACHE STRING "AWS SDK version")
-
-set(BUILD_ONLY
-    "core;s3;braket"
-    CACHE STRING "" FORCE)
-set(AWS_SDK_ENABLE_TESTING
-    OFF
-    CACHE BOOL "Disable building unit and integration tests" FORCE)
-set(ENABLE_TESTING ${AWS_SDK_ENABLE_TESTING})
-
-set(AUTORUN_UNIT_TESTS
-    OFF
-    CACHE BOOL "Disable automatically running unit tests after building" FORCE)
-set(AWS_SDK_WARNINGS_ARE_ERRORS
-    OFF
-    CACHE BOOL "Disable warnings as errors" FORCE)
-
-FetchContent_Declare(
-  awssdk
-  GIT_REPOSITORY https://github.com/aws/aws-sdk-cpp.git
-  GIT_TAG ${AWSSDK_VERSION}
-  FIND_PACKAGE_ARGS ${AWSSDK_VERSION} COMPONENTS braket s3 core)
-list(APPEND FETCH_PACKAGES awssdk)
 
 # Make all declared dependencies available.
 FetchContent_MakeAvailable(${FETCH_PACKAGES})
 
-# Unset the local override so it doesn't affect the rest of the project
-unset(ENABLE_TESTING)
-
-# After attempting to make awssdk available (either by finding or fetching), check how it has been
-# provided. Modern/FetchContent builds provide namespaced targets `AWS::*`, while older or static
-# installations may only provide variables. This logic abstracts away the difference, providing a
-# consistent set of variables for the rest of the project to use.
-if(TARGET AWS::aws-cpp-sdk-core)
-  # The modern target-based approach is available.
-  set(AMAZON_BRAKET_QDMI_AWS_DEPS AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket)
-  # Include directories are handled by the targets themselves, so this is empty.
-  set(AMAZON_BRAKET_QDMI_AWS_INCLUDE_DIRS "")
-else()
-  # Fallback to the legacy variable-based approach.
-  set(AMAZON_BRAKET_QDMI_AWS_DEPS ${AWSSDK_LIBRARIES})
-  set(AMAZON_BRAKET_QDMI_AWS_INCLUDE_DIRS ${AWSSDK_INCLUDE_DIRS})
-endif()
+# Restore the original value of BUILD_TESTING and BUILD_SHARED_LIBS to avoid affecting other
+# dependencies or the main project.
+set(BUILD_TESTING ${BUILD_TESTING_PREV})
+set(BUILD_SHARED_LIBS ${BUILD_SHARED_LIBS_PREV})

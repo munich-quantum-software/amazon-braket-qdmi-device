@@ -26,12 +26,21 @@ option(USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE
        "Use an installed version of the Amazon Braket QDMI Device to build tests" OFF)
 
 if(USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
-  find_package(amazon-braket-qdmi-device ${PROJECT_VERSION} REQUIRED)
+  find_package(amazon-braket-qdmi-device ${PROJECT_VERSION} REQUIRED CONFIG)
 endif()
 
 # Generate compile_commands.json to make it easier to work with clang based tools
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_VERIFY_INTERFACE_HEADER_SETS ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS
+    ON
+    CACHE BOOL "Export compile commands" FORCE)
+
+set(CMAKE_VERIFY_INTERFACE_HEADER_SETS
+    ON
+    CACHE BOOL "Verify interface header sets" FORCE)
+
+set(CMAKE_POSITION_INDEPENDENT_CODE
+    ON
+    CACHE BOOL "Generate position independent code" FORCE)
 
 set(QDMI_PREFIX "AMAZON_BRAKET")
 
@@ -39,19 +48,7 @@ set(QDMI_PREFIX "AMAZON_BRAKET")
 option(BUILD_AMAZON_BRAKET_TESTS "Build tests for the Amazon Braket QDMI device"
        ${PROJECT_IS_TOP_LEVEL})
 
-option(INSTALL "Enable installation" ON)
-
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
-# Add path for custom modules
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-
 include(cmake/ExternalDependencies.cmake)
-
-# set the include directory for the build tree
-set(INCLUDE_BUILD_DIR "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 # Set target name
 set(QDMI_TARGET_NAME "amazon-braket-qdmi-device")

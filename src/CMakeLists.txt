@@ -12,33 +12,29 @@ generate_prefixed_qdmi_headers(${QDMI_PREFIX})
 
 # Collect source files
 file(GLOB_RECURSE SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
-# cmake-format: off
 # Collect private header files (Device.hpp)
 file(GLOB_RECURSE PRIVATE_HEADER_FILES "${PROJECT_SOURCE_DIR}/include/*.hpp")
-# cmake-format: on
+# Collect public header files (generated QDMI headers)
 file(GLOB_RECURSE PUBLIC_HEADER_FILES "${CMAKE_CURRENT_BINARY_DIR}/include/*.h")
 
 add_library(${QDMI_TARGET_NAME} SHARED)
-set_target_properties(${QDMI_TARGET_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 target_compile_features(${QDMI_TARGET_NAME} PRIVATE cxx_std_20)
 get_target_property(qdmi_library_VERSION qdmi::qdmi VERSION)
 target_compile_definitions(
   ${QDMI_TARGET_NAME} PRIVATE QDMI_VERSION="${qdmi_library_VERSION}"
-                              AMAZON_BRAKET_QDMI_VERSION="${PROJECT_VERSION}" AWS_STATIC_LINK)
+                              AMAZON_BRAKET_QDMI_VERSION="${PROJECT_VERSION}")
 target_sources(${QDMI_TARGET_NAME} PRIVATE ${SRC_FILES})
 
 target_sources(
   ${QDMI_TARGET_NAME}
-  # cmake-format: off
   PRIVATE FILE_SET
-      private_headers
-      TYPE
-      HEADERS
-      BASE_DIRS
-      ${PROJECT_SOURCE_DIR}/include
-      FILES
-      ${PRIVATE_HEADER_FILES}
-  # cmake-format: on
+          private_headers
+          TYPE
+          HEADERS
+          BASE_DIRS
+          ${PROJECT_SOURCE_DIR}/include
+          FILES
+          ${PRIVATE_HEADER_FILES}
   PUBLIC FILE_SET
          public_headers
          TYPE
@@ -48,22 +44,9 @@ target_sources(
          FILES
          ${PUBLIC_HEADER_FILES})
 
-target_include_directories(${QDMI_TARGET_NAME} PRIVATE ${AMAZON_BRAKET_QDMI_AWS_INCLUDE_DIRS})
 target_link_libraries(
-  ${QDMI_TARGET_NAME}
-  PUBLIC qdmi::qdmi
-  PRIVATE ${AMAZON_BRAKET_QDMI_AWS_DEPS} qdmi::qdmi_project_warnings)
-
-# Set RPATH for installed library so it can find its dependencies in the same install prefix on
-# macOS and Linux. Skipped on Windows, where DLL lookup uses the executable folder or PATH.
-if(NOT WIN32)
-  set(RPATH_PREFIX $<IF:$<PLATFORM_ID:Darwin>,@loader_path,$ORIGIN>)
-  set_target_properties(
-    ${QDMI_TARGET_NAME}
-    PROPERTIES INSTALL_RPATH "${RPATH_PREFIX}/../lib:${RPATH_PREFIX}/../lib64"
-               INSTALL_RPATH_USE_LINK_PATH FALSE
-               MACOSX_RPATH TRUE)
-endif()
+  ${QDMI_TARGET_NAME} PRIVATE AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket
+                              qdmi::qdmi_project_warnings)
 
 option(AMAZON_BRAKET_QDMI_COVERAGE "Enable coverage instrumentation" OFF)
 
@@ -92,24 +75,24 @@ write_basic_package_version_file(
   VERSION ${PROJECT_VERSION}
   COMPATIBILITY SameMinorVersion)
 
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${QDMI_TARGET_NAME}-config.cmake"
-              "${CMAKE_CURRENT_BINARY_DIR}/${QDMI_TARGET_NAME}-config-version.cmake"
-        DESTINATION ${AMAZON_BRAKET_QDMI_CONFIG_INSTALL_DIR})
-
-# cmake-format: off
 install(
-    TARGETS ${QDMI_TARGET_NAME}
-    EXPORT ${QDMI_TARGET_NAME}-targets
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    COMPONENT ${QDMI_TARGET_NAME}_Runtime
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    COMPONENT ${QDMI_TARGET_NAME}_Runtime
-    NAMELINK_COMPONENT ${QDMI_TARGET_NAME}_Development
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    COMPONENT ${QDMI_TARGET_NAME}_Development
-    FILE_SET public_headers
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-# cmake-format: on
+  FILES "${CMAKE_CURRENT_BINARY_DIR}/${QDMI_TARGET_NAME}-config.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/${QDMI_TARGET_NAME}-config-version.cmake"
+  DESTINATION ${AMAZON_BRAKET_QDMI_CONFIG_INSTALL_DIR}
+  COMPONENT ${QDMI_TARGET_NAME}_Development)
+
+install(
+  TARGETS ${QDMI_TARGET_NAME}
+  EXPORT ${QDMI_TARGET_NAME}-targets
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT ${QDMI_TARGET_NAME}_Runtime
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+          COMPONENT ${QDMI_TARGET_NAME}_Runtime
+          NAMELINK_COMPONENT ${QDMI_TARGET_NAME}_Development
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+          COMPONENT ${QDMI_TARGET_NAME}_Development
+          FILE_SET public_headers
+          DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+          COMPONENT ${QDMI_TARGET_NAME}_Development)
 
 install(
   EXPORT ${QDMI_TARGET_NAME}-targets
