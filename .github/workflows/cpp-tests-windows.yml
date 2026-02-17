@@ -42,23 +42,17 @@ jobs:
       FORCE_COLOR: 3
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          submodules: recursive
-          fetch-depth: 0
 
       - name: Configure CMake
-        # automatically selects the MSVC compiler
-        # AWS SDK C++ assume a Visual Studio generator
-        run: |
-
-          cmake -S . -B build `
-            -G "Visual Studio 17 2022" `
-            -A x64
+        env:
+          CONFIG: ${{ inputs.config }}
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE="$env:CONFIG"
 
       - name: Build
         env:
           CONFIG: ${{ inputs.config }}
-        run: cmake --build build --config $env:CONFIG -- /m
+        run: cmake --build build --config $env:CONFIG
+
       - name: Test
         env:
           CONFIG: ${{ inputs.config }}
