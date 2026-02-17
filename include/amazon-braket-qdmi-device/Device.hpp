@@ -61,16 +61,12 @@
 #include <utility>
 #include <vector>
 
-/* Include QDMI standard headers - they have their own extern "C" guards */
-#include "qdmi/constants.h" // IWYU pragma: export
-#include "qdmi/types.h"     // IWYU pragma: export
-
 // Forward declarations
 struct AMAZON_BRAKET_QDMI_Site_impl_d;
 struct AMAZON_BRAKET_QDMI_Operation_impl_d;
 struct AMAZON_BRAKET_QDMI_Device_Job_impl_d;
 
-namespace AMAZON_BRAKET_QDMI {
+namespace Aws::Braket::qdmi {
 
 /**
  * @brief Main device singleton managing Amazon Braket device access.
@@ -119,7 +115,7 @@ public:
   auto decreaseRunningJobs() -> void;
 };
 
-} // namespace AMAZON_BRAKET_QDMI
+} // namespace Aws::Braket::qdmi
 
 /**
  * @brief Device session implementation.
@@ -248,7 +244,7 @@ public:
   explicit AMAZON_BRAKET_QDMI_Device_Job_impl_d(
       AMAZON_BRAKET_QDMI_Device_Session_impl_d* session)
       : session_(session),
-        id_(AMAZON_BRAKET_QDMI::Device::get().generateUniqueID()) {}
+        id_(Aws::Braket::qdmi::Device::get().generateUniqueID()) {}
 
   auto free() -> void;
   auto setParameter(QDMI_Device_Job_Parameter param, size_t size,

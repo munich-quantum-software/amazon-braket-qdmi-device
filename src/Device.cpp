@@ -51,8 +51,8 @@
 
 #include "amazon-braket-qdmi-device/Device.hpp"
 
+#include "amazon_braket_qdmi/constants.h"
 #include "aws/core/utils/Array.h"
-#include "qdmi/constants.h"
 
 #include <aws/braket/BraketClient.h>
 #include <aws/braket/model/CancelQuantumTaskRequest.h>
@@ -134,7 +134,7 @@
     }                                                                          \
   }
 
-namespace AMAZON_BRAKET_QDMI {
+namespace Aws::Braket::qdmi {
 
 /**
  * Device constructor - initializes the global device singleton.
@@ -221,7 +221,7 @@ auto Device::decreaseRunningJobs() -> void {
   }
 }
 
-} // namespace AMAZON_BRAKET_QDMI
+} // namespace Aws::Braket::qdmi
 
 // ============================================================================
 // Session Implementation
@@ -517,8 +517,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
                             1.0, prop, size, value, sizeRet)
 
   // Delegate to device singleton for other properties
-  return AMAZON_BRAKET_QDMI::Device::get().queryProperty(prop, size, value,
-                                                         sizeRet);
+  return Aws::Braket::qdmi::Device::get().queryProperty(prop, size, value,
+                                                        sizeRet);
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::querySiteProperty(
@@ -685,7 +685,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
     status_.store(QDMI_JOB_STATUS_QUEUED);
     if (!isRunningCounted_) {
-      AMAZON_BRAKET_QDMI::Device::get().increaseRunningJobs();
+      Aws::Braket::qdmi::Device::get().increaseRunningJobs();
       isRunningCounted_ = true;
     }
   }
@@ -716,7 +716,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
     status_.store(QDMI_JOB_STATUS_FAILED);
     if (isRunningCounted_) {
-      AMAZON_BRAKET_QDMI::Device::get().decreaseRunningJobs();
+      Aws::Braket::qdmi::Device::get().decreaseRunningJobs();
       isRunningCounted_ = false;
     }
     return QDMI_ERROR_INVALIDARGUMENT;
@@ -729,7 +729,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
     status_.store(QDMI_JOB_STATUS_FAILED);
     if (isRunningCounted_) {
-      AMAZON_BRAKET_QDMI::Device::get().decreaseRunningJobs();
+      Aws::Braket::qdmi::Device::get().decreaseRunningJobs();
       isRunningCounted_ = false;
     }
     return QDMI_ERROR_NOTSUPPORTED;
@@ -793,7 +793,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
     status_.store(QDMI_JOB_STATUS_CANCELED);
     if (isRunningCounted_) {
-      AMAZON_BRAKET_QDMI::Device::get().decreaseRunningJobs();
+      Aws::Braket::qdmi::Device::get().decreaseRunningJobs();
       isRunningCounted_ = false;
     }
   }
@@ -896,7 +896,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
     if (isRunningCounted_ && (newStatus == QDMI_JOB_STATUS_DONE ||
                               newStatus == QDMI_JOB_STATUS_FAILED ||
                               newStatus == QDMI_JOB_STATUS_CANCELED)) {
-      AMAZON_BRAKET_QDMI::Device::get().decreaseRunningJobs();
+      Aws::Braket::qdmi::Device::get().decreaseRunningJobs();
       isRunningCounted_ = false;
     }
   }
@@ -1168,23 +1168,21 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::getResults(
  */
 
 // Global SDK state - must be in same translation unit for safe init/shutdown
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 namespace {
-Aws::SDKOptions
-    gAWSOptions; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-bool
-    gAWSInitialized = // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-    false;
-std::mutex
-    gAWSInitMutex; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+Aws::SDKOptions gAWSOptions;
+bool gAWSInitialized = false;
+std::mutex gAWSInitMutex;
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 } // namespace
 
 int AMAZON_BRAKET_QDMI_device_initialize() {
-  const std::lock_guard<std::mutex> lock(gAWSInitMutex);
+  const std::scoped_lock lock(gAWSInitMutex);
   if (!gAWSInitialized) {
     Aws::InitAPI(gAWSOptions);
     gAWSInitialized = true;
   }
-  std::ignore = AMAZON_BRAKET_QDMI::Device::get();
+  std::ignore = Aws::Braket::qdmi::Device::get();
   return QDMI_SUCCESS;
 }
 
@@ -1202,7 +1200,7 @@ int AMAZON_BRAKET_QDMI_device_initialize() {
  * @return QDMI_SUCCESS on successful finalization
  */
 int AMAZON_BRAKET_QDMI_device_finalize() {
-  const std::lock_guard<std::mutex> lock(gAWSInitMutex);
+  const std::scoped_lock lock(gAWSInitMutex);
   if (gAWSInitialized) {
     Aws::ShutdownAPI(gAWSOptions);
     gAWSInitialized = false;
@@ -1212,7 +1210,7 @@ int AMAZON_BRAKET_QDMI_device_finalize() {
 
 int AMAZON_BRAKET_QDMI_device_session_alloc(
     AMAZON_BRAKET_QDMI_Device_Session* session) {
-  return AMAZON_BRAKET_QDMI::Device::get().sessionAlloc(session);
+  return Aws::Braket::qdmi::Device::get().sessionAlloc(session);
 }
 
 int AMAZON_BRAKET_QDMI_device_session_init(
@@ -1225,7 +1223,7 @@ int AMAZON_BRAKET_QDMI_device_session_init(
 
 void AMAZON_BRAKET_QDMI_device_session_free(
     AMAZON_BRAKET_QDMI_Device_Session session) {
-  AMAZON_BRAKET_QDMI::Device::get().sessionFree(session);
+  Aws::Braket::qdmi::Device::get().sessionFree(session);
 }
 
 int AMAZON_BRAKET_QDMI_device_session_set_parameter(
