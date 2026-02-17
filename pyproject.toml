@@ -74,6 +74,7 @@ wheel.py-api = "py310"
 wheel.expand-macos-universal-tags = true
 wheel.packages = ["python/amazon"]
 wheel.install-dir = "amazon/braket/qdmi/data"
+install.components = ["amazon-braket-qdmi-device_Runtime", "amazon-braket-qdmi-device_Development"]
 
 sdist.include = ["python/amazon/braket/qdmi/_version.py"]
 sdist.exclude = [
