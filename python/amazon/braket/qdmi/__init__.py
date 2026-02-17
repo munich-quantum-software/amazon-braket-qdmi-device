@@ -20,34 +20,34 @@ def __dir__() -> list[str]:
 
 
 dist = distribution("amazon-braket-qdmi")
-located_include_dir = dist.locate_file("amazon/braket/qdmi/data/include/amazon-braket-qdmi-device")
+located_include_dir = dist.locate_file("amazon/braket/qdmi/data/include/amazon_braket_qdmi")
 resolved_include_dir = Path(str(located_include_dir)).resolve(strict=True)
 
-AMAZON_BRAKET_QDMI_DATA = resolved_include_dir.parents[1]
-if not AMAZON_BRAKET_QDMI_DATA.exists():
-    msg = f"AMAZON_BRAKET_QDMI_DATA does not exist: {AMAZON_BRAKET_QDMI_DATA}"
+_AMAZON_BRAKET_QDMI_DATA = resolved_include_dir.parents[1]
+if not _AMAZON_BRAKET_QDMI_DATA.exists():
+    msg = f"AMAZON_BRAKET_QDMI_DATA does not exist: {_AMAZON_BRAKET_QDMI_DATA}"
     raise FileNotFoundError(msg)
 
-AMAZON_BRAKET_QDMI_LIBRARY_DIR = AMAZON_BRAKET_QDMI_DATA / "lib"
-if not AMAZON_BRAKET_QDMI_LIBRARY_DIR.exists():
-    AMAZON_BRAKET_QDMI_LIBRARY_DIR = AMAZON_BRAKET_QDMI_DATA / "lib64"
-if not AMAZON_BRAKET_QDMI_LIBRARY_DIR.exists():
-    msg = f"AMAZON_BRAKET_QDMI_LIBRARY_DIR does not exist: {AMAZON_BRAKET_QDMI_LIBRARY_DIR}"
+_AMAZON_BRAKET_QDMI_LIBRARY_DIR = _AMAZON_BRAKET_QDMI_DATA / "lib"
+if not _AMAZON_BRAKET_QDMI_LIBRARY_DIR.exists():
+    _AMAZON_BRAKET_QDMI_LIBRARY_DIR = _AMAZON_BRAKET_QDMI_DATA / "lib64"
+if not _AMAZON_BRAKET_QDMI_LIBRARY_DIR.exists():
+    msg = f"AMAZON_BRAKET_QDMI_LIBRARY_DIR does not exist: {_AMAZON_BRAKET_QDMI_LIBRARY_DIR}"
     raise FileNotFoundError(msg)
 
 # the library is the sole file in the lib directory
-library_files = list(AMAZON_BRAKET_QDMI_LIBRARY_DIR.glob("*amazon-braket-qdmi-device*"))
+library_files = list(_AMAZON_BRAKET_QDMI_LIBRARY_DIR.glob("*amazon-braket-qdmi-device*"))
 if not library_files:
-    msg = f"No Amazon Braket QDMI library found in: {AMAZON_BRAKET_QDMI_LIBRARY_DIR}"
+    msg = f"No Amazon Braket QDMI library found in: {_AMAZON_BRAKET_QDMI_LIBRARY_DIR}"
     raise FileNotFoundError(msg)
 AMAZON_BRAKET_QDMI_LIBRARY_PATH = min(library_files, key=lambda p: len(p.name))
 
-AMAZON_BRAKET_QDMI_INCLUDE_DIR = AMAZON_BRAKET_QDMI_DATA / "include"
+AMAZON_BRAKET_QDMI_INCLUDE_DIR = _AMAZON_BRAKET_QDMI_DATA / "include"
 if not AMAZON_BRAKET_QDMI_INCLUDE_DIR.exists():
     msg = f"AMAZON_BRAKET_QDMI_INCLUDE_DIR does not exist: {AMAZON_BRAKET_QDMI_INCLUDE_DIR}"
     raise FileNotFoundError(msg)
 
-AMAZON_BRAKET_QDMI_CMAKE_DIR = AMAZON_BRAKET_QDMI_DATA / "share" / "cmake"
+AMAZON_BRAKET_QDMI_CMAKE_DIR = _AMAZON_BRAKET_QDMI_DATA / "share" / "cmake"
 if not AMAZON_BRAKET_QDMI_CMAKE_DIR.exists():
     msg = f"AMAZON_BRAKET_QDMI_CMAKE_DIR does not exist: {AMAZON_BRAKET_QDMI_CMAKE_DIR}"
     raise FileNotFoundError(msg)

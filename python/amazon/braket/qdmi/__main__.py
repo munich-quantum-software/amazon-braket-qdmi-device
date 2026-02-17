@@ -8,7 +8,6 @@
 """Command line interface for the Amazon Braket QDMI device library."""
 
 import argparse
-from html import parser
 import sys
 from functools import partial
 
@@ -37,6 +36,7 @@ def main() -> None:
     if sys.version_info >= (3, 14):
         make_parser = partial(make_parser, suggest_on_error=True)
 
+    parser = make_parser()
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "--version",
