@@ -167,11 +167,11 @@ build-frontend = "build[uv]"
 enable = ["cpython-freethreading"]
 
 [tool.cibuildwheel.linux]
-before-all = "yum install -y curl-devel"
+before-all = "yum install -y curl-devel openssl-devel"
 
 [[tool.cibuildwheel.overrides]]
 select = "*-musllinux*"
-before-all = "apk add curl-dev"
+before-all = "apk add curl-dev openssl-dev"
 
 [tool.cibuildwheel.macos]
 environment = { MACOSX_DEPLOYMENT_TARGET = "11.0" }
