@@ -56,13 +56,18 @@ jobs:
         run: cmake -S . -B install-build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build QDMI
-        run: cmake --build install-build --config Release
+        run: cmake --build install-build --config Release --target amazon-braket-qdmi-device
 
-      - name: Install QDMI
+      - name: Install QDMI Runtime Component
         run: >
           cmake --install install-build --config Release
           --prefix install-dir
           --component amazon-braket-qdmi-device_Runtime
+
+      - name: Install QDMI Development Component
+        run: >
+          cmake --install install-build --config Release
+          --prefix install-dir
           --component amazon-braket-qdmi-device_Development
 
       # Build tests using the installed QDMI device library
