@@ -1,0 +1,63 @@
+name: 🇨 • Tests • ubuntu
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: >
+          The ubuntu runner image to use. Defaults to 'ubuntu-latest'.
+          This can be any valid ubuntu runner image, such as 'ubuntu-22.04', 'ubuntu-24.04', or their ARM variants 'ubuntu-22.04-arm', 'ubuntu-24.04-arm'.
+        default: "ubuntu-latest"
+        type: string
+      config:
+        description: >
+          The build type to use. Defaults to 'Release'.
+          This can be any valid CMake build type, such as 'Debug' or 'Release'.
+        default: "Release"
+        type: string
+      device-arn:
+        description: >
+          The Amazon Braket device ARN to use for tests that require a quantum device.
+          This can be any valid Amazon Braket device ARN, such as 'arn:aws:braket:::device/quantum-simulator/amazon/sv1'.
+        default: "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
+        type: string
+    secrets:
+      AWS_S3_BUCKET:
+        required: false
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+
+jobs:
+  cpp-tests-ubuntu:
+    name: 🐧 ${{ inputs.runs-on }} ${{ inputs.config }}
+    runs-on: ${{ inputs.runs-on }}
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
+      CTEST_PARALLEL_LEVEL: 4
+      FORCE_COLOR: 3
+    steps:
+      # check out the repository
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      # Install build dependencies
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev
+      # Configure CMake in the specified mode, optionally with additional arguments
+      - name: Configure CMake
+        env:
+          CONFIG: ${{ inputs.config }}
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE="$CONFIG"
+
+      # build the project in the specified mode
+      - name: Build
+        run: cmake --build build
+      # run the tests (for retry for transient AWS connectivity failures)
+      - name: Test
+        env:
+          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEVICE_ARN: ${{ inputs.device-arn }}
+        run: ctest --output-on-failure --test-dir build --timeout 600 --repeat after-timeout:3
