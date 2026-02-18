@@ -72,6 +72,7 @@ if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
     awssdk
     GIT_REPOSITORY https://github.com/aws/aws-sdk-cpp.git
     GIT_TAG ${AWSSDK_VERSION}
+    GIT_SHALLOW TRUE
     FIND_PACKAGE_ARGS ${AWSSDK_VERSION} COMPONENTS braket s3 core)
   list(APPEND FETCH_PACKAGES awssdk)
 endif()
