@@ -59,6 +59,9 @@ if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
   set(BUILD_ONLY
       "s3;braket"
       CACHE STRING "" FORCE)
+  set("AUTORUN_UNIT_TESTS"
+      OFF
+      CACHE BOOL "Disable autorunning unit tests for AWS SDK" FORCE)
   set(AWS_SDK_WARNINGS_ARE_ERRORS
       OFF
       CACHE BOOL "Disable warnings as errors" FORCE)
