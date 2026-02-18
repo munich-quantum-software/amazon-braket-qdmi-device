@@ -1,0 +1,20 @@
+# Copyright (c) 2025 - 2026 Munich Quantum Software Company GmbH
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
+@PACKAGE_INIT@
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}")
+
+if(TARGET amazon-braket-qdmi-device)
+  return()
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/amazon-braket-qdmi-device-targets.cmake")
+
+if(NOT amazon-braket-qdmi-device_FIND_QUIETLY)
+  message(STATUS "Found Amazon Braket QDMI Device version ${amazon-braket-qdmi-device_VERSION}")
+endif()

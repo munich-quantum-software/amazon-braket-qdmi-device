@@ -1,147 +1,178 @@
-# AWS QDMI Device
+# Amazon Braket QDMI Device
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://isocpp.org/std/the-standard)
-
-AWS Braket implementation of the [Quantum Device Management Interface (QDMI)](https://github.com/Munich-Quantum-Software-Stack/QDMI) specification.
+Amazon Braket implementation of the [Quantum Device Management Interface (QDMI)](https://github.com/Munich-Quantum-Software-Stack/QDMI) specification.
 
 ## Overview
 
-This library enables **any QDMI-compliant quantum software** to run on AWS Braket quantum devices without code changes. Simply link against this library instead of another QDMI implementation, and your OpenQASM circuits will execute on AWS Braket simulators or real quantum hardware.
+This library enables **any QDMI-compliant quantum software** to run on Amazon Braket quantum devices without code changes. Simply link against this library instead of another QDMI implementation, and your OpenQASM circuits will execute on Amazon Braket simulators (and soon real quantum hardware).
 
 ### What is QDMI?
 
-QDMI (Quantum Device Management Interface) is a standardized C API for quantum devices, developed by the [Munich Quantum Software Company](https://github.com/munich-quantum-software). It provides a vendor-neutral interface for:
+QDMI (Quantum Device Management Interface) is a standardized C API for quantum devices, developed among others by the [Munich Quantum Software Company](https://github.com/munich-quantum-software). It provides a vendor-neutral interface for:
 
-- Querying device properties (qubit count, connectivity, gate sets)
-- Submitting quantum circuits (OpenQASM 2.0/3.0)
-- Managing job lifecycle (submit, cancel, wait, get results)
-- Accessing qubit and gate information (T1/T2 times, fidelities)
+- Querying device properties (e.g., qubit count, connectivity, gate sets)
+- Submitting quantum circuits (e.g., OpenQASM 2.0/3.0)
+- Managing job lifecycle (e.g., submit, cancel, get results)
+- Accessing qubit and gate information (e.g., T1/T2 times, fidelities)
 
-### QDMI to AWS Braket Mapping
+### What is Amazon Braket?
 
-| QDMI Function | AWS SDK Counterpart |
-|---------------|---------------------|
-| `AWS_QDMI_device_initialize()` | `Aws::InitAPI()` |
-| `AWS_QDMI_device_session_init()` | `BraketClient` + `GetDevice()` |
-| `AWS_QDMI_device_session_query_*()` | Parse `GetDevice` JSON response |
-| `AWS_QDMI_device_job_submit()` | `BraketClient::CreateQuantumTask()` |
-| `AWS_QDMI_device_job_check()` | `BraketClient::GetQuantumTask()` |
-| `AWS_QDMI_device_job_cancel()` | `BraketClient::CancelQuantumTask()` |
-| `AWS_QDMI_device_job_get_results()` | `S3Client::GetObject()` (results.json) |
-| `AWS_QDMI_device_finalize()` | `Aws::ShutdownAPI()` |
+TODO
 
-### Supported AWS Braket Devices
+### Supported Amazon Braket Devices
 
-This implementation supports all AWS Braket devices:
+This implementation currently only supports simulator Amazon Braket devices:
 
-| Device Type | Examples |
-|-------------|----------|
-| **Simulators** | SV1 (State Vector), DM1 (Density Matrix), TN1 (Tensor Network) |
-| **Gate-based QPUs** | IonQ Aria/Forte, IQM Garnet, Rigetti Ankaa |
+| Device Type         | Examples                                                       |
+| ------------------- | -------------------------------------------------------------- |
+| **Simulators**      | SV1 (State Vector), DM1 (Density Matrix), TN1 (Tensor Network) |
+| **Gate-based QPUs** | TODO                                                           |
 
 ## Quick Start
 
 ### Prerequisites
 
-- **C++17** compatible compiler (GCC 8+, Clang 7+, MSVC 2019+)
-- **CMake** 3.10+
-- **AWS SDK for C++** with Braket and S3 components
-- **QDMI** headers ([Munich-Quantum-Software-Stack/QDMI](https://github.com/Munich-Quantum-Software-Stack/QDMI))
-- **AWS Credentials** configured (`~/.aws/credentials` or environment variables)
+- **C++20** compatible compiler
+- **CMake** 3.24 or later
+- **AWS Credentials** configured (see Configuration section below)
 
-### Setup & Credentials
+**Note**: Dependencies (AWS SDK for C++, QDMI) are automatically downloaded and built by CMake during the configuration step.
 
-You can provide AWS credentials using environment variables (recommended for quick testing).
+### Configuration
+
+**AWS Credentials**
+
+Configure your AWS credentials using either:
+
+1. **AWS Configuration Files** (recommended):
+
+   ```bash
+   # ~/.aws/credentials
+   [default]
+   aws_access_key_id = YOUR_ACCESS_KEY
+   aws_secret_access_key = YOUR_SECRET_KEY
+   ```
+
+2. **Environment Variables**:
+   ```bash
+   export AWS_ACCESS_KEY_ID="your_access_key_id"
+   export AWS_SECRET_ACCESS_KEY="your_secret_access_key"
+   # Optional: for temporary credentials
+   export AWS_SESSION_TOKEN="your_session_token"
+   ```
+
+**Device Configuration**
+
+Set the target device and S3 bucket (required for job execution):
 
 ```bash
-export AWS_ACCESS_KEY_ID="your_access_key_id"
-export AWS_SECRET_ACCESS_KEY="your_secret_access_key"
-# Optional: temporary session token
-export AWS_SESSION_TOKEN="your_session_token"
-# Default region used by the SDK if not provided via session/device ARN
-export AWS_REGION="us-east-1"
+export AWS_DEVICE_ARN="arn:aws:braket:::device/quantum-simulator/amazon/sv1"
+export AWS_S3_BUCKET="your-results-bucket"
 ```
 
-### Building
+| Variable         | Required | Description                                |
+| ---------------- | -------- | ------------------------------------------ |
+| `AWS_DEVICE_ARN` | Yes      | Amazon Braket device ARN to target         |
+| `AWS_S3_BUCKET`  | Yes      | S3 bucket for storing quantum job results  |
+| `AWS_REGION`     | No       | AWS region (auto-detected from device ARN) |
+
+### Installation
+
+The library uses CMake for building and installation. The workflow mirrors standard CMake practices:
+
+**Step 1: Build the Library**
 
 ```bash
 # Clone the repository
-git clone https://github.com/munich-quantum-software/aws-qdmi.git
-cd aws-qdmi
+git clone https://github.com/munich-quantum-software/aws-qdmi-device.git
+cd aws-qdmi-device
 
-# Create build directory
-mkdir build && cd build
-
-# Configure (adjust paths as needed)
-cmake .. \
-  -DQDMI_DIR=/path/to/QDMI \
-  -DCMAKE_PREFIX_PATH=/path/to/aws-sdk-cpp/install
+# Configure
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
 # Build
-make -j$(nproc)
+cmake --build build --config Release
+```
 
-# Run example
-./aws_qdmi_example
+**Step 2: Install the Library**
+
+```bash
+# Install to a prefix (e.g., ~/.local or /usr/local)
+cmake --install build --prefix /path/to/install
+```
+
+**Step 3: Use in Your Project**
+
+In your application's `CMakeLists.txt`:
+
+```cmake
+cmake_minimum_required(VERSION 3.24)
+project(MyQuantumApp)
+
+# Find the installed library
+find_package(amazon-braket-qdmi-device REQUIRED)
+
+# Link against your executable
+add_executable(my_app main.cpp)
+target_link_libraries(my_app amazon-braket-qdmi-device)
+```
+
+Configure your project with:
+
+```bash
+cmake -S . -B build -DCMAKE_PREFIX_PATH=/path/to/install
+cmake --build build
 ```
 
 ### CMake Options
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `BUILD_EXAMPLES` | `ON` | Build example executable |
-| `BUILD_TESTS` | `ON` | Build test suite (requires Google Test) |
-| `QDMI_DIR` | `../QDMI` | Path to QDMI project |
-| `CMAKE_PREFIX_PATH` | - | Path to AWS SDK installation |
+| Option                                    | Default | Description                             |
+| ----------------------------------------- | ------- | --------------------------------------- |
+| `BUILD_AMAZON_BRAKET_TESTS`               | `ON`    | Build test suite (requires Google Test) |
+| `USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE` | `OFF`   | Use installed library instead of build  |
+| `CMAKE_PREFIX_PATH`                       | -       | Path to dependencies (AWS SDK, QDMI)    |
 
 ## Usage
 
-### Basic Example
+### Example Program
 
 ```cpp
-#include <aws_qdmi/device.h>
+#include <amazon_braket_qdmi/device.h>
 #include <cstring>
 #include <iostream>
 
 int main() {
-    // Initialize
-    AWS_QDMI_device_initialize();
-    
-    // Create and configure session
-    AWS_QDMI_Device_Session session;
-    AWS_QDMI_device_session_alloc(&session);
-    
-    // Set device ARN - region is automatically extracted from the ARN
-    // Format: arn:aws:braket:<region>::device/... (regional QPUs)
-    //     or: arn:aws:braket:::<device> (global simulators, defaults to us-east-1)
-    const char* deviceArn = "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
-    AWS_QDMI_device_session_set_parameter(
-        session, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
-        strlen(deviceArn) + 1, deviceArn);
-    
-    AWS_QDMI_device_session_init(session);
-    
+    // Initialize the library
+    AMAZON_BRAKET_QDMI_device_initialize();
+
+    // Create and initialize session
+    AMAZON_BRAKET_QDMI_Device_Session session;
+    AMAZON_BRAKET_QDMI_device_session_alloc(&session);
+    AMAZON_BRAKET_QDMI_device_session_init(session);
+
     // Query device properties
     size_t qubits;
-    AWS_QDMI_device_session_query_device_property(
+    AMAZON_BRAKET_QDMI_device_session_query_device_property(
         session, QDMI_DEVICE_PROPERTY_QUBITSNUM,
         sizeof(qubits), &qubits, nullptr);
-    std::cout << "Qubits: " << qubits << "\n";
-    
-    // Create and submit a job
-    AWS_QDMI_Device_Job job;
-    AWS_QDMI_device_session_create_device_job(session, &job);
-    
+    std::cout << "Device has " << qubits << " qubits\n";
+
+    // Create a quantum job
+    AMAZON_BRAKET_QDMI_Device_Job job;
+    AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job);
+
+    // Configure job parameters
     size_t shots = 1000;
-    AWS_QDMI_device_job_set_parameter(
+    AMAZON_BRAKET_QDMI_device_job_set_parameter(
         job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM,
         sizeof(shots), &shots);
-    
+
     QDMI_Program_Format format = QDMI_PROGRAM_FORMAT_QASM3;
-    AWS_QDMI_device_job_set_parameter(
+    AMAZON_BRAKET_QDMI_device_job_set_parameter(
         job, QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT,
         sizeof(format), &format);
-    
+
+    // Submit a Bell state circuit
     const char* circuit = R"(
         OPENQASM 3.0;
         qubit[2] q;
@@ -149,101 +180,105 @@ int main() {
         cnot q[0], q[1];
         bit[2] c = measure q;
     )";
-    AWS_QDMI_device_job_set_parameter(
+    AMAZON_BRAKET_QDMI_device_job_set_parameter(
         job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
         strlen(circuit) + 1, circuit);
-    
-    AWS_QDMI_device_job_submit(job);
-    AWS_QDMI_device_job_wait(job, 60000);  // 60 second timeout
-    
-    // Get results
+
+    AMAZON_BRAKET_QDMI_device_job_submit(job);
+    AMAZON_BRAKET_QDMI_device_job_wait(job, 60000);  // 60s timeout
+
+    // Check results
     QDMI_Job_Status status;
-    AWS_QDMI_device_job_check(job, &status);
+    AMAZON_BRAKET_QDMI_device_job_check(job, &status);
     if (status == QDMI_JOB_STATUS_DONE) {
-        // Process histogram results...
+        std::cout << "Job completed successfully\n";
+        // Retrieve histogram results...
     }
-    
+
     // Cleanup
-    AWS_QDMI_device_job_free(job);
-    AWS_QDMI_device_session_free(session);
-    AWS_QDMI_device_finalize();
-    
+    AMAZON_BRAKET_QDMI_device_job_free(job);
+    AMAZON_BRAKET_QDMI_device_session_free(session);
+    AMAZON_BRAKET_QDMI_device_finalize();
+
     return 0;
 }
 ```
 
-### AWS-Specific Session Parameters
-
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN` | **Yes** | Device ARN (region is auto-extracted) |
-| `QDMI_DEVICE_SESSION_PARAMETER_S3BUCKET` | For jobs | S3 bucket for storing job results |
-| `QDMI_DEVICE_SESSION_PARAMETER_REGION` | No | AWS region override (optional, auto-extracted from ARN) |
-
-### Variables Used
-
-| Category | Variables |
-|----------|-----------|
-| **Session Config** | `DEVICEARN`, `S3BUCKET`, `REGION` |
-| **Device Info** | `deviceName`, `deviceStatus`, `qubitCount`, `sites[]`, `operations[]`, `couplingMap` |
-| **Job Config** | `shotsNum`, `programFormat`, `program` |
-| **Job State** | `jobId`, `taskArn`, `taskStatus` |
-| **Results** | `outputS3Bucket`, `outputS3Directory`, `measurements[]`, `histogram` |
-
 ## API Reference
+
+### Device Status
+
+A device can be in one of the following states:
+
+| Status                       | Description                                                                              |
+| ---------------------------- | ---------------------------------------------------------------------------------------- |
+| `QDMI_DEVICE_STATUS_IDLE`    | Device is online and ready to accept jobs. No QDMI jobs are currently running.           |
+| `QDMI_DEVICE_STATUS_BUSY`    | Device is online but currently executing one or more QDMI jobs. New jobs will be queued. |
+| `QDMI_DEVICE_STATUS_OFFLINE` | Device is not available (maintenance, calibration, or permanently unavailable).          |
+
+The device status is automatically managed:
+
+- Starts as `IDLE` after successful session initialization (otherwise `OFFLINE`)
+- Transitions to `BUSY` when QDMI jobs are submitted
+- Returns to `IDLE` when all QDMI jobs complete
+- Amazon Braket device availability determines `OFFLINE` state
+
+Query the current status using:
+
+```cpp
+QDMI_Device_Status status;
+AMAZON_BRAKET_QDMI_device_session_query_device_property(
+    session, QDMI_DEVICE_PROPERTY_STATUS,
+    sizeof(status), &status, nullptr);
+```
 
 ### Lifecycle Functions
 
-| Function | AWS SDK Counterpart | Description |
-|----------|---------------------|-------------|
-| `AWS_QDMI_device_initialize()` | `Aws::InitAPI()` | Initialize the library (call once at startup) |
-| `AWS_QDMI_device_finalize()` | `Aws::ShutdownAPI()` | Cleanup resources (call once at shutdown) |
+| Function                                 | AWS SDK Counterpart  | Description                                   |
+| ---------------------------------------- | -------------------- | --------------------------------------------- |
+| `AMAZON_BRAKET_QDMI_device_initialize()` | `Aws::InitAPI()`     | Initialize the library (call once at startup) |
+| `AMAZON_BRAKET_QDMI_device_finalize()`   | `Aws::ShutdownAPI()` | Cleanup resources (call once at shutdown)     |
 
 ### Session Management
 
-| Function | AWS SDK Counterpart | Description |
-|----------|---------------------|-------------|
-| `AWS_QDMI_device_session_alloc()` | (internal allocation) | Allocate a new session |
-| `AWS_QDMI_device_session_set_parameter()` | (store config) | Configure session (DEVICEARN, S3BUCKET, REGION) |
-| `AWS_QDMI_device_session_init()` | `BraketClient` + `GetDevice()` | Initialize session and connect to device |
-| `AWS_QDMI_device_session_free()` | (destroy BraketClient) | Free session resources |
-| `AWS_QDMI_device_session_query_device_property()` | (parse GetDevice JSON) | Query device properties |
-| `AWS_QDMI_device_session_query_site_property()` | (parse GetDevice JSON) | Query qubit properties |
-| `AWS_QDMI_device_session_query_operation_property()` | (parse GetDevice JSON) | Query gate properties |
+| Function                                                       | AWS SDK Counterpart            | Description                              |
+| -------------------------------------------------------------- | ------------------------------ | ---------------------------------------- |
+| `AMAZON_BRAKET_QDMI_device_session_alloc()`                    | (internal allocation)          | Allocate a new session                   |
+| `AMAZON_BRAKET_QDMI_device_session_init()`                     | `BraketClient` + `GetDevice()` | Initialize session and connect to device |
+| `AMAZON_BRAKET_QDMI_device_session_free()`                     | `BraketClient` destructor      | Free session resources                   |
+| `AMAZON_BRAKET_QDMI_device_session_query_device_property()`    | (parse GetDevice JSON)         | Query device properties                  |
+| `AMAZON_BRAKET_QDMI_device_session_query_site_property()`      | (parse GetDevice JSON)         | Query qubit properties                   |
+| `AMAZON_BRAKET_QDMI_device_session_query_operation_property()` | (parse GetDevice JSON)         | Query gate properties                    |
 
 ### Job Management
 
-| Function | AWS SDK Counterpart | Description |
-|----------|---------------------|-------------|
-| `AWS_QDMI_device_session_create_device_job()` | (internal allocation) | Create a new job |
-| `AWS_QDMI_device_job_set_parameter()` | (store job config) | Set job parameters (circuit, shots, format) |
-| `AWS_QDMI_device_job_query_property()` | (return stored values) | Query job properties (ID, taskArn) |
-| `AWS_QDMI_device_job_submit()` | `CreateQuantumTask()` | Submit job to AWS Braket |
-| `AWS_QDMI_device_job_check()` | `GetQuantumTask()` | Check job status |
-| `AWS_QDMI_device_job_wait()` | (poll `GetQuantumTask()`) | Wait for job completion |
-| `AWS_QDMI_device_job_get_results()` | `S3Client::GetObject()` | Retrieve measurement results from S3 |
-| `AWS_QDMI_device_job_cancel()` | `CancelQuantumTask()` | Cancel a running job |
-| `AWS_QDMI_device_job_free()` | (internal cleanup) | Free job resources |
-
-### AWS SDK Components Used
-
-| SDK Component | Purpose |
-|---------------|---------|
-| `aws-cpp-sdk-core` | `Aws::InitAPI`, `ShutdownAPI`, `ClientConfiguration` |
-| `aws-cpp-sdk-braket` | `BraketClient`, `GetDevice`, `CreateQuantumTask`, `GetQuantumTask`, `CancelQuantumTask` |
-| `aws-cpp-sdk-s3` | `S3Client`, `GetObject` (download results.json) |
+| Function                                                | AWS SDK Counterpart       | Description                                 |
+| ------------------------------------------------------- | ------------------------- | ------------------------------------------- |
+| `AMAZON_BRAKET_QDMI_device_session_create_device_job()` | (internal allocation)     | Create a new job                            |
+| `AMAZON_BRAKET_QDMI_device_job_set_parameter()`         | (store job config)        | Set job parameters (circuit, shots, format) |
+| `AMAZON_BRAKET_QDMI_device_job_query_property()`        | (return stored values)    | Query job properties (ID, taskArn)          |
+| `AMAZON_BRAKET_QDMI_device_job_submit()`                | `CreateQuantumTask()`     | Submit job to AWS Braket                    |
+| `AMAZON_BRAKET_QDMI_device_job_check()`                 | `GetQuantumTask()`        | Check job status                            |
+| `AMAZON_BRAKET_QDMI_device_job_wait()`                  | (poll `GetQuantumTask()`) | Wait for job completion                     |
+| `AMAZON_BRAKET_QDMI_device_job_get_results()`           | `S3Client::GetObject()`   | Retrieve measurement results from S3        |
+| `AMAZON_BRAKET_QDMI_device_job_cancel()`                | `CancelQuantumTask()`     | Cancel a running job                        |
+| `AMAZON_BRAKET_QDMI_device_job_free()`                  | (internal cleanup)        | Free job resources                          |
 
 ## Testing
 
+To run the test suite:
+
 ```bash
-# Set environment variables for testing
-export AWS_REGION=us-east-1
-export AWS_DEVICE_ARN=arn:aws:braket:::device/quantum-simulator/amazon/sv1
-export AWS_S3_BUCKET=my-braket-results-bucket
+# Build with tests enabled (default)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+
+# Set required environment variables
+export AWS_DEVICE_ARN="arn:aws:braket:::device/quantum-simulator/amazon/sv1"
+export AWS_S3_BUCKET="my-braket-results-bucket"
 
 # Run tests
-cd build
-ctest --output-on-failure
+ctest --test-dir build --output-on-failure
 ```
 
 ## Project Structure
@@ -253,15 +288,12 @@ aws-qdmi/
 ├── CMakeLists.txt                  # Build configuration
 ├── README.md                       # This file
 ├── include/
-│   ├── aws_qdmi/
-│   │   └── device.h                # Public API header (QDMI implementation)
-│   └── aws_qdmi_device_impl.hpp    # Internal implementation header
+│   └── amazon-braket-qdmi-device/
+│       └── Device.hpp              # Public API header (QDMI implementation)
 ├── src/
-│   └── aws_qdmi_device_impl.cpp    # Implementation (QDMI↔AWS Braket)
-├── examples/
-│   └── main.cpp                    # Verbose example showing all mappings
+│   └── Device.cpp                  # Implementation (QDMI↔Amazon Braket)
 └── test/
-    └── test_aws_qdmi_device_integration.cpp  # Integration tests
+    └── test_device.cpp             # Integration tests
 ```
 
 ## Architecture
@@ -269,34 +301,35 @@ aws-qdmi/
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        Your Application                             │
-│                    (QDMI-compliant code)                           │
+│                    (QDMI-compliant code)                            │
 └─────────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                        AWS QDMI Device                              │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │ QDMI Functions              │ AWS SDK Calls                 │   │
-│  ├─────────────────────────────┼───────────────────────────────┤   │
-│  │ device_session_init()       │ BraketClient::GetDevice()     │   │
-│  │ device_job_submit()         │ CreateQuantumTask()           │   │
-│  │ device_job_check()          │ GetQuantumTask()              │   │
-│  │ device_job_get_results()    │ S3Client::GetObject()         │   │
-│  └─────────────────────────────┴───────────────────────────────┘   │
+│                        Amazon Braket QDMI Device                    │
+│  ┌─────────────────────────────────────────────────────────────┐    │
+│  │ QDMI Functions              │ AWS SDK Calls                 │    │
+│  ├─────────────────────────────┼───────────────────────────────┤    │
+│  │ device_session_init()       │ BraketClient::GetDevice()     │    │
+│  │ device_job_submit()         │ CreateQuantumTask()           │    │
+│  │ device_job_check()          │ GetQuantumTask()              │    │
+│  │ device_job_get_results()    │ S3Client::GetObject()         │    │
+│  └─────────────────────────────┴───────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────────┘
                                   │
                                   ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                          AWS Braket                                 │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐              │
-│  │ SV1 Simulator│  │ IonQ Aria    │  │ Rigetti Ankaa│  ...         │
-│  └──────────────┘  └──────────────┘  └──────────────┘              │
+│                          Amazon Braket                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │
+│  │ SV1 Simulator│  │ DM1 Simulator│  │ TN1 Simulator│  ...          │
+│  └──────────────┘  └──────────────┘  └──────────────┘               │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Support
 
 For issues related to:
+
 - **This library**: Open an issue on this repository
 - **QDMI specification**: See [QDMI repository](https://github.com/Munich-Quantum-Software-Stack/QDMI)
-- **AWS Braket**: See [AWS Braket documentation](https://docs.aws.amazon.com/braket/)
+- **Amazon Braket**: See [Amazon Braket documentation](https://docs.aws.amazon.com/braket/)

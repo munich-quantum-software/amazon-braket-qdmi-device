@@ -1,0 +1,89 @@
+name: 📦 • Install and Test
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: >
+          The runner image to use.
+        default: "ubuntu-latest"
+        type: string
+      device-arn:
+        description: >
+          The Amazon Braket device ARN to use for tests that require a quantum device.
+        default: "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
+        type: string
+    secrets:
+      AWS_S3_BUCKET:
+        required: false
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  cpp-tests-install:
+    name: 📦 ${{ inputs.runs-on }}
+    runs-on: ${{ inputs.runs-on }}
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
+      CTEST_PARALLEL_LEVEL: 4
+      FORCE_COLOR: 3
+    steps:
+      # Check out the repository
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # Install build dependencies (Ubuntu only)
+      - name: Install Dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
+
+      # Set up ccache for faster C++ builds
+      - name: Setup ccache
+        uses: Chocobo1/setup-ccache-action@82d1328f966f98dcd2df44e757ae08076d3c9a6b # v1.5.2
+        with:
+          prepend_symlinks_to_path: false
+          override_cache_key: c++-tests-install-${{ inputs.runs-on }}
+
+      # Set up mold as linker (Linux only)
+      - name: Set up mold as linker
+        uses: rui314/setup-mold@725a8794d15fc7563f59595bd9556495c0564878 # v1
+
+      # Build and install the Amazon Braket QDMI library
+      - name: Configure CMake for QDMI
+        run: cmake -S . -B install-build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build QDMI
+        run: cmake --build install-build --config Release --target amazon-braket-qdmi-device
+
+      - name: Install QDMI Runtime Component
+        run: >
+          cmake --install install-build --config Release
+          --prefix install-dir
+          --component amazon-braket-qdmi-device_Runtime
+
+      - name: Install QDMI Development Component
+        run: >
+          cmake --install install-build --config Release
+          --prefix install-dir
+          --component amazon-braket-qdmi-device_Development
+
+      # Build tests using the installed QDMI device library
+      - name: Configure tests with the installed library
+        run: >
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          -DUSE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE=ON
+          -DCMAKE_PREFIX_PATH=install-dir
+
+      - name: Build tests
+        run: cmake --build build --config Release
+
+      - name: Test
+        env:
+          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEVICE_ARN: ${{ inputs.device-arn }}
+        run: ctest -C Release --output-on-failure --test-dir build --repeat until-pass:3 --timeout 600

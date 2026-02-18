@@ -1,0 +1,140 @@
+name: CI
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  cpp-tests-ubuntu:
+    name: 🇨‌ Test 🐧
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on: [ubuntu-24.04, ubuntu-24.04-arm]
+        config: [Release]
+        include:
+          - runs-on: ubuntu-24.04
+            config: Debug
+    uses: ./.github/workflows/cpp-tests-ubuntu.yml
+    with:
+      runs-on: ${{ matrix.runs-on }}
+      config: ${{ matrix.config }}
+    secrets:
+      AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET || '' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
+
+  cpp-tests-macos:
+    name: 🇨‌ Test 🍎
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on: [macos-15-intel, macos-15]
+        config: [Release]
+        include:
+          - runs-on: macos-15
+            config: Debug
+    uses: ./.github/workflows/cpp-tests-macos.yml
+    with:
+      runs-on: ${{ matrix.runs-on }}
+      config: ${{ matrix.config }}
+    secrets:
+      AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET || '' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
+
+  cpp-tests-windows:
+    name: 🇨‌ Test 🏁
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on: [windows-2025, windows-11-arm]
+        config: [Release]
+        include:
+          - runs-on: windows-2025
+            config: Debug
+    uses: ./.github/workflows/cpp-tests-windows.yml
+    with:
+      runs-on: ${{ matrix.runs-on }}
+      config: ${{ matrix.config }}
+    secrets:
+      AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET || '' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
+
+  cpp-install-tests:
+    name: 📦 Install
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on: [ubuntu-24.04, macos-15, windows-2025]
+    uses: ./.github/workflows/cpp-install-tests.yml
+    with:
+      runs-on: ${{ matrix.runs-on }}
+    secrets:
+      AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET || '' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
+
+  python-wheels:
+    name: 🐍 Wheels
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on:
+          [
+            ubuntu-24.04,
+            ubuntu-24.04-arm,
+            macos-15,
+            macos-15-intel,
+            windows-2025,
+            windows-11-arm,
+          ]
+    runs-on: ${{ matrix.runs-on }}
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
+      CTEST_PARALLEL_LEVEL: 4
+      FORCE_COLOR: 3
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
+        with:
+          enable-cache: true
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
+      - uses: pypa/cibuildwheel@63fd63b352a9a8bdcc24791c9dbee952ee9a8abc # v3.3.0
+      - name: Verify clean directory
+        run: git diff --exit-code
+      - name: Upload wheels
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: cibw-wheels-${{ matrix.runs-on }}
+          path: wheelhouse/*.whl
+
+  python-sdist:
+    name: 🐍 SDist
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v7.1.6
+        with:
+          enable-cache: true
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
+      - name: Build SDist
+        run: uv build --sdist
+      - name: Check metadata
+        run: uvx twine check dist/*
+      - name: Run check-sdist
+        run: uvx check-sdist --inject-junk
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: cibw-sdist
+          path: dist/*.tar.gz
