@@ -1,3 +1,10 @@
+# Copyright (c) 2025 - 2026 Munich Quantum Software Company GmbH
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 include(GNUInstallDirs)
 
 # Generate QDMI headers with the specified prefix
@@ -5,15 +12,13 @@ generate_prefixed_qdmi_headers(${QDMI_PREFIX})
 
 # Collect source files
 file(GLOB_RECURSE SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
-# cmake-format: off
 # Collect private header files (Device.hpp)
 file(GLOB_RECURSE PRIVATE_HEADER_FILES "${PROJECT_SOURCE_DIR}/include/*.hpp")
-# cmake-format: on
+# Collect public header files (generated QDMI headers)
 file(GLOB_RECURSE PUBLIC_HEADER_FILES "${CMAKE_CURRENT_BINARY_DIR}/include/*.h")
 
 add_library(${QDMI_TARGET_NAME} SHARED)
-set_target_properties(${QDMI_TARGET_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS
-                                                     ON)
+set_target_properties(${QDMI_TARGET_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 target_compile_features(${QDMI_TARGET_NAME} PRIVATE cxx_std_20)
 get_target_property(qdmi_library_VERSION qdmi::qdmi VERSION)
 target_compile_definitions(
@@ -23,16 +28,14 @@ target_sources(${QDMI_TARGET_NAME} PRIVATE ${SRC_FILES})
 
 target_sources(
   ${QDMI_TARGET_NAME}
-  # cmake-format: off
   PRIVATE FILE_SET
-      private_headers
-      TYPE
-      HEADERS
-      BASE_DIRS
-      ${PROJECT_SOURCE_DIR}/include
-      FILES
-      ${PRIVATE_HEADER_FILES}
-  # cmake-format: on
+          private_headers
+          TYPE
+          HEADERS
+          BASE_DIRS
+          ${PROJECT_SOURCE_DIR}/include
+          FILES
+          ${PRIVATE_HEADER_FILES}
   PUBLIC FILE_SET
          public_headers
          TYPE
@@ -43,9 +46,8 @@ target_sources(
          ${PUBLIC_HEADER_FILES})
 
 target_link_libraries(
-  ${QDMI_TARGET_NAME}
-  PUBLIC qdmi::qdmi
-  PRIVATE AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket)
+  ${QDMI_TARGET_NAME} PRIVATE AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket
+                              qdmi::qdmi_project_warnings)
 
 option(AMAZON_BRAKET_QDMI_COVERAGE "Enable coverage instrumentation" OFF)
 
@@ -77,29 +79,24 @@ write_basic_package_version_file(
 install(
   FILES "${CMAKE_CURRENT_BINARY_DIR}/${QDMI_TARGET_NAME}-config.cmake"
         "${CMAKE_CURRENT_BINARY_DIR}/${QDMI_TARGET_NAME}-config-version.cmake"
-  DESTINATION ${AMAZON_BRAKET_QDMI_CONFIG_INSTALL_DIR})
+  DESTINATION ${AMAZON_BRAKET_QDMI_CONFIG_INSTALL_DIR}
+  COMPONENT ${QDMI_TARGET_NAME}_Development)
 
-# cmake-format: off
 install(
-    TARGETS ${QDMI_TARGET_NAME}
-    EXPORT ${QDMI_TARGET_NAME}-targets
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    COMPONENT ${QDMI_TARGET_NAME}_Runtime
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    COMPONENT ${QDMI_TARGET_NAME}_Runtime
-    NAMELINK_COMPONENT ${QDMI_TARGET_NAME}_Development
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    COMPONENT ${QDMI_TARGET_NAME}_Development
-    FILE_SET public_headers
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-# cmake-format: on
+  TARGETS ${QDMI_TARGET_NAME}
+  EXPORT ${QDMI_TARGET_NAME}-targets
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT ${QDMI_TARGET_NAME}_Runtime
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+          COMPONENT ${QDMI_TARGET_NAME}_Runtime
+          NAMELINK_COMPONENT ${QDMI_TARGET_NAME}_Development
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+          COMPONENT ${QDMI_TARGET_NAME}_Development
+          FILE_SET public_headers
+          DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+          COMPONENT ${QDMI_TARGET_NAME}_Development)
 
 install(
   EXPORT ${QDMI_TARGET_NAME}-targets
   FILE ${QDMI_TARGET_NAME}-targets.cmake
   DESTINATION ${AMAZON_BRAKET_QDMI_CONFIG_INSTALL_DIR}
   COMPONENT ${QDMI_TARGET_NAME}_Development)
-
-# Generate additional alias for the target required for
-# generate_device_defs_executable function in the tests
-add_library(qdmi::aws_device ALIAS ${QDMI_TARGET_NAME})

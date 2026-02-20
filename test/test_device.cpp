@@ -1,3 +1,12 @@
+/*
+ * Copyright (c) 2025 - 2026 Munich Quantum Software Company GmbH
+ * All rights reserved.
+ *
+ * SPDX-License-Identifier: MIT
+ *
+ * Licensed under the MIT License
+ */
+
 #include "amazon_braket_qdmi/device.h"
 
 #include <cstddef>
@@ -102,8 +111,6 @@ protected:
   // Collected data
   static bool submitted_ok;
   static int wait_result;
-  static bool has_task_arn;
-  static std::string task_arn;
   static bool has_shots;
   static std::string shots_data;
   static bool has_hist;
@@ -116,8 +123,6 @@ protected:
     // Create a session for the shared job
     submitted_ok = false;
     wait_result = QDMI_ERROR_NOTSUPPORTED;
-    has_task_arn = false;
-    task_arn.clear();
     has_shots = false;
     shots_data.clear();
     has_hist = false;
@@ -186,10 +191,6 @@ protected:
       return;
     }
     submitted_ok = true;
-
-    // get task arn if available - Removed as Job Property removed
-    size_t arnSize = 0;
-    (void)arnSize; // Unused variable warning suppression
 
     // wait for completion (timeout: 120 seconds)
     wait_result = AMAZON_BRAKET_QDMI_device_job_wait(shared_job, 120000);
@@ -282,8 +283,6 @@ AMAZON_BRAKET_QDMI_Device_Job AmazonBraketQDMIJobSpecificationTest::shared_job =
     nullptr;
 bool AmazonBraketQDMIJobSpecificationTest::submitted_ok = false;
 int AmazonBraketQDMIJobSpecificationTest::wait_result = QDMI_ERROR_NOTSUPPORTED;
-bool AmazonBraketQDMIJobSpecificationTest::has_task_arn = false;
-std::string AmazonBraketQDMIJobSpecificationTest::task_arn;
 bool AmazonBraketQDMIJobSpecificationTest::has_shots = false;
 std::string AmazonBraketQDMIJobSpecificationTest::shots_data;
 bool AmazonBraketQDMIJobSpecificationTest::has_hist = false;
@@ -453,9 +452,7 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest, JobGetResults) {
   if (!submitted_ok) {
     GTEST_SKIP() << "Job was not submitted in suite setup";
   }
-  if (!has_shots) {
-    GTEST_SKIP() << "SHOTS results not available for this device/job";
-  }
+  ASSERT_TRUE(has_shots) << "SHOTS results must be available for all devices";
   // Basic checks on fetched shots data
   EXPECT_GT(shots_data.size(), 0u);
   // Ensure the API can be called again for size and retrieval
@@ -475,9 +472,8 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest, JobGetResultsHistKeys) {
   if (!submitted_ok) {
     GTEST_SKIP() << "Job was not submitted in suite setup";
   }
-  if (!has_hist) {
-    GTEST_SKIP() << "Histogram not available for this job";
-  }
+  ASSERT_TRUE(has_hist)
+      << "Histogram results must be available for all devices";
   EXPECT_GT(hist_keys.size(), 0u);
 
   // For a Bell state, we expect 00 and 11
@@ -497,9 +493,8 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest, JobGetResultsHistValues) {
   if (!submitted_ok) {
     GTEST_SKIP() << "Job was not submitted in suite setup";
   }
-  if (!has_hist) {
-    GTEST_SKIP() << "Histogram not available for this job";
-  }
+  ASSERT_TRUE(has_hist)
+      << "Histogram results must be available for all devices";
   EXPECT_EQ(hist_values.size(), hist_keys.size());
   EXPECT_GT(hist_values.size(), 0u);
 
@@ -508,16 +503,6 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest, JobGetResultsHistValues) {
     totalShots += count;
   }
   EXPECT_EQ(totalShots, 100u);
-}
-
-TEST_F(AmazonBraketQDMIJobSpecificationTest, JobTaskArn) {
-  if (!submitted_ok) {
-    GTEST_SKIP() << "Job was not submitted in suite setup";
-  }
-  if (!has_task_arn) {
-    GTEST_SKIP() << "Task ARN not available for this device/job";
-  }
-  EXPECT_FALSE(task_arn.empty());
 }
 
 TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceProperty) {
@@ -546,10 +531,6 @@ TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceProperty) {
           0, nullptr, nullptr),
       testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
   AMAZON_BRAKET_QDMI_device_session_free(uninitializedSession);
-}
-
-TEST_F(AmazonBraketQDMISpecificationTest, AwsSpecificDeviceProperties) {
-  // AwsSpecificDeviceProperties removed as properties were removed
 }
 
 TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteProperty) {
@@ -664,7 +645,7 @@ TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteIndex) {
 TEST_F(AmazonBraketQDMISpecificationTest, QueryOperationName) {
   size_t nameSize = 0;
   EXPECT_NO_THROW(for (auto* operation : queryOperations(session)) {
-    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
                   session, operation, 0, nullptr, 0, nullptr,
                   QDMI_OPERATION_PROPERTY_NAME, 0, nullptr, &nameSize),
               QDMI_SUCCESS)
@@ -703,16 +684,18 @@ TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteData) {
   EXPECT_GT(sites.size(), 0);
   for (auto* site : sites) {
     uint64_t t1 = 0;
-    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
-                  session, site, QDMI_SITE_PROPERTY_T1, sizeof(uint64_t), &t1,
-                  nullptr),
-              QDMI_SUCCESS);
+    // T1/T2 may not be supported for simulators
+    EXPECT_THAT(AMAZON_BRAKET_QDMI_device_session_query_site_property(
+                    session, site, QDMI_SITE_PROPERTY_T1, sizeof(uint64_t), &t1,
+                    nullptr),
+                testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
 
     uint64_t t2 = 0;
-    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
-                  session, site, QDMI_SITE_PROPERTY_T2, sizeof(uint64_t), &t2,
-                  nullptr),
-              QDMI_SUCCESS);
+    // T1/T2 may not be supported for simulators
+    EXPECT_THAT(AMAZON_BRAKET_QDMI_device_session_query_site_property(
+                    session, site, QDMI_SITE_PROPERTY_T2, sizeof(uint64_t), &t2,
+                    nullptr),
+                testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
   }
 }
 

@@ -41,35 +41,18 @@ jobs:
       CTEST_PARALLEL_LEVEL: 4
       FORCE_COLOR: 3
     steps:
-      # check out the repository (including submodules and all history)
-      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
-        with:
-          submodules: recursive
-          fetch-depth: 1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Configure CMake
         env:
           CONFIG: ${{ inputs.config }}
-        # automatically selects the MSVC compiler
-        run: |
-          cmake -S . -B build `
-            -G "Visual Studio 17 2022" `
-            -A x64 `
-            -DCMAKE_BUILD_TYPE=$env:CONFIG `
-            -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF `
-            -DAWS_SDK_WARNINGS_ARE_ERRORS=OFF
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE="$env:CONFIG"
 
       - name: Build
-        uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3.0.2
         env:
           CONFIG: ${{ inputs.config }}
-        with:
-          timeout_minutes: 15
-          max_attempts: 5
-          shell: pwsh
-          retry_on: error
-          command: cmake --build build --config $env:CONFIG -- /m
-      # run the tests (for retry for transient AWS connectivity failures)
+        run: cmake --build build --config $env:CONFIG
+
       - name: Test
         env:
           CONFIG: ${{ inputs.config }}
@@ -78,4 +61,4 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEVICE_ARN: ${{ inputs.device-arn }}
         run: |
-          ctest -C $env:CONFIG --output-on-failure --test-dir build --timeout 600 --repeat after-timeout:3
+          ctest -C $env:CONFIG --output-on-failure --test-dir build --repeat after-timeout:3 --timeout 600

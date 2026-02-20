@@ -5,5 +5,4 @@
 #
 # Licensed under the MIT License
 
-[default.extend-words]
-Braket = "Braket"
+version: str

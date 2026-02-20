@@ -37,11 +37,8 @@ jobs:
       CTEST_PARALLEL_LEVEL: 4
       FORCE_COLOR: 3
     steps:
-      # check out the repository (including submodules and all history)
-      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
-        with:
-          submodules: recursive
-          fetch-depth: 1
+      # check out the repository
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       # Install build dependencies
       - name: Install Dependencies
         run: |
@@ -51,11 +48,8 @@ jobs:
       - name: Configure CMake
         env:
           CONFIG: ${{ inputs.config }}
-        run: |
-          cmake -S . -B build \
-            -DCMAKE_BUILD_TYPE="$CONFIG" \
-            -DCMAKE_COMPILE_WARNING_AS_ERROR=OFF \
-            -DAWS_SDK_WARNINGS_ARE_ERRORS=OFF
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE="$CONFIG"
+
       # build the project in the specified mode
       - name: Build
         run: cmake --build build
