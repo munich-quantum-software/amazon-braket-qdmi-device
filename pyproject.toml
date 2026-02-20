@@ -43,8 +43,8 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/munich-quantum-software/aws-qdmi-device"
-Issues = "https://github.com/munich-quantum-software/aws-qdmi-device/issues"
+Homepage = "https://github.com/munich-quantum-software/amazon-braket-qdmi-device"
+Issues = "https://github.com/munich-quantum-software/amazon-braket-qdmi-device/issues"
 
 [project.scripts]
 amazon-braket-qdmi = "amazon.braket.qdmi.__main__:main"

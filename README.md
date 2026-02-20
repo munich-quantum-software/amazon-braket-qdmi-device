@@ -84,8 +84,8 @@ The library uses CMake for building and installation. The workflow mirrors stand
 
 ```bash
 # Clone the repository
-git clone https://github.com/munich-quantum-software/aws-qdmi-device.git
-cd aws-qdmi-device
+git clone https://github.com/munich-quantum-software/amazon-braket-qdmi-device.git
+cd amazon-braket-qdmi-device
 
 # Configure
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -284,7 +284,7 @@ ctest --test-dir build --output-on-failure
 ## Project Structure
 
 ```
-aws-qdmi/
+amazon-braket-qdmi-device/
 ├── CMakeLists.txt                  # Build configuration
 ├── README.md                       # This file
 ├── include/
