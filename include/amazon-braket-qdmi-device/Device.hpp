@@ -129,10 +129,11 @@ private:
   Status status_ = Status::ALLOCATED;
   std::string region_;
   std::string deviceArn_;
-  std::string s3Bucket_;
-  std::string name_;
-  std::string provider_;
-  std::string deviceType_;
+  mutable std::string name_;
+  mutable std::string provider_;
+  mutable std::string deviceType_;
+  mutable std::atomic<QDMI_Device_Status> braketDeviceStatus_{
+      QDMI_DEVICE_STATUS_OFFLINE};
 
   // Device architecture data
   std::vector<std::unique_ptr<AMAZON_BRAKET_QDMI_Site_impl_d>> sites_;
@@ -183,9 +184,6 @@ private:
   [[nodiscard]] auto getDeviceArn() const -> const std::string& {
     return deviceArn_;
   }
-  [[nodiscard]] auto getS3Bucket() const -> const std::string& {
-    return s3Bucket_;
-  }
   [[nodiscard]] auto getRegion() const -> const std::string& { return region_; }
 
   // Allow Job to access session internals
@@ -227,6 +225,10 @@ private:
   std::string program_;
   size_t shots_ = 100;
   std::string taskArn_;
+
+  // Per-job S3 configuration (required)
+  std::string jobS3Bucket_; // Required - S3 bucket for results
+  std::string jobS3Prefix_; // Optional - S3 prefix, defaults to timestamp
 
   std::future<void> jobHandle_;
   mutable std::map<std::string, size_t> counts_;
