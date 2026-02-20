@@ -12,10 +12,13 @@ generate_prefixed_qdmi_headers(${QDMI_PREFIX})
 
 # Collect source files
 file(GLOB_RECURSE SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
-# Collect private header files (Device.hpp)
-file(GLOB_RECURSE PRIVATE_HEADER_FILES "${PROJECT_SOURCE_DIR}/include/*.hpp")
-# Collect public header files (generated QDMI headers)
+# Private header files (internal implementation only)
+set(PRIVATE_HEADER_FILES "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/Device.hpp")
+# Public header files (user-facing API): Generated QDMI headers (device.h),
 file(GLOB_RECURSE PUBLIC_HEADER_FILES "${CMAKE_CURRENT_BINARY_DIR}/include/*.h")
+# and Constants.hpp (semantic parameter names for user convenience)
+list(APPEND PUBLIC_HEADER_FILES
+     "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/Constants.hpp")
 
 add_library(${QDMI_TARGET_NAME} SHARED)
 set_target_properties(${QDMI_TARGET_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
@@ -42,12 +45,13 @@ target_sources(
          HEADERS
          BASE_DIRS
          ${CMAKE_CURRENT_BINARY_DIR}/include
+         ${PROJECT_SOURCE_DIR}/include
          FILES
          ${PUBLIC_HEADER_FILES})
 
 target_link_libraries(
   ${QDMI_TARGET_NAME} PRIVATE AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket
-                              qdmi::qdmi_project_warnings)
+                              qdmi::qdmi qdmi::qdmi_project_warnings)
 
 option(AMAZON_BRAKET_QDMI_COVERAGE "Enable coverage instrumentation" OFF)
 
