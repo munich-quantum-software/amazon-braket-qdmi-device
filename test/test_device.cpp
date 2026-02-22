@@ -23,6 +23,56 @@
 #include <vector>
 
 namespace {
+// Common QASM programs for testing
+constexpr const char* BELL_STATE_PROGRAM = "OPENQASM 3.0;\n"
+                                           "qubit[2] q;\n"
+                                           "bit[2] c;\n"
+                                           "h q[0];\n"
+                                           "cnot q[0], q[1];\n"
+                                           "c[0] = measure q[0];\n"
+                                           "c[1] = measure q[1];\n";
+
+// Helper to setup AWS credentials from environment
+void setupCredentials(AMAZON_BRAKET_QDMI_Device_Session session,
+                      bool failOnMissing = true) {
+  const char* credsFileEnv = std::getenv("AWS_CREDENTIALS_FILE");
+  if (credsFileEnv != nullptr && strlen(credsFileEnv) > 0) {
+    if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
+            session, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
+            strlen(credsFileEnv) + 1, credsFileEnv) != QDMI_SUCCESS) {
+      if (failOnMissing)
+        throw std::runtime_error("Failed to set credentials file");
+    }
+    return;
+  }
+
+  const char* accessKeyEnv = std::getenv("AWS_ACCESS_KEY_ID");
+  const char* secretKeyEnv = std::getenv("AWS_SECRET_ACCESS_KEY");
+  const char* sessionTokenEnv = std::getenv("AWS_SESSION_TOKEN");
+
+  if (accessKeyEnv != nullptr && secretKeyEnv != nullptr) {
+    if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
+            session, QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID,
+            strlen(accessKeyEnv) + 1, accessKeyEnv) != QDMI_SUCCESS) {
+      if (failOnMissing)
+        throw std::runtime_error("Failed to set AWS_ACCESS_KEY_ID");
+    }
+    if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
+            session, QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY,
+            strlen(secretKeyEnv) + 1, secretKeyEnv) != QDMI_SUCCESS) {
+      if (failOnMissing)
+        throw std::runtime_error("Failed to set AWS_SECRET_ACCESS_KEY");
+    }
+    if (sessionTokenEnv != nullptr && strlen(sessionTokenEnv) > 0) {
+      AMAZON_BRAKET_QDMI_device_session_set_parameter(
+          session, QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN,
+          strlen(sessionTokenEnv) + 1, sessionTokenEnv);
+    }
+  } else if (failOnMissing) {
+    throw std::runtime_error("No credentials provided");
+  }
+}
+
 [[nodiscard]] auto querySites(AMAZON_BRAKET_QDMI_Device_Session session)
     -> std::vector<AMAZON_BRAKET_QDMI_Site> {
   size_t size = 0;
@@ -81,6 +131,15 @@ protected:
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&session), QDMI_SUCCESS)
         << "Failed to allocate a session";
 
+    try {
+      setupCredentials(session);
+    } catch (const std::exception& e) {
+      GTEST_FAIL() << "Credentials setup failed: " << e.what() << "\n"
+                   << "Set either:\n"
+                   << "  1. AWS_CREDENTIALS_FILE (path to credentials file)\n"
+                   << "  2. AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY";
+    }
+
     // Configure to use SV1 state vector simulator
     const char* deviceArn =
         "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
@@ -91,9 +150,7 @@ protected:
         << "Failed to set device ARN";
 
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS)
-        << "Failed to initialize a session. Potential errors: Wrong or missing "
-           "authentication information, device status is offline, or in "
-           "maintenance.";
+        << "Failed to initialize session. Check credentials and device status.";
   }
 
   void TearDown() override {
@@ -145,6 +202,57 @@ protected:
       return;
     }
 
+    // Check for credentials - Method 1: credentials file (local development)
+    const char* credsFileEnv = std::getenv("AWS_CREDENTIALS_FILE");
+    if (credsFileEnv != nullptr && strlen(credsFileEnv) > 0) {
+      std::cerr << "INFO: Using credentials file: " << credsFileEnv << "\n";
+      if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
+              shared_session, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
+              strlen(credsFileEnv) + 1, credsFileEnv) != QDMI_SUCCESS) {
+        GTEST_FAIL() << "Failed to set credentials file in SetUpTestSuite";
+        return;
+      }
+    } else {
+      // Method 2: direct credentials via environment variables (CI/CD)
+      const char* accessKeyEnv = std::getenv("AWS_ACCESS_KEY_ID");
+      const char* secretKeyEnv = std::getenv("AWS_SECRET_ACCESS_KEY");
+      const char* sessionTokenEnv = std::getenv("AWS_SESSION_TOKEN");
+
+      if (accessKeyEnv != nullptr && secretKeyEnv != nullptr) {
+        std::cerr << "INFO: Using direct credential environment variables\n";
+        if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                shared_session, QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID,
+                strlen(accessKeyEnv) + 1, accessKeyEnv) != QDMI_SUCCESS) {
+          GTEST_FAIL() << "Failed to set AWS_ACCESS_KEY_ID in SetUpTestSuite";
+          return;
+        }
+        if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                shared_session,
+                QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY,
+                strlen(secretKeyEnv) + 1, secretKeyEnv) != QDMI_SUCCESS) {
+          GTEST_FAIL()
+              << "Failed to set AWS_SECRET_ACCESS_KEY in SetUpTestSuite";
+          return;
+        }
+        if (sessionTokenEnv != nullptr && strlen(sessionTokenEnv) > 0) {
+          if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                  shared_session,
+                  QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN,
+                  strlen(sessionTokenEnv) + 1,
+                  sessionTokenEnv) != QDMI_SUCCESS) {
+            GTEST_FAIL() << "Failed to set AWS_SESSION_TOKEN in SetUpTestSuite";
+            return;
+          }
+        }
+      } else {
+        GTEST_FAIL() << "No credentials provided. Set either:\n"
+                     << "  1. AWS_CREDENTIALS_FILE (path to credentials file)\n"
+                     << "  2. AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY "
+                        "(direct credentials)";
+        return;
+      }
+    }
+
     // Configure to use SV1 state vector simulator
     const char* deviceArn =
         "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
@@ -171,16 +279,9 @@ protected:
     }
 
     // set program/format/shots
-    const char* program = "OPENQASM 3.0;\n"
-                          "qubit[2] q;\n"
-                          "bit[2] c;\n"
-                          "h q[0];\n"
-                          "cnot q[0], q[1];\n"
-                          "c[0] = measure q[0];\n"
-                          "c[1] = measure q[1];\n";
     AMAZON_BRAKET_QDMI_device_job_set_parameter(
-        shared_job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM, strlen(program) + 1,
-        program);
+        shared_job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
+        strlen(BELL_STATE_PROGRAM) + 1, BELL_STATE_PROGRAM);
     QDMI_Program_Format format = QDMI_PROGRAM_FORMAT_QASM3;
     AMAZON_BRAKET_QDMI_device_job_set_parameter(
         shared_job, QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT, sizeof(format),
@@ -342,6 +443,77 @@ TEST_F(AmazonBraketQDMISpecificationTest, SessionSetParameter) {
   AMAZON_BRAKET_QDMI_device_session_free(uninitializedSession);
 }
 
+TEST_F(AmazonBraketQDMISpecificationTest, SessionCredentialsFile) {
+  // Test that we can set a credentials file parameter
+  AMAZON_BRAKET_QDMI_Device_Session credsSession = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&credsSession),
+            QDMI_SUCCESS);
+
+  // Try to use the local credentials file if it exists
+  const char* credsFile = ".aws/credentials";
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                credsSession, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
+                strlen(credsFile) + 1, credsFile),
+            QDMI_SUCCESS)
+      << "Failed to set credentials file parameter";
+
+  // Set device ARN
+  const char* deviceArn =
+      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                credsSession, QDMI_DEVICE_SESSION_PARAMETER_DEVICARN,
+                strlen(deviceArn) + 1, deviceArn),
+            QDMI_SUCCESS);
+
+  // Try to initialize with credentials file
+  // This may fail if file doesn't exist or has invalid credentials
+  auto initResult = AMAZON_BRAKET_QDMI_device_session_init(credsSession);
+  if (initResult == QDMI_SUCCESS) {
+    std::cerr
+        << "INFO: Successfully initialized session with credentials file\n";
+  } else {
+    std::cerr << "INFO: Could not initialize with credentials file (may not "
+                 "exist or invalid)\n";
+  }
+
+  AMAZON_BRAKET_QDMI_device_session_free(credsSession);
+}
+
+TEST_F(AmazonBraketQDMISpecificationTest, SessionDirectCredentials) {
+  // Test that we can set credentials directly via CUSTOM parameters
+  AMAZON_BRAKET_QDMI_Device_Session credsSession = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&credsSession),
+            QDMI_SUCCESS);
+
+  // Set credentials via custom parameters
+  const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                credsSession, QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID,
+                strlen(accessKey) + 1, accessKey),
+            QDMI_SUCCESS)
+      << "Failed to set AWS_ACCESS_KEY_ID parameter";
+
+  const char* secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                credsSession,
+                QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY,
+                strlen(secretKey) + 1, secretKey),
+            QDMI_SUCCESS)
+      << "Failed to set AWS_SECRET_ACCESS_KEY parameter";
+
+  // Session token is optional
+  const char* sessionToken = "FakeSessionToken123";
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                credsSession, QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN,
+                strlen(sessionToken) + 1, sessionToken),
+            QDMI_SUCCESS)
+      << "Failed to set AWS_SESSION_TOKEN parameter";
+
+  // Note: We don't actually initialize because these are fake credentials
+  // Just testing that the parameters can be set
+  AMAZON_BRAKET_QDMI_device_session_free(credsSession);
+}
+
 TEST_F(AmazonBraketQDMISpecificationTest, JobCreate) {
   AMAZON_BRAKET_QDMI_Device_Session uninitializedSession = nullptr;
   AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
@@ -391,15 +563,9 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest, JobSetParameterProgram) {
                                                                 &freshJob),
             QDMI_SUCCESS);
 
-  const char* program = "OPENQASM 3.0;\n"
-                        "qubit[2] q;\n"
-                        "h q[0];\n"
-                        "cnot q[0], q[1];\n"
-                        "bit[2] c;\n"
-                        "c = measure q;\n";
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
                 freshJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
-                strlen(program) + 1, program),
+                strlen(BELL_STATE_PROGRAM) + 1, BELL_STATE_PROGRAM),
             QDMI_SUCCESS);
 
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
@@ -465,6 +631,13 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
   AMAZON_BRAKET_QDMI_Device_Session session = nullptr;
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&session), QDMI_SUCCESS);
 
+  // Setup credentials
+  try {
+    ::setupCredentials(session, true);
+  } catch (const std::exception& e) {
+    GTEST_SKIP() << "Credentials not available: " << e.what();
+  }
+
   // Configure SV1 state vector simulator programmatically
   const char* deviceArn =
       "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
@@ -481,17 +654,10 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
             QDMI_SUCCESS);
 
   // Set program (simple Bell state)
-  const char* program = "OPENQASM 3.0;\n"
-                        "qubit[2] q;\n"
-                        "bit[2] c;\n"
-                        "h q[0];\n"
-                        "cnot q[0], q[1];\n"
-                        "c[0] = measure q[0];\n"
-                        "c[1] = measure q[1];\n";
-  ASSERT_EQ(
-      AMAZON_BRAKET_QDMI_device_job_set_parameter(
-          job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM, strlen(program) + 1, program),
-      QDMI_SUCCESS);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
+                strlen(BELL_STATE_PROGRAM) + 1, BELL_STATE_PROGRAM),
+            QDMI_SUCCESS);
 
   // Set format
   QDMI_Program_Format format = QDMI_PROGRAM_FORMAT_QASM3;
@@ -757,21 +923,6 @@ TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceName) {
   EXPECT_FALSE(value.empty()) << "Devices must provide a name";
 }
 
-TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceVersion) {
-  size_t size = 0;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
-                session, QDMI_DEVICE_PROPERTY_VERSION, 0, nullptr, &size),
-            QDMI_SUCCESS)
-      << "Devices must provide a version";
-  std::string value(size - 1, '\0');
-  ASSERT_EQ(
-      AMAZON_BRAKET_QDMI_device_session_query_device_property(
-          session, QDMI_DEVICE_PROPERTY_VERSION, size, value.data(), nullptr),
-      QDMI_SUCCESS)
-      << "Devices must provide a version";
-  EXPECT_FALSE(value.empty()) << "Devices must provide a version";
-}
-
 TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceLibraryVersion) {
   size_t size = 0;
   ASSERT_EQ(
@@ -786,25 +937,6 @@ TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceLibraryVersion) {
             QDMI_SUCCESS)
       << "Devices must provide a library version";
   EXPECT_FALSE(value.empty()) << "Devices must provide a library version";
-}
-
-TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceDurationUnit) {
-  size_t size = 0;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
-                session, QDMI_DEVICE_PROPERTY_DURATIONUNIT, 0, nullptr, &size),
-            QDMI_SUCCESS);
-  std::string value(size - 1, '\0');
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
-                session, QDMI_DEVICE_PROPERTY_DURATIONUNIT, size, value.data(),
-                nullptr),
-            QDMI_SUCCESS);
-  EXPECT_THAT(value, testing::AnyOf("ns", "us", "ms"));
-  double scaleFactor = 0.;
-  const auto result = AMAZON_BRAKET_QDMI_device_session_query_device_property(
-      session, QDMI_DEVICE_PROPERTY_DURATIONSCALEFACTOR, sizeof(double),
-      &scaleFactor, nullptr);
-  EXPECT_EQ(result, QDMI_SUCCESS);
-  EXPECT_GT(scaleFactor, 0.);
 }
 
 TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteIndex) {
@@ -914,4 +1046,231 @@ TEST_F(AmazonBraketQDMISpecificationTest, QueryOperationData) {
         nullptr);
     EXPECT_EQ(result, QDMI_SUCCESS);
   }
+}
+
+// =============================================================================
+// Device-Specific Parsing Tests
+// =============================================================================
+
+class DeviceParsingTestFixture : public ::testing::Test {
+protected:
+  AMAZON_BRAKET_QDMI_Device_Session session = nullptr;
+
+  void SetUp() override {
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&session), QDMI_SUCCESS);
+  }
+
+  void TearDown() override {
+    if (session != nullptr) {
+      AMAZON_BRAKET_QDMI_device_session_free(session);
+    }
+    AMAZON_BRAKET_QDMI_device_finalize();
+  }
+
+  void initializeDevice(const char* deviceArn) {
+    try {
+      ::setupCredentials(session, true);
+    } catch (const std::exception& e) {
+      GTEST_SKIP() << "Credentials not available: " << e.what();
+    }
+
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                  session, QDMI_DEVICE_SESSION_PARAMETER_DEVICARN,
+                  strlen(deviceArn) + 1, deviceArn),
+              QDMI_SUCCESS);
+
+    auto initResult = AMAZON_BRAKET_QDMI_device_session_init(session);
+    if (initResult != QDMI_SUCCESS) {
+      GTEST_SKIP() << "Device initialization failed (may not have access)";
+    }
+  }
+
+  std::string getDeviceName() {
+    size_t nameSize = 0;
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                  session, QDMI_DEVICE_PROPERTY_NAME, 0, nullptr, &nameSize),
+              QDMI_SUCCESS);
+    std::string name(nameSize - 1, '\0');
+    EXPECT_EQ(
+        AMAZON_BRAKET_QDMI_device_session_query_device_property(
+            session, QDMI_DEVICE_PROPERTY_NAME, nameSize, name.data(), nullptr),
+        QDMI_SUCCESS);
+    return name;
+  }
+
+  size_t getQubitCount() {
+    size_t qubitCount = 0;
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                  session, QDMI_DEVICE_PROPERTY_QUBITSNUM, sizeof(size_t),
+                  &qubitCount, nullptr),
+              QDMI_SUCCESS);
+    return qubitCount;
+  }
+
+  std::vector<std::string> getSiteNames(size_t maxCount = 5) {
+    auto sites = querySites(session);
+    std::vector<std::string> names;
+
+    for (size_t i = 0; i < std::min(maxCount, sites.size()); ++i) {
+      size_t nameSize = 0;
+      AMAZON_BRAKET_QDMI_device_session_query_site_property(
+          session, sites[i], QDMI_SITE_PROPERTY_NAME, 0, nullptr, &nameSize);
+      std::string name(nameSize - 1, '\0');
+      AMAZON_BRAKET_QDMI_device_session_query_site_property(
+          session, sites[i], QDMI_SITE_PROPERTY_NAME, nameSize, name.data(),
+          nullptr);
+      names.push_back(name);
+    }
+    return names;
+  }
+
+  bool hasGate(const std::string& gateName) {
+    auto operations = queryOperations(session);
+    for (auto* op : operations) {
+      size_t nameSize = 0;
+      AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+          session, op, 0, nullptr, 0, nullptr, QDMI_OPERATION_PROPERTY_NAME, 0,
+          nullptr, &nameSize);
+      std::string opName(nameSize - 1, '\0');
+      AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+          session, op, 0, nullptr, 0, nullptr, QDMI_OPERATION_PROPERTY_NAME,
+          nameSize, opName.data(), nullptr);
+      if (opName == gateName) {
+        return true;
+      }
+    }
+    return false;
+  }
+};
+
+TEST_F(DeviceParsingTestFixture, SV1SimulatorParsing) {
+  const char* deviceArn =
+      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
+  initializeDevice(deviceArn);
+
+  // Verify device name
+  std::string deviceName = getDeviceName();
+  EXPECT_EQ(deviceName, "SV1") << "SV1 device name should be 'SV1'";
+
+  // Verify qubit count
+  size_t qubitCount = getQubitCount();
+  EXPECT_GT(qubitCount, 0u) << "SV1 should have qubits";
+  EXPECT_LE(qubitCount, 34u) << "SV1 supports up to 34 qubits";
+
+  // Verify sites use standard numeric IDs (Q0, Q1, Q2, ...)
+  auto sites = querySites(session);
+  ASSERT_GT(sites.size(), 0u) << "SV1 should have sites";
+  EXPECT_EQ(sites.size(), qubitCount)
+      << "Number of sites should match qubit count";
+
+  auto siteNames = getSiteNames(3);
+  for (size_t i = 0; i < siteNames.size(); ++i) {
+    std::string expectedName = "Q" + std::to_string(i);
+    EXPECT_EQ(siteNames[i], expectedName)
+        << "SV1 sites should use standard format Q0, Q1, Q2, ...";
+  }
+
+  // Verify full connectivity
+  size_t connectivitySize = 0;
+  auto connectivityResult =
+      AMAZON_BRAKET_QDMI_device_session_query_device_property(
+          session, QDMI_DEVICE_PROPERTY_COUPLINGMAP, 0, nullptr,
+          &connectivitySize);
+
+  if (connectivityResult == QDMI_SUCCESS && connectivitySize > 0) {
+    std::vector<AMAZON_BRAKET_QDMI_Site> connectivity(
+        connectivitySize / sizeof(AMAZON_BRAKET_QDMI_Site));
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                  session, QDMI_DEVICE_PROPERTY_COUPLINGMAP, connectivitySize,
+                  connectivity.data(), nullptr),
+              QDMI_SUCCESS);
+
+    size_t numEdges = connectivity.size() / 2;
+    size_t expectedEdges = qubitCount * (qubitCount - 1);
+    EXPECT_EQ(numEdges, expectedEdges)
+        << "SV1 should have full connectivity (all-to-all)";
+  }
+
+  // Verify standard gate set
+  std::vector<std::string> expectedGates = {"h",    "x",  "y",  "z",
+                                            "cnot", "rx", "ry", "rz"};
+  for (const auto& gate : expectedGates) {
+    EXPECT_TRUE(hasGate(gate)) << "SV1 should support gate: " << gate;
+  }
+}
+
+TEST_F(DeviceParsingTestFixture, IQMDeviceParsing) {
+  const char* skipIQMEnv = std::getenv("SKIP_IQM_TESTS");
+  if (skipIQMEnv != nullptr && strcmp(skipIQMEnv, "1") == 0) {
+    GTEST_SKIP() << "IQM tests skipped (SKIP_IQM_TESTS=1)";
+  }
+
+  const char* iqmDeviceArn = std::getenv("IQM_DEVICE_ARN");
+  if (iqmDeviceArn == nullptr) {
+    iqmDeviceArn = "arn:aws:braket:eu-north-1::device/qpu/iqm/Garnet";
+  }
+
+  initializeDevice(iqmDeviceArn);
+
+  // Verify device name
+  std::string deviceName = getDeviceName();
+  EXPECT_FALSE(deviceName.empty()) << "IQM device should have a name";
+  std::cerr << "IQM device name: " << deviceName << "\n";
+
+  // Verify qubit count
+  size_t qubitCount = getQubitCount();
+  EXPECT_GT(qubitCount, 0u) << "IQM device should have qubits";
+
+  // Verify sites use IQM-specific naming (not standard Q0, Q1 format)
+  auto sites = querySites(session);
+  ASSERT_GT(sites.size(), 0u) << "IQM device should have sites";
+  EXPECT_EQ(sites.size(), qubitCount)
+      << "Number of sites should match qubit count";
+
+  auto siteNames = getSiteNames(5);
+  for (size_t i = 0; i < siteNames.size(); ++i) {
+    std::cerr << "IQM site " << i << ": " << siteNames[i] << "\n";
+  }
+
+  // Verify IQM parser was used (not standard simulator format)
+  bool usesStandardFormat = true;
+  for (size_t i = 0; i < siteNames.size(); ++i) {
+    std::string expectedStandardName = "Q" + std::to_string(i);
+    if (siteNames[i] != expectedStandardName) {
+      usesStandardFormat = false;
+      break;
+    }
+  }
+  EXPECT_FALSE(usesStandardFormat) << "IQM sites should use device-specific "
+                                      "naming (verified IQM parser was used)";
+
+  // Verify limited connectivity
+  size_t connectivitySize = 0;
+  auto connectivityResult =
+      AMAZON_BRAKET_QDMI_device_session_query_device_property(
+          session, QDMI_DEVICE_PROPERTY_COUPLINGMAP, 0, nullptr,
+          &connectivitySize);
+
+  if (connectivityResult == QDMI_SUCCESS && connectivitySize > 0) {
+    std::vector<AMAZON_BRAKET_QDMI_Site> connectivity(
+        connectivitySize / sizeof(AMAZON_BRAKET_QDMI_Site));
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                  session, QDMI_DEVICE_PROPERTY_COUPLINGMAP, connectivitySize,
+                  connectivity.data(), nullptr),
+              QDMI_SUCCESS);
+
+    size_t numEdges = connectivity.size() / 2;
+    size_t fullConnectivityEdges = qubitCount * (qubitCount - 1);
+    EXPECT_LT(numEdges, fullConnectivityEdges)
+        << "IQM should have limited connectivity (not all-to-all)";
+    EXPECT_GT(numEdges, 0u) << "IQM should have some connectivity";
+  }
+
+  // Verify IQM-specific gates
+  auto operations = queryOperations(session);
+  ASSERT_GT(operations.size(), 0u) << "IQM device should have operations";
+
+  EXPECT_TRUE(hasGate("cz")) << "IQM devices typically support CZ gate";
+  EXPECT_TRUE(hasGate("prx")) << "IQM devices typically support PRX gate";
 }

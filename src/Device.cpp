@@ -249,7 +249,7 @@ namespace Aws::Braket::qdmi {
  * This singleton manages all sessions and provides library-level properties.
  * In QDMI terminology:
  * - Braket device = this library singleton (manages sessions, caching)
- * - Session device = actual quantum backend (e.g., sv1, IQM Emerald)
+ * - Session device = actual quantum backend from AWS Braket
  *
  * The Braket device maintains:
  * - Session registry for lifecycle management
@@ -472,12 +472,12 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
   architecture->connectivity = std::move(properties.connectivity);
 
   architecture->sites = std::move(properties.sites);
-  architecture->sites_ptr = std::move(properties.sites_ptr);
-  architecture->sites_map = std::move(properties.sites_map);
+  architecture->sitesPtr = std::move(properties.sitesPtr);
+  architecture->sitesMap = std::move(properties.sitesMap);
 
   architecture->operations = std::move(properties.operations);
-  architecture->operations_ptr = std::move(properties.operations_ptr);
-  architecture->operations_map = std::move(properties.operations_map);
+  architecture->operationsPtr = std::move(properties.operationsPtr);
+  architecture->operationsMap = std::move(properties.operationsMap);
 
   // Store in singleton cache and use in this session
   Aws::Braket::qdmi::Device::get().setCachedArchitecture(deviceArn_,
@@ -747,10 +747,10 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
 
   // Session device architecture properties (from cache)
   ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_SITES, AMAZON_BRAKET_QDMI_Site,
-                    cachedArchitecture_->sites_ptr, prop, size, value, sizeRet)
+                    cachedArchitecture_->sitesPtr, prop, size, value, sizeRet)
   ADD_LIST_PROPERTY(
       QDMI_DEVICE_PROPERTY_OPERATIONS, AMAZON_BRAKET_QDMI_Operation,
-      cachedArchitecture_->operations_ptr, prop, size, value, sizeRet)
+      cachedArchitecture_->operationsPtr, prop, size, value, sizeRet)
   ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_COUPLINGMAP, AMAZON_BRAKET_QDMI_Site,
                     cachedArchitecture_->connectivity, prop, size, value,
                     sizeRet)
@@ -932,8 +932,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
   // Purpose: Submit a quantum circuit for execution on the target device
   //
   // Required Parameters:
-  // - deviceArn: Target device (e.g.,
-  // "arn:aws:braket:::device/quantum-simulator/amazon/sv1")
+  // - deviceArn: Target device ARN string
   // - action: OpenQASM 2.0/3.0 circuit string WRAPPED in Braket JSON schema
   // - shots: Number of circuit executions (measurements)
   // - outputS3Bucket: S3 location for storing results
@@ -1517,9 +1516,9 @@ void AMAZON_BRAKET_QDMI_device_session_free(
  *
  * Required Parameters:
  * - QDMI_DEVICE_SESSION_PARAMETER_DEVICARN: Device ARN (string) **REQUIRED**
- *   Format: arn:aws:braket:<region>::device/<provider>/<device-name>
- *   Example: "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
- *            "arn:aws:braket:eu-north-1::device/qpu/iqm/Garnet"
+ *   Format: arn:aws:braket:<region>::device/<type>/<provider>/<device-name>
+ *   Example: "arn:aws:braket:::device/quantum-simulator/amazon/<sim-name>"
+ *            "arn:aws:braket:eu-north-1::device/qpu/<vendor>/<device-name>"
  *
  * AWS Authentication (one method required):
  * - QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE: Path to credentials file (INI

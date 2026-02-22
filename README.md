@@ -12,12 +12,26 @@ QDMI (Quantum Device Management Interface) is a standardized C API for quantum d
 
 - Querying device properties (e.g., qubit count, connectivity, gate sets)
 - Submitting quantum circuits (e.g., OpenQASM 2.0/3.0)
-- Managing job lifecycle (e.g., submit, cancel, get results)
+- Managing QDMI job lifecycle (create, submit, monitor, retrieve results)
 - Accessing qubit and gate information (e.g., T1/T2 times, fidelities)
 
 ### What is Amazon Braket?
 
 TODO
+
+### Terminology
+
+**Important:** This library uses QDMI terminology, which differs from AWS Braket:
+
+| QDMI Term | AWS Braket Equivalent | Description                                             |
+| --------- | --------------------- | ------------------------------------------------------- |
+| **Job**   | **QuantumTask**       | A single quantum circuit execution with specified shots |
+| Device    | Device                | Quantum processor or simulator                          |
+| Session   | BraketClient          | Connection to AWS Braket service                        |
+
+**Not supported:** AWS Braket "Hybrid Jobs" (combined classical and quantum workflows)
+are **not** supported by this library. This library only handles QuantumTasks
+(pure quantum circuit execution).
 
 ### Supported Amazon Braket Devices
 
@@ -42,39 +56,139 @@ This implementation currently only supports simulator Amazon Braket devices:
 
 **AWS Credentials**
 
-Configure your AWS credentials using either:
+This library supports two methods for providing AWS credentials:
 
-1. **AWS Configuration Files** (recommended):
+**Method 1: Credentials File (Recommended for Multi-User Scenarios)**
 
-   ```bash
-   # ~/.aws/credentials
-   [default]
-   aws_access_key_id = YOUR_ACCESS_KEY
-   aws_secret_access_key = YOUR_SECRET_KEY
-   ```
+Use the QDMI `AUTHFILE` parameter to specify a credentials file path:
 
-2. **Environment Variables**:
-   ```bash
-   export AWS_ACCESS_KEY_ID="your_access_key_id"
-   export AWS_SECRET_ACCESS_KEY="your_secret_access_key"
-   # Optional: for temporary credentials
-   export AWS_SESSION_TOKEN="your_session_token"
-   ```
+```c
+#include <amazon-braket-qdmi-device/Constants.hpp>
+
+AMAZON_BRAKET_QDMI_Device_Session session;
+AMAZON_BRAKET_QDMI_device_session_alloc(&session);
+
+// Set credentials file before initialization
+const char* credsFile = "/path/to/credentials";
+AMAZON_BRAKET_QDMI_device_session_set_parameter(
+    session, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
+    strlen(credsFile) + 1, credsFile);
+
+// Configure device and initialize
+const char* deviceArn = "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
+AMAZON_BRAKET_QDMI_device_session_set_parameter(
+    session, QDMI_DEVICE_SESSION_PARAMETER_DEVICARN,
+    strlen(deviceArn) + 1, deviceArn);
+
+AMAZON_BRAKET_QDMI_device_session_init(session);
+```
+
+**Credentials File Format** (standard AWS INI format):
+
+```ini
+[default]
+aws_access_key_id=AKIAIOSFODNN7EXAMPLE
+aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+aws_session_token=IQoJb3JpZ2luX2VjEOT//////////...  # Optional for temporary credentials
+```
+
+**Note:** The credentials file should contain only one profile section. The parser reads the first profile found. This method allows different sessions to use different credentials within the same process.
+
+**Method 2: Direct Parameters**
+
+Use the QDMI custom parameters to specify credentials programmatically:
+
+```c
+#include <amazon-braket-qdmi-device/Constants.hpp>
+
+// Set credentials directly via QDMI parameters
+const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
+AMAZON_BRAKET_QDMI_device_session_set_parameter(
+    session, QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID,
+    strlen(accessKey) + 1, accessKey);
+
+const char* secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+AMAZON_BRAKET_QDMI_device_session_set_parameter(
+    session, QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY,
+    strlen(secretKey) + 1, secretKey);
+
+// Optional: session token for temporary credentials (STS, SSO)
+const char* sessionToken = "IQoJb3JpZ2luX2VjEOT//////////...";
+AMAZON_BRAKET_QDMI_device_session_set_parameter(
+    session, QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN,
+    strlen(sessionToken) + 1, sessionToken);
+```
+
+**Available Credential Parameters:**
+
+| Parameter                                             | Type    | Required | Description                                   |
+| ----------------------------------------------------- | ------- | -------- | --------------------------------------------- |
+| `QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE`              | `char*` | No       | Path to AWS credentials file (INI format)     |
+| `QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID`     | `char*` | No       | AWS Access Key ID                             |
+| `QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY` | `char*` | No       | AWS Secret Access Key                         |
+| `QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN`     | `char*` | No       | AWS Session Token (for temporary credentials) |
 
 **Device Configuration**
 
-Set the target device and S3 bucket (required for job execution):
+Configure the device using QDMI session parameters:
 
-```bash
-export AWS_DEVICE_ARN="arn:aws:braket:::device/quantum-simulator/amazon/sv1"
-export AWS_S3_BUCKET="your-results-bucket"
+```cpp
+#include <amazon-braket-qdmi-device/Constants.hpp>
+
+// Configure session parameters before initialization
+const char* deviceArn = "arn:aws:braket:eu-north-1::device/qpu/iqm/Garnet";
+AMAZON_BRAKET_QDMI_device_session_set_parameter(
+    session, QDMI_DEVICE_SESSION_PARAMETER_DEVICARN,
+    strlen(deviceArn) + 1, deviceArn);
 ```
 
-| Variable         | Required | Description                                |
-| ---------------- | -------- | ------------------------------------------ |
-| `AWS_DEVICE_ARN` | Yes      | Amazon Braket device ARN to target         |
-| `AWS_S3_BUCKET`  | Yes      | S3 bucket for storing quantum job results  |
-| `AWS_REGION`     | No       | AWS region (auto-detected from device ARN) |
+**Configuration Parameters**
+
+| Parameter                                | Type    | Required | Description                                         |
+| ---------------------------------------- | ------- | -------- | --------------------------------------------------- |
+| `QDMI_DEVICE_SESSION_PARAMETER_DEVICARN` | `char*` | Yes      | Amazon Braket device ARN                            |
+| `QDMI_DEVICE_SESSION_PARAMETER_REGION`   | `char*` | No       | AWS region override (extracted from ARN by default) |
+
+**Note**: AWS authentication is handled via:
+
+- `QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE` for credentials files (see AWS Credentials section)
+- `QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID`, `QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY`, `QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN` for direct credentials
+
+**Credentials are required** - the library does not fall back to AWS SDK default credential chain. You must explicitly provide credentials using one of the methods above.
+
+Legacy QDMI authentication parameters (`USERNAME`, `PASSWORD`, `TOKEN`, `AUTHURL`, `BASEURL`) are not supported - use the AWS-specific parameters above instead.
+
+### Job Configuration
+
+Each QDMI job (which becomes an Amazon Braket QuantumTask) requires S3 storage
+configuration for results. Configure using job-level parameters:
+
+```cpp
+#include <amazon-braket-qdmi-device/Constants.hpp>
+
+// Create and configure a job
+AMAZON_BRAKET_QDMI_Device_Job job;
+AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job);
+
+// Set S3 bucket (required)
+const char* s3Bucket = "my-braket-results";
+AMAZON_BRAKET_QDMI_device_job_set_parameter(
+    job, QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
+    strlen(s3Bucket) + 1, s3Bucket);
+
+// Set S3 prefix (optional - auto-generates timestamp-based prefix if not set)
+const char* s3Prefix = "my-experiment/run-42/";
+AMAZON_BRAKET_QDMI_device_job_set_parameter(
+    job, QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX,
+    strlen(s3Prefix) + 1, s3Prefix);
+```
+
+**Job S3 Parameters**
+
+| Parameter                                  | Type    | Required | Description                                                     |
+| ------------------------------------------ | ------- | -------- | --------------------------------------------------------------- |
+| `QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET` | `char*` | Yes      | S3 bucket for quantum task results                              |
+| `QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX` | `char*` | No       | S3 prefix for results (defaults to timestamp: `<epoch-millis>`) |
 
 ### Installation
 
@@ -138,6 +252,7 @@ cmake --build build
 
 ```cpp
 #include <amazon_braket_qdmi/device.h>
+#include <amazon-braket-qdmi-device/Constants.hpp>
 #include <cstring>
 #include <iostream>
 
@@ -145,9 +260,23 @@ int main() {
     // Initialize the library
     AMAZON_BRAKET_QDMI_device_initialize();
 
-    // Create and initialize session
+    // Create session
     AMAZON_BRAKET_QDMI_Device_Session session;
     AMAZON_BRAKET_QDMI_device_session_alloc(&session);
+
+    // Configure credentials (required)
+    const char* credsFile = "/path/to/credentials";
+    AMAZON_BRAKET_QDMI_device_session_set_parameter(
+        session, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
+        strlen(credsFile) + 1, credsFile);
+
+    // Configure device ARN (required)
+    const char* deviceArn = "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
+    AMAZON_BRAKET_QDMI_device_session_set_parameter(
+        session, QDMI_DEVICE_SESSION_PARAMETER_DEVICARN,
+        strlen(deviceArn) + 1, deviceArn);
+
+    // Initialize session (connects to Amazon Braket)
     AMAZON_BRAKET_QDMI_device_session_init(session);
 
     // Query device properties
@@ -160,6 +289,12 @@ int main() {
     // Create a quantum job
     AMAZON_BRAKET_QDMI_Device_Job job;
     AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job);
+
+    // Configure S3 bucket for results (required)
+    const char* s3Bucket = "my-amazon-braket-bucket";
+    AMAZON_BRAKET_QDMI_device_job_set_parameter(
+        job, QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
+        strlen(s3Bucket) + 1, s3Bucket);
 
     // Configure job parameters
     size_t shots = 1000;
@@ -208,20 +343,15 @@ int main() {
 
 ### Device Status
 
-A device can be in one of the following states:
+The library maps Amazon Braket device states to QDMI status values:
 
-| Status                       | Description                                                                              |
-| ---------------------------- | ---------------------------------------------------------------------------------------- |
-| `QDMI_DEVICE_STATUS_IDLE`    | Device is online and ready to accept jobs. No QDMI jobs are currently running.           |
-| `QDMI_DEVICE_STATUS_BUSY`    | Device is online but currently executing one or more QDMI jobs. New jobs will be queued. |
-| `QDMI_DEVICE_STATUS_OFFLINE` | Device is not available (maintenance, calibration, or permanently unavailable).          |
+| Amazon Braket Status | QDMI Status                      | Description                                                                                 |
+| -------------------- | -------------------------------- | ------------------------------------------------------------------------------------------- |
+| `ONLINE`             | `QDMI_DEVICE_STATUS_IDLE`        | Device is operational and ready to accept quantum tasks.                                    |
+| `OFFLINE`            | `QDMI_DEVICE_STATUS_MAINTENANCE` | Device is temporarily unavailable (maintenance/calibration). Tasks will queue until return. |
+| `RETIRED`            | `QDMI_DEVICE_STATUS_OFFLINE`     | Device is permanently decommissioned. Task submission is blocked.                           |
 
-The device status is automatically managed:
-
-- Starts as `IDLE` after successful session initialization (otherwise `OFFLINE`)
-- Transitions to `BUSY` when QDMI jobs are submitted
-- Returns to `IDLE` when all QDMI jobs complete
-- Amazon Braket device availability determines `OFFLINE` state
+**Note**: Amazon Braket does not distinguish between maintenance and calibration - both are reported as OFFLINE and mapped to the QDMI MAINTENANCE status.
 
 Query the current status using:
 
@@ -250,18 +380,18 @@ AMAZON_BRAKET_QDMI_device_session_query_device_property(
 | `AMAZON_BRAKET_QDMI_device_session_query_site_property()`      | (parse GetDevice JSON)         | Query qubit properties                   |
 | `AMAZON_BRAKET_QDMI_device_session_query_operation_property()` | (parse GetDevice JSON)         | Query gate properties                    |
 
-### Job Management
+### Job Management (QDMI Jobs → AWS QuantumTasks)
 
 | Function                                                | AWS SDK Counterpart       | Description                                 |
 | ------------------------------------------------------- | ------------------------- | ------------------------------------------- |
-| `AMAZON_BRAKET_QDMI_device_session_create_device_job()` | (internal allocation)     | Create a new job                            |
+| `AMAZON_BRAKET_QDMI_device_session_create_device_job()` | (internal allocation)     | Create a new QDMI job                       |
 | `AMAZON_BRAKET_QDMI_device_job_set_parameter()`         | (store job config)        | Set job parameters (circuit, shots, format) |
 | `AMAZON_BRAKET_QDMI_device_job_query_property()`        | (return stored values)    | Query job properties (ID, taskArn)          |
-| `AMAZON_BRAKET_QDMI_device_job_submit()`                | `CreateQuantumTask()`     | Submit job to AWS Braket                    |
-| `AMAZON_BRAKET_QDMI_device_job_check()`                 | `GetQuantumTask()`        | Check job status                            |
-| `AMAZON_BRAKET_QDMI_device_job_wait()`                  | (poll `GetQuantumTask()`) | Wait for job completion                     |
+| `AMAZON_BRAKET_QDMI_device_job_submit()`                | `CreateQuantumTask()`     | Submit QDMI job as AWS QuantumTask          |
+| `AMAZON_BRAKET_QDMI_device_job_check()`                 | `GetQuantumTask()`        | Check quantum task status                   |
+| `AMAZON_BRAKET_QDMI_device_job_wait()`                  | (poll `GetQuantumTask()`) | Wait for quantum task completion            |
 | `AMAZON_BRAKET_QDMI_device_job_get_results()`           | `S3Client::GetObject()`   | Retrieve measurement results from S3        |
-| `AMAZON_BRAKET_QDMI_device_job_cancel()`                | `CancelQuantumTask()`     | Cancel a running job                        |
+| `AMAZON_BRAKET_QDMI_device_job_cancel()`                | `CancelQuantumTask()`     | Cancel a running quantum task               |
 | `AMAZON_BRAKET_QDMI_device_job_free()`                  | (internal cleanup)        | Free job resources                          |
 
 ## Testing
@@ -273,13 +403,39 @@ To run the test suite:
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 
-# Set required environment variables
-export AWS_DEVICE_ARN="arn:aws:braket:::device/quantum-simulator/amazon/sv1"
+# Set required environment variables for credentials and S3 bucket
 export AWS_S3_BUCKET="my-braket-results-bucket"
+
+# Set credentials - choose one method:
+
+# Method 1: Credentials file (recommended for local development)
+export AWS_CREDENTIALS_FILE="/path/to/credentials"
+
+# Method 2: Direct credentials (recommended for CI/CD with secrets)
+export AWS_ACCESS_KEY_ID="your_access_key_id"
+export AWS_SECRET_ACCESS_KEY="your_secret_access_key"
+export AWS_SESSION_TOKEN="your_session_token"  # Optional
 
 # Run tests
 ctest --test-dir build --output-on-failure
 ```
+
+**Test Configuration:**
+
+- **Device ARNs**: Hardcoded directly in test code (e.g., `arn:aws:braket:::device/quantum-simulator/amazon/sv1`)
+  - Device ARNs are public identifiers and don't need to be secrets
+  - Tests use various devices to verify functionality
+
+- **Credentials**: Read from environment variables and passed to QDMI parameters
+  - **Method 1:** `AWS_CREDENTIALS_FILE` → passed to `QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE`
+  - **Method 2:** `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` + `AWS_SESSION_TOKEN` (optional) → passed to respective QDMI parameters
+  - Method 1 is recommended for local development
+  - Method 2 is recommended for CI/CD pipelines where credentials are stored as secrets
+
+- **S3 Bucket**: Read from `AWS_S3_BUCKET` environment variable
+  - Passed to `QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET` in job tests
+
+**Note:** The library itself does **not** read environment variables directly. Tests read env vars for sensitive data (credentials, S3 bucket) and call QDMI set parameter functions, which is the same pattern your production code should use.
 
 ## Project Structure
 

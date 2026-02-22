@@ -99,14 +99,14 @@ struct DeviceArchitecture {
 
   // Device topology
   std::vector<std::unique_ptr<AMAZON_BRAKET_QDMI_Site_impl_d>> sites;
-  std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*> sites_ptr;
-  std::unordered_map<std::string, AMAZON_BRAKET_QDMI_Site_impl_d*> sites_map;
+  std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*> sitesPtr;
+  std::unordered_map<std::string, AMAZON_BRAKET_QDMI_Site_impl_d*> sitesMap;
 
   // Supported operations
   std::vector<std::unique_ptr<AMAZON_BRAKET_QDMI_Operation_impl_d>> operations;
-  std::vector<AMAZON_BRAKET_QDMI_Operation_impl_d*> operations_ptr;
+  std::vector<AMAZON_BRAKET_QDMI_Operation_impl_d*> operationsPtr;
   std::unordered_map<std::string, AMAZON_BRAKET_QDMI_Operation_impl_d*>
-      operations_map;
+      operationsMap;
 
   // Connectivity (coupling map)
   std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*> connectivity;
