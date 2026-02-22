@@ -45,7 +45,38 @@
 #define QDMI_DEVICE_SESSION_PARAMETER_REGION                                   \
   QDMI_DEVICE_SESSION_PARAMETER_CUSTOM2
 
-// CUSTOM3-5 reserved for future use
+/**
+ * @brief `char*` (string) AWS Access Key ID.
+ * @details Optional parameter for explicit credential specification.
+ * If not set, uses default AWS credential chain.
+ * Can be used together with AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN.
+ *
+ * Example: "AKIAIOSFODNN7EXAMPLE"
+ */
+#define QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID                        \
+  QDMI_DEVICE_SESSION_PARAMETER_CUSTOM3
+
+/**
+ * @brief `char*` (string) AWS Secret Access Key.
+ * @details Optional parameter for explicit credential specification.
+ * If not set, uses default AWS credential chain.
+ * Must be used together with AWS_ACCESS_KEY_ID.
+ *
+ * Example: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+ */
+#define QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY                    \
+  QDMI_DEVICE_SESSION_PARAMETER_CUSTOM4
+
+/**
+ * @brief `char*` (string) AWS Session Token.
+ * @details Optional parameter for temporary credentials (STS, SSO).
+ * Used together with AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
+ * If not set but access key/secret are provided, uses long-term credentials.
+ *
+ * Example: "IQoJb3JpZ2luX2VjEOT//////////..."
+ */
+#define QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN                        \
+  QDMI_DEVICE_SESSION_PARAMETER_CUSTOM5
 
 /**
  * @brief Amazon Braket-specific device job parameters.

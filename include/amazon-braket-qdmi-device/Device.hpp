@@ -18,22 +18,38 @@
  *
  * ARCHITECTURE:
  *
- * Device (Singleton)
- *   ├─ Manages global device state
- *   ├─ Tracks all active sessions
- *   └─ Provides unique job IDs
+ * Typical Usage Pattern:
+ * A quantum software stack (compiler, orchestrator) initializes this library
+ * once, then creates multiple sessions to address many AWS QPUs concurrently
+ * (e.g., IQM Garnet, Lucy, sv1 simulator). Each session can have its own AWS
+ * credentials specified via:
+ * - Credentials file (AUTHFILE parameter with INI format)
+ * - Direct parameters (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
+ * AWS_SESSION_TOKEN)
+ * - Default credential chain (environment variables, ~/.aws/credentials, IAM
+ * roles)
  *
- * Device_Session
- *   ├─ Represents connection to Amazon Braket
- *   ├─ Stores device topology (qubits, gates, connectivity)
- *   ├─ Creates and manages jobs
- *   └─ Wraps Amazon Braket Client
+ * Device (Singleton - ONE per process)
+ *   ├─ Initializes AWS SDK once via QDMI device_initialize()
+ *   ├─ Tracks all active sessions across all users and devices
+ *   ├─ Caches device architecture (shared across sessions to same ARN)
+ *   ├─ Generates unique job IDs across all sessions
+ *   └─ Thread-safe coordination (sessionsMutex_, rngMutex_, deviceCacheMutex_)
  *
- * Device_Job
- *   ├─ Represents a quantum task/circuit
- *   ├─ Handles async execution
- *   ├─ Stores results (measurement outcomes)
- *   └─ Maps to Amazon Braket Quantum Task
+ * Device_Session (MANY - one per user+device combination)
+ *   ├─ Connects to specific AWS Braket device (Garnet, sv1, etc.)
+ *   ├─ References cached device architecture (shared if same ARN)
+ *   ├─ Has own BraketClient instance with explicit credentials or defaults
+ *   ├─ Fetches mutable device status (ONLINE/OFFLINE) per query
+ *   ├─ Creates and manages jobs for that user+device
+ *   └─ Thread-safe job management (jobsMutex_)
+ *
+ * Device_Job (MANY - one per quantum circuit submission)
+ *   ├─ Represents a quantum task/circuit execution
+ *   ├─ Handles async execution on AWS infrastructure
+ *   ├─ Stores results (measurement outcomes from S3)
+ *   ├─ Maps to Amazon Braket QuantumTask
+ *   └─ Thread-safe result fetching (jobMutex_)
  *
  * Site
  *   └─ Represents a physical qubit with coherence times
@@ -44,6 +60,7 @@
 
 #pragma once
 
+#include "amazon-braket-qdmi-device/Constants.hpp"
 #include "amazon_braket_qdmi/device.h"
 
 #include <atomic>
@@ -69,26 +86,66 @@ struct AMAZON_BRAKET_QDMI_Device_Job_impl_d;
 namespace Aws::Braket::qdmi {
 
 /**
+ * @brief Cached device architecture data shared across sessions.
+ *
+ * Immutable device properties that don't change between queries.
+ * Multiple sessions to the same device ARN share one cached instance.
+ */
+struct DeviceArchitecture {
+  std::string name;             // Real device name from AWS (e.g., "Garnet")
+  std::string provider;         // Provider name (e.g., "IQM")
+  Model::DeviceType deviceType; // "QPU" or "Simulator"
+  size_t qubitsNum = 0;         // Number of qubits
+
+  // Device topology
+  std::vector<std::unique_ptr<AMAZON_BRAKET_QDMI_Site_impl_d>> sites;
+  std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*> sites_ptr;
+  std::unordered_map<std::string, AMAZON_BRAKET_QDMI_Site_impl_d*> sites_map;
+
+  // Supported operations
+  std::vector<std::unique_ptr<AMAZON_BRAKET_QDMI_Operation_impl_d>> operations;
+  std::vector<AMAZON_BRAKET_QDMI_Operation_impl_d*> operations_ptr;
+  std::unordered_map<std::string, AMAZON_BRAKET_QDMI_Operation_impl_d*>
+      operations_map;
+
+  // Connectivity (coupling map)
+  std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*> connectivity;
+};
+
+/**
  * @brief Main device singleton managing Amazon Braket device access.
+ *
+ * Design Rationale:
+ * This singleton enables a quantum software stack to initialize AWS SDK once
+ * (expensive), then concurrently address multiple AWS QPUs through separate
+ * sessions (e.g., simultaneously submit to Garnet, Lucy, and sv1).
+ *
+ * Multi-Credential Support:
+ * When multiple users (with different AWS credentials) connect to the same
+ * device ARN, the immutable device architecture is fetched once and cached.
+ * Only mutable properties (status) and credentials differ per session.
+ *
+ * The singleton coordinates:
+ * - AWS SDK initialization/shutdown lifecycle
+ * - Session registry (one session per user+device combination)
+ * - Device architecture cache (one entry per unique device ARN)
+ * - Unique job ID generation across all devices
+ * - Thread-safe access to shared resources
  */
 class Device final {
-  std::string name_;
-  std::string provider_;
-  std::string deviceArn_;
-  std::string deviceType_;
-  size_t qubitsNum_ = 0;
-  std::atomic<QDMI_Device_Status> status_{QDMI_DEVICE_STATUS_OFFLINE};
-
   std::unordered_map<AMAZON_BRAKET_QDMI_Device_Session,
                      std::unique_ptr<AMAZON_BRAKET_QDMI_Device_Session_impl_d>>
       sessions_;
   mutable std::mutex sessionsMutex_;
 
+  // Cache of device architecture keyed by device ARN
+  std::unordered_map<std::string, std::shared_ptr<DeviceArchitecture>>
+      deviceCache_;
+  mutable std::mutex deviceCacheMutex_;
+
   std::mt19937_64 rng_{std::random_device{}()};
   mutable std::mutex rngMutex_;
   std::uniform_int_distribution<> dis_{0, std::numeric_limits<int>::max()};
-
-  std::atomic<size_t> runningJobs_{0};
 
   Device();
 
@@ -110,46 +167,45 @@ public:
   auto queryProperty(QDMI_Device_Property prop, size_t size, void* value,
                      size_t* sizeRet) const -> QDMI_STATUS;
   auto generateUniqueID() -> int;
-  auto setStatus(QDMI_Device_Status status) -> void;
-  auto increaseRunningJobs() -> void;
-  auto decreaseRunningJobs() -> void;
+
+  // Device architecture cache access
+  auto getCachedArchitecture(const std::string& deviceArn) const
+      -> std::shared_ptr<DeviceArchitecture>;
+  auto setCachedArchitecture(const std::string& deviceArn,
+                             std::shared_ptr<DeviceArchitecture> architecture)
+      -> void;
 };
 
 } // namespace Aws::Braket::qdmi
 
 /**
- * @brief Device session implementation.
+ * @brief Device session implementation - one instance per user+device
+ * combination.
+ *
+ * Each session represents a connection to a specific AWS Braket device with
+ * specific credentials. Multiple sessions can exist concurrently to address
+ * different QPUs or the same QPU with different user credentials.
  */
 struct AMAZON_BRAKET_QDMI_Device_Session_impl_d {
 private:
-  enum class Status : uint8_t {
-    ALLOCATED,
-    INITIALIZED,
-  };
-  Status status_ = Status::ALLOCATED;
+  bool initialized_ = false;
+
   std::string region_;
   std::string deviceArn_;
-  mutable std::string name_;
-  mutable std::string provider_;
-  mutable std::string deviceType_;
+
+  // AWS Credentials (optional - if empty, uses default credential chain)
+  std::string credentialsFile_; // Path to AWS credentials file (INI format)
+  std::string accessKeyId_;     // AWS Access Key ID (CUSTOM3)
+  std::string secretAccessKey_; // AWS Secret Access Key (CUSTOM4)
+  std::string sessionToken_;    // AWS Session Token (CUSTOM5)
+
+  // Cached device architecture (shared across sessions to same device ARN)
+  mutable std::shared_ptr<Aws::Braket::qdmi::DeviceArchitecture>
+      cachedArchitecture_;
+
+  // Mutable device status (re-fetched per query, can change over time)
   mutable std::atomic<QDMI_Device_Status> braketDeviceStatus_{
       QDMI_DEVICE_STATUS_OFFLINE};
-
-  // Device architecture data
-  std::vector<std::unique_ptr<AMAZON_BRAKET_QDMI_Site_impl_d>> sites_;
-  std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*> sites_ptr_;
-  std::unordered_map<std::string, AMAZON_BRAKET_QDMI_Site_impl_d*> sites_map_;
-
-  std::vector<std::unique_ptr<AMAZON_BRAKET_QDMI_Operation_impl_d>> operations_;
-  std::vector<AMAZON_BRAKET_QDMI_Operation_impl_d*> operations_ptr_;
-  std::unordered_map<std::string, AMAZON_BRAKET_QDMI_Operation_impl_d*>
-      operations_map_;
-
-  /// Coupling map stored as a flat list of site pointers with alternating
-  /// source/target entries (source at index 2n, target at index 2n+1)
-  std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*> connectivity_;
-
-  size_t qubitsNum_ = 0;
 
   std::unordered_map<AMAZON_BRAKET_QDMI_Device_Job,
                      std::unique_ptr<AMAZON_BRAKET_QDMI_Device_Job_impl_d>>
@@ -176,7 +232,7 @@ public:
       void* value, size_t* sizeRet) -> QDMI_STATUS;
 
 private:
-  auto fetchDeviceArchitecture() -> QDMI_STATUS;
+  auto fetchDeviceArchitecture() const -> QDMI_STATUS;
 
   [[nodiscard]] auto getClient() const -> Aws::Braket::BraketClient* {
     return client_.get();
@@ -218,8 +274,16 @@ struct AMAZON_BRAKET_QDMI_Device_Job_impl_d {
 private:
   AMAZON_BRAKET_QDMI_Device_Session_impl_d* session_;
   int id_ = 0;
+
+  /// Quantum task execution status (lifecycle tracking)
+  /// CREATED → QUEUED → RUNNING → DONE/CANCELED/FAILED
+  /// - CREATED: Job object created, not yet submitted
+  /// - QUEUED: Submitted to AWS, waiting to execute
+  /// - RUNNING: Currently executing on quantum hardware
+  /// - DONE: Execution completed successfully, results available
+  /// - CANCELED: User canceled before completion
+  /// - FAILED: Execution failed due to error
   mutable std::atomic<QDMI_Job_Status> status_{QDMI_JOB_STATUS_CREATED};
-  mutable bool isRunningCounted_ = false;
 
   QDMI_Program_Format format_ = QDMI_PROGRAM_FORMAT_QASM3;
   std::string program_;
