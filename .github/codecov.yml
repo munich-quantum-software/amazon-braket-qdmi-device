@@ -27,6 +27,7 @@ flag_management:
     - name: python
       paths:
         - "python/amazon/**/*.py"
+      carryforward: true
       statuses:
         - type: project
           target: auto
