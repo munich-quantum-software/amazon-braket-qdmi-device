@@ -2,9 +2,19 @@
  * Copyright (c) 2025 - 2026 Munich Quantum Software Company GmbH
  * All rights reserved.
  *
- * SPDX-License-Identifier: MIT
+ * Licensed under the Apache License v2.0 with LLVM Exceptions (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Licensed under the MIT License
+ * https://llvm.org/LICENSE.txt
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ *
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
 #include "amazon_braket_qdmi/device.h"
@@ -13,12 +23,10 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <functional>
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
 #include <stdexcept>
 #include <string>
-#include <utility>
 #include <vector>
 
 namespace {
@@ -105,29 +113,29 @@ class AmazonBraketQDMIJobSpecificationTest
     : public AmazonBraketQDMISpecificationTest {
 protected:
   // Shared job and session for the whole test suite
-  static AMAZON_BRAKET_QDMI_Device_Session shared_session;
-  static AMAZON_BRAKET_QDMI_Device_Job shared_job;
+  static AMAZON_BRAKET_QDMI_Device_Session sharedSession;
+  static AMAZON_BRAKET_QDMI_Device_Job sharedJob;
 
   // Collected data
-  static bool submitted_ok;
-  static int wait_result;
-  static bool has_shots;
-  static std::string shots_data;
-  static bool has_hist;
-  static std::vector<std::string> hist_keys;
-  static std::vector<size_t> hist_values;
+  static bool submittedOk;
+  static int waitResult;
+  static bool hasShots;
+  static std::string shotsData;
+  static bool hasHist;
+  static std::vector<std::string> histKeys;
+  static std::vector<size_t> histValues;
 
   AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
 
   static void SetUpTestSuite() {
     // Create a session for the shared job
-    submitted_ok = false;
-    wait_result = QDMI_ERROR_NOTSUPPORTED;
-    has_shots = false;
-    shots_data.clear();
-    has_hist = false;
-    hist_keys.clear();
-    hist_values.clear();
+    submittedOk = false;
+    waitResult = QDMI_ERROR_NOTSUPPORTED;
+    hasShots = false;
+    shotsData.clear();
+    hasHist = false;
+    histKeys.clear();
+    histValues.clear();
 
     if (AMAZON_BRAKET_QDMI_device_initialize() != QDMI_SUCCESS) {
       GTEST_FAIL()
@@ -135,7 +143,7 @@ protected:
       return;
     }
 
-    if (AMAZON_BRAKET_QDMI_device_session_alloc(&shared_session) !=
+    if (AMAZON_BRAKET_QDMI_device_session_alloc(&sharedSession) !=
         QDMI_SUCCESS) {
       GTEST_FAIL() << "session_alloc failed in SetUpTestSuite";
       return;
@@ -150,8 +158,7 @@ protected:
     const char* regionEnv = std::getenv("AWS_DEFAULT_REGION");
     (void)regionEnv; // Unused variable warning suppression
 
-    if (AMAZON_BRAKET_QDMI_device_session_init(shared_session) !=
-        QDMI_SUCCESS) {
+    if (AMAZON_BRAKET_QDMI_device_session_init(sharedSession) != QDMI_SUCCESS) {
       GTEST_SKIP() << "session_init failed in SetUpTestSuite; skipping job "
                       "submission tests";
       return;
@@ -159,7 +166,7 @@ protected:
 
     // create job
     if (AMAZON_BRAKET_QDMI_device_session_create_device_job(
-            shared_session, &shared_job) != QDMI_SUCCESS) {
+            sharedSession, &sharedJob) != QDMI_SUCCESS) {
       GTEST_SKIP() << "create_device_job failed in SetUpTestSuite; skipping "
                       "job submission tests";
       return;
@@ -169,67 +176,68 @@ protected:
     const char* program = "OPENQASM 3.0;\nqubit[2] q;\nh q[0];\ncnot q[0], "
                           "q[1];\nbit[2] c;\nc = measure q;\n";
     AMAZON_BRAKET_QDMI_device_job_set_parameter(
-        shared_job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM, strlen(program) + 1,
+        sharedJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAM, strlen(program) + 1,
         program);
     QDMI_Program_Format format = QDMI_PROGRAM_FORMAT_QASM3;
     AMAZON_BRAKET_QDMI_device_job_set_parameter(
-        shared_job, QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT, sizeof(format),
+        sharedJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT, sizeof(format),
         &format);
     size_t shots = 100;
     AMAZON_BRAKET_QDMI_device_job_set_parameter(
-        shared_job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(shots), &shots);
+        sharedJob, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(shots), &shots);
 
     // submit
-    const auto submit_status = AMAZON_BRAKET_QDMI_device_job_submit(shared_job);
-    if (submit_status != QDMI_SUCCESS) {
+    if (const auto submitStatus =
+            AMAZON_BRAKET_QDMI_device_job_submit(sharedJob);
+        submitStatus != QDMI_SUCCESS) {
       // allow not-supported
-      if (submit_status == QDMI_ERROR_NOTSUPPORTED) {
+      if (submitStatus == QDMI_ERROR_NOTSUPPORTED) {
         GTEST_SKIP() << "job_submit not supported; skipping job result tests";
         return;
       }
-      GTEST_FAIL() << "job_submit failed with status " << submit_status;
+      GTEST_FAIL() << "job_submit failed with status " << submitStatus;
       return;
     }
-    submitted_ok = true;
+    submittedOk = true;
 
     // wait for completion (timeout: 120 seconds)
-    wait_result = AMAZON_BRAKET_QDMI_device_job_wait(shared_job, 120000);
+    waitResult = AMAZON_BRAKET_QDMI_device_job_wait(sharedJob, 120000);
 
-    if (wait_result == QDMI_SUCCESS) {
+    if (waitResult == QDMI_SUCCESS) {
       // check final status
       QDMI_Job_Status finalStatus = QDMI_JOB_STATUS_CREATED;
-      if (AMAZON_BRAKET_QDMI_device_job_check(shared_job, &finalStatus) ==
+      if (AMAZON_BRAKET_QDMI_device_job_check(sharedJob, &finalStatus) ==
               QDMI_SUCCESS &&
           finalStatus == QDMI_JOB_STATUS_DONE) {
         // fetch SHOTS
         size_t shotsSize = 0;
         if (AMAZON_BRAKET_QDMI_device_job_get_results(
-                shared_job, QDMI_JOB_RESULT_SHOTS, 0, nullptr, &shotsSize) ==
+                sharedJob, QDMI_JOB_RESULT_SHOTS, 0, nullptr, &shotsSize) ==
                 QDMI_SUCCESS &&
             shotsSize > 0) {
           std::string shotsStr(shotsSize - 1, '\0');
           if (AMAZON_BRAKET_QDMI_device_job_get_results(
-                  shared_job, QDMI_JOB_RESULT_SHOTS, shotsSize, shotsStr.data(),
+                  sharedJob, QDMI_JOB_RESULT_SHOTS, shotsSize, shotsStr.data(),
                   nullptr) == QDMI_SUCCESS) {
-            has_shots = true;
-            shots_data = shotsStr;
+            hasShots = true;
+            shotsData = shotsStr;
           }
         }
         // fetch histogram keys
         size_t keysSize = 0;
         if (AMAZON_BRAKET_QDMI_device_job_get_results(
-                shared_job, QDMI_JOB_RESULT_HIST_KEYS, 0, nullptr, &keysSize) ==
+                sharedJob, QDMI_JOB_RESULT_HIST_KEYS, 0, nullptr, &keysSize) ==
                 QDMI_SUCCESS &&
             keysSize > 0) {
           std::vector<char> keysData(keysSize);
           if (AMAZON_BRAKET_QDMI_device_job_get_results(
-                  shared_job, QDMI_JOB_RESULT_HIST_KEYS, keysSize,
+                  sharedJob, QDMI_JOB_RESULT_HIST_KEYS, keysSize,
                   keysData.data(), nullptr) == QDMI_SUCCESS) {
             // parse null-separated keys
             const char* ptr = keysData.data();
             const char* end = ptr + keysSize;
             while (ptr < end && *ptr != '\0') {
-              hist_keys.emplace_back(ptr);
+              histKeys.emplace_back(ptr);
               ptr += strlen(ptr) + 1;
             }
           }
@@ -237,16 +245,16 @@ protected:
         // fetch histogram values
         size_t valuesSize = 0;
         if (AMAZON_BRAKET_QDMI_device_job_get_results(
-                shared_job, QDMI_JOB_RESULT_HIST_VALUES, 0, nullptr,
+                sharedJob, QDMI_JOB_RESULT_HIST_VALUES, 0, nullptr,
                 &valuesSize) == QDMI_SUCCESS &&
             valuesSize > 0) {
           if (valuesSize % sizeof(size_t) == 0) {
             const size_t n = valuesSize / sizeof(size_t);
-            hist_values.resize(n);
+            histValues.resize(n);
             if (AMAZON_BRAKET_QDMI_device_job_get_results(
-                    shared_job, QDMI_JOB_RESULT_HIST_VALUES, valuesSize,
-                    hist_values.data(), nullptr) == QDMI_SUCCESS) {
-              has_hist = !hist_keys.empty() && !hist_values.empty();
+                    sharedJob, QDMI_JOB_RESULT_HIST_VALUES, valuesSize,
+                    histValues.data(), nullptr) == QDMI_SUCCESS) {
+              hasHist = !histKeys.empty() && !histValues.empty();
             }
           }
         }
@@ -255,20 +263,20 @@ protected:
   }
 
   static void TearDownTestSuite() {
-    if (shared_job != nullptr) {
-      AMAZON_BRAKET_QDMI_device_job_free(shared_job);
-      shared_job = nullptr;
+    if (sharedJob != nullptr) {
+      AMAZON_BRAKET_QDMI_device_job_free(sharedJob);
+      sharedJob = nullptr;
     }
-    if (shared_session != nullptr) {
-      AMAZON_BRAKET_QDMI_device_session_free(shared_session);
-      shared_session = nullptr;
+    if (sharedSession != nullptr) {
+      AMAZON_BRAKET_QDMI_device_session_free(sharedSession);
+      sharedSession = nullptr;
     }
     AMAZON_BRAKET_QDMI_device_finalize();
   }
 
   void SetUp() override {
     // use shared job handle
-    job = shared_job;
+    job = sharedJob;
   }
 
   void TearDown() override {
@@ -278,16 +286,16 @@ protected:
 
 // Static member definitions
 AMAZON_BRAKET_QDMI_Device_Session
-    AmazonBraketQDMIJobSpecificationTest::shared_session = nullptr;
-AMAZON_BRAKET_QDMI_Device_Job AmazonBraketQDMIJobSpecificationTest::shared_job =
+    AmazonBraketQDMIJobSpecificationTest::sharedSession = nullptr;
+AMAZON_BRAKET_QDMI_Device_Job AmazonBraketQDMIJobSpecificationTest::sharedJob =
     nullptr;
-bool AmazonBraketQDMIJobSpecificationTest::submitted_ok = false;
-int AmazonBraketQDMIJobSpecificationTest::wait_result = QDMI_ERROR_NOTSUPPORTED;
-bool AmazonBraketQDMIJobSpecificationTest::has_shots = false;
-std::string AmazonBraketQDMIJobSpecificationTest::shots_data;
-bool AmazonBraketQDMIJobSpecificationTest::has_hist = false;
-std::vector<std::string> AmazonBraketQDMIJobSpecificationTest::hist_keys;
-std::vector<size_t> AmazonBraketQDMIJobSpecificationTest::hist_values;
+bool AmazonBraketQDMIJobSpecificationTest::submittedOk = false;
+int AmazonBraketQDMIJobSpecificationTest::waitResult = QDMI_ERROR_NOTSUPPORTED;
+bool AmazonBraketQDMIJobSpecificationTest::hasShots = false;
+std::string AmazonBraketQDMIJobSpecificationTest::shotsData;
+bool AmazonBraketQDMIJobSpecificationTest::hasHist = false;
+std::vector<std::string> AmazonBraketQDMIJobSpecificationTest::histKeys;
+std::vector<size_t> AmazonBraketQDMIJobSpecificationTest::histValues;
 
 TEST_F(AmazonBraketQDMISpecificationTest, SessionAlloc) {
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(nullptr),
@@ -347,7 +355,7 @@ TEST_F(AmazonBraketQDMISpecificationTest, JobSetParameter) {
 
 TEST_F(AmazonBraketQDMIJobSpecificationTest, JobSetParameter) {
   AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(shared_session,
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(sharedSession,
                                                                 &freshJob),
             QDMI_SUCCESS);
 
@@ -365,7 +373,7 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest, JobSetParameter) {
 
 TEST_F(AmazonBraketQDMIJobSpecificationTest, JobSetParameterProgram) {
   AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(shared_session,
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(sharedSession,
                                                                 &freshJob),
             QDMI_SUCCESS);
 
@@ -401,10 +409,10 @@ TEST_F(AmazonBraketQDMISpecificationTest, JobSubmit) {
 }
 
 TEST_F(AmazonBraketQDMIJobSpecificationTest, JobSubmit) {
-  if (!submitted_ok) {
+  if (!submittedOk) {
     GTEST_SKIP() << "Shared job was not submitted in suite setup";
   }
-  EXPECT_TRUE(submitted_ok);
+  EXPECT_TRUE(submittedOk);
 }
 
 TEST_F(AmazonBraketQDMISpecificationTest, JobCancel) {
@@ -435,11 +443,11 @@ TEST_F(AmazonBraketQDMISpecificationTest, JobWait) {
 }
 
 TEST_F(AmazonBraketQDMIJobSpecificationTest, JobWait) {
-  if (!submitted_ok) {
+  if (!submittedOk) {
     GTEST_SKIP() << "Job was not submitted in suite setup";
   }
   // Check the stored wait result
-  EXPECT_EQ(wait_result, QDMI_SUCCESS);
+  EXPECT_EQ(waitResult, QDMI_SUCCESS);
 }
 
 TEST_F(AmazonBraketQDMISpecificationTest, JobGetResults) {
@@ -449,12 +457,12 @@ TEST_F(AmazonBraketQDMISpecificationTest, JobGetResults) {
 }
 
 TEST_F(AmazonBraketQDMIJobSpecificationTest, JobGetResults) {
-  if (!submitted_ok) {
+  if (!submittedOk) {
     GTEST_SKIP() << "Job was not submitted in suite setup";
   }
-  ASSERT_TRUE(has_shots) << "SHOTS results must be available for all devices";
+  ASSERT_TRUE(hasShots) << "SHOTS results must be available for all devices";
   // Basic checks on fetched shots data
-  EXPECT_GT(shots_data.size(), 0u);
+  EXPECT_GT(shotsData.size(), 0U);
   // Ensure the API can be called again for size and retrieval
   size_t shotsSize = 0;
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
@@ -469,40 +477,40 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest, JobGetResults) {
 }
 
 TEST_F(AmazonBraketQDMIJobSpecificationTest, JobGetResultsHistKeys) {
-  if (!submitted_ok) {
+  if (!submittedOk) {
     GTEST_SKIP() << "Job was not submitted in suite setup";
   }
-  ASSERT_TRUE(has_hist)
-      << "Histogram results must be available for all devices";
-  EXPECT_GT(hist_keys.size(), 0u);
+  ASSERT_TRUE(hasHist) << "Histogram results must be available for all devices";
+  EXPECT_GT(histKeys.size(), 0U);
 
   // For a Bell state, we expect 00 and 11
   bool found00 = false;
   bool found11 = false;
-  for (const auto& key : hist_keys) {
-    if (key == "00")
+  for (const auto& key : histKeys) {
+    if (key == "00") {
       found00 = true;
-    if (key == "11")
+    }
+    if (key == "11") {
       found11 = true;
+    }
   }
   EXPECT_TRUE(found00 && found11)
       << "Did not find expected histogram keys '00' and '11'";
 }
 
 TEST_F(AmazonBraketQDMIJobSpecificationTest, JobGetResultsHistValues) {
-  if (!submitted_ok) {
+  if (!submittedOk) {
     GTEST_SKIP() << "Job was not submitted in suite setup";
   }
-  ASSERT_TRUE(has_hist)
-      << "Histogram results must be available for all devices";
-  EXPECT_EQ(hist_values.size(), hist_keys.size());
-  EXPECT_GT(hist_values.size(), 0u);
+  ASSERT_TRUE(hasHist) << "Histogram results must be available for all devices";
+  EXPECT_EQ(histValues.size(), histKeys.size());
+  EXPECT_GT(histValues.size(), 0U);
 
   size_t totalShots = 0;
-  for (auto count : hist_values) {
+  for (const auto count : histValues) {
     totalShots += count;
   }
-  EXPECT_EQ(totalShots, 100u);
+  EXPECT_EQ(totalShots, 100U);
 }
 
 TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceProperty) {
