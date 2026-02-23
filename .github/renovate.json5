@@ -56,7 +56,7 @@
       description: "Group and automerge all patch updates",
       groupName: "patch updates",
       matchUpdateTypes: ["patch"],
-      matchCurrentVersion: "!/^0\.0/",
+      matchCurrentVersion: "!/^0\\.0/",
       commitMessagePrefix: "⬆\uFE0F\uD83E\uDE79",
       automerge: true
     },
@@ -64,7 +64,7 @@
       description: "Group and automerge all minor updates of stable dependencies (except our own packages)",
       groupName: "minor stable updates",
       matchUpdateTypes: ["minor"],
-      matchCurrentVersion: "!/^0\./",
+      matchCurrentVersion: "!/^0\\./",
       matchPackageNames: [
         "!munich-quantum-toolkit/*",
         "!munich-quantum-software/*",
