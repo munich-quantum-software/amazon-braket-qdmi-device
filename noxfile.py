@@ -36,7 +36,7 @@ if os.environ.get("CI", None):
 
 
 @contextlib.contextmanager
-def preserve_lockfile() -> Generator[None]:
+def preserve_lockfile() -> Generator[None, None, None]:
     """Preserve the lockfile by moving it to a temporary directory."""
     with tempfile.TemporaryDirectory() as temp_dir_name:
         shutil.move("uv.lock", f"{temp_dir_name}/uv.lock")
