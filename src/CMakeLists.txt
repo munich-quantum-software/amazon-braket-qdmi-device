@@ -59,16 +59,9 @@ target_link_libraries(
   ${QDMI_TARGET_NAME} PRIVATE AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket
                               qdmi::qdmi_project_warnings)
 
-option(AMAZON_BRAKET_QDMI_COVERAGE "Enable coverage instrumentation" OFF)
-
-if(AMAZON_BRAKET_QDMI_COVERAGE)
-  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    message(STATUS "Building with coverage instrumentation")
-    target_compile_options(${QDMI_TARGET_NAME} PUBLIC --coverage -O0 -g)
-    target_link_options(${QDMI_TARGET_NAME} PUBLIC --coverage)
-  else()
-    message(WARNING "Coverage instrumentation is only supported with GCC/Clang")
-  endif()
+option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
+if(ENABLE_COVERAGE)
+  target_link_libraries(${QDMI_TARGET_NAME} PRIVATE qdmi::qdmi_coverage_flags)
 endif()
 
 set(AMAZON_BRAKET_QDMI_CONFIG_INSTALL_DIR
