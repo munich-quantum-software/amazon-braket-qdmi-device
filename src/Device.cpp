@@ -61,7 +61,6 @@
 
 #include "amazon-braket-qdmi-device/Device.hpp"
 
-#include "amazon_braket_qdmi/amazon_braket_qdmi_export.h"
 #include "amazon_braket_qdmi/constants.h"
 #include "amazon_braket_qdmi/device.h"
 #include "aws/core/utils/Array.h"
@@ -1191,7 +1190,7 @@ std::mutex gAWSInitMutex;
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 } // namespace
 
-AMAZON_BRAKET_QDMI_EXPORT int AMAZON_BRAKET_QDMI_device_initialize() {
+int AMAZON_BRAKET_QDMI_device_initialize() {
   const std::scoped_lock lock(gAWSInitMutex);
   if (!gAWSInitialized) {
     Aws::InitAPI(gAWSOptions);
@@ -1214,7 +1213,7 @@ AMAZON_BRAKET_QDMI_EXPORT int AMAZON_BRAKET_QDMI_device_initialize() {
  *
  * @return QDMI_SUCCESS on successful finalization
  */
-AMAZON_BRAKET_QDMI_EXPORT int AMAZON_BRAKET_QDMI_device_finalize() {
+int AMAZON_BRAKET_QDMI_device_finalize() {
   const std::scoped_lock lock(gAWSInitMutex);
   if (gAWSInitialized) {
     Aws::ShutdownAPI(gAWSOptions);
@@ -1223,12 +1222,12 @@ AMAZON_BRAKET_QDMI_EXPORT int AMAZON_BRAKET_QDMI_device_finalize() {
   return QDMI_SUCCESS;
 }
 
-AMAZON_BRAKET_QDMI_EXPORT int AMAZON_BRAKET_QDMI_device_session_alloc(
+int AMAZON_BRAKET_QDMI_device_session_alloc(
     AMAZON_BRAKET_QDMI_Device_Session* session) {
   return Aws::Braket::qdmi::Device::get().sessionAlloc(session);
 }
 
-AMAZON_BRAKET_QDMI_EXPORT int AMAZON_BRAKET_QDMI_device_session_init(
+int AMAZON_BRAKET_QDMI_device_session_init(
     AMAZON_BRAKET_QDMI_Device_Session session) {
   if (session == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
@@ -1236,12 +1235,12 @@ AMAZON_BRAKET_QDMI_EXPORT int AMAZON_BRAKET_QDMI_device_session_init(
   return session->init();
 }
 
-AMAZON_BRAKET_QDMI_EXPORT void AMAZON_BRAKET_QDMI_device_session_free(
+void AMAZON_BRAKET_QDMI_device_session_free(
     AMAZON_BRAKET_QDMI_Device_Session session) {
   Aws::Braket::qdmi::Device::get().sessionFree(session);
 }
 
-AMAZON_BRAKET_QDMI_EXPORT int AMAZON_BRAKET_QDMI_device_session_set_parameter(
+int AMAZON_BRAKET_QDMI_device_session_set_parameter(
     AMAZON_BRAKET_QDMI_Device_Session session,
     QDMI_Device_Session_Parameter param, const size_t size, const void* value) {
   if (session == nullptr) {
@@ -1250,8 +1249,7 @@ AMAZON_BRAKET_QDMI_EXPORT int AMAZON_BRAKET_QDMI_device_session_set_parameter(
   return session->setParameter(param, size, value);
 }
 
-AMAZON_BRAKET_QDMI_EXPORT int
-AMAZON_BRAKET_QDMI_device_session_query_device_property(
+int AMAZON_BRAKET_QDMI_device_session_query_device_property(
     AMAZON_BRAKET_QDMI_Device_Session session, const QDMI_Device_Property prop,
     const size_t size, void* value, size_t* sizeRet) {
   if (session == nullptr) {
@@ -1260,8 +1258,7 @@ AMAZON_BRAKET_QDMI_device_session_query_device_property(
   return session->queryDeviceProperty(prop, size, value, sizeRet);
 }
 
-AMAZON_BRAKET_QDMI_EXPORT int
-AMAZON_BRAKET_QDMI_device_session_create_device_job(
+int AMAZON_BRAKET_QDMI_device_session_create_device_job(
     AMAZON_BRAKET_QDMI_Device_Session session,
     AMAZON_BRAKET_QDMI_Device_Job* job) {
   if (session == nullptr) {
@@ -1270,14 +1267,13 @@ AMAZON_BRAKET_QDMI_device_session_create_device_job(
   return session->createDeviceJob(job);
 }
 
-AMAZON_BRAKET_QDMI_EXPORT void
-AMAZON_BRAKET_QDMI_device_job_free(AMAZON_BRAKET_QDMI_Device_Job job) {
+void AMAZON_BRAKET_QDMI_device_job_free(AMAZON_BRAKET_QDMI_Device_Job job) {
   if (job != nullptr) {
     job->free();
   }
 }
 
-AMAZON_BRAKET_QDMI_EXPORT int AMAZON_BRAKET_QDMI_device_job_set_parameter(
+int AMAZON_BRAKET_QDMI_device_job_set_parameter(
     AMAZON_BRAKET_QDMI_Device_Job job, const QDMI_Device_Job_Parameter param,
     const size_t size, const void* value) {
   if (job == nullptr) {
@@ -1286,7 +1282,7 @@ AMAZON_BRAKET_QDMI_EXPORT int AMAZON_BRAKET_QDMI_device_job_set_parameter(
   return job->setParameter(param, size, value);
 }
 
-AMAZON_BRAKET_QDMI_EXPORT int AMAZON_BRAKET_QDMI_device_job_query_property(
+int AMAZON_BRAKET_QDMI_device_job_query_property(
     AMAZON_BRAKET_QDMI_Device_Job job, const QDMI_Device_Job_Property prop,
     const size_t size, void* value, size_t* sizeRet) {
   if (job == nullptr) {
@@ -1295,51 +1291,47 @@ AMAZON_BRAKET_QDMI_EXPORT int AMAZON_BRAKET_QDMI_device_job_query_property(
   return job->queryProperty(prop, size, value, sizeRet);
 }
 
-AMAZON_BRAKET_QDMI_EXPORT int
-AMAZON_BRAKET_QDMI_device_job_submit(AMAZON_BRAKET_QDMI_Device_Job job) {
+int AMAZON_BRAKET_QDMI_device_job_submit(AMAZON_BRAKET_QDMI_Device_Job job) {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   return job->submit();
 }
 
-AMAZON_BRAKET_QDMI_EXPORT int
-AMAZON_BRAKET_QDMI_device_job_cancel(AMAZON_BRAKET_QDMI_Device_Job job) {
+int AMAZON_BRAKET_QDMI_device_job_cancel(AMAZON_BRAKET_QDMI_Device_Job job) {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   return job->cancel();
 }
 
-AMAZON_BRAKET_QDMI_EXPORT int
-AMAZON_BRAKET_QDMI_device_job_check(AMAZON_BRAKET_QDMI_Device_Job job,
-                                    QDMI_Job_Status* status) {
+int AMAZON_BRAKET_QDMI_device_job_check(AMAZON_BRAKET_QDMI_Device_Job job,
+                                        QDMI_Job_Status* status) {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   return job->check(status);
 }
 
-AMAZON_BRAKET_QDMI_EXPORT int
-AMAZON_BRAKET_QDMI_device_job_wait(AMAZON_BRAKET_QDMI_Device_Job job,
-                                   const size_t timeout) {
+int AMAZON_BRAKET_QDMI_device_job_wait(AMAZON_BRAKET_QDMI_Device_Job job,
+                                       const size_t timeout) {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   return job->wait(timeout);
 }
 
-AMAZON_BRAKET_QDMI_EXPORT int AMAZON_BRAKET_QDMI_device_job_get_results(
-    AMAZON_BRAKET_QDMI_Device_Job job, QDMI_Job_Result result,
-    const size_t size, void* data, size_t* sizeRet) {
+int AMAZON_BRAKET_QDMI_device_job_get_results(AMAZON_BRAKET_QDMI_Device_Job job,
+                                              QDMI_Job_Result result,
+                                              const size_t size, void* data,
+                                              size_t* sizeRet) {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   return job->getResults(result, size, data, sizeRet);
 }
 
-AMAZON_BRAKET_QDMI_EXPORT int
-AMAZON_BRAKET_QDMI_device_session_query_site_property(
+int AMAZON_BRAKET_QDMI_device_session_query_site_property(
     AMAZON_BRAKET_QDMI_Device_Session session, AMAZON_BRAKET_QDMI_Site site,
     QDMI_Site_Property prop, const size_t size, void* value, size_t* sizeRet) {
   if (session == nullptr) {
@@ -1349,8 +1341,7 @@ AMAZON_BRAKET_QDMI_device_session_query_site_property(
       ->querySiteProperty(site, prop, size, value, sizeRet);
 }
 
-AMAZON_BRAKET_QDMI_EXPORT int
-AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+int AMAZON_BRAKET_QDMI_device_session_query_operation_property(
     AMAZON_BRAKET_QDMI_Device_Session session,
     AMAZON_BRAKET_QDMI_Operation operation, size_t numSites,
     const AMAZON_BRAKET_QDMI_Site* sites, size_t numParams,
