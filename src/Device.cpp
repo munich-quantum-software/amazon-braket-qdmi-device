@@ -63,11 +63,13 @@
 #include "amazon-braket-qdmi-device/Device.hpp"
 
 #include "amazon_braket_qdmi/constants.h"
+#include "amazon_braket_qdmi/device.h"
 #include "aws/core/utils/Array.h"
 
 #include <aws/braket/BraketClient.h>
 #include <aws/braket/model/CancelQuantumTaskRequest.h>
 #include <aws/braket/model/CreateQuantumTaskRequest.h>
+#include <aws/braket/model/DeviceType.h>
 #include <aws/braket/model/GetDeviceRequest.h>
 #include <aws/braket/model/GetQuantumTaskRequest.h>
 #include <aws/braket/model/QuantumTaskStatus.h>
@@ -79,6 +81,7 @@
 #include <aws/s3/model/GetObjectRequest.h>
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <memory>
@@ -90,6 +93,7 @@
 #include <utility>
 #include <vector>
 
+// NOLINTBEGIN(bugprone-macro-parentheses)
 #define ADD_SINGLE_VALUE_PROPERTY(prop_name, prop_type, prop_value, prop,      \
                                   size, value, size_ret)                       \
   {                                                                            \
@@ -144,6 +148,7 @@
       return QDMI_SUCCESS;                                                     \
     }                                                                          \
   }
+// NOLINTEND(bugprone-macro-parentheses)
 
 namespace Aws::Braket::qdmi {
 
@@ -304,7 +309,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture()
   }
 
   // 1. Parse Qubit Count
-  qubitsNum_ = paradigm.GetInteger("qubitCount");
+  qubitsNum_ = static_cast<size_t>(paradigm.GetInteger("qubitCount"));
 
   sites_.clear();
   sites_ptr_.clear();
@@ -404,15 +409,14 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
 
   // Check for environment variables if parameters not set
   if (deviceArn_.empty()) {
-    const char* envArn = std::getenv("AWS_DEVICE_ARN");
-    if (envArn != nullptr) {
+    if (const char* envArn = std::getenv("AWS_DEVICE_ARN"); envArn != nullptr) {
       deviceArn_ = envArn;
     }
   }
 
   if (s3Bucket_.empty()) {
-    const char* envBucket = std::getenv("AWS_S3_BUCKET");
-    if (envBucket != nullptr) {
+    if (const char* envBucket = std::getenv("AWS_S3_BUCKET");
+        envBucket != nullptr) {
       s3Bucket_ = envBucket;
     }
   }
