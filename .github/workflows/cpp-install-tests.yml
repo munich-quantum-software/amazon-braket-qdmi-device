@@ -53,6 +53,7 @@ jobs:
         with:
           prepend_symlinks_to_path: false
           override_cache_key: c++-tests-install-${{ inputs.runs-on }}
+          windows_compile_environment: msvc
 
       # Set up mold as linker (Linux only)
       - name: Set up mold as linker
