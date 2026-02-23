@@ -34,7 +34,7 @@ def test_include_dir_exists() -> None:
 
 
 def test_include_dir_has_amazon_braket_qdmi_headers() -> None:
-    """Test that the include directory contains amazon braket qdmi headers."""
+    """Test that the include directory contains Amazon Braket QDMI headers."""
     amazon_braket_qdmi_include = AMAZON_BRAKET_QDMI_INCLUDE_DIR / "amazon_braket_qdmi"
     assert amazon_braket_qdmi_include.exists()
     assert amazon_braket_qdmi_include.is_dir()
