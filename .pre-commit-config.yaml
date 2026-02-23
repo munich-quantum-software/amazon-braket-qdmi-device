@@ -12,6 +12,7 @@ ci:
   autoupdate_commit_msg: "⬆️🪝 update pre-commit hooks"
   autoupdate_schedule: quarterly
   autofix_commit_msg: "🎨 pre-commit fixes"
+  skip: [ty-check]
 
 repos:
   # Priority 0: Fast validation and independent fixers
@@ -49,7 +50,7 @@ repos:
       - id: disallow-caps
         name: Disallow improper capitalization
         language: pygrep
-        entry: Cmake|CCache|Github|Mqt|Tum
+        entry: \b(Nanobind|Numpy|Cmake|CCache|Github|PyTest|Mqt|Tum)\b
         exclude: ^(\.pre-commit-config\.yaml)$
         priority: 0
 
@@ -120,3 +121,27 @@ repos:
       - id: prettier
         types_or: [yaml, markdown, html, css, scss, javascript, json]
         priority: 1
+
+  ## Python linting using ruff
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.2
+    hooks:
+      - id: ruff-format
+        priority: 1
+      - id: ruff-check
+        require_serial: true
+        priority: 2
+
+  # Priority 2+: Final checks and fixers
+
+  ## Static type checking using ty (needs to run after lockfile update/ruff format, and ruff lint)
+  - repo: local
+    hooks:
+      - id: ty-check
+        name: ty check
+        entry: uvx python -c "import subprocess; import sys; r = subprocess.run(['uv', 'sync', '--no-install-project', '--inexact']); sys.exit(r.returncode or subprocess.run(['uv', 'run', '--no-sync', 'ty', 'check']).returncode)"
+        language: unsupported
+        require_serial: true
+        types_or: [python, pyi, jupyter]
+        pass_filenames: false
+        priority: 3

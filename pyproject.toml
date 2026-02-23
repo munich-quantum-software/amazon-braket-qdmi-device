@@ -50,6 +50,9 @@ Issues = "https://github.com/munich-quantum-software/amazon-braket-qdmi-device/i
 amazon-braket-qdmi = "amazon.braket.qdmi.__main__:main"
 
 [dependency-groups]
+build = [
+  "scikit-build-core>=0.11.6"
+]
 test = [
   "pytest>=9.0.2",
   "pytest-console-scripts>=1.4.1",
@@ -58,6 +61,7 @@ test = [
   "pytest-xdist>=3.8.0",
 ]
 dev = [
+  {include-group = "build"},
   {include-group = "test"},
   "nox>=2026.02.09",
   "ty==0.0.17",
@@ -139,6 +143,7 @@ ignore = [
   "COM812",  # Conflicts with formatter
   "PLR09",   # Too many <...>
   "PLR2004", # Magic value used in comparison
+  "RUF067",  # `__init__` module should only contain docstrings and re-exports
   "S101",    # Use of assert detected
   "S404",    # `subprocess` module is possibly insecure
   "TID252"   # Prefer absolute imports over relative imports from parent modules
