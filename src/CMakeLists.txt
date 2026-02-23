@@ -28,13 +28,21 @@ file(GLOB_RECURSE PRIVATE_HEADER_FILES "${PROJECT_SOURCE_DIR}/include/*.hpp")
 file(GLOB_RECURSE PUBLIC_HEADER_FILES "${CMAKE_CURRENT_BINARY_DIR}/include/*.h")
 
 add_library(${QDMI_TARGET_NAME} SHARED)
-set_target_properties(${QDMI_TARGET_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 target_compile_features(${QDMI_TARGET_NAME} PRIVATE cxx_std_20)
 get_target_property(qdmi_library_VERSION qdmi::qdmi VERSION)
 target_compile_definitions(
   ${QDMI_TARGET_NAME} PRIVATE QDMI_VERSION="${qdmi_library_VERSION}"
                               AMAZON_BRAKET_QDMI_VERSION="${PROJECT_VERSION}")
 target_sources(${QDMI_TARGET_NAME} PRIVATE ${SRC_FILES})
+
+# Generate export header
+include(GenerateExportHeader)
+generate_export_header(
+  ${QDMI_TARGET_NAME} BASE_NAME amazon_braket_qdmi EXPORT_FILE_NAME
+  ${CMAKE_CURRENT_BINARY_DIR}/include/amazon_braket_qdmi/amazon_braket_qdmi_export.h)
+
+# compile with hidden visibility to reduce exported symbols
+target_compile_options(${QDMI_TARGET_NAME} PRIVATE -fvisibility=hidden -fvisibility-inlines-hidden)
 
 target_sources(
   ${QDMI_TARGET_NAME}
