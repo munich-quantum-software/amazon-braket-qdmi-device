@@ -98,6 +98,15 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
 
+  cpp-coverage:
+    name: 🇨‌ Coverage
+    needs: change-detection
+    if: fromJSON(needs.change-detection.outputs.run-cpp-tests)
+    uses: ./.github/workflows/cpp-coverage.yml
+    permissions:
+      contents: read
+      id-token: write
+
   cpp-linter:
     name: 🇨‌ Lint
     needs: change-detection
@@ -183,6 +192,7 @@ jobs:
       - cpp-tests-macos
       - cpp-tests-windows
       - cpp-install-tests
+      - cpp-coverage
       - cpp-linter
       - python-tests
       - python-linter
@@ -196,7 +206,7 @@ jobs:
           allowed-skips: >-
             ${{
               fromJSON(needs.change-detection.outputs.run-cpp-tests)
-              && '' || 'cpp-tests-ubuntu,cpp-tests-macos,cpp-tests-windows,cpp-install-tests,'
+              && '' || 'cpp-tests-ubuntu,cpp-tests-macos,cpp-tests-windows,cpp-install-tests,cpp-coverage,'
             }}
             ${{
               fromJSON(needs.change-detection.outputs.run-cpp-linter)
