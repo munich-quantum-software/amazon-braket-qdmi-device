@@ -31,7 +31,7 @@ target_compile_features(${QDMI_TEST_TARGET_NAME} PRIVATE cxx_std_20)
 add_dependencies(${QDMI_TEST_TARGET_NAME} qdmi_test_amazon_braket_device_defs)
 
 # only discover tests if this is the main project
-if(NOT IS_TOP_LEVEL)
+if(NOT ${PROJECT_IS_TOP_LEVEL})
   return()
 endif()
 
