@@ -12,7 +12,12 @@ from pathlib import Path
 
 from ._version import version as __version__
 
-__all__ = ["AMAZON_BRAKET_QDMI_CMAKE_DIR", "AMAZON_BRAKET_QDMI_INCLUDE_DIR", "AMAZON_BRAKET_QDMI_LIBRARY_PATH", "__version__"]
+__all__ = [
+    "AMAZON_BRAKET_QDMI_CMAKE_DIR",
+    "AMAZON_BRAKET_QDMI_INCLUDE_DIR",
+    "AMAZON_BRAKET_QDMI_LIBRARY_PATH",
+    "__version__",
+]
 
 
 def __dir__() -> list[str]:
