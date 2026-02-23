@@ -116,6 +116,9 @@ jobs:
       clang-version: 21
       files-changed-only: true
       cpp-linter-extra-args: "-std=c++20"
+    permissions:
+      contents: read
+      pull-requests: write # required to post comments on PRs
 
   python-tests:
     name: 🐍 Test
