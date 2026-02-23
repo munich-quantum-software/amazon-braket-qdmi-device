@@ -35,7 +35,25 @@ if(NOT ${PROJECT_IS_TOP_LEVEL})
   return()
 endif()
 
-gtest_discover_tests(
-  ${QDMI_TEST_TARGET_NAME}
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}" DISCOVERY_TIMEOUT 60)
+# On Windows, ensure DLLs are discoverable by the test executable
+if(WIN32)
+  # Add the directory containing the DLL to the test's PATH environment
+  set(DLL_PATH "$<TARGET_FILE_DIR:${QDMI_TARGET_NAME}>")
+
+  gtest_discover_tests(
+    ${QDMI_TEST_TARGET_NAME}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY
+               "${CMAKE_CURRENT_BINARY_DIR}"
+               ENVIRONMENT
+               "PATH=${DLL_PATH};$ENV{PATH}"
+               DISCOVERY_TIMEOUT
+               60
+               DISCOVERY_MODE
+               PRE_TEST)
+else()
+  gtest_discover_tests(
+    ${QDMI_TEST_TARGET_NAME}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}" DISCOVERY_TIMEOUT 60)
+endif()
