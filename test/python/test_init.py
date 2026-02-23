@@ -11,7 +11,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_CMAKE_DIR, AMAZON_BRAKET_QDMI_INCLUDE_DIR, AMAZON_BRAKET_QDMI_LIBRARY_PATH, __version__
+from amazon.braket.qdmi import (
+    AMAZON_BRAKET_QDMI_CMAKE_DIR,
+    AMAZON_BRAKET_QDMI_INCLUDE_DIR,
+    AMAZON_BRAKET_QDMI_LIBRARY_PATH,
+    __version__,
+)
 
 
 def test_version_exists() -> None:
@@ -30,9 +35,9 @@ def test_include_dir_exists() -> None:
 
 def test_include_dir_has_amazon_braket_qdmi_headers() -> None:
     """Test that the include directory contains MY QDMI headers."""
-    AMAZON_BRAKET_QDMI_include = AMAZON_BRAKET_QDMI_INCLUDE_DIR / "amazon_braket_qdmi"
-    assert AMAZON_BRAKET_QDMI_include.exists()
-    assert AMAZON_BRAKET_QDMI_include.is_dir()
+    amazon_braket_qdmi_include = AMAZON_BRAKET_QDMI_INCLUDE_DIR / "amazon_braket_qdmi"
+    assert amazon_braket_qdmi_include.exists()
+    assert amazon_braket_qdmi_include.is_dir()
 
 
 def test_cmake_dir_exists() -> None:

@@ -11,7 +11,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_CMAKE_DIR, AMAZON_BRAKET_QDMI_INCLUDE_DIR, AMAZON_BRAKET_QDMI_LIBRARY_PATH, __version__
+from amazon.braket.qdmi import (
+    AMAZON_BRAKET_QDMI_CMAKE_DIR,
+    AMAZON_BRAKET_QDMI_INCLUDE_DIR,
+    AMAZON_BRAKET_QDMI_LIBRARY_PATH,
+    __version__,
+)
 
 if TYPE_CHECKING:
     from pytest_console_scripts import ScriptRunner
