@@ -65,7 +65,6 @@ jobs:
             echo "Error: Invalid clang-version input. Must be a non-empty numeric value."
             exit 1
           fi
-          sudo apt-get update
           wget https://apt.llvm.org/llvm.sh -O "$TEMP_DIR/llvm_install.sh"
           chmod +x "$TEMP_DIR/llvm_install.sh"
           if sudo "$TEMP_DIR/llvm_install.sh" "$clang_version"; then
