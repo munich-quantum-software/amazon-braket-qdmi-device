@@ -35,7 +35,7 @@ target_compile_definitions(
   PRIVATE QDMI_VERSION="${qdmi_library_VERSION}" ${QDMI_PREFIX}_QDMI_VERSION="${PROJECT_VERSION}"
           ${QDMI_PREFIX}_QDMI_device_EXPORTS)
 set_target_properties(${QDMI_TARGET_NAME} PROPERTIES CXX_VISIBILITY_PRESET hidden
-                                                     CXX_VISIBILITY_INLINES_HIDDEN 1)
+                                                     CXX_VISIBILITY_INLINES_HIDDEN ON)
 target_sources(${QDMI_TARGET_NAME} PRIVATE ${SRC_FILES})
 
 target_sources(
