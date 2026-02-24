@@ -28,12 +28,14 @@ file(GLOB_RECURSE PRIVATE_HEADER_FILES "${PROJECT_SOURCE_DIR}/include/*.hpp")
 file(GLOB_RECURSE PUBLIC_HEADER_FILES "${CMAKE_CURRENT_BINARY_DIR}/include/*.h")
 
 add_library(${QDMI_TARGET_NAME} SHARED)
-set_target_properties(${QDMI_TARGET_NAME} PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 target_compile_features(${QDMI_TARGET_NAME} PRIVATE cxx_std_20)
 get_target_property(qdmi_library_VERSION qdmi::qdmi VERSION)
 target_compile_definitions(
-  ${QDMI_TARGET_NAME} PRIVATE QDMI_VERSION="${qdmi_library_VERSION}"
-                              AMAZON_BRAKET_QDMI_VERSION="${PROJECT_VERSION}")
+  ${QDMI_TARGET_NAME}
+  PRIVATE QDMI_VERSION="${qdmi_library_VERSION}" ${QDMI_PREFIX}_QDMI_VERSION="${PROJECT_VERSION}"
+          ${QDMI_PREFIX}_QDMI_device_EXPORTS)
+set_target_properties(${QDMI_TARGET_NAME} PROPERTIES CXX_VISIBILITY_PRESET hidden
+                                                     CXX_VISIBILITY_INLINES_HIDDEN ON)
 target_sources(${QDMI_TARGET_NAME} PRIVATE ${SRC_FILES})
 
 target_sources(
@@ -59,19 +61,12 @@ target_link_libraries(
   ${QDMI_TARGET_NAME} PRIVATE AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket
                               qdmi::qdmi_project_warnings)
 
-option(AMAZON_BRAKET_QDMI_COVERAGE "Enable coverage instrumentation" OFF)
-
-if(AMAZON_BRAKET_QDMI_COVERAGE)
-  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    message(STATUS "Building with coverage instrumentation")
-    target_compile_options(${QDMI_TARGET_NAME} PUBLIC --coverage -O0 -g)
-    target_link_options(${QDMI_TARGET_NAME} PUBLIC --coverage)
-  else()
-    message(WARNING "Coverage instrumentation is only supported with GCC/Clang")
-  endif()
+option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
+if(ENABLE_COVERAGE)
+  target_link_libraries(${QDMI_TARGET_NAME} PRIVATE qdmi::qdmi_coverage_flags)
 endif()
 
-set(AMAZON_BRAKET_QDMI_CONFIG_INSTALL_DIR
+set(${QDMI_PREFIX}_QDMI_CONFIG_INSTALL_DIR
     "${CMAKE_INSTALL_DATADIR}/cmake/${QDMI_TARGET_NAME}"
     CACHE INTERNAL "Config install directory")
 
@@ -79,7 +74,7 @@ include(CMakePackageConfigHelpers)
 configure_package_config_file(
   "${PROJECT_SOURCE_DIR}/cmake/${QDMI_TARGET_NAME}-config.cmake.in"
   "${CMAKE_CURRENT_BINARY_DIR}/${QDMI_TARGET_NAME}-config.cmake"
-  INSTALL_DESTINATION ${AMAZON_BRAKET_QDMI_CONFIG_INSTALL_DIR}
+  INSTALL_DESTINATION ${${QDMI_PREFIX}_QDMI_CONFIG_INSTALL_DIR}
   NO_SET_AND_CHECK_MACRO NO_CHECK_REQUIRED_COMPONENTS_MACRO)
 write_basic_package_version_file(
   "${QDMI_TARGET_NAME}-config-version.cmake"
@@ -89,7 +84,7 @@ write_basic_package_version_file(
 install(
   FILES "${CMAKE_CURRENT_BINARY_DIR}/${QDMI_TARGET_NAME}-config.cmake"
         "${CMAKE_CURRENT_BINARY_DIR}/${QDMI_TARGET_NAME}-config-version.cmake"
-  DESTINATION ${AMAZON_BRAKET_QDMI_CONFIG_INSTALL_DIR}
+  DESTINATION ${${QDMI_PREFIX}_QDMI_CONFIG_INSTALL_DIR}
   COMPONENT ${QDMI_TARGET_NAME}_Development)
 
 install(
@@ -108,5 +103,5 @@ install(
 install(
   EXPORT ${QDMI_TARGET_NAME}-targets
   FILE ${QDMI_TARGET_NAME}-targets.cmake
-  DESTINATION ${AMAZON_BRAKET_QDMI_CONFIG_INSTALL_DIR}
+  DESTINATION ${${QDMI_PREFIX}_QDMI_CONFIG_INSTALL_DIR}
   COMPONENT ${QDMI_TARGET_NAME}_Development)
