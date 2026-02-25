@@ -94,7 +94,7 @@ struct AMAZON_BRAKET_QDMI_Site_impl_d;
 struct AMAZON_BRAKET_QDMI_Operation_impl_d;
 struct AMAZON_BRAKET_QDMI_Device_Job_impl_d;
 
-namespace Amazon::Braket::QDMI {
+namespace amazon::braket::qdmi {
 
 /**
  * @brief Cached device architecture data shared across sessions.
@@ -175,8 +175,8 @@ public:
 
   auto sessionAlloc(AMAZON_BRAKET_QDMI_Device_Session* session) -> QDMI_STATUS;
   auto sessionFree(AMAZON_BRAKET_QDMI_Device_Session session) -> void;
-  auto queryProperty(QDMI_Device_Property prop, size_t size, void* value,
-                     size_t* sizeRet) const -> QDMI_STATUS;
+  static auto queryProperty(QDMI_Device_Property prop, size_t size, void* value,
+                            size_t* sizeRet) -> QDMI_STATUS;
   auto generateUniqueID() -> int;
 
   // Device architecture cache access
@@ -187,7 +187,7 @@ public:
       -> void;
 };
 
-} // namespace Amazon::Braket::QDMI
+} // namespace amazon::braket::qdmi
 
 /**
  * @brief Device session implementation - one instance per user+device
@@ -211,7 +211,7 @@ private:
   std::string sessionToken_;    // AWS Session Token (CUSTOM5)
 
   // Cached device architecture (shared across sessions to same device ARN)
-  mutable std::shared_ptr<Amazon::Braket::QDMI::DeviceArchitecture>
+  mutable std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture>
       cachedArchitecture_;
 
   // Mutable device status (re-fetched per query, can change over time)
@@ -321,7 +321,7 @@ public:
   explicit AMAZON_BRAKET_QDMI_Device_Job_impl_d(
       AMAZON_BRAKET_QDMI_Device_Session_impl_d* session)
       : session_(session),
-        id_(Amazon::Braket::QDMI::Device::get().generateUniqueID()) {}
+        id_(amazon::braket::qdmi::Device::get().generateUniqueID()) {}
 
   auto getSession() -> AMAZON_BRAKET_QDMI_Device_Session_impl_d* {
     return session_;

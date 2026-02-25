@@ -149,8 +149,8 @@ private:
   /**
    * @brief Parse IQM-specific connectivity graph
    */
-  auto ParseConnectivityGraph(const Aws::Utils::Json::JsonView& paradigm,
-                              ParsedDeviceProperties& properties) -> int;
+  static auto ParseConnectivityGraph(const Aws::Utils::Json::JsonView& paradigm,
+                                     ParsedDeviceProperties& properties) -> int;
 };
 
 /**

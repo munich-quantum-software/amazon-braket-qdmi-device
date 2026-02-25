@@ -81,7 +81,7 @@ auto IDeviceParser::ParseQubitCount(
     return QDMI_ERROR_FATAL;
   }
 
-  qubitCount = paradigm.GetInteger("qubitCount");
+  qubitCount = static_cast<size_t>(paradigm.GetInteger("qubitCount"));
   return QDMI_SUCCESS;
 }
 
@@ -245,23 +245,23 @@ auto IQMDeviceParser::ParseProperties(
     return QDMI_ERROR_FATAL;
   }
 
-  auto paradigm = propertiesJson.GetObject("paradigm");
+  auto const paradigm = propertiesJson.GetObject("paradigm");
   if (!paradigm.ValueExists("connectivity")) {
     std::cerr << "Missing 'connectivity' in IQM paradigm\n";
     return QDMI_ERROR_FATAL;
   }
 
-  auto connectivity_obj = paradigm.GetObject("connectivity");
-  if (!connectivity_obj.ValueExists("connectivityGraph")) {
+  const auto connectivityObj = paradigm.GetObject("connectivity");
+  if (!connectivityObj.ValueExists("connectivityGraph")) {
     std::cerr << "Missing 'connectivityGraph' in IQM connectivity\n";
     return QDMI_ERROR_FATAL;
   }
 
-  auto conn_graph = connectivity_obj.GetObject("connectivityGraph");
+  const auto connGraph = connectivityObj.GetObject("connectivityGraph");
 
   // Collect all unique qubit IDs from the connectivity graph
   std::unordered_set<std::string> qubitIds;
-  for (const auto& entry : conn_graph.GetAllObjects()) {
+  for (const auto& entry : connGraph.GetAllObjects()) {
     const std::string& sourceId = entry.first;
     qubitIds.insert(sourceId);
 
@@ -308,12 +308,12 @@ auto IQMDeviceParser::ParseConnectivityGraph(
     return QDMI_ERROR_FATAL;
   }
 
-  auto connectivity_obj = paradigm.GetObject("connectivity");
-  if (!connectivity_obj.ValueExists("connectivityGraph")) {
+  const auto connectivityObj = paradigm.GetObject("connectivity");
+  if (!connectivityObj.ValueExists("connectivityGraph")) {
     return QDMI_ERROR_FATAL;
   }
 
-  auto conn_graph = connectivity_obj.GetObject("connectivityGraph");
+  const auto connGraph = connectivityObj.GetObject("connectivityGraph");
   properties.connectivity.clear();
 
   // IQM connectivity graph format:
@@ -324,14 +324,14 @@ auto IQMDeviceParser::ParseConnectivityGraph(
   // }
   // Each entry represents edges from the key qubit to the listed qubits
 
-  for (const auto& entry : conn_graph.GetAllObjects()) {
+  for (const auto& entry : connGraph.GetAllObjects()) {
     const std::string& sourceId = entry.first;
-    auto sourceSite = properties.sitesMap[sourceId];
+    auto* const sourceSite = properties.sitesMap[sourceId];
 
-    auto targets = entry.second.AsArray();
+    auto const targets = entry.second.AsArray();
     for (size_t i = 0; i < targets.GetLength(); ++i) {
       const std::string targetId = targets[i].AsString();
-      auto targetSite = properties.sitesMap[targetId];
+      auto* const targetSite = properties.sitesMap[targetId];
 
       if (sourceSite == nullptr || targetSite == nullptr) {
         std::cerr << "Invalid qubit in connectivity graph: " << sourceId

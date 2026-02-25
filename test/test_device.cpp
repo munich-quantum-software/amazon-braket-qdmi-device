@@ -48,8 +48,9 @@ void setupCredentials(AMAZON_BRAKET_QDMI_Device_Session session,
     if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
             session, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
             strlen(credsFileEnv) + 1, credsFileEnv) != QDMI_SUCCESS) {
-      if (failOnMissing)
+      if (failOnMissing) {
         throw std::runtime_error("Failed to set credentials file");
+      }
     }
     return;
   }
@@ -62,14 +63,16 @@ void setupCredentials(AMAZON_BRAKET_QDMI_Device_Session session,
     if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
             session, QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID,
             strlen(accessKeyEnv) + 1, accessKeyEnv) != QDMI_SUCCESS) {
-      if (failOnMissing)
+      if (failOnMissing) {
         throw std::runtime_error("Failed to set AWS_ACCESS_KEY_ID");
+      }
     }
     if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
             session, QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY,
             strlen(secretKeyEnv) + 1, secretKeyEnv) != QDMI_SUCCESS) {
-      if (failOnMissing)
+      if (failOnMissing) {
         throw std::runtime_error("Failed to set AWS_SECRET_ACCESS_KEY");
+      }
     }
     if (sessionTokenEnv != nullptr && strlen(sessionTokenEnv) > 0) {
       AMAZON_BRAKET_QDMI_device_session_set_parameter(
@@ -706,14 +709,14 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
                 job, QDMI_JOB_RESULT_SHOTS, 0, nullptr, &shotsSize),
             QDMI_SUCCESS);
-  EXPECT_GT(shotsSize, 0u) << "Should have measurement results";
+  EXPECT_GT(shotsSize, 0U) << "Should have measurement results";
 
   // Verify histogram results (Bell state should give 00 and 11)
   size_t histKeysSize = 0;
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
                 job, QDMI_JOB_RESULT_HIST_KEYS, 0, nullptr, &histKeysSize),
             QDMI_SUCCESS);
-  ASSERT_GT(histKeysSize, 0u);
+  ASSERT_GT(histKeysSize, 0U);
 
   std::string histKeysData(histKeysSize - 1, '\0');
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
@@ -722,8 +725,8 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
             QDMI_SUCCESS);
 
   // Parse keys (null-terminated strings)
-  bool found00 = histKeysData.find("00") != std::string::npos;
-  bool found11 = histKeysData.find("11") != std::string::npos;
+  const bool found00 = histKeysData.find("00") != std::string::npos;
+  const bool found11 = histKeysData.find("11") != std::string::npos;
   EXPECT_TRUE(found00 && found11)
       << "Bell state should produce 00 and 11 outcomes";
 
@@ -1116,7 +1119,7 @@ protected:
     return qubitCount;
   }
 
-  std::vector<std::string> getSiteNames(size_t maxCount = 5) {
+  std::vector<std::string> getSiteNames(const size_t maxCount = 5) {
     auto sites = querySites(session);
     std::vector<std::string> names;
 
@@ -1158,23 +1161,23 @@ TEST_F(DeviceParsingTestFixture, SV1SimulatorParsing) {
   initializeDevice(deviceArn);
 
   // Verify device name
-  std::string deviceName = getDeviceName();
+  const std::string deviceName = getDeviceName();
   EXPECT_EQ(deviceName, "SV1") << "SV1 device name should be 'SV1'";
 
   // Verify qubit count
-  size_t qubitCount = getQubitCount();
-  EXPECT_GT(qubitCount, 0u) << "SV1 should have qubits";
-  EXPECT_LE(qubitCount, 34u) << "SV1 supports up to 34 qubits";
+  const size_t qubitCount = getQubitCount();
+  EXPECT_GT(qubitCount, 0U) << "SV1 should have qubits";
+  EXPECT_LE(qubitCount, 34U) << "SV1 supports up to 34 qubits";
 
   // Verify sites use standard numeric IDs (Q0, Q1, Q2, ...)
   auto sites = querySites(session);
-  ASSERT_GT(sites.size(), 0u) << "SV1 should have sites";
+  ASSERT_GT(sites.size(), 0U) << "SV1 should have sites";
   EXPECT_EQ(sites.size(), qubitCount)
       << "Number of sites should match qubit count";
 
   auto siteNames = getSiteNames(3);
   for (size_t i = 0; i < siteNames.size(); ++i) {
-    std::string expectedName = "Q" + std::to_string(i);
+    const std::string expectedName = "Q" + std::to_string(i);
     EXPECT_EQ(siteNames[i], expectedName)
         << "SV1 sites should use standard format Q0, Q1, Q2, ...";
   }
@@ -1191,18 +1194,18 @@ TEST_F(DeviceParsingTestFixture, SV1SimulatorParsing) {
         connectivitySize / sizeof(AMAZON_BRAKET_QDMI_Site));
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
                   session, QDMI_DEVICE_PROPERTY_COUPLINGMAP, connectivitySize,
-                  connectivity.data(), nullptr),
+                  static_cast<void*>(connectivity.data()), nullptr),
               QDMI_SUCCESS);
 
-    size_t numEdges = connectivity.size() / 2;
-    size_t expectedEdges = qubitCount * (qubitCount - 1);
+    const size_t numEdges = connectivity.size() / 2;
+    const size_t expectedEdges = qubitCount * (qubitCount - 1);
     EXPECT_EQ(numEdges, expectedEdges)
         << "SV1 should have full connectivity (all-to-all)";
   }
 
   // Verify standard gate set
-  std::vector<std::string> expectedGates = {"h",    "x",  "y",  "z",
-                                            "cnot", "rx", "ry", "rz"};
+  const std::vector<std::string> expectedGates = {"h",    "x",  "y",  "z",
+                                                  "cnot", "rx", "ry", "rz"};
   for (const auto& gate : expectedGates) {
     EXPECT_TRUE(hasGate(gate)) << "SV1 should support gate: " << gate;
   }
@@ -1222,17 +1225,17 @@ TEST_F(DeviceParsingTestFixture, IQMDeviceParsing) {
   initializeDevice(iqmDeviceArn);
 
   // Verify device name
-  std::string deviceName = getDeviceName();
+  const std::string deviceName = getDeviceName();
   EXPECT_FALSE(deviceName.empty()) << "IQM device should have a name";
   std::cerr << "IQM device name: " << deviceName << "\n";
 
   // Verify qubit count
-  size_t qubitCount = getQubitCount();
-  EXPECT_GT(qubitCount, 0u) << "IQM device should have qubits";
+  const size_t qubitCount = getQubitCount();
+  EXPECT_GT(qubitCount, 0U) << "IQM device should have qubits";
 
   // Verify sites use IQM-specific naming (not standard Q0, Q1 format)
   auto sites = querySites(session);
-  ASSERT_GT(sites.size(), 0u) << "IQM device should have sites";
+  ASSERT_GT(sites.size(), 0U) << "IQM device should have sites";
   EXPECT_EQ(sites.size(), qubitCount)
       << "Number of sites should match qubit count";
 
@@ -1244,7 +1247,7 @@ TEST_F(DeviceParsingTestFixture, IQMDeviceParsing) {
   // Verify IQM parser was used (not standard simulator format)
   bool usesStandardFormat = true;
   for (size_t i = 0; i < siteNames.size(); ++i) {
-    std::string expectedStandardName = "Q" + std::to_string(i);
+    const std::string expectedStandardName = "Q" + std::to_string(i);
     if (siteNames[i] != expectedStandardName) {
       usesStandardFormat = false;
       break;
@@ -1265,19 +1268,19 @@ TEST_F(DeviceParsingTestFixture, IQMDeviceParsing) {
         connectivitySize / sizeof(AMAZON_BRAKET_QDMI_Site));
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
                   session, QDMI_DEVICE_PROPERTY_COUPLINGMAP, connectivitySize,
-                  connectivity.data(), nullptr),
+                  static_cast<void*>(connectivity.data()), nullptr),
               QDMI_SUCCESS);
 
-    size_t numEdges = connectivity.size() / 2;
-    size_t fullConnectivityEdges = qubitCount * (qubitCount - 1);
+    const size_t numEdges = connectivity.size() / 2;
+    const size_t fullConnectivityEdges = qubitCount * (qubitCount - 1);
     EXPECT_LT(numEdges, fullConnectivityEdges)
         << "IQM should have limited connectivity (not all-to-all)";
-    EXPECT_GT(numEdges, 0u) << "IQM should have some connectivity";
+    EXPECT_GT(numEdges, 0U) << "IQM should have some connectivity";
   }
 
   // Verify IQM-specific gates
   auto operations = queryOperations(session);
-  ASSERT_GT(operations.size(), 0u) << "IQM device should have operations";
+  ASSERT_GT(operations.size(), 0U) << "IQM device should have operations";
 
   EXPECT_TRUE(hasGate("cz")) << "IQM devices typically support CZ gate";
   EXPECT_TRUE(hasGate("prx")) << "IQM devices typically support PRX gate";

@@ -69,6 +69,7 @@
 #include <aws/braket/BraketClient.h>
 #include <aws/braket/model/CancelQuantumTaskRequest.h>
 #include <aws/braket/model/CreateQuantumTaskRequest.h>
+#include <aws/braket/model/DeviceStatus.h>
 #include <aws/braket/model/DeviceType.h>
 #include <aws/braket/model/GetDeviceRequest.h>
 #include <aws/braket/model/GetQuantumTaskRequest.h>
@@ -81,6 +82,7 @@
 #include <aws/s3/S3Client.h>
 #include <aws/s3/model/GetObjectRequest.h>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -256,7 +258,7 @@ auto parseCredentialsFile(const std::string& filePath, std::string& accessKeyId,
 }
 } // anonymous namespace
 
-namespace Amazon::Braket::QDMI {
+namespace amazon::braket::qdmi {
 
 /**
  * Device constructor - initializes the global Braket device singleton.
@@ -297,7 +299,7 @@ auto Device::sessionFree(AMAZON_BRAKET_QDMI_Device_Session session) -> void {
 }
 
 auto Device::queryProperty(const QDMI_Device_Property prop, const size_t size,
-                           void* value, size_t* sizeRet) const -> QDMI_STATUS {
+                           void* value, size_t* sizeRet) -> QDMI_STATUS {
   // Validate arguments and reject MAX sentinel value
   if ((value != nullptr && size == 0) || prop == QDMI_DEVICE_PROPERTY_MAX) {
     return QDMI_ERROR_INVALIDARGUMENT;
@@ -334,7 +336,7 @@ auto Device::setCachedArchitecture(
   deviceCache_[deviceArn] = std::move(architecture);
 }
 
-} // namespace Amazon::Braket::QDMI
+} // namespace amazon::braket::qdmi
 
 // ============================================================================
 // Session Implementation
@@ -364,7 +366,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
 
   // Check if architecture is already cached
   cachedArchitecture_ =
-      Amazon::Braket::QDMI::Device::get().getCachedArchitecture(deviceArn_);
+      amazon::braket::qdmi::Device::get().getCachedArchitecture(deviceArn_);
 
   if (cachedArchitecture_ != nullptr) {
     // Cache hit: Only fetch mutable session device status
@@ -382,8 +384,6 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
         braketDeviceStatus_.store(QDMI_DEVICE_STATUS_MAINTENANCE);
         break;
       case Aws::Braket::Model::DeviceStatus::RETIRED:
-        braketDeviceStatus_.store(QDMI_DEVICE_STATUS_OFFLINE);
-        break;
       default:
         braketDeviceStatus_.store(QDMI_DEVICE_STATUS_OFFLINE);
         break;
@@ -414,7 +414,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
 
   // Create new cached architecture
   auto architecture =
-      std::make_shared<Amazon::Braket::QDMI::DeviceArchitecture>();
+      std::make_shared<amazon::braket::qdmi::DeviceArchitecture>();
   architecture->name = device.GetDeviceName();
   architecture->provider = device.GetProviderName();
   architecture->deviceType = device.GetDeviceType();
@@ -496,7 +496,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
   architecture->operationsMap = std::move(properties.operationsMap);
 
   // Store in singleton cache and use in this session
-  Amazon::Braket::QDMI::Device::get().setCachedArchitecture(deviceArn_,
+  amazon::braket::qdmi::Device::get().setCachedArchitecture(deviceArn_,
                                                             architecture);
   cachedArchitecture_ = architecture;
 
@@ -571,7 +571,9 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
   // Parse credentials file if provided (takes precedence over direct
   // parameters)
   if (!credentialsFile_.empty()) {
-    std::string fileAccessKey, fileSecretKey, fileSessionToken;
+    std::string fileAccessKey;
+    std::string fileSecretKey;
+    std::string fileSessionToken;
     if (parseCredentialsFile(credentialsFile_, fileAccessKey, fileSecretKey,
                              fileSessionToken)) {
       accessKeyId_ = fileAccessKey;
@@ -592,9 +594,9 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
   // 2. QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY
   if (!accessKeyId_.empty() && !secretAccessKey_.empty()) {
     // Explicit credentials provided via setParameter() or credentials file
-    Aws::Auth::AWSCredentials credentials(
-        accessKeyId_.c_str(), secretAccessKey_.c_str(),
-        sessionToken_.empty() ? "" : sessionToken_.c_str());
+    const Aws::Auth::AWSCredentials credentials(
+        accessKeyId_, secretAccessKey_,
+        sessionToken_.empty() ? "" : sessionToken_);
     client_ = std::make_unique<Aws::Braket::BraketClient>(credentials, config);
   } else {
     // No credentials provided - return error
@@ -701,19 +703,10 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
     sessionToken_ = token;
     return QDMI_SUCCESS;
   }
-
-  // Legacy QDMI authentication parameters - not used by Amazon Braket
-  // Use AUTHFILE or CUSTOM3-5 instead for AWS credentials
-  case QDMI_DEVICE_SESSION_PARAMETER_USERNAME:
-  case QDMI_DEVICE_SESSION_PARAMETER_PASSWORD:
-  case QDMI_DEVICE_SESSION_PARAMETER_TOKEN:
-  case QDMI_DEVICE_SESSION_PARAMETER_AUTHURL:
-  case QDMI_DEVICE_SESSION_PARAMETER_BASEURL:
-    return QDMI_ERROR_NOTSUPPORTED;
-
   default:
-    return QDMI_ERROR_NOTSUPPORTED;
+    break;
   }
+  return QDMI_ERROR_NOTSUPPORTED;
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::createDeviceJob(
@@ -782,8 +775,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
 
   // Delegate to Braket device singleton for library-level properties only
   // (LIBRARYVERSION, NEEDSCALIBRATION)
-  return Amazon::Braket::QDMI::Device::get().queryProperty(prop, size, value,
-                                                           sizeRet);
+  return amazon::braket::qdmi::Device::queryProperty(prop, size, value,
+                                                     sizeRet);
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::querySiteProperty(
@@ -971,7 +964,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
   }
 
   Aws::Braket::Model::CreateQuantumTaskRequest request;
-  request.SetDeviceArn(session_->getDeviceArn().c_str());
+  request.SetDeviceArn(session_->getDeviceArn());
   request.SetShots(static_cast<int64_t>(shots_));
 
   // Construct the Action JSON
@@ -982,7 +975,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
   actionJson.WithObject("braketSchemaHeader", header);
   actionJson.WithString("source", program_);
 
-  request.SetAction(actionJson.View().WriteCompact().c_str());
+  request.SetAction(actionJson.View().WriteCompact());
 
   // Configure Output S3 Bucket and Prefix
   // Bucket is required per job (no session-level fallback in AWS Braket)
@@ -994,7 +987,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
-  request.SetOutputS3Bucket(jobS3Bucket_.c_str());
+  request.SetOutputS3Bucket(jobS3Bucket_);
 
   // Use provided prefix or generate timestamp-based prefix
   std::string effectivePrefix;
@@ -1009,7 +1002,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
             .count();
     effectivePrefix = std::to_string(timestamp);
   }
-  request.SetOutputS3KeyPrefix(effectivePrefix.c_str());
+  request.SetOutputS3KeyPrefix(effectivePrefix);
 
   auto outcome = session_->getClient()->CreateQuantumTask(request);
   if (!outcome.IsSuccess()) {
@@ -1063,7 +1056,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
   }
 
   Aws::Braket::Model::CancelQuantumTaskRequest request;
-  request.SetQuantumTaskArn(taskArn_.c_str());
+  request.SetQuantumTaskArn(taskArn_);
 
   auto outcome = session_->getClient()->CancelQuantumTask(request);
   if (!outcome.IsSuccess()) {
@@ -1130,7 +1123,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
   }
 
   Aws::Braket::Model::GetQuantumTaskRequest request;
-  request.SetQuantumTaskArn(taskArn_.c_str());
+  request.SetQuantumTaskArn(taskArn_);
 
   auto outcome = session_->getClient()->GetQuantumTask(request);
   if (!outcome.IsSuccess()) {
@@ -1198,7 +1191,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
       return QDMI_SUCCESS;
     }
 
-    if (timeout > 0) {
+    if (timeout > 0U) {
       const auto elapsed =
           std::chrono::duration_cast<std::chrono::milliseconds>(
               std::chrono::steady_clock::now() - startTime)
@@ -1253,8 +1246,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal() const
   const std::string objectKey = outputS3Directory_ + "/results.json";
 
   Aws::S3::Model::GetObjectRequest getRequest;
-  getRequest.SetBucket(outputS3Bucket_.c_str());
-  getRequest.SetKey(objectKey.c_str());
+  getRequest.SetBucket(outputS3Bucket_);
+  getRequest.SetKey(objectKey);
 
   auto outcome = s3Client.GetObject(getRequest);
   if (!outcome.IsSuccess()) {
@@ -1445,7 +1438,7 @@ int AMAZON_BRAKET_QDMI_device_initialize() {
     Aws::InitAPI(gAWSOptions);
     gAWSInitialized = true;
   }
-  std::ignore = Amazon::Braket::QDMI::Device::get();
+  std::ignore = amazon::braket::qdmi::Device::get();
   return QDMI_SUCCESS;
 }
 
@@ -1483,7 +1476,7 @@ int AMAZON_BRAKET_QDMI_device_finalize() {
  */
 int AMAZON_BRAKET_QDMI_device_session_alloc(
     AMAZON_BRAKET_QDMI_Device_Session* session) {
-  return Amazon::Braket::QDMI::Device::get().sessionAlloc(session);
+  return amazon::braket::qdmi::Device::get().sessionAlloc(session);
 }
 
 /**
@@ -1520,7 +1513,7 @@ int AMAZON_BRAKET_QDMI_device_session_init(
  */
 void AMAZON_BRAKET_QDMI_device_session_free(
     AMAZON_BRAKET_QDMI_Device_Session session) {
-  Amazon::Braket::QDMI::Device::get().sessionFree(session);
+  amazon::braket::qdmi::Device::get().sessionFree(session);
 }
 
 /**
@@ -1662,7 +1655,7 @@ void AMAZON_BRAKET_QDMI_device_job_free(AMAZON_BRAKET_QDMI_Device_Job job) {
  * 100)
  * - QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX: S3 prefix for results (string)
  *   Optional. If not set, uses timestamp (epoch milliseconds): "1234567890123"
- *   Example: "my-experiment/run-42/"
+ *   Example: "my-experiment/1234567890123/"
  *
  * @param job The job handle
  * @param param The parameter to set
