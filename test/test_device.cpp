@@ -215,7 +215,7 @@ protected:
     if (credsFileEnv != nullptr && strlen(credsFileEnv) > 0) {
       std::cerr << "INFO: Using credentials file: " << credsFileEnv << "\n";
       if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
-              shared_session, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
+              sharedSession, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
               strlen(credsFileEnv) + 1, credsFileEnv) != QDMI_SUCCESS) {
         GTEST_FAIL() << "Failed to set credentials file in SetUpTestSuite";
         return;
@@ -229,13 +229,13 @@ protected:
       if (accessKeyEnv != nullptr && secretKeyEnv != nullptr) {
         std::cerr << "INFO: Using direct credential environment variables\n";
         if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                shared_session, QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID,
+                sharedSession, QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID,
                 strlen(accessKeyEnv) + 1, accessKeyEnv) != QDMI_SUCCESS) {
           GTEST_FAIL() << "Failed to set AWS_ACCESS_KEY_ID in SetUpTestSuite";
           return;
         }
         if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                shared_session,
+                sharedSession,
                 QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY,
                 strlen(secretKeyEnv) + 1, secretKeyEnv) != QDMI_SUCCESS) {
           GTEST_FAIL()
@@ -244,7 +244,7 @@ protected:
         }
         if (sessionTokenEnv != nullptr && strlen(sessionTokenEnv) > 0) {
           if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                  shared_session,
+                  sharedSession,
                   QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN,
                   strlen(sessionTokenEnv) + 1,
                   sessionTokenEnv) != QDMI_SUCCESS) {
@@ -265,7 +265,7 @@ protected:
     const char* deviceArn =
         "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
     if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
-            shared_session, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+            sharedSession, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
             strlen(deviceArn) + 1, deviceArn) != QDMI_SUCCESS) {
       GTEST_FAIL() << "Failed to set device ARN in SetUpTestSuite";
       return;
@@ -287,7 +287,7 @@ protected:
 
     // set program/format/shots
     AMAZON_BRAKET_QDMI_device_job_set_parameter(
-        shared_job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
+        sharedJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
         strlen(BELL_STATE_PROGRAM) + 1, BELL_STATE_PROGRAM);
     QDMI_Program_Format format = QDMI_PROGRAM_FORMAT_QASM3;
     AMAZON_BRAKET_QDMI_device_job_set_parameter(
@@ -306,7 +306,7 @@ protected:
       return;
     }
     AMAZON_BRAKET_QDMI_device_job_set_parameter(
-        shared_job, QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
+        sharedJob, QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
         strlen(s3BucketEnv) + 1, s3BucketEnv);
 
     // submit
@@ -581,7 +581,7 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest, JobSetParameterProgram) {
 
 TEST_F(AmazonBraketQDMIJobSpecificationTest, JobSetParameterS3Bucket) {
   AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(shared_session,
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(sharedSession,
                                                                 &freshJob),
             QDMI_SUCCESS);
 
@@ -597,7 +597,7 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest, JobSetParameterS3Bucket) {
 
 TEST_F(AmazonBraketQDMIJobSpecificationTest, JobSetParameterS3Prefix) {
   AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(shared_session,
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(sharedSession,
                                                                 &freshJob),
             QDMI_SUCCESS);
 
@@ -613,7 +613,7 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest, JobSetParameterS3Prefix) {
 
 TEST_F(AmazonBraketQDMIJobSpecificationTest, JobSetParameterS3InvalidArgument) {
   AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(shared_session,
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(sharedSession,
                                                                 &freshJob),
             QDMI_SUCCESS);
 
