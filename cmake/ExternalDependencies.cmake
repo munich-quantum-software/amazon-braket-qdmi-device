@@ -1,9 +1,19 @@
 # Copyright (c) 2025 - 2026 Munich Quantum Software Company GmbH
 # All rights reserved.
 #
-# SPDX-License-Identifier: MIT
+# Licensed under the Apache License v2.0 with LLVM Exceptions (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# Licensed under the MIT License
+# https://llvm.org/LICENSE.txt
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 # Declare all external dependencies and make sure that they are available.
 
@@ -29,9 +39,9 @@ if(BUILD_AMAZON_BRAKET_TESTS)
 endif()
 
 # cmake-format: off
-set(QDMI_VERSION 1.2.1
+set(QDMI_VERSION 1.2.2
         CACHE STRING "QDMI version")
-set(QDMI_REV "408da3081f15978822ea77d41200ef26cb363399" # v1.2.x
+set(QDMI_REV "08fa78984f40f9202cdd9bc71a627ff98adf3329" # v1.2.x
         CACHE STRING "QDMI identifier (tag, branch or commit hash)")
 set(QDMI_REPO_OWNER "Munich-Quantum-Software-Stack"
         CACHE STRING "QDMI repository owner (change when using a fork)")

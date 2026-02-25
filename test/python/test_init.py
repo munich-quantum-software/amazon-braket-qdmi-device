@@ -1,9 +1,19 @@
 # Copyright (c) 2025 - 2026 Munich Quantum Software Company GmbH
 # All rights reserved.
 #
-# SPDX-License-Identifier: MIT
+# Licensed under the Apache License v2.0 with LLVM Exceptions (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# Licensed under the MIT License
+# https://llvm.org/LICENSE.txt
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 """Tests for the Python distribution of the Amazon Braket QDMI device library."""
 
@@ -11,7 +21,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_CMAKE_DIR, AMAZON_BRAKET_QDMI_INCLUDE_DIR, AMAZON_BRAKET_QDMI_LIBRARY_PATH, __version__
+from amazon.braket.qdmi import (
+    AMAZON_BRAKET_QDMI_CMAKE_DIR,
+    AMAZON_BRAKET_QDMI_INCLUDE_DIR,
+    AMAZON_BRAKET_QDMI_LIBRARY_PATH,
+    __version__,
+)
 
 
 def test_version_exists() -> None:
@@ -29,10 +44,10 @@ def test_include_dir_exists() -> None:
 
 
 def test_include_dir_has_amazon_braket_qdmi_headers() -> None:
-    """Test that the include directory contains MY QDMI headers."""
-    AMAZON_BRAKET_QDMI_include = AMAZON_BRAKET_QDMI_INCLUDE_DIR / "amazon_braket_qdmi"
-    assert AMAZON_BRAKET_QDMI_include.exists()
-    assert AMAZON_BRAKET_QDMI_include.is_dir()
+    """Test that the include directory contains Amazon Braket QDMI headers."""
+    amazon_braket_qdmi_include = AMAZON_BRAKET_QDMI_INCLUDE_DIR / "amazon_braket_qdmi"
+    assert amazon_braket_qdmi_include.exists()
+    assert amazon_braket_qdmi_include.is_dir()
 
 
 def test_cmake_dir_exists() -> None:

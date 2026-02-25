@@ -39,6 +39,12 @@ jobs:
     steps:
       # check out the repository
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      # Set up ccache for faster C++ builds
+      - name: Setup ccache
+        uses: Chocobo1/setup-ccache-action@37c3347f8a7738e82aab7a06f276f7a12e3008fb # v1.5.3
+        with:
+          prepend_symlinks_to_path: false
+          override_cache_key: c++-tests-${{ inputs.runs-on }}-${{ inputs.config }}
       # configure CMake in the specified mode, optionally with additional arguments
       - name: Configure CMake
         env:

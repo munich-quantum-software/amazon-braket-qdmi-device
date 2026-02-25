@@ -1,0 +1,90 @@
+name: 🇨 • Coverage
+on:
+  workflow_call:
+    inputs:
+      device-arn:
+        description: >
+          The Amazon Braket device ARN to use for tests that require a quantum device.
+          This can be any valid Amazon Braket device ARN, such as 'arn:aws:braket:::device/quantum-simulator/amazon/sv1'.
+        default: "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
+        type: string
+    secrets:
+      AWS_S3_BUCKET:
+        required: false
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}-cpp-coverage
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    name: 📈 Coverage
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read # Required for the `actions/checkout` action
+      id-token: write # Required for the `codecov/codecov-action` action
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
+      CTEST_PARALLEL_LEVEL: 4
+      FORCE_COLOR: 3
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          persist-credentials: false
+
+      # set up ccache for faster builds
+      - name: Set up ccache
+        uses: Chocobo1/setup-ccache-action@37c3347f8a7738e82aab7a06f276f7a12e3008fb # v1.5.3
+        with:
+          prepend_symlinks_to_path: false
+          override_cache_key: c++-coverage
+
+      - name: Set up mold as linker
+        uses: rui314/setup-mold@725a8794d15fc7563f59595bd9556495c0564878 # v1
+
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
+        with:
+          python-version: 3.13
+          activate-environment: true
+          enable-cache: true
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Install Ninja
+        run: uv tool install ninja
+
+      # Install build dependencies
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev
+
+      - name: Configure CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON
+
+      - name: Build
+        run: cmake --build build --config Debug
+
+      - name: Test
+        env:
+          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEVICE_ARN: ${{ inputs.device-arn }}
+        run: ctest -C Debug --output-on-failure --test-dir build --repeat until-pass:3 --timeout 600
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
+        with:
+          fail_ci_if_error: true
+          flags: cpp
+          use_oidc: true

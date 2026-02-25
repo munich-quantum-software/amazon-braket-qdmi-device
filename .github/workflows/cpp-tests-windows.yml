@@ -42,17 +42,21 @@ jobs:
       FORCE_COLOR: 3
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
+      # Set up ccache for faster C++ builds
+      - name: Setup ccache
+        uses: Chocobo1/setup-ccache-action@37c3347f8a7738e82aab7a06f276f7a12e3008fb # v1.5.3
+        with:
+          prepend_symlinks_to_path: false
+          override_cache_key: c++-tests-${{ inputs.runs-on }}-${{ inputs.config }}
+          windows_compile_environment: msvc
       - name: Configure CMake
         env:
           CONFIG: ${{ inputs.config }}
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE="$env:CONFIG"
-
       - name: Build
         env:
           CONFIG: ${{ inputs.config }}
         run: cmake --build build --config $env:CONFIG
-
       - name: Test
         env:
           CONFIG: ${{ inputs.config }}
