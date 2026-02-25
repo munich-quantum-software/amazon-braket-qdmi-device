@@ -65,6 +65,7 @@
 
 #include <atomic>
 #include <aws/braket/BraketClient.h>
+#include <aws/braket/model/DeviceType.h>
 #include <cstddef>
 #include <cstdint>
 #include <future>
@@ -83,7 +84,7 @@ struct AMAZON_BRAKET_QDMI_Site_impl_d;
 struct AMAZON_BRAKET_QDMI_Operation_impl_d;
 struct AMAZON_BRAKET_QDMI_Device_Job_impl_d;
 
-namespace Amazon::Braket::qdmi {
+namespace Amazon::Braket::QDMI {
 
 /**
  * @brief Cached device architecture data shared across sessions.
@@ -92,10 +93,10 @@ namespace Amazon::Braket::qdmi {
  * Multiple sessions to the same device ARN share one cached instance.
  */
 struct DeviceArchitecture {
-  std::string name;             // Real device name from AWS (e.g., "Garnet")
-  std::string provider;         // Provider name (e.g., "IQM")
-  Model::DeviceType deviceType; // "QPU" or "Simulator"
-  size_t qubitsNum = 0;         // Number of qubits
+  std::string name;     // Real device name from AWS (e.g., "Garnet")
+  std::string provider; // Provider name (e.g., "IQM")
+  Aws::Braket::Model::DeviceType deviceType; // QPU or SIMULATOR
+  size_t qubitsNum = 0;                      // Number of qubits
 
   // Device topology
   std::vector<std::unique_ptr<AMAZON_BRAKET_QDMI_Site_impl_d>> sites;
@@ -176,7 +177,7 @@ public:
       -> void;
 };
 
-} // namespace Amazon::Braket::qdmi
+} // namespace Amazon::Braket::QDMI
 
 /**
  * @brief Device session implementation - one instance per user+device
@@ -200,7 +201,7 @@ private:
   std::string sessionToken_;    // AWS Session Token (CUSTOM5)
 
   // Cached device architecture (shared across sessions to same device ARN)
-  mutable std::shared_ptr<Aws::Braket::qdmi::DeviceArchitecture>
+  mutable std::shared_ptr<Amazon::Braket::QDMI::DeviceArchitecture>
       cachedArchitecture_;
 
   // Mutable device status (re-fetched per query, can change over time)
@@ -310,7 +311,7 @@ public:
   explicit AMAZON_BRAKET_QDMI_Device_Job_impl_d(
       AMAZON_BRAKET_QDMI_Device_Session_impl_d* session)
       : session_(session),
-        id_(Aws::Braket::qdmi::Device::get().generateUniqueID()) {}
+        id_(Amazon::Braket::QDMI::Device::get().generateUniqueID()) {}
 
   auto getSession() -> AMAZON_BRAKET_QDMI_Device_Session_impl_d* {
     return session_;

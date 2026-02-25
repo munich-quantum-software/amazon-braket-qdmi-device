@@ -241,7 +241,7 @@ auto parseCredentialsFile(const std::string& filePath, std::string& accessKeyId,
 }
 } // anonymous namespace
 
-namespace Amazon::Braket::qdmi {
+namespace Amazon::Braket::QDMI {
 
 /**
  * Device constructor - initializes the global Braket device singleton.
@@ -319,7 +319,7 @@ auto Device::setCachedArchitecture(
   deviceCache_[deviceArn] = std::move(architecture);
 }
 
-} // namespace Amazon::Braket::qdmi
+} // namespace Amazon::Braket::QDMI
 
 // ============================================================================
 // Session Implementation
@@ -349,7 +349,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
 
   // Check if architecture is already cached
   cachedArchitecture_ =
-      Aws::Braket::qdmi::Device::get().getCachedArchitecture(deviceArn_);
+      Amazon::Braket::QDMI::Device::get().getCachedArchitecture(deviceArn_);
 
   if (cachedArchitecture_ != nullptr) {
     // Cache hit: Only fetch mutable session device status
@@ -398,7 +398,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
   const auto& device = outcome.GetResult();
 
   // Create new cached architecture
-  auto architecture = std::make_shared<Aws::Braket::qdmi::DeviceArchitecture>();
+  auto architecture =
+      std::make_shared<Amazon::Braket::QDMI::DeviceArchitecture>();
   architecture->name = device.GetDeviceName();
   architecture->provider = device.GetProviderName();
   architecture->deviceType = device.GetDeviceType();
@@ -480,8 +481,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
   architecture->operationsMap = std::move(properties.operationsMap);
 
   // Store in singleton cache and use in this session
-  Aws::Braket::qdmi::Device::get().setCachedArchitecture(deviceArn_,
-                                                         architecture);
+  Amazon::Braket::QDMI::Device::get().setCachedArchitecture(deviceArn_,
+                                                            architecture);
   cachedArchitecture_ = architecture;
 
   std::cerr << "INFO: Cached session device architecture for "
@@ -766,8 +767,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
 
   // Delegate to Braket device singleton for library-level properties only
   // (LIBRARYVERSION, NEEDSCALIBRATION)
-  return Aws::Braket::qdmi::Device::get().queryProperty(prop, size, value,
-                                                        sizeRet);
+  return Amazon::Braket::QDMI::Device::get().queryProperty(prop, size, value,
+                                                           sizeRet);
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::querySiteProperty(
@@ -1429,7 +1430,7 @@ int AMAZON_BRAKET_QDMI_device_initialize() {
     Aws::InitAPI(gAWSOptions);
     gAWSInitialized = true;
   }
-  std::ignore = Aws::Braket::qdmi::Device::get();
+  std::ignore = Amazon::Braket::QDMI::Device::get();
   return QDMI_SUCCESS;
 }
 
@@ -1467,7 +1468,7 @@ int AMAZON_BRAKET_QDMI_device_finalize() {
  */
 int AMAZON_BRAKET_QDMI_device_session_alloc(
     AMAZON_BRAKET_QDMI_Device_Session* session) {
-  return Aws::Braket::qdmi::Device::get().sessionAlloc(session);
+  return Amazon::Braket::QDMI::Device::get().sessionAlloc(session);
 }
 
 /**
@@ -1504,7 +1505,7 @@ int AMAZON_BRAKET_QDMI_device_session_init(
  */
 void AMAZON_BRAKET_QDMI_device_session_free(
     AMAZON_BRAKET_QDMI_Device_Session session) {
-  Aws::Braket::qdmi::Device::get().sessionFree(session);
+  Amazon::Braket::QDMI::Device::get().sessionFree(session);
 }
 
 /**
