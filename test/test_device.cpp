@@ -144,7 +144,7 @@ protected:
     const char* deviceArn =
         "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                  session, QDMI_DEVICE_SESSION_PARAMETER_DEVICARN,
+                  session, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
                   strlen(deviceArn) + 1, deviceArn),
               QDMI_SUCCESS)
         << "Failed to set device ARN";
@@ -257,7 +257,7 @@ protected:
     const char* deviceArn =
         "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
     if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
-            shared_session, QDMI_DEVICE_SESSION_PARAMETER_DEVICARN,
+            shared_session, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
             strlen(deviceArn) + 1, deviceArn) != QDMI_SUCCESS) {
       GTEST_FAIL() << "Failed to set device ARN in SetUpTestSuite";
       return;
@@ -461,7 +461,7 @@ TEST_F(AmazonBraketQDMISpecificationTest, SessionCredentialsFile) {
   const char* deviceArn =
       "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                credsSession, QDMI_DEVICE_SESSION_PARAMETER_DEVICARN,
+                credsSession, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
                 strlen(deviceArn) + 1, deviceArn),
             QDMI_SUCCESS);
 
@@ -642,7 +642,7 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
   const char* deviceArn =
       "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_DEVICARN,
+                session, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
                 strlen(deviceArn) + 1, deviceArn),
             QDMI_SUCCESS);
 
@@ -1076,7 +1076,7 @@ protected:
     }
 
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                  session, QDMI_DEVICE_SESSION_PARAMETER_DEVICARN,
+                  session, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
                   strlen(deviceArn) + 1, deviceArn),
               QDMI_SUCCESS);
 

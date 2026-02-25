@@ -77,7 +77,7 @@ AMAZON_BRAKET_QDMI_device_session_set_parameter(
 // Configure device and initialize
 const char* deviceArn = "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
 AMAZON_BRAKET_QDMI_device_session_set_parameter(
-    session, QDMI_DEVICE_SESSION_PARAMETER_DEVICARN,
+    session, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
     strlen(deviceArn) + 1, deviceArn);
 
 AMAZON_BRAKET_QDMI_device_session_init(session);
@@ -138,16 +138,16 @@ Configure the device using QDMI session parameters:
 // Configure session parameters before initialization
 const char* deviceArn = "arn:aws:braket:eu-north-1::device/qpu/iqm/Garnet";
 AMAZON_BRAKET_QDMI_device_session_set_parameter(
-    session, QDMI_DEVICE_SESSION_PARAMETER_DEVICARN,
+    session, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
     strlen(deviceArn) + 1, deviceArn);
 ```
 
 **Configuration Parameters**
 
-| Parameter                                | Type    | Required | Description                                         |
-| ---------------------------------------- | ------- | -------- | --------------------------------------------------- |
-| `QDMI_DEVICE_SESSION_PARAMETER_DEVICARN` | `char*` | Yes      | Amazon Braket device ARN                            |
-| `QDMI_DEVICE_SESSION_PARAMETER_REGION`   | `char*` | No       | AWS region override (extracted from ARN by default) |
+| Parameter                                 | Type    | Required | Description                                         |
+| ----------------------------------------- | ------- | -------- | --------------------------------------------------- |
+| `QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN` | `char*` | Yes      | Amazon Braket device ARN                            |
+| `QDMI_DEVICE_SESSION_PARAMETER_REGION`    | `char*` | No       | AWS region override (extracted from ARN by default) |
 
 **Note**: AWS authentication is handled via:
 
@@ -273,7 +273,7 @@ int main() {
     // Configure device ARN (required)
     const char* deviceArn = "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
     AMAZON_BRAKET_QDMI_device_session_set_parameter(
-        session, QDMI_DEVICE_SESSION_PARAMETER_DEVICARN,
+        session, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
         strlen(deviceArn) + 1, deviceArn);
 
     // Initialize session (connects to Amazon Braket)

@@ -241,7 +241,7 @@ auto parseCredentialsFile(const std::string& filePath, std::string& accessKeyId,
 }
 } // anonymous namespace
 
-namespace Aws::Braket::qdmi {
+namespace Amazon::Braket::qdmi {
 
 /**
  * Device constructor - initializes the global Braket device singleton.
@@ -319,7 +319,7 @@ auto Device::setCachedArchitecture(
   deviceCache_[deviceArn] = std::move(architecture);
 }
 
-} // namespace Aws::Braket::qdmi
+} // namespace Amazon::Braket::qdmi
 
 // ============================================================================
 // Session Implementation
@@ -500,7 +500,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
  * 3. Transitioning the session to INITIALIZED state
  *
  * Configuration:
- * QDMI_DEVICE_SESSION_PARAMETER_DEVICARN
+ * QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN
  * - Credentials: Must be set via one of:
  *   - QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE (credentials file path)
  *   - QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY +
@@ -522,7 +522,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
   if (deviceArn_.empty()) {
     std::cerr << "ERROR: Device ARN not configured. Set via:\n";
     std::cerr << "  AMAZON_BRAKET_QDMI_device_session_set_parameter() with "
-                 "QDMI_DEVICE_SESSION_PARAMETER_DEVICARN\n";
+                 "QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN\n";
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
@@ -626,7 +626,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
 
   // Handle Amazon Braket custom parameters
   switch (param) {
-  case QDMI_DEVICE_SESSION_PARAMETER_DEVICARN: {
+  case QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN: {
     // Device ARN (required)
     const auto* arnStr = static_cast<const char*>(value);
     if (strnlen(arnStr, size) >= size) {
@@ -709,9 +709,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::createDeviceJob(
     return QDMI_ERROR_BADSTATE;
   }
 
-  // Device properties are fetched when first queried. Amazon Braket validates
-  // device availability during CreateQuantumTask().
-
+  // Amazon Braket validates device availability during CreateQuantumTask().
   auto uniqueJob = std::make_unique<AMAZON_BRAKET_QDMI_Device_Job_impl_d>(this);
   const std::scoped_lock<std::mutex> lock(jobsMutex_);
   *job = jobs_.emplace(uniqueJob.get(), std::move(uniqueJob)).first->first;
@@ -821,10 +819,6 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryOperationProperty(
 }
 
 // Job implementation
-auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::free() -> void {
-  session_->freeDeviceJob(this);
-}
-
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
     const QDMI_Device_Job_Parameter param, const size_t size, const void* value)
     -> QDMI_STATUS {
@@ -1498,8 +1492,13 @@ int AMAZON_BRAKET_QDMI_device_session_init(
 /**
  * Free a device session.
  *
- * Releases all resources associated with the session. Any jobs created from
- * this session should be freed before freeing the session itself.
+ * Releases local resources associated with the session (memory, BraketClient).
+ * All jobs created from this session should be freed before freeing the
+ * session.
+ *
+ * AWS Braket Note: This only frees local C++ objects. AWS SDK clients and
+ * their auth connections are cleaned up, but no AWS infrastructure cleanup
+ * is needed (Braket is fully managed/serverless).
  *
  * @param session The session handle to free
  */
@@ -1515,7 +1514,7 @@ void AMAZON_BRAKET_QDMI_device_session_free(
  * must be set BEFORE calling AMAZON_BRAKET_QDMI_device_session_init().
  *
  * Required Parameters:
- * - QDMI_DEVICE_SESSION_PARAMETER_DEVICARN: Device ARN (string) **REQUIRED**
+ * - QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN: Device ARN (string) **REQUIRED**
  *   Format: arn:aws:braket:<region>::device/<type>/<provider>/<device-name>
  *   Example: "arn:aws:braket:::device/quantum-simulator/amazon/<sim-name>"
  *            "arn:aws:braket:eu-north-1::device/qpu/<vendor>/<device-name>"
@@ -1614,14 +1613,20 @@ int AMAZON_BRAKET_QDMI_device_session_create_device_job(
 /**
  * Free a device job.
  *
- * Releases all resources associated with the job. Jobs should be freed
- * after results have been retrieved or when no longer needed.
+ * Releases local resources associated with the job (memory, cached results).
+ *
+ * AWS Braket Note: This only frees local C++ objects. AWS automatically
+ * releases compute resources when the quantum task completes. Task metadata
+ * remains in AWS history and cannot be manually deleted.
+ *
+ * To stop a running task, call AMAZON_BRAKET_QDMI_device_job_cancel() before
+ * freeing.
  *
  * @param job The job handle to free
  */
 void AMAZON_BRAKET_QDMI_device_job_free(AMAZON_BRAKET_QDMI_Device_Job job) {
   if (job != nullptr) {
-    job->free();
+    job->getSession()->freeDeviceJob(job);
   }
 }
 

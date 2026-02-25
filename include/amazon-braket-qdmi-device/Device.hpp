@@ -83,7 +83,7 @@ struct AMAZON_BRAKET_QDMI_Site_impl_d;
 struct AMAZON_BRAKET_QDMI_Operation_impl_d;
 struct AMAZON_BRAKET_QDMI_Device_Job_impl_d;
 
-namespace Aws::Braket::qdmi {
+namespace Amazon::Braket::qdmi {
 
 /**
  * @brief Cached device architecture data shared across sessions.
@@ -176,7 +176,7 @@ public:
       -> void;
 };
 
-} // namespace Aws::Braket::qdmi
+} // namespace Amazon::Braket::qdmi
 
 /**
  * @brief Device session implementation - one instance per user+device
@@ -312,7 +312,10 @@ public:
       : session_(session),
         id_(Aws::Braket::qdmi::Device::get().generateUniqueID()) {}
 
-  auto free() -> void;
+  auto getSession() -> AMAZON_BRAKET_QDMI_Device_Session_impl_d* {
+    return session_;
+  }
+
   auto setParameter(QDMI_Device_Job_Parameter param, size_t size,
                     const void* value) -> QDMI_STATUS;
   auto queryProperty(QDMI_Device_Job_Property prop, size_t size, void* value,

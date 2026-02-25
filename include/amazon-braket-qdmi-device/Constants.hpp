@@ -31,7 +31,7 @@
  * - "arn:aws:braket:us-east-1::device/qpu/ionq/Harmony"
  * - "arn:aws:braket:eu-north-1::device/qpu/iqm/Garnet"
  */
-#define QDMI_DEVICE_SESSION_PARAMETER_DEVICARN                                 \
+#define QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN                                \
   QDMI_DEVICE_SESSION_PARAMETER_CUSTOM1
 
 /**
