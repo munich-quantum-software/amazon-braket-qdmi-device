@@ -80,6 +80,7 @@
 #include <aws/core/client/ClientConfiguration.h>
 #include <aws/core/utils/json/JsonSerializer.h>
 #include <aws/s3/S3Client.h>
+#include <aws/s3/S3ClientConfiguration.h>
 #include <aws/s3/model/GetObjectRequest.h>
 #include <chrono>
 #include <cstddef>
@@ -250,11 +251,44 @@ auto parseCredentialsFile(const std::string& filePath, std::string& accessKeyId,
     return false;
   }
 
-  // Log which profile was used
-  std::cerr << "INFO: Using credentials from profile [" << firstProfile
-            << "]\n";
-
   return true;
+}
+
+/**
+ * @brief Threshold for considering an ONLINE device as BUSY.
+ *
+ * If the total number of queued quantum tasks across all queue entries
+ * is >= this value, the device is reported as QDMI_DEVICE_STATUS_BUSY.
+ * Below this value, the device is reported as QDMI_DEVICE_STATUS_IDLE.
+ *
+ */
+constexpr int kQueueBusyThreshold = 5;
+
+/**
+ * @brief Compute total queue depth from a Braket GetDevice result.
+ *
+ * Sums the `queueSize` field across all entries in `deviceQueueInfo`.
+ * AWS returns queue sizes as strings (e.g. "12" or ">50"); values that
+ * cannot be parsed as integers are treated as kQueueBusyThreshold to
+ * indicate "definitely busy".
+ *
+ * @param result Result of a successful BraketClient::GetDevice() call
+ * @return Total queue depth (>= 0)
+ */
+auto getTotalQueueDepth(const Aws::Braket::Model::GetDeviceResult& result)
+    -> int {
+  int totalDepth = 0;
+  for (const auto& queueItem : result.GetDeviceQueueInfo()) {
+    const Aws::String& sizeStr = queueItem.GetQueueSize();
+    try {
+      totalDepth += std::stoi(sizeStr.c_str());
+    } catch (...) {
+      // Non-integer strings like ">50" indicate a busy queue; treat as
+      // threshold to ensure the device is reported as BUSY.
+      totalDepth += kQueueBusyThreshold;
+    }
+  }
+  return totalDepth;
 }
 } // anonymous namespace
 
@@ -377,9 +411,14 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
       const auto& device = outcome.GetResult();
       const auto braketStatus = device.GetDeviceStatus();
       switch (braketStatus) {
-      case Aws::Braket::Model::DeviceStatus::ONLINE:
-        braketDeviceStatus_.store(QDMI_DEVICE_STATUS_IDLE);
+      case Aws::Braket::Model::DeviceStatus::ONLINE: {
+        // Differentiate IDLE vs BUSY based on current queue depth
+        const int queueDepth = getTotalQueueDepth(device);
+        braketDeviceStatus_.store(queueDepth >= kQueueBusyThreshold
+                                      ? QDMI_DEVICE_STATUS_BUSY
+                                      : QDMI_DEVICE_STATUS_IDLE);
         break;
+      }
       case Aws::Braket::Model::DeviceStatus::OFFLINE:
         braketDeviceStatus_.store(QDMI_DEVICE_STATUS_MAINTENANCE);
         break;
@@ -393,8 +432,6 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
         return QDMI_ERROR_NOTSUPPORTED;
       }
     }
-    std::cerr << "INFO: Using cached session device architecture for "
-              << cachedArchitecture_->name << " (ARN: " << deviceArn_ << ")\n";
     return QDMI_SUCCESS;
   }
 
@@ -429,17 +466,21 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
   const auto braketStatus = device.GetDeviceStatus();
 
   switch (braketStatus) {
-  case Aws::Braket::Model::DeviceStatus::ONLINE:
-    // Device is operational and accepting tasks
-    braketDeviceStatus_.store(QDMI_DEVICE_STATUS_IDLE);
+  case Aws::Braket::Model::DeviceStatus::ONLINE: {
+    // Differentiate IDLE vs BUSY based on current queue depth.
+    // Device still accepts submissions in the BUSY state; this is
+    // purely informational.
+    const int queueDepth = getTotalQueueDepth(device);
+    braketDeviceStatus_.store(queueDepth >= kQueueBusyThreshold
+                                  ? QDMI_DEVICE_STATUS_BUSY
+                                  : QDMI_DEVICE_STATUS_IDLE);
     break;
+  }
 
   case Aws::Braket::Model::DeviceStatus::OFFLINE:
     // Device is temporarily unavailable (maintenance/calibration),
     // tasks will queue until it returns
     braketDeviceStatus_.store(QDMI_DEVICE_STATUS_MAINTENANCE);
-    std::cerr << "INFO: Device is OFFLINE (maintenance/calibration). "
-              << "Mapped to MAINTENANCE status.\n";
     break;
 
   case Aws::Braket::Model::DeviceStatus::RETIRED:
@@ -503,11 +544,6 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
   amazon::braket::qdmi::Device::get().setCachedArchitecture(deviceArn_,
                                                             architecture);
   cachedArchitecture_ = architecture;
-
-  std::cerr << "INFO: Cached session device architecture for "
-            << architecture->name << " (" << architecture->qubitsNum
-            << " qubits)\n";
-
   return QDMI_SUCCESS;
 }
 
@@ -583,8 +619,6 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
       accessKeyId_ = fileAccessKey;
       secretAccessKey_ = fileSecretKey;
       sessionToken_ = fileSessionToken;
-      std::cerr << "INFO: Loaded credentials from file: " << credentialsFile_
-                << "\n";
     } else {
       std::cerr << "ERROR: Failed to parse credentials file: "
                 << credentialsFile_ << "\n";
@@ -750,13 +784,10 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
   // Fetch session device architecture on first property query (uses cache if
   // available)
   if (cachedArchitecture_ == nullptr) {
-    std::cerr
-        << "INFO: Fetching session device properties from Amazon Braket...\n";
     const auto ret = fetchDeviceArchitecture();
     if (ret != QDMI_SUCCESS) {
       return ret;
     }
-    std::cerr << "INFO: Session device properties ready.\n";
   }
 
   // Session device architecture properties (from cache)
@@ -1300,10 +1331,13 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal() const
     return QDMI_ERROR_FATAL;
   }
 
-  // Create S3 client with same region as Braket client
-  Aws::Client::ClientConfiguration s3Config;
+  // Create S3 client with the same credentials and region as the Braket client.
+  // Uses Aws::S3::S3ClientConfiguration (new SDK API) and passes explicit
+  // credentials so the client works regardless of env-var credential setup.
+  Aws::S3::S3ClientConfiguration s3Config;
   s3Config.region = session_->getRegion();
-  Aws::S3::S3Client const s3Client(s3Config);
+  Aws::S3::S3Client const s3Client(session_->getCredentials(), nullptr,
+                                   s3Config);
 
   // Download results.json from S3
   // Key format: {outputS3Directory}/results.json

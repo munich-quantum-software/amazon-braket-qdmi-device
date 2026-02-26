@@ -217,7 +217,6 @@ protected:
     // Check for credentials - Method 1: credentials file (local development)
     const char* credsFileEnv = std::getenv("AWS_CREDENTIALS_FILE");
     if (credsFileEnv != nullptr && strlen(credsFileEnv) > 0) {
-      std::cerr << "INFO: Using credentials file: " << credsFileEnv << "\n";
       if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
               sharedSession, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
               strlen(credsFileEnv) + 1, credsFileEnv) != QDMI_SUCCESS) {
@@ -231,7 +230,6 @@ protected:
       const char* sessionTokenEnv = std::getenv("AWS_SESSION_TOKEN");
 
       if (accessKeyEnv != nullptr && secretKeyEnv != nullptr) {
-        std::cerr << "INFO: Using direct credential environment variables\n";
         if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 sharedSession, QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID,
                 strlen(accessKeyEnv) + 1, accessKeyEnv) != QDMI_SUCCESS) {
@@ -478,16 +476,7 @@ TEST_F(AmazonBraketQDMISpecificationTest, SessionCredentialsFile) {
             QDMI_SUCCESS);
 
   // Try to initialize with credentials file
-  // This may fail if file doesn't exist or has invalid credentials
   auto initResult = AMAZON_BRAKET_QDMI_device_session_init(credsSession);
-  if (initResult == QDMI_SUCCESS) {
-    std::cerr
-        << "INFO: Successfully initialized session with credentials file\n";
-  } else {
-    std::cerr << "INFO: Could not initialize with credentials file (may not "
-                 "exist or invalid)\n";
-  }
-
   AMAZON_BRAKET_QDMI_device_session_free(credsSession);
 }
 
@@ -1285,4 +1274,49 @@ TEST_F(DeviceParsingTestFixture, IQMDeviceParsing) {
 
   EXPECT_TRUE(hasGate("cz")) << "IQM devices typically support CZ gate";
   EXPECT_TRUE(hasGate("prx")) << "IQM devices typically support PRX gate";
+}
+
+TEST_F(DeviceParsingTestFixture, IQMDeviceStatus) {
+  const char* skipIQMEnv = std::getenv("SKIP_IQM_TESTS");
+  if (skipIQMEnv != nullptr && strcmp(skipIQMEnv, "1") == 0) {
+    GTEST_SKIP() << "IQM tests skipped (SKIP_IQM_TESTS=1)";
+  }
+
+  const char* iqmDeviceArn = std::getenv("IQM_DEVICE_ARN");
+  if (iqmDeviceArn == nullptr) {
+    iqmDeviceArn = "arn:aws:braket:eu-north-1::device/qpu/iqm/Garnet";
+  }
+
+  initializeDevice(iqmDeviceArn);
+
+  QDMI_Device_Status status = QDMI_DEVICE_STATUS_OFFLINE;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_STATUS, sizeof(status), &status,
+                nullptr),
+            QDMI_SUCCESS);
+
+  const char* statusStr = "UNKNOWN";
+  switch (status) {
+  case QDMI_DEVICE_STATUS_IDLE:
+    statusStr = "IDLE (queue depth below threshold)";
+    break;
+  case QDMI_DEVICE_STATUS_BUSY:
+    statusStr = "BUSY (queue depth at or above threshold)";
+    break;
+  case QDMI_DEVICE_STATUS_MAINTENANCE:
+    statusStr = "MAINTENANCE (device OFFLINE on Braket)";
+    break;
+  case QDMI_DEVICE_STATUS_OFFLINE:
+    statusStr = "OFFLINE (device RETIRED on Braket)";
+    break;
+  default:
+    break;
+  }
+  std::cerr << "IQM Garnet device status: " << statusStr << "\n";
+
+  EXPECT_TRUE(status == QDMI_DEVICE_STATUS_IDLE ||
+              status == QDMI_DEVICE_STATUS_BUSY ||
+              status == QDMI_DEVICE_STATUS_MAINTENANCE ||
+              status == QDMI_DEVICE_STATUS_OFFLINE)
+      << "IQM device must report a valid QDMI status";
 }

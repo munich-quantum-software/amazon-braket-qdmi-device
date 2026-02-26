@@ -76,6 +76,7 @@
 #include <atomic>
 #include <aws/braket/BraketClient.h>
 #include <aws/braket/model/DeviceType.h>
+#include <aws/core/auth/AWSCredentials.h>
 #include <cstddef>
 #include <cstdint>
 #include <future>
@@ -252,6 +253,10 @@ private:
     return deviceArn_;
   }
   [[nodiscard]] auto getRegion() const -> const std::string& { return region_; }
+  [[nodiscard]] auto getCredentials() const -> Aws::Auth::AWSCredentials {
+    return Aws::Auth::AWSCredentials(accessKeyId_, secretAccessKey_,
+                                     sessionToken_);
+  }
 
   // Allow Job to access session internals
   friend struct AMAZON_BRAKET_QDMI_Device_Job_impl_d;
