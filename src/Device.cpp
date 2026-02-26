@@ -625,15 +625,18 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
-  // Validate parameter: must be standard QDMI param or CUSTOM param
+  // Validate parameter: must be standard QDMI param or one of the specifically
+  // defined custom params (DEVICEARN, REGION, AWS_ACCESS_KEY_ID,
+  // AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN)
   const bool isStandardParam = param < QDMI_DEVICE_SESSION_PARAMETER_MAX;
-  const bool isCustomParam = (param == QDMI_DEVICE_SESSION_PARAMETER_CUSTOM1 ||
-                              param == QDMI_DEVICE_SESSION_PARAMETER_CUSTOM2 ||
-                              param == QDMI_DEVICE_SESSION_PARAMETER_CUSTOM3 ||
-                              param == QDMI_DEVICE_SESSION_PARAMETER_CUSTOM4 ||
-                              param == QDMI_DEVICE_SESSION_PARAMETER_CUSTOM5);
+  const bool isDefinedCustomParam =
+      (param == QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN ||
+       param == QDMI_DEVICE_SESSION_PARAMETER_REGION ||
+       param == QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID ||
+       param == QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY ||
+       param == QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN);
 
-  if (!isStandardParam && !isCustomParam) {
+  if (!isStandardParam && !isDefinedCustomParam) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
@@ -831,13 +834,15 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryOperationProperty(
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
     const QDMI_Device_Job_Parameter param, const size_t size, const void* value)
     -> QDMI_STATUS {
+  // Validate parameter: must be standard QDMI param or one of the specifically
+  // defined custom params (OUTPUTS3BUCKET, OUTPUTS3PREFIX)
+  const bool isStandardParam = param < QDMI_DEVICE_JOB_PARAMETER_MAX;
+  const bool isDefinedCustomParam =
+      (param == QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET ||
+       param == QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX);
+
   if ((value != nullptr && size == 0) ||
-      (param >= QDMI_DEVICE_JOB_PARAMETER_MAX &&
-       param != QDMI_DEVICE_JOB_PARAMETER_CUSTOM1 &&
-       param != QDMI_DEVICE_JOB_PARAMETER_CUSTOM2 &&
-       param != QDMI_DEVICE_JOB_PARAMETER_CUSTOM3 &&
-       param != QDMI_DEVICE_JOB_PARAMETER_CUSTOM4 &&
-       param != QDMI_DEVICE_JOB_PARAMETER_CUSTOM5)) {
+      (!isStandardParam && !isDefinedCustomParam)) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 

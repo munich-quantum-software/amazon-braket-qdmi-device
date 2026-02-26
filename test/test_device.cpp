@@ -20,6 +20,7 @@
 #include "amazon-braket-qdmi-device/Constants.hpp"
 #include "amazon_braket_qdmi/device.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -694,7 +695,7 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
       << "Job submission should succeed with S3 configuration";
 
   // Wait for completion (60 seconds for SV1 should be plenty)
-  int waitStatus = AMAZON_BRAKET_QDMI_device_job_wait(job, 60000);
+  const int waitStatus = AMAZON_BRAKET_QDMI_device_job_wait(job, 60000);
   EXPECT_EQ(waitStatus, QDMI_SUCCESS) << "Job should complete successfully";
 
   // Check final status
