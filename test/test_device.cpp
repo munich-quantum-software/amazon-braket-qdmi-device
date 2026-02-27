@@ -28,6 +28,7 @@
 #include <exception>
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
+#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -477,7 +478,7 @@ TEST_F(AmazonBraketQDMISpecificationTest, SessionCredentialsFile) {
             QDMI_SUCCESS);
 
   // Try to initialize with credentials file
-  std::ignore = AMAZON_BRAKET_QDMI_device_session_init(credsSession);
+  (void)AMAZON_BRAKET_QDMI_device_session_init(credsSession);
   AMAZON_BRAKET_QDMI_device_session_free(credsSession);
 }
 

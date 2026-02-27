@@ -97,14 +97,9 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
-#include <ostream>
 #include <sstream>
 #include <string>
-// NOLINTNEXTLINE(modernize-deprecated-headers) - strnlen is POSIX, not in
-// <cstring>
-#include <string.h>
 #include <thread>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -700,7 +695,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
   case QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN: {
     // Device ARN (required)
     const auto* arnStr = static_cast<const char*>(value);
-    if (strnlen(arnStr, size) >= size) {
+    if (memchr(arnStr, '\0', size) == nullptr) {
       return QDMI_ERROR_INVALIDARGUMENT; // Not null-terminated
     }
     deviceArn_ = arnStr;
@@ -710,7 +705,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
   case QDMI_DEVICE_SESSION_PARAMETER_REGION: {
     // AWS Region (optional - can be extracted from ARN)
     const auto* regionStr = static_cast<const char*>(value);
-    if (strnlen(regionStr, size) >= size) {
+    if (memchr(regionStr, '\0', size) == nullptr) {
       return QDMI_ERROR_INVALIDARGUMENT; // Not null-terminated
     }
     region_ = regionStr;
@@ -721,7 +716,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
   // Supports standard AWS credentials file format with profiles
   case QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE: {
     const auto* filePath = static_cast<const char*>(value);
-    if (strnlen(filePath, size) >= size) {
+    if (memchr(filePath, '\0', size) == nullptr) {
       return QDMI_ERROR_INVALIDARGUMENT; // Not null-terminated
     }
     credentialsFile_ = filePath;
@@ -732,7 +727,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
   // For programmatic credential specification
   case QDMI_DEVICE_SESSION_PARAMETER_CUSTOM3: { // AWS_ACCESS_KEY_ID
     const auto* accessKey = static_cast<const char*>(value);
-    if (strnlen(accessKey, size) >= size) {
+    if (memchr(accessKey, '\0', size) == nullptr) {
       return QDMI_ERROR_INVALIDARGUMENT; // Not null-terminated
     }
     accessKeyId_ = accessKey;
@@ -741,7 +736,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
 
   case QDMI_DEVICE_SESSION_PARAMETER_CUSTOM4: { // AWS_SECRET_ACCESS_KEY
     const auto* secretKey = static_cast<const char*>(value);
-    if (strnlen(secretKey, size) >= size) {
+    if (memchr(secretKey, '\0', size) == nullptr) {
       return QDMI_ERROR_INVALIDARGUMENT; // Not null-terminated
     }
     secretAccessKey_ = secretKey;
@@ -750,7 +745,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
 
   case QDMI_DEVICE_SESSION_PARAMETER_CUSTOM5: { // AWS_SESSION_TOKEN
     const auto* token = static_cast<const char*>(value);
-    if (strnlen(token, size) >= size) {
+    if (memchr(token, '\0', size) == nullptr) {
       return QDMI_ERROR_INVALIDARGUMENT; // Not null-terminated
     }
     sessionToken_ = token;
@@ -1571,7 +1566,7 @@ int AMAZON_BRAKET_QDMI_device_initialize() {
     Aws::InitAPI(gAWSOptions);
     gAWSInitialized = true;
   }
-  std::ignore = amazon::braket::qdmi::Device::get();
+  (void)amazon::braket::qdmi::Device::get();
   return QDMI_SUCCESS;
 }
 
