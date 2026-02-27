@@ -1878,7 +1878,7 @@ int AMAZON_BRAKET_QDMI_device_job_cancel(AMAZON_BRAKET_QDMI_Device_Job job) {
 /**
  * Check the status of a QDMI job.
  *
- * Queries Amazon Braket for the current quantum task status without blocking.
+ * Queries Amazon Braket for the current quantum task status.
  * Status values include: CREATED, QUEUED, RUNNING, DONE, FAILED, CANCELLED.
  *
  * @param job The QDMI job handle
