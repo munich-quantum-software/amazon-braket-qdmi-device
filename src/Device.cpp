@@ -793,13 +793,9 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
     return QDMI_ERROR_BADSTATE;
   }
 
-  // Fetch session device architecture on first property query (uses cache if
-  // available)
-  if (cachedArchitecture_ == nullptr) {
-    const auto ret = fetchDeviceArchitecture();
-    if (ret != QDMI_SUCCESS) {
-      return ret;
-    }
+  // fetchDeviceArchitecture() uses the internal cache
+  if (const auto ret = fetchDeviceArchitecture(); ret != QDMI_SUCCESS) {
+    return ret;
   }
 
   // Session device architecture properties (from cache)
