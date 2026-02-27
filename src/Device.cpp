@@ -97,8 +97,12 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <ostream>
 #include <sstream>
 #include <string>
+// NOLINTNEXTLINE(modernize-deprecated-headers) - strnlen is POSIX, not in
+// <cstring>
+#include <string.h>
 #include <thread>
 #include <tuple>
 #include <utility>

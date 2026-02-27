@@ -32,12 +32,17 @@
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
 
 #include "amazon-braket-qdmi-device/Device.hpp"
+#include "amazon_braket_qdmi/constants.h"
 
+#include <aws/braket/model/DeviceType.h>
 #include <aws/core/utils/json/JsonSerializer.h>
+#include <cstddef>
 #include <iostream>
 #include <memory>
+#include <ostream>
 #include <string>
 #include <unordered_set>
+#include <utility>
 
 // ============================================================================
 // Helper Functions (Common to All Parsers)
