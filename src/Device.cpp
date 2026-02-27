@@ -61,17 +61,20 @@
 
 #include "amazon-braket-qdmi-device/Device.hpp"
 
+#include "amazon-braket-qdmi-device/Constants.hpp"
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
 #include "amazon_braket_qdmi/constants.h"
 #include "amazon_braket_qdmi/device.h"
 #include "aws/core/utils/Array.h"
 
+#include <algorithm>
 #include <aws/braket/BraketClient.h>
 #include <aws/braket/model/CancelQuantumTaskRequest.h>
 #include <aws/braket/model/CreateQuantumTaskRequest.h>
 #include <aws/braket/model/DeviceStatus.h>
 #include <aws/braket/model/DeviceType.h>
 #include <aws/braket/model/GetDeviceRequest.h>
+#include <aws/braket/model/GetDeviceResult.h>
 #include <aws/braket/model/GetQuantumTaskRequest.h>
 #include <aws/braket/model/QuantumTaskStatus.h>
 #include <aws/braket/model/SearchDevicesFilter.h>
@@ -79,6 +82,7 @@
 #include <aws/core/auth/AWSCredentials.h>
 #include <aws/core/client/ClientConfiguration.h>
 #include <aws/core/utils/json/JsonSerializer.h>
+#include <aws/core/utils/memory/stl/AWSString.h>
 #include <aws/s3/S3Client.h>
 #include <aws/s3/S3ClientConfiguration.h>
 #include <aws/s3/model/GetObjectRequest.h>
@@ -262,14 +266,14 @@ auto parseCredentialsFile(const std::string& filePath, std::string& accessKeyId,
  * Below this value, the device is reported as QDMI_DEVICE_STATUS_IDLE.
  *
  */
-constexpr int kQueueBusyThreshold = 5;
+constexpr int QUEUE_BUSY_THRESHOLD = 5;
 
 /**
  * @brief Compute total queue depth from a Braket GetDevice result.
  *
  * Sums the `queueSize` field across all entries in `deviceQueueInfo`.
  * AWS returns queue sizes as strings (e.g. "12" or ">50"); values that
- * cannot be parsed as integers are treated as kQueueBusyThreshold to
+ * cannot be parsed as integers are treated as QUEUE_BUSY_THRESHOLD to
  * indicate "definitely busy".
  *
  * @param result Result of a successful BraketClient::GetDevice() call
@@ -281,11 +285,11 @@ auto getTotalQueueDepth(const Aws::Braket::Model::GetDeviceResult& result)
   for (const auto& queueItem : result.GetDeviceQueueInfo()) {
     const Aws::String& sizeStr = queueItem.GetQueueSize();
     try {
-      totalDepth += std::stoi(sizeStr.c_str());
+      totalDepth += std::stoi(std::string(sizeStr));
     } catch (...) {
       // Non-integer strings like ">50" indicate a busy queue; treat as
       // threshold to ensure the device is reported as BUSY.
-      totalDepth += kQueueBusyThreshold;
+      totalDepth += QUEUE_BUSY_THRESHOLD;
     }
   }
   return totalDepth;
@@ -318,7 +322,8 @@ auto Device::sessionAlloc(AMAZON_BRAKET_QDMI_Device_Session* session)
       std::make_unique<AMAZON_BRAKET_QDMI_Device_Session_impl_d>();
   const std::scoped_lock<std::mutex> lock(sessionsMutex_);
   const auto& it =
-      sessions_.emplace(uniqueSession.get(), std::move(uniqueSession)).first;
+      sessions_.emplace(uniqueSession.get(), std::move(uniqueSession))
+          .first; // NOLINT(misc-include-cleaner)
   *session = it->first;
   return QDMI_SUCCESS;
 }
@@ -367,7 +372,8 @@ auto Device::setCachedArchitecture(
     const std::string& deviceArn,
     std::shared_ptr<DeviceArchitecture> architecture) -> void {
   const std::scoped_lock<std::mutex> lock(deviceCacheMutex_);
-  deviceCache_[deviceArn] = std::move(architecture);
+  deviceCache_[deviceArn] =
+      std::move(architecture); // NOLINT(misc-include-cleaner)
 }
 
 } // namespace amazon::braket::qdmi
@@ -414,7 +420,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
       case Aws::Braket::Model::DeviceStatus::ONLINE: {
         // Differentiate IDLE vs BUSY based on current queue depth
         const int queueDepth = getTotalQueueDepth(device);
-        braketDeviceStatus_.store(queueDepth >= kQueueBusyThreshold
+        braketDeviceStatus_.store(queueDepth >= QUEUE_BUSY_THRESHOLD
                                       ? QDMI_DEVICE_STATUS_BUSY
                                       : QDMI_DEVICE_STATUS_IDLE);
         break;
@@ -471,7 +477,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
     // Device still accepts submissions in the BUSY state; this is
     // purely informational.
     const int queueDepth = getTotalQueueDepth(device);
-    braketDeviceStatus_.store(queueDepth >= kQueueBusyThreshold
+    braketDeviceStatus_.store(queueDepth >= QUEUE_BUSY_THRESHOLD
                                   ? QDMI_DEVICE_STATUS_BUSY
                                   : QDMI_DEVICE_STATUS_IDLE);
     break;
@@ -611,14 +617,14 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
   // Parse credentials file if provided (takes precedence over direct
   // parameters)
   if (!credentialsFile_.empty()) {
-    std::string fileAccessKey;
-    std::string fileSecretKey;
-    std::string fileSessionToken;
-    if (parseCredentialsFile(credentialsFile_, fileAccessKey, fileSecretKey,
-                             fileSessionToken)) {
-      accessKeyId_ = fileAccessKey;
-      secretAccessKey_ = fileSecretKey;
-      sessionToken_ = fileSessionToken;
+    std::string accessKeyId;
+    std::string secretAccessKey;
+    std::string sessionToken;
+    if (parseCredentialsFile(credentialsFile_, accessKeyId, secretAccessKey,
+                             sessionToken)) {
+      accessKeyId_ = accessKeyId;
+      secretAccessKey_ = secretAccessKey;
+      sessionToken_ = sessionToken;
     } else {
       std::cerr << "ERROR: Failed to parse credentials file: "
                 << credentialsFile_ << "\n";
