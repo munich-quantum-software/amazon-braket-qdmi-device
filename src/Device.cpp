@@ -418,7 +418,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
   // threads
   std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture> localArch;
   {
-    const std::lock_guard<std::mutex> lock(cachedArchitectureMutex_);
+    const std::scoped_lock lock(cachedArchitectureMutex_);
     cachedArchitecture_ =
         amazon::braket::qdmi::Device::get().getCachedArchitecture(deviceArn_);
     localArch = cachedArchitecture_;
@@ -572,7 +572,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
 
   // Store in singleton cache and assign to session
   {
-    const std::lock_guard<std::mutex> lock(cachedArchitectureMutex_);
+    const std::scoped_lock lock(cachedArchitectureMutex_);
     amazon::braket::qdmi::Device::get().setCachedArchitecture(deviceArn_,
                                                               architecture);
     cachedArchitecture_ = architecture;
@@ -822,7 +822,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
   // Snapshot the shared_ptr under the lock
   std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture> arch;
   {
-    const std::lock_guard<std::mutex> lock(cachedArchitectureMutex_);
+    const std::scoped_lock lock(cachedArchitectureMutex_);
     arch = cachedArchitecture_;
   }
 
