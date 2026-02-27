@@ -330,18 +330,24 @@ auto IQMDeviceParser::ParseConnectivityGraph(
 
   for (const auto& entry : connGraph.GetAllObjects()) {
     const std::string& sourceId = entry.first;
-    auto* const sourceSite = properties.sitesMap[sourceId];
+    const auto srcIt = properties.sitesMap.find(sourceId);
+    if (srcIt == properties.sitesMap.end()) {
+      std::cerr << "Invalid source qubit in connectivity graph: " << sourceId
+                << "\n";
+      return QDMI_ERROR_FATAL;
+    }
+    auto* const sourceSite = srcIt->second;
 
     auto const targets = entry.second.AsArray();
     for (size_t i = 0; i < targets.GetLength(); ++i) {
       const std::string targetId = targets[i].AsString();
-      auto* const targetSite = properties.sitesMap[targetId];
-
-      if (sourceSite == nullptr || targetSite == nullptr) {
-        std::cerr << "Invalid qubit in connectivity graph: " << sourceId
+      const auto tgtIt = properties.sitesMap.find(targetId);
+      if (tgtIt == properties.sitesMap.end()) {
+        std::cerr << "Invalid target qubit in connectivity graph: " << sourceId
                   << " -> " << targetId << "\n";
         return QDMI_ERROR_FATAL;
       }
+      auto* const targetSite = tgtIt->second;
 
       // Add edge (stored as alternating source/target per QDMI spec)
       properties.connectivity.push_back(sourceSite);
