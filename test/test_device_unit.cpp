@@ -32,6 +32,7 @@
 #include "amazon-braket-qdmi-device/Constants.hpp"
 #include "amazon_braket_qdmi/device.h"
 
+#include <array>
 #include <cstddef>
 #include <cstring>
 #include <gmock/gmock-matchers.h>
@@ -229,55 +230,55 @@ TEST_F(AmazonBraketQDMIOfflineTest, JobGetResultsNullptr) {
 
 TEST_F(AmazonBraketQDMIOfflineTest,
        SessionSetParameterDeviceArnNotNullTerminated) {
-  const char notTerminated[] = {'a', 'r', 'n', ':', 'a', 'w', 's'};
+  const std::array<char, 7> notTerminated = {'a', 'r', 'n', ':', 'a', 'w', 's'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 session, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
-                sizeof(notTerminated), notTerminated),
+                notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest,
        SessionSetParameterRegionNotNullTerminated) {
-  const char notTerminated[] = {'u', 's', '-', 'e', 'a', 's', 't'};
+  const std::array<char, 7> notTerminated = {'u', 's', '-', 'e', 'a', 's', 't'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 session, QDMI_DEVICE_SESSION_PARAMETER_REGION,
-                sizeof(notTerminated), notTerminated),
+                notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest,
        SessionSetParameterAuthfileNotNullTerminated) {
-  const char notTerminated[] = {'/', 't', 'm', 'p', '/', 'c', 'r'};
+  const std::array<char, 7> notTerminated = {'/', 't', 'm', 'p', '/', 'c', 'r'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 session, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
-                sizeof(notTerminated), notTerminated),
+                notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest,
        SessionSetParameterAccessKeyNotNullTerminated) {
-  const char notTerminated[] = {'A', 'K', 'I', 'A', '1', '2', '3'};
+  const std::array<char, 7> notTerminated = {'A', 'K', 'I', 'A', '1', '2', '3'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 session, QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID,
-                sizeof(notTerminated), notTerminated),
+                notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest,
        SessionSetParameterSecretKeyNotNullTerminated) {
-  const char notTerminated[] = {'s', 'e', 'c', 'r', 'e', 't'};
+  const std::array<char, 6> notTerminated = {'s', 'e', 'c', 'r', 'e', 't'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 session, QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY,
-                sizeof(notTerminated), notTerminated),
+                notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest,
        SessionSetParameterSessionTokenNotNullTerminated) {
-  const char notTerminated[] = {'t', 'o', 'k', 'e', 'n'};
+  const std::array<char, 5> notTerminated = {'t', 'o', 'k', 'e', 'n'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 session, QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN,
-                sizeof(notTerminated), notTerminated),
+                notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
@@ -557,10 +558,10 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterS3BucketNotNullTerminated) {
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
       QDMI_SUCCESS);
-  const char notTerminated[] = {'b', 'u', 'c', 'k', 'e', 't'};
+  const std::array<char, 6> notTerminated = {'b', 'u', 'c', 'k', 'e', 't'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
                 freshJob, QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
-                sizeof(notTerminated), notTerminated),
+                notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
@@ -570,10 +571,10 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterS3PrefixNotNullTerminated) {
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
       QDMI_SUCCESS);
-  const char notTerminated[] = {'p', 'r', 'e', 'f', 'i', 'x'};
+  const std::array<char, 6> notTerminated = {'p', 'r', 'e', 'f', 'i', 'x'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
                 freshJob, QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX,
-                sizeof(notTerminated), notTerminated),
+                notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
@@ -584,10 +585,10 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
       QDMI_SUCCESS);
-  const char notTerminated[] = {'a', 'r', 'n', ':', 'a', 'w', 's'};
+  const std::array<char, 7> notTerminated = {'a', 'r', 'n', ':', 'a', 'w', 's'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
                 freshJob, QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN,
-                sizeof(notTerminated), notTerminated),
+                notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }

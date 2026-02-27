@@ -42,7 +42,9 @@
 #include "amazon_braket_qdmi/device.h"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
@@ -593,9 +595,9 @@ TEST_F(AmazonBraketQDMISpecificationTest, QueryOperationData) {
 
 TEST_F(AmazonBraketQDMISpecificationTest,
        QueryDevicePropertyNameBufferTooSmall) {
-  char buf[1] = {};
+  std::array<char, 1> buf = {};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
-                session, QDMI_DEVICE_PROPERTY_NAME, 1, buf, nullptr),
+                session, QDMI_DEVICE_PROPERTY_NAME, 1, buf.data(), nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
@@ -605,29 +607,29 @@ TEST_F(AmazonBraketQDMISpecificationTest,
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
                 session,
                 static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_SITES),
-                1, &buf, nullptr),
+                1, static_cast<void*>(&buf), nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMISpecificationTest, QuerySitePropertyNameBufferTooSmall) {
   auto sites = querySites(session);
   ASSERT_GT(sites.size(), 0U);
-  char buf[1] = {};
-  EXPECT_EQ(
-      AMAZON_BRAKET_QDMI_device_session_query_site_property(
-          session, sites.front(), QDMI_SITE_PROPERTY_NAME, 1, buf, nullptr),
-      QDMI_ERROR_INVALIDARGUMENT);
+  std::array<char, 1> buf = {};
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
+                session, sites.front(), QDMI_SITE_PROPERTY_NAME, 1, buf.data(),
+                nullptr),
+            QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMISpecificationTest,
        QuerySitePropertyIndexBufferTooSmall) {
   auto sites = querySites(session);
   ASSERT_GT(sites.size(), 0U);
-  char buf[1] = {};
-  EXPECT_EQ(
-      AMAZON_BRAKET_QDMI_device_session_query_site_property(
-          session, sites.front(), QDMI_SITE_PROPERTY_INDEX, 1, buf, nullptr),
-      QDMI_ERROR_INVALIDARGUMENT);
+  std::array<char, 1> buf = {};
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
+                session, sites.front(), QDMI_SITE_PROPERTY_INDEX, 1, buf.data(),
+                nullptr),
+            QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMISpecificationTest,
@@ -647,7 +649,7 @@ TEST_F(AmazonBraketQDMISpecificationTest,
        QueryOperationPropertyParamsNonNullNumParamsZero) {
   auto operations = queryOperations(session);
   ASSERT_GT(operations.size(), 0U);
-  double param = 0.0;
+  const double param = 0.0;
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
                 session, operations.front(), 0, nullptr, 0, &param,
                 QDMI_OPERATION_PROPERTY_NAME, 0, nullptr, nullptr),

@@ -90,7 +90,8 @@ AMAZON_BRAKET_QDMI_device_session_init(session);
 [default]
 aws_access_key_id=AKIAIOSFODNN7EXAMPLE
 aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-aws_session_token=IQoJb3JpZ2luX2VjEOT//////////...  # Optional for temporary credentials
+# Optional for temporary credentials
+aws_session_token=IQoJb3JpZ2luX2VjEOT//////////...
 ```
 
 **Note:** The credentials file should contain only one profile section. The parser reads the first profile found. This method allows different sessions to use different credentials within the same process.
