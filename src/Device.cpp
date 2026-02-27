@@ -1015,18 +1015,29 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
   // 4. Set Output S3 Bucket and Prefix
   // 5. Call BraketClient::CreateQuantumTask()
 
-  if (program_.empty() || session_->getDeviceArn().empty()) {
-    return QDMI_ERROR_INVALIDARGUMENT;
-  }
-
+  // Capture all shared fields under jobMutex_ to prevent data races with
+  // concurrent setParameter() calls
+  std::string localProgram;
+  std::string localS3Bucket;
+  std::string localS3Prefix;
+  std::string localReservationArn;
+  size_t localShots = 0;
   {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
+    if (program_.empty() || session_->getDeviceArn().empty()) {
+      return QDMI_ERROR_INVALIDARGUMENT;
+    }
     status_.store(QDMI_JOB_STATUS_QUEUED);
+    localProgram = program_;
+    localS3Bucket = jobS3Bucket_;
+    localS3Prefix = jobS3Prefix_;
+    localReservationArn = reservationArn_;
+    localShots = shots_;
   }
 
   Aws::Braket::Model::CreateQuantumTaskRequest request;
   request.SetDeviceArn(session_->getDeviceArn());
-  request.SetShots(static_cast<int64_t>(shots_));
+  request.SetShots(static_cast<int64_t>(localShots));
 
   // Construct the Action JSON
   Aws::Utils::Json::JsonValue actionJson;
@@ -1034,13 +1045,13 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
   header.WithString("name", "braket.ir.openqasm.program");
   header.WithString("version", "1");
   actionJson.WithObject("braketSchemaHeader", header);
-  actionJson.WithString("source", program_);
+  actionJson.WithString("source", localProgram);
 
   request.SetAction(actionJson.View().WriteCompact());
 
   // Configure Output S3 Bucket and Prefix
   // Bucket is required per job (no session-level fallback in AWS Braket)
-  if (jobS3Bucket_.empty()) {
+  if (localS3Bucket.empty()) {
     std::cerr << "Error: S3 bucket must be configured per job to store task "
                  "results.\n";
     const std::scoped_lock<std::mutex> lock(jobMutex_);
@@ -1048,12 +1059,12 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
-  request.SetOutputS3Bucket(jobS3Bucket_);
+  request.SetOutputS3Bucket(localS3Bucket);
 
   // Use provided prefix or generate timestamp-based prefix
   std::string effectivePrefix;
-  if (!jobS3Prefix_.empty()) {
-    effectivePrefix = jobS3Prefix_;
+  if (!localS3Prefix.empty()) {
+    effectivePrefix = localS3Prefix;
   } else {
     // Generate timestamp-based prefix
     const auto now = std::chrono::system_clock::now();
@@ -1066,9 +1077,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
   request.SetOutputS3KeyPrefix(effectivePrefix);
 
   // Attach reservation ARN when provided (routes task into dedicated window)
-  if (!reservationArn_.empty()) {
+  if (!localReservationArn.empty()) {
     Aws::Braket::Model::Association reservation;
-    reservation.SetArn(reservationArn_);
+    reservation.SetArn(localReservationArn);
     reservation.SetType(
         Aws::Braket::Model::AssociationType::RESERVATION_TIME_WINDOW_ARN);
     request.AddAssociations(reservation);
