@@ -893,12 +893,10 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
-  const auto currentStatus = status_.load();
-  if (currentStatus != QDMI_JOB_STATUS_CREATED) {
+  const std::scoped_lock<std::mutex> lock(jobMutex_);
+  if (status_.load() != QDMI_JOB_STATUS_CREATED) {
     return QDMI_ERROR_BADSTATE;
   }
-
-  const std::scoped_lock<std::mutex> lock(jobMutex_);
   if (param == QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM) {
     if (value == nullptr || size != sizeof(size_t)) {
       return QDMI_ERROR_INVALIDARGUMENT;
@@ -990,11 +988,6 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
-  const auto currentStatus = status_.load();
-  if (currentStatus != QDMI_JOB_STATUS_CREATED) {
-    return QDMI_ERROR_BADSTATE;
-  }
-
   // Amazon Braket CreateQuantumTask API Call
 
   // Purpose: Submit a quantum circuit for execution on the target device
@@ -1028,6 +1021,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
   size_t localShots = 0;
   {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
+    if (status_.load() != QDMI_JOB_STATUS_CREATED) {
+      return QDMI_ERROR_BADSTATE;
+    }
     if (program_.empty() || session_->getDeviceArn().empty()) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
