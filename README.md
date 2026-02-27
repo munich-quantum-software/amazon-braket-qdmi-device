@@ -35,12 +35,13 @@ are **not** supported by this library. This library only handles QuantumTasks
 
 ### Supported Amazon Braket Devices
 
-This implementation currently only supports simulator Amazon Braket devices:
+This implementation currently supports submitting jobs to simulator and gate-based Amazon Braket devices.
+Additionally, support for querying properties (e.g., qubit count, gate set) is implemented for:
 
 | Device Type         | Examples                                                       |
 | ------------------- | -------------------------------------------------------------- |
 | **Simulators**      | SV1 (State Vector), DM1 (Density Matrix), TN1 (Tensor Network) |
-| **Gate-based QPUs** | TODO                                                           |
+| **Gate-based QPUs** | IQM Garnet, IQM Emerald                                        |
 
 ## Quick Start
 
@@ -185,10 +186,11 @@ AMAZON_BRAKET_QDMI_device_job_set_parameter(
 
 **Job S3 Parameters**
 
-| Parameter                                  | Type    | Required | Description                                                     |
-| ------------------------------------------ | ------- | -------- | --------------------------------------------------------------- |
-| `QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET` | `char*` | Yes      | S3 bucket for quantum task results                              |
-| `QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX` | `char*` | No       | S3 prefix for results (defaults to timestamp: `<epoch-millis>`) |
+| Parameter                                   | Type    | Required | Description                                                          |
+| ------------------------------------------- | ------- | -------- | -------------------------------------------------------------------- |
+| `QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET`  | `char*` | Yes      | S3 bucket for quantum task results                                   |
+| `QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX`  | `char*` | No       | S3 prefix for results (defaults to timestamp: `<epoch-millis>`)      |
+| `QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN` | `char*` | No       | Braket reservation ARN to route the task into a reserved time window |
 
 ### Installation
 
@@ -347,7 +349,8 @@ The library maps Amazon Braket device states to QDMI status values:
 
 | Amazon Braket Status | QDMI Status                      | Description                                                                                 |
 | -------------------- | -------------------------------- | ------------------------------------------------------------------------------------------- |
-| `ONLINE`             | `QDMI_DEVICE_STATUS_IDLE`        | Device is operational and ready to accept quantum tasks.                                    |
+| `ONLINE` (queue < 5) | `QDMI_DEVICE_STATUS_IDLE`        | Device is operational and ready to accept quantum tasks.                                    |
+| `ONLINE` (queue ≥ 5) | `QDMI_DEVICE_STATUS_BUSY`        | Device is operational but has a significant queue of pending tasks.                         |
 | `OFFLINE`            | `QDMI_DEVICE_STATUS_MAINTENANCE` | Device is temporarily unavailable (maintenance/calibration). Tasks will queue until return. |
 | `RETIRED`            | `QDMI_DEVICE_STATUS_OFFLINE`     | Device is permanently decommissioned. Task submission is blocked.                           |
 
