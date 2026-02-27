@@ -39,8 +39,8 @@
 #include <cstddef>
 #include <iostream>
 #include <memory>
+#include <set>
 #include <string>
-#include <unordered_set>
 #include <utility>
 
 // ============================================================================
@@ -263,31 +263,27 @@ auto IQMDeviceParser::ParseProperties(
 
   const auto connGraph = connectivityObj.GetObject("connectivityGraph");
 
-  // Collect all unique qubit IDs from the connectivity graph
-  std::unordered_set<std::string> qubitIds;
+  // Collect all unique qubit IDs as integers for deterministic numeric order.
+  std::set<size_t> qubitNums;
   for (const auto& entry : connGraph.GetAllObjects()) {
-    const std::string& sourceId = entry.first;
-    qubitIds.insert(sourceId);
-
-    auto targets = entry.second.AsArray();
-    for (size_t i = 0; i < targets.GetLength(); ++i) {
-      qubitIds.insert(targets[i].AsString());
+    try {
+      qubitNums.insert(std::stoull(entry.first));
+      auto targets = entry.second.AsArray();
+      for (size_t i = 0; i < targets.GetLength(); ++i) {
+        qubitNums.insert(std::stoull(targets[i].AsString()));
+      }
+    } catch (...) {
+      std::cerr << "Invalid qubit ID in connectivity graph\n";
+      return QDMI_ERROR_FATAL;
     }
   }
 
-  // Create sites for all discovered qubits
-  for (const auto& qubitId : qubitIds) {
+  // Create sites in ascending numeric order
+  for (const size_t qubitNum : qubitNums) {
+    const std::string qubitId = std::to_string(qubitNum);
     auto site = std::make_unique<AMAZON_BRAKET_QDMI_Site_impl_d>();
     site->name_ = qubitId;
-
-    // Convert string ID to integer (IQM uses numeric strings like "1", "2",
-    // etc.)
-    try {
-      site->id_ = std::stoull(qubitId);
-    } catch (...) {
-      std::cerr << "Invalid qubit ID: " << qubitId << "\n";
-      return QDMI_ERROR_FATAL;
-    }
+    site->id_ = qubitNum;
 
     properties.sitesPtr.push_back(site.get());
     properties.sitesMap[qubitId] = site.get();
