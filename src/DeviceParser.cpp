@@ -60,13 +60,13 @@ auto IDeviceParser::GetGateQubitCount(const std::string& gateName) -> size_t {
       gateName == "cphaseshift00" || gateName == "cphaseshift01" ||
       gateName == "cphaseshift10" || gateName == "iswap" ||
       gateName == "pswap" || gateName == "ecr" || gateName == "cy" ||
-      gateName == "ms" || gateName == "gpi2") {
+      gateName == "ms") {
     return 2;
   }
 
   // Default: single-qubit gates
   // (x, y, z, h, rx, ry, rz, s, si, t, ti, v, vi, i, phaseshift, gpi,
-  // unitary, prx, measure_ff)
+  // gpi2, unitary, prx, measure_ff)
   return 1;
 }
 
