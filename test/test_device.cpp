@@ -627,7 +627,23 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
   // Initialize and create session
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
 
-  AMAZON_BRAKET_QDMI_Device_Session session = nullptr;
+  // RAII guard: ensures session and SDK are always released on every exit path
+  // (GTEST_SKIP, ASSERT_ failures, normal return).
+  struct SessionGuard {
+    AMAZON_BRAKET_QDMI_Device_Session session = nullptr;
+    AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+    ~SessionGuard() {
+      if (job != nullptr) {
+        AMAZON_BRAKET_QDMI_device_job_free(job);
+      }
+      if (session != nullptr) {
+        AMAZON_BRAKET_QDMI_device_session_free(session);
+      }
+      AMAZON_BRAKET_QDMI_device_finalize();
+    }
+  } guard;
+  auto& session = guard.session;
+
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&session), QDMI_SUCCESS);
 
   // Setup credentials
@@ -648,7 +664,7 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
 
   // Create job
-  AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+  auto& job = guard.job;
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job),
             QDMI_SUCCESS);
 
@@ -718,10 +734,7 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
   EXPECT_TRUE(found00 && found11)
       << "Bell state should produce 00 and 11 outcomes";
 
-  // Cleanup
-  AMAZON_BRAKET_QDMI_device_job_free(job);
-  AMAZON_BRAKET_QDMI_device_session_free(session);
-  AMAZON_BRAKET_QDMI_device_finalize();
+  // Cleanup is handled by SessionGuard destructor.
 }
 
 TEST_F(AmazonBraketQDMISpecificationTest, JobQueryProperty) {
@@ -1113,8 +1126,13 @@ protected:
 
     for (size_t i = 0; i < std::min(maxCount, sites.size()); ++i) {
       size_t nameSize = 0;
-      AMAZON_BRAKET_QDMI_device_session_query_site_property(
-          session, sites[i], QDMI_SITE_PROPERTY_NAME, 0, nullptr, &nameSize);
+      if (AMAZON_BRAKET_QDMI_device_session_query_site_property(
+              session, sites[i], QDMI_SITE_PROPERTY_NAME, 0, nullptr,
+              &nameSize) != QDMI_SUCCESS ||
+          nameSize == 0) {
+        names.emplace_back();
+        continue;
+      }
       std::string name(nameSize - 1, '\0');
       AMAZON_BRAKET_QDMI_device_session_query_site_property(
           session, sites[i], QDMI_SITE_PROPERTY_NAME, nameSize, name.data(),
@@ -1128,9 +1146,12 @@ protected:
     auto operations = queryOperations(session);
     for (auto* op : operations) {
       size_t nameSize = 0;
-      AMAZON_BRAKET_QDMI_device_session_query_operation_property(
-          session, op, 0, nullptr, 0, nullptr, QDMI_OPERATION_PROPERTY_NAME, 0,
-          nullptr, &nameSize);
+      if (AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+              session, op, 0, nullptr, 0, nullptr, QDMI_OPERATION_PROPERTY_NAME,
+              0, nullptr, &nameSize) != QDMI_SUCCESS ||
+          nameSize == 0) {
+        continue;
+      }
       std::string opName(nameSize - 1, '\0');
       AMAZON_BRAKET_QDMI_device_session_query_operation_property(
           session, op, 0, nullptr, 0, nullptr, QDMI_OPERATION_PROPERTY_NAME,
