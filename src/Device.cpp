@@ -916,6 +916,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
     if (value == nullptr || size == 0) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
+    if (static_cast<const char*>(value)[size - 1] != '\0') {
+      return QDMI_ERROR_INVALIDARGUMENT;
+    }
     program_ = std::string(static_cast<const char*>(value), size - 1);
     return QDMI_SUCCESS;
   }
@@ -1102,7 +1105,10 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
     return QDMI_ERROR_NOTSUPPORTED;
   }
 
-  taskArn_ = outcome.GetResult().GetQuantumTaskArn();
+  {
+    const std::scoped_lock<std::mutex> lock(jobMutex_);
+    taskArn_ = outcome.GetResult().GetQuantumTaskArn();
+  }
   status_.store(QDMI_JOB_STATUS_RUNNING);
   return QDMI_SUCCESS;
 }
@@ -1143,12 +1149,17 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
   // - Call check() to poll for the final terminal status
   // - check() handles the CANCELLING→terminal state transition automatically
 
-  if (taskArn_.empty()) {
+  std::string localTaskArn;
+  {
+    const std::scoped_lock<std::mutex> lock(jobMutex_);
+    localTaskArn = taskArn_;
+  }
+  if (localTaskArn.empty()) {
     return QDMI_ERROR_BADSTATE;
   }
 
   Aws::Braket::Model::CancelQuantumTaskRequest request;
-  request.SetQuantumTaskArn(taskArn_);
+  request.SetQuantumTaskArn(localTaskArn);
 
   auto outcome = session_->getClient()->CancelQuantumTask(request);
   if (!outcome.IsSuccess()) {
@@ -1203,7 +1214,12 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
   // AWS NOT_SET    → QDMI_ERROR_NOTSUPPORTED
   // AWS unknown    → QDMI_ERROR_NOTSUPPORTED
   //
-  if (taskArn_.empty()) {
+  std::string localTaskArn;
+  {
+    const std::scoped_lock<std::mutex> lock(jobMutex_);
+    localTaskArn = taskArn_;
+  }
+  if (localTaskArn.empty()) {
     *status = status_.load();
     return QDMI_SUCCESS;
   }
@@ -1220,7 +1236,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
   }
 
   Aws::Braket::Model::GetQuantumTaskRequest request;
-  request.SetQuantumTaskArn(taskArn_);
+  request.SetQuantumTaskArn(localTaskArn);
 
   // Poll until we get a status with a QDMI equivalent (handle CANCELLING)
   constexpr int maxPolls = 60;     // Maximum number of polling attempts
