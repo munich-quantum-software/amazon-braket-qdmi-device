@@ -216,53 +216,15 @@ protected:
       return;
     }
 
-    // Check for credentials - Method 1: credentials file (local development)
-    const char* credsFileEnv = std::getenv("AWS_CREDENTIALS_FILE");
-    if (credsFileEnv != nullptr && strlen(credsFileEnv) > 0) {
-      if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
-              sharedSession, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
-              strlen(credsFileEnv) + 1, credsFileEnv) != QDMI_SUCCESS) {
-        GTEST_FAIL() << "Failed to set credentials file in SetUpTestSuite";
-        return;
-      }
-    } else {
-      // Method 2: direct credentials via environment variables (CI/CD)
-      const char* accessKeyEnv = std::getenv("AWS_ACCESS_KEY_ID");
-      const char* secretKeyEnv = std::getenv("AWS_SECRET_ACCESS_KEY");
-      const char* sessionTokenEnv = std::getenv("AWS_SESSION_TOKEN");
-
-      if (accessKeyEnv != nullptr && secretKeyEnv != nullptr) {
-        if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                sharedSession, QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID,
-                strlen(accessKeyEnv) + 1, accessKeyEnv) != QDMI_SUCCESS) {
-          GTEST_FAIL() << "Failed to set AWS_ACCESS_KEY_ID in SetUpTestSuite";
-          return;
-        }
-        if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                sharedSession,
-                QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY,
-                strlen(secretKeyEnv) + 1, secretKeyEnv) != QDMI_SUCCESS) {
-          GTEST_FAIL()
-              << "Failed to set AWS_SECRET_ACCESS_KEY in SetUpTestSuite";
-          return;
-        }
-        if (sessionTokenEnv != nullptr && strlen(sessionTokenEnv) > 0) {
-          if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                  sharedSession,
-                  QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN,
-                  strlen(sessionTokenEnv) + 1,
-                  sessionTokenEnv) != QDMI_SUCCESS) {
-            GTEST_FAIL() << "Failed to set AWS_SESSION_TOKEN in SetUpTestSuite";
-            return;
-          }
-        }
-      } else {
-        GTEST_FAIL() << "No credentials provided. Set either:\n"
-                     << "  1. AWS_CREDENTIALS_FILE (path to credentials file)\n"
-                     << "  2. AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY "
-                        "(direct credentials)";
-        return;
-      }
+    try {
+      setupCredentials(sharedSession);
+    } catch (const std::exception& e) {
+      GTEST_FAIL() << "Credentials setup failed in SetUpTestSuite: " << e.what()
+                   << "\n"
+                   << "Set either:\n"
+                   << "  1. AWS_CREDENTIALS_FILE (path to credentials file)\n"
+                   << "  2. AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY";
+      return;
     }
 
     // Configure to use SV1 state vector simulator
