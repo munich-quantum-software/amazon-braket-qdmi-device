@@ -209,7 +209,7 @@ auto parseCredentialsFile(const std::string& filePath, std::string& accessKeyId,
       if (foundCredentials) {
         // Multiple profiles detected - warn and use the first one
         std::cerr << "WARNING: Multiple profiles detected in credentials file. "
-                  << "Using first profile [" << firstProfile << "]\\n";
+                  << "Using first profile [" << firstProfile << "]\n";
         break;
       }
       if (firstProfile.empty()) {
@@ -414,30 +414,35 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
     Aws::Braket::Model::GetDeviceRequest request;
     request.SetDeviceArn(deviceArn_.c_str());
     auto outcome = client_->GetDevice(request);
-    if (outcome.IsSuccess()) {
-      const auto& device = outcome.GetResult();
-      const auto braketStatus = device.GetDeviceStatus();
-      switch (braketStatus) {
-      case Aws::Braket::Model::DeviceStatus::ONLINE: {
-        // Differentiate IDLE vs BUSY based on current queue depth
-        const int queueDepth = getTotalQueueDepth(device);
-        braketDeviceStatus_.store(queueDepth >= QUEUE_BUSY_THRESHOLD
-                                      ? QDMI_DEVICE_STATUS_BUSY
-                                      : QDMI_DEVICE_STATUS_IDLE);
-        break;
-      }
-      case Aws::Braket::Model::DeviceStatus::OFFLINE:
-        braketDeviceStatus_.store(QDMI_DEVICE_STATUS_MAINTENANCE);
-        break;
-      case Aws::Braket::Model::DeviceStatus::RETIRED:
-        braketDeviceStatus_.store(QDMI_DEVICE_STATUS_OFFLINE);
-        break;
-      case Aws::Braket::Model::DeviceStatus::NOT_SET:
-      default:
-        std::cerr << "ERROR: Unknown device status (enum value: "
-                  << static_cast<int>(braketStatus) << ")\n";
-        return QDMI_ERROR_NOTSUPPORTED;
-      }
+    if (!outcome.IsSuccess()) {
+      std::cerr << "Failed to get device: " << outcome.GetError().GetMessage()
+                << "\n";
+      std::cerr << "Please ensure you have configured your AWS credentials "
+                   "correctly.\n";
+      return QDMI_ERROR_NOTSUPPORTED;
+    }
+    const auto& device = outcome.GetResult();
+    const auto braketStatus = device.GetDeviceStatus();
+    switch (braketStatus) {
+    case Aws::Braket::Model::DeviceStatus::ONLINE: {
+      // Differentiate IDLE vs BUSY based on current queue depth
+      const int queueDepth = getTotalQueueDepth(device);
+      braketDeviceStatus_.store(queueDepth >= QUEUE_BUSY_THRESHOLD
+                                    ? QDMI_DEVICE_STATUS_BUSY
+                                    : QDMI_DEVICE_STATUS_IDLE);
+      break;
+    }
+    case Aws::Braket::Model::DeviceStatus::OFFLINE:
+      braketDeviceStatus_.store(QDMI_DEVICE_STATUS_MAINTENANCE);
+      break;
+    case Aws::Braket::Model::DeviceStatus::RETIRED:
+      braketDeviceStatus_.store(QDMI_DEVICE_STATUS_OFFLINE);
+      break;
+    case Aws::Braket::Model::DeviceStatus::NOT_SET:
+    default:
+      std::cerr << "ERROR: Unknown device status (enum value: "
+                << static_cast<int>(braketStatus) << ")\n";
+      return QDMI_ERROR_NOTSUPPORTED;
     }
     return QDMI_SUCCESS;
   }
