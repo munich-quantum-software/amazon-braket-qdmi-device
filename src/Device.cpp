@@ -194,15 +194,17 @@ auto parseCredentialsFile(const std::string& filePath, std::string& accessKeyId,
   bool foundCredentials = false;
 
   while (std::getline(file, line)) {
-    // Trim whitespace
+    // Trim leading whitespace
     line.erase(0, line.find_first_not_of(" \t\r\n"));
-    line.erase(line.find_last_not_of(" \t\r\n") + 1);
-
+    // Trim trailing whitespace
+    {
+      const auto last = line.find_last_not_of(" \t\r\n");
+      line.erase(last == std::string::npos ? 0 : last + 1);
+    }
     // Skip empty lines and comments
     if (line.empty() || line[0] == '#' || line[0] == ';') {
       continue;
     }
-
     // Check for profile header [default] or [profile_name]
     if (line[0] == '[' && line[line.length() - 1] == ']') {
       currentProfile = line.substr(1, line.length() - 2);
@@ -228,9 +230,15 @@ auto parseCredentialsFile(const std::string& filePath, std::string& accessKeyId,
 
         // Trim whitespace from key and value
         key.erase(0, key.find_first_not_of(" \t"));
-        key.erase(key.find_last_not_of(" \t") + 1);
+        {
+          const auto last = key.find_last_not_of(" \t");
+          key.erase(last == std::string::npos ? 0 : last + 1);
+        }
         value.erase(0, value.find_first_not_of(" \t"));
-        value.erase(value.find_last_not_of(" \t") + 1);
+        {
+          const auto last = value.find_last_not_of(" \t");
+          value.erase(last == std::string::npos ? 0 : last + 1);
+        }
 
         if (key == "aws_access_key_id") {
           accessKeyId = value;
