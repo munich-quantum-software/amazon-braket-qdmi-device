@@ -605,6 +605,40 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest, JobSetParameterS3Prefix) {
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
+TEST_F(AmazonBraketQDMIJobSpecificationTest, JobSetParameterReservationArn) {
+  AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(sharedSession,
+                                                                &freshJob),
+            QDMI_SUCCESS);
+
+  // Test setting a fake reservation ARN
+  const char* reservationArn =
+      "arn:aws:braket:us-east-1:123456789012:reservation/"
+      "a1b2c3d4-5678-90ab-cdef-1234567890ab";
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                freshJob, QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN,
+                strlen(reservationArn) + 1, reservationArn),
+            QDMI_SUCCESS);
+
+  AMAZON_BRAKET_QDMI_device_job_free(freshJob);
+}
+
+TEST_F(AmazonBraketQDMIJobSpecificationTest,
+       JobSetParameterReservationArnInvalidArgument) {
+  AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(sharedSession,
+                                                                &freshJob),
+            QDMI_SUCCESS);
+
+  // Test null value for reservation ARN
+  EXPECT_EQ(
+      AMAZON_BRAKET_QDMI_device_job_set_parameter(
+          freshJob, QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN, 0, nullptr),
+      QDMI_ERROR_INVALIDARGUMENT);
+
+  AMAZON_BRAKET_QDMI_device_job_free(freshJob);
+}
+
 TEST_F(AmazonBraketQDMIJobSpecificationTest, JobSetParameterS3InvalidArgument) {
   AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(sharedSession,

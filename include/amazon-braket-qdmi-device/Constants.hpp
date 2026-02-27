@@ -116,4 +116,13 @@
 #define QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX                               \
   QDMI_DEVICE_JOB_PARAMETER_CUSTOM2
 
-// CUSTOM3-5 reserved for future use
+/**
+ * @brief `char*` (string) AWS Braket Reservation ARN.
+ * @details Optional parameter. When set, the quantum task is submitted into
+ * the specified reserved time window instead of the public on-demand queue.
+ * The reservation must be in the same region as the device.
+ */
+#define QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN                              \
+  QDMI_DEVICE_JOB_PARAMETER_CUSTOM3
+
+// CUSTOM4-5 reserved for future use

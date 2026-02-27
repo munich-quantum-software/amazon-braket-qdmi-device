@@ -69,6 +69,8 @@
 
 #include <algorithm>
 #include <aws/braket/BraketClient.h>
+#include <aws/braket/model/Association.h>
+#include <aws/braket/model/AssociationType.h>
 #include <aws/braket/model/CancelQuantumTaskRequest.h>
 #include <aws/braket/model/CreateQuantumTaskRequest.h>
 #include <aws/braket/model/DeviceStatus.h>
@@ -880,7 +882,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
   const bool isStandardParam = param < QDMI_DEVICE_JOB_PARAMETER_MAX;
   const bool isDefinedCustomParam =
       (param == QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET ||
-       param == QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX);
+       param == QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX ||
+       param == QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN);
 
   if ((value != nullptr && size == 0) ||
       (!isStandardParam && !isDefinedCustomParam)) {
@@ -945,6 +948,19 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
       return QDMI_ERROR_INVALIDARGUMENT;
     }
     jobS3Prefix_ = prefixStr;
+    return QDMI_SUCCESS;
+  }
+
+  // Braket reservation ARN (optional, routes the task into a reserved window)
+  if (param == QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN) {
+    if (value == nullptr || size == 0) {
+      return QDMI_ERROR_INVALIDARGUMENT;
+    }
+    const char* arnStr = static_cast<const char*>(value);
+    if (arnStr[size - 1] != '\0') {
+      return QDMI_ERROR_INVALIDARGUMENT;
+    }
+    reservationArn_ = arnStr;
     return QDMI_SUCCESS;
   }
 
@@ -1049,6 +1065,15 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
     effectivePrefix = std::to_string(timestamp);
   }
   request.SetOutputS3KeyPrefix(effectivePrefix);
+
+  // Attach reservation ARN when provided (routes task into dedicated window)
+  if (!reservationArn_.empty()) {
+    Aws::Braket::Model::Association reservation;
+    reservation.SetArn(reservationArn_);
+    reservation.SetType(
+        Aws::Braket::Model::AssociationType::RESERVATION_TIME_WINDOW_ARN);
+    request.AddAssociations(reservation);
+  }
 
   auto outcome = session_->getClient()->CreateQuantumTask(request);
   if (!outcome.IsSuccess()) {

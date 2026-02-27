@@ -307,8 +307,9 @@ private:
   std::string taskArn_;
 
   // Per-job S3 configuration (required)
-  std::string jobS3Bucket_; // Required - S3 bucket for results
-  std::string jobS3Prefix_; // Optional - S3 prefix, defaults to timestamp
+  std::string jobS3Bucket_;    // Required - S3 bucket for results
+  std::string jobS3Prefix_;    // Optional - S3 prefix, defaults to timestamp
+  std::string reservationArn_; // Optional - dedicate task to a reserved window
 
   std::future<void> jobHandle_;
   mutable std::map<std::string, size_t> counts_;
