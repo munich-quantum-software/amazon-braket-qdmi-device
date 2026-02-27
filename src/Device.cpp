@@ -417,8 +417,11 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
     if (!outcome.IsSuccess()) {
       std::cerr << "Failed to get device: " << outcome.GetError().GetMessage()
                 << "\n";
-      std::cerr << "Please ensure you have configured your AWS credentials "
-                   "correctly.\n";
+      std::cerr << "Please ensure credentials are supplied via QDMI session "
+                   "parameters before calling session_init().\n";
+      std::cerr << "Use QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE (credentials "
+                   "file) or QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID "
+                   "+ QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY.\n";
       return QDMI_ERROR_NOTSUPPORTED;
     }
     const auto& device = outcome.GetResult();
@@ -455,11 +458,11 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
   if (!outcome.IsSuccess()) {
     std::cerr << "Failed to get device: " << outcome.GetError().GetMessage()
               << "\n";
-    std::cerr << "Please ensure you have configured your AWS credentials "
-                 "correctly.\n";
-    std::cerr
-        << "You can set them via environment variables (AWS_ACCESS_KEY_ID, "
-           "AWS_SECRET_ACCESS_KEY) or in ~/.aws/credentials.\n";
+    std::cerr << "Please ensure credentials are supplied via QDMI session "
+                 "parameters before calling session_init().\n";
+    std::cerr << "Use QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE (credentials "
+                 "file) or QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID "
+                 "+ QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY.\n";
     return QDMI_ERROR_NOTSUPPORTED;
   }
 
