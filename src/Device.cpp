@@ -414,10 +414,17 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
   }
 
   // Check if architecture is already cached
-  cachedArchitecture_ =
-      amazon::braket::qdmi::Device::get().getCachedArchitecture(deviceArn_);
+  // lock the shared_ptr when queryDeviceProperty() is called from multiple
+  // threads
+  std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture> localArch;
+  {
+    const std::lock_guard<std::mutex> lock(cachedArchitectureMutex_);
+    cachedArchitecture_ =
+        amazon::braket::qdmi::Device::get().getCachedArchitecture(deviceArn_);
+    localArch = cachedArchitecture_;
+  }
 
-  if (cachedArchitecture_ != nullptr) {
+  if (localArch != nullptr) {
     // Cache hit: Only fetch mutable session device status
     Aws::Braket::Model::GetDeviceRequest request;
     request.SetDeviceArn(deviceArn_.c_str());
@@ -563,10 +570,13 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
   architecture->operationsPtr = std::move(properties.operationsPtr);
   architecture->operationsMap = std::move(properties.operationsMap);
 
-  // Store in singleton cache and use in this session
-  amazon::braket::qdmi::Device::get().setCachedArchitecture(deviceArn_,
-                                                            architecture);
-  cachedArchitecture_ = architecture;
+  // Store in singleton cache and assign to session
+  {
+    const std::lock_guard<std::mutex> lock(cachedArchitectureMutex_);
+    amazon::braket::qdmi::Device::get().setCachedArchitecture(deviceArn_,
+                                                              architecture);
+    cachedArchitecture_ = architecture;
+  }
   return QDMI_SUCCESS;
 }
 
@@ -809,21 +819,25 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
     return ret;
   }
 
+  // Snapshot the shared_ptr under the lock
+  std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture> arch;
+  {
+    const std::lock_guard<std::mutex> lock(cachedArchitectureMutex_);
+    arch = cachedArchitecture_;
+  }
+
   // Session device architecture properties (from cache)
   ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_SITES, AMAZON_BRAKET_QDMI_Site,
-                    cachedArchitecture_->sitesPtr, prop, size, value, sizeRet)
-  ADD_LIST_PROPERTY(
-      QDMI_DEVICE_PROPERTY_OPERATIONS, AMAZON_BRAKET_QDMI_Operation,
-      cachedArchitecture_->operationsPtr, prop, size, value, sizeRet)
+                    arch->sitesPtr, prop, size, value, sizeRet)
+  ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_OPERATIONS,
+                    AMAZON_BRAKET_QDMI_Operation, arch->operationsPtr, prop,
+                    size, value, sizeRet)
   ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_COUPLINGMAP, AMAZON_BRAKET_QDMI_Site,
-                    cachedArchitecture_->connectivity, prop, size, value,
-                    sizeRet)
+                    arch->connectivity, prop, size, value, sizeRet)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_QUBITSNUM, size_t,
-                            cachedArchitecture_->qubitsNum, prop, size, value,
-                            sizeRet)
-  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_NAME,
-                      cachedArchitecture_->name.c_str(), prop, size, value,
-                      sizeRet)
+                            arch->qubitsNum, prop, size, value, sizeRet)
+  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_NAME, arch->name.c_str(), prop, size,
+                      value, sizeRet)
 
   // Return device status from Amazon Braket (mutable, per-query)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_STATUS, QDMI_Device_Status,

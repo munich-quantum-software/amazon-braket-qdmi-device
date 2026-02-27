@@ -212,6 +212,7 @@ private:
   // Cached device architecture (shared across sessions to same device ARN)
   mutable std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture>
       cachedArchitecture_;
+  mutable std::mutex cachedArchitectureMutex_;
 
   // Mutable device status (re-fetched per query, can change over time)
   mutable std::atomic<QDMI_Device_Status> braketDeviceStatus_{
