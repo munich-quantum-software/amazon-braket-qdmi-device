@@ -40,8 +40,7 @@
 /**
  * @brief `char*` (string) AWS Region.
  * @details Optional parameter. If not set, the region is extracted from the
- * device ARN or uses AWS SDK default resolution (environment variables, AWS
- * config files, etc.).
+ * device ARN or uses us-east-1 as a default.
  */
 #define QDMI_DEVICE_SESSION_PARAMETER_REGION                                   \
   QDMI_DEVICE_SESSION_PARAMETER_CUSTOM2
@@ -49,7 +48,6 @@
 /**
  * @brief `char*` (string) AWS Access Key ID.
  * @details Optional parameter for explicit credential specification.
- * If not set, uses default AWS credential chain.
  * Can be used together with AWS_SECRET_ACCESS_KEY and AWS_SESSION_TOKEN.
  */
 #define QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID                        \
@@ -58,7 +56,6 @@
 /**
  * @brief `char*` (string) AWS Secret Access Key.
  * @details Optional parameter for explicit credential specification.
- * If not set, uses default AWS credential chain.
  * Must be used together with AWS_ACCESS_KEY_ID.
  */
 #define QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY                    \

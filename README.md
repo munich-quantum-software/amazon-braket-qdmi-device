@@ -155,9 +155,7 @@ AMAZON_BRAKET_QDMI_device_session_set_parameter(
 - `QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE` for credentials files (see AWS Credentials section)
 - `QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID`, `QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY`, `QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN` for direct credentials
 
-**Credentials are required** - the library does not fall back to AWS SDK default credential chain. You must explicitly provide credentials using one of the methods above.
-
-Legacy QDMI authentication parameters (`USERNAME`, `PASSWORD`, `TOKEN`, `AUTHURL`, `BASEURL`) are not supported - use the AWS-specific parameters above instead.
+Special QDMI authentication parameters (`USERNAME`, `PASSWORD`, `TOKEN`, `AUTHURL`, `BASEURL`) are not supported - use the AWS-specific parameters above instead.
 
 ### Job Configuration
 

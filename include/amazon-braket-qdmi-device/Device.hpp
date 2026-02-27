@@ -36,8 +36,6 @@
  * - Credentials file (AUTHFILE parameter with INI format)
  * - Direct parameters (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
  * AWS_SESSION_TOKEN)
- * - Default credential chain (environment variables, ~/.aws/credentials, IAM
- * roles)
  *
  * Device (Singleton - ONE per process)
  *   ├─ Initializes AWS SDK once via QDMI device_initialize()
@@ -205,7 +203,7 @@ private:
   std::string region_;
   std::string deviceArn_;
 
-  // AWS Credentials (optional - if empty, uses default credential chain)
+  // AWS Credentials
   std::string credentialsFile_; // Path to AWS credentials file (INI format)
   std::string accessKeyId_;     // AWS Access Key ID (CUSTOM3)
   std::string secretAccessKey_; // AWS Secret Access Key (CUSTOM4)
