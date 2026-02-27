@@ -28,7 +28,7 @@ generate_device_defs_executable(${QDMI_PREFIX} TARGET ${QDMI_TARGET_NAME})
 set(QDMI_TEST_TARGET_NAME "${QDMI_TARGET_NAME}-test")
 
 # create an executable in which the tests will be stored
-add_executable(${QDMI_TEST_TARGET_NAME} test_device.cpp)
+add_executable(${QDMI_TEST_TARGET_NAME} test_device.cpp test_device_unit.cpp)
 
 # link the Google test infrastructure to the test executable.
 target_link_libraries(
