@@ -66,7 +66,6 @@
 #include "amazon_braket_qdmi/constants.h"
 #include "amazon_braket_qdmi/device.h"
 
-#include <algorithm>
 #include <aws/braket/BraketClient.h>
 #include <aws/braket/model/Association.h>
 #include <aws/braket/model/AssociationType.h>
@@ -1208,88 +1207,63 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
   Aws::Braket::Model::GetQuantumTaskRequest request;
   request.SetQuantumTaskArn(localTaskArn);
 
-  // Poll until we get a status with a QDMI equivalent (handle CANCELLING)
-  constexpr int maxPolls = 60;     // Maximum number of polling attempts
-  constexpr int baseDelayMs = 100; // Base delay between polls (ms)
-  constexpr int maxDelayMs = 2000; // Maximum delay between polls (ms)
-  int pollCount = 0;
-  int delayMs = baseDelayMs;
+  auto outcome = session_->getClient()->GetQuantumTask(request);
+  if (!outcome.IsSuccess()) {
+    std::cerr << "Failed to check task: " << outcome.GetError().GetMessage()
+              << "\n";
+    return QDMI_ERROR_NOTSUPPORTED;
+  }
 
-  while (pollCount < maxPolls) {
-    auto outcome = session_->getClient()->GetQuantumTask(request);
-    if (!outcome.IsSuccess()) {
-      std::cerr << "Failed to check task: " << outcome.GetError().GetMessage()
-                << "\n";
+  const auto& taskStatus = outcome.GetResult().GetStatus();
+
+  QDMI_Job_Status newStatus = QDMI_JOB_STATUS_CREATED;
+  {
+    const std::scoped_lock<std::mutex> lock(jobMutex_);
+    switch (taskStatus) {
+    case Aws::Braket::Model::QuantumTaskStatus::CREATED:
+      newStatus = QDMI_JOB_STATUS_CREATED;
+      break;
+
+    case Aws::Braket::Model::QuantumTaskStatus::QUEUED:
+      newStatus = QDMI_JOB_STATUS_QUEUED;
+      break;
+
+    case Aws::Braket::Model::QuantumTaskStatus::RUNNING:
+      newStatus = QDMI_JOB_STATUS_RUNNING;
+      break;
+
+    case Aws::Braket::Model::QuantumTaskStatus::COMPLETED:
+      newStatus = QDMI_JOB_STATUS_DONE;
+      // Store S3 location for result retrieval
+      outputS3Bucket_ = outcome.GetResult().GetOutputS3Bucket();
+      outputS3Directory_ = outcome.GetResult().GetOutputS3Directory();
+      break;
+
+    case Aws::Braket::Model::QuantumTaskStatus::FAILED:
+      newStatus = QDMI_JOB_STATUS_FAILED;
+      break;
+
+    case Aws::Braket::Model::QuantumTaskStatus::CANCELLED:
+      newStatus = QDMI_JOB_STATUS_CANCELED;
+      break;
+
+    case Aws::Braket::Model::QuantumTaskStatus::CANCELLING:
+      // Transitional state: keep reporting the last known status until
+      // the task reaches a terminal state on the next check() call.
+      *status = status_.load();
+      return QDMI_SUCCESS;
+
+    case Aws::Braket::Model::QuantumTaskStatus::NOT_SET:
+    default:
+      std::cerr << "ERROR: Unknown task status (enum value: "
+                << static_cast<int>(taskStatus) << ")\n";
       return QDMI_ERROR_NOTSUPPORTED;
     }
 
-    const auto& taskStatus = outcome.GetResult().GetStatus();
-
-    // Handle CANCELLING: transitional state, poll until terminal
-    if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::CANCELLING) {
-      pollCount++;
-      if (pollCount >= maxPolls) {
-        std::cerr << "WARNING: Task stuck in CANCELLING state after "
-                  << maxPolls << " polls\n";
-        // Return current cached status as fallback
-        *status = status_.load();
-        return QDMI_SUCCESS;
-      }
-      // Exponential backoff with cap
-      std::this_thread::sleep_for(std::chrono::milliseconds(delayMs));
-      delayMs = std::min(delayMs * 2, maxDelayMs);
-      continue; // Poll again
-    }
-
-    // Map AWS status to QDMI status using switch for comprehensive handling
-    QDMI_Job_Status newStatus = QDMI_JOB_STATUS_CREATED;
-
-    {
-      const std::scoped_lock<std::mutex> lock(jobMutex_);
-      switch (taskStatus) {
-      case Aws::Braket::Model::QuantumTaskStatus::CREATED:
-        newStatus = QDMI_JOB_STATUS_CREATED;
-        break;
-
-      case Aws::Braket::Model::QuantumTaskStatus::QUEUED:
-        newStatus = QDMI_JOB_STATUS_QUEUED;
-        break;
-
-      case Aws::Braket::Model::QuantumTaskStatus::RUNNING:
-        newStatus = QDMI_JOB_STATUS_RUNNING;
-        break;
-
-      case Aws::Braket::Model::QuantumTaskStatus::COMPLETED:
-        newStatus = QDMI_JOB_STATUS_DONE;
-        // Store S3 location for result retrieval
-        outputS3Bucket_ = outcome.GetResult().GetOutputS3Bucket();
-        outputS3Directory_ = outcome.GetResult().GetOutputS3Directory();
-        break;
-
-      case Aws::Braket::Model::QuantumTaskStatus::FAILED:
-        newStatus = QDMI_JOB_STATUS_FAILED;
-        break;
-
-      case Aws::Braket::Model::QuantumTaskStatus::CANCELLED:
-        newStatus = QDMI_JOB_STATUS_CANCELED;
-        break;
-
-      case Aws::Braket::Model::QuantumTaskStatus::NOT_SET:
-      default:
-        std::cerr << "ERROR: Unknown task status (enum value: "
-                  << static_cast<int>(taskStatus) << ")\n";
-        return QDMI_ERROR_NOTSUPPORTED;
-      }
-
-      status_.store(newStatus);
-    }
-
-    *status = newStatus;
-    return QDMI_SUCCESS;
+    status_.store(newStatus);
   }
 
-  // Should never reach here (loop always returns within iteration)
-  *status = status_.load();
+  *status = newStatus;
   return QDMI_SUCCESS;
 }
 
