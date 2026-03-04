@@ -18,7 +18,7 @@
  */
 
 /**
- * @file DeviceParser.cpp
+ * @file device_parser.cpp
  * @brief Implementation of device properties parsers for different providers
  *
  * This file contains parser implementations for:
@@ -29,9 +29,9 @@
  * the device architecture data (qubits, connectivity, operations).
  */
 
-#include "amazon-braket-qdmi-device/DeviceParser.hpp"
+#include "amazon-braket-qdmi-device/device_parser.hpp"
 
-#include "amazon-braket-qdmi-device/Device.hpp"
+#include "amazon-braket-qdmi-device/device.hpp"
 #include "amazon_braket_qdmi/constants.h"
 
 #include <aws/braket/model/DeviceType.h>

@@ -64,7 +64,7 @@ This library supports two methods for providing AWS credentials:
 Use the QDMI `AUTHFILE` parameter to specify a credentials file path:
 
 ```c
-#include <amazon-braket-qdmi-device/Constants.hpp>
+#include <amazon-braket-qdmi-device/constants.hpp>
 
 AMAZON_BRAKET_QDMI_Device_Session session;
 AMAZON_BRAKET_QDMI_device_session_alloc(&session);
@@ -101,7 +101,7 @@ aws_session_token=IQoJb3JpZ2luX2VjEOT//////////...
 Use the QDMI custom parameters to specify credentials programmatically:
 
 ```c
-#include <amazon-braket-qdmi-device/Constants.hpp>
+#include <amazon-braket-qdmi-device/constants.hpp>
 
 // Set credentials directly via QDMI parameters
 const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
@@ -135,7 +135,7 @@ AMAZON_BRAKET_QDMI_device_session_set_parameter(
 Configure the device using QDMI session parameters:
 
 ```cpp
-#include <amazon-braket-qdmi-device/Constants.hpp>
+#include <amazon-braket-qdmi-device/constants.hpp>
 
 // Configure session parameters before initialization
 const char* deviceArn = "arn:aws:braket:eu-north-1::device/qpu/iqm/Garnet";
@@ -164,7 +164,7 @@ Each QDMI job (which becomes an Amazon Braket QuantumTask) requires S3 storage
 configuration for results. Configure using job-level parameters:
 
 ```cpp
-#include <amazon-braket-qdmi-device/Constants.hpp>
+#include <amazon-braket-qdmi-device/constants.hpp>
 
 // Create and configure a job
 AMAZON_BRAKET_QDMI_Device_Job job;
@@ -253,7 +253,7 @@ cmake --build build
 
 ```cpp
 #include <amazon_braket_qdmi/device.h>
-#include <amazon-braket-qdmi-device/Constants.hpp>
+#include <amazon-braket-qdmi-device/constants.hpp>
 #include <cstring>
 #include <iostream>
 
@@ -447,9 +447,9 @@ amazon-braket-qdmi-device/
 ├── README.md                       # This file
 ├── include/
 │   └── amazon-braket-qdmi-device/
-│       └── Device.hpp              # Public API header (QDMI implementation)
+│       └── device.hpp              # Public API header (QDMI implementation)
 ├── src/
-│   └── Device.cpp                  # Implementation (QDMI↔Amazon Braket)
+│   └── device.cpp                  # Implementation (QDMI↔Amazon Braket)
 └── test/
     └── test_device.cpp             # Integration tests
 ```

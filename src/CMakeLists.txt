@@ -23,13 +23,14 @@ generate_prefixed_qdmi_headers(${QDMI_PREFIX})
 # Collect source files
 file(GLOB_RECURSE SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 # Private header files (internal implementation only)
-set(PRIVATE_HEADER_FILES "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/Device.hpp"
-                         "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/DeviceParser.hpp")
+set(PRIVATE_HEADER_FILES
+    "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/device.hpp"
+    "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/device_parser.hpp")
 # Public header files (user-facing API): Generated QDMI headers (device.h),
 file(GLOB_RECURSE PUBLIC_HEADER_FILES "${CMAKE_CURRENT_BINARY_DIR}/include/*.h")
-# and Constants.hpp (semantic parameter names for user convenience)
+# and constants.hpp (semantic parameter names for user convenience)
 list(APPEND PUBLIC_HEADER_FILES
-     "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/Constants.hpp")
+     "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/constants.hpp")
 
 add_library(${QDMI_TARGET_NAME} SHARED)
 target_compile_features(${QDMI_TARGET_NAME} PRIVATE cxx_std_20)

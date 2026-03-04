@@ -59,13 +59,12 @@
  *
  */
 
-#include "amazon-braket-qdmi-device/Device.hpp"
+#include "amazon-braket-qdmi-device/device.hpp"
 
-#include "amazon-braket-qdmi-device/Constants.hpp"
-#include "amazon-braket-qdmi-device/DeviceParser.hpp"
+#include "amazon-braket-qdmi-device/constants.hpp"
+#include "amazon-braket-qdmi-device/device_parser.hpp"
 #include "amazon_braket_qdmi/constants.h"
 #include "amazon_braket_qdmi/device.h"
-#include "aws/core/utils/Array.h"
 
 #include <algorithm>
 #include <aws/braket/BraketClient.h>
@@ -83,6 +82,7 @@
 #include <aws/core/Aws.h>
 #include <aws/core/auth/AWSCredentials.h>
 #include <aws/core/client/ClientConfiguration.h>
+#include <aws/core/utils/Array.h>
 #include <aws/core/utils/json/JsonSerializer.h>
 #include <aws/core/utils/memory/stl/AWSString.h>
 #include <aws/s3/S3Client.h>
@@ -400,10 +400,12 @@ auto Device::setCachedArchitecture(
  * - Available quantum operations
  * - Device operational status (ONLINE/OFFLINE/RETIRED)
  *
- * Design: Uses Braket device singleton cache to avoid redundant fetches when
- * multiple sessions connect to the same device ARN (even with different
- * credentials). Immutable properties are cached; mutable status is always
- * re-fetched.
+ * Caching strategy:
+ * - Simulators: full architecture is cached globally.
+ *   Cache hits only re-fetch the mutable device status.
+ * - QPUs: only name/provider/deviceType are cached globally. Sites,
+ *   operations, and connectivity data may change between calibration cycles
+ *   and are re-fetched from the API on every query.
  *
  * @return QDMI_SUCCESS on successful fetch, error code otherwise
  */
@@ -424,8 +426,11 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
     localArch = cachedArchitecture_;
   }
 
-  if (localArch != nullptr) {
-    // Cache hit: Only fetch mutable session device status
+  if (localArch != nullptr &&
+      localArch->deviceType != Aws::Braket::Model::DeviceType::QPU) {
+    // Simulator cache hit: only re-fetch the mutable device status.
+    // QPUs fall through to a full re-fetch every time because their sites,
+    // operations, and connectivity may change between calibration cycles.
     Aws::Braket::Model::GetDeviceRequest request;
     request.SetDeviceArn(deviceArn_.c_str());
     auto outcome = client_->GetDevice(request);
@@ -465,7 +470,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
     return QDMI_SUCCESS;
   }
 
-  // Cache miss: Request full device architecture.
+  // Cache miss (any device type) or QPU cache hit: request full device
+  // architecture. QPUs always re-fetch because calibration data is mutable.
   Aws::Braket::Model::GetDeviceRequest request;
   request.SetDeviceArn(deviceArn_.c_str());
 
@@ -570,11 +576,25 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
   architecture->operationsPtr = std::move(properties.operationsPtr);
   architecture->operationsMap = std::move(properties.operationsMap);
 
-  // Store in singleton cache and assign to session
+  // Store in global singleton cache and assign to session.
+  // QPUs: only a stub {name, provider, deviceType} goes into the global cache
+  // so that future calls know the device type and provider (for parser
+  // selection) without caching the mutable sites, operations, and connectivity.
+  // Simulators: the full architecture is cached (sites and operations are
+  // static).
   {
     const std::scoped_lock lock(cachedArchitectureMutex_);
-    amazon::braket::qdmi::Device::get().setCachedArchitecture(deviceArn_,
-                                                              architecture);
+    if (architecture->deviceType == Aws::Braket::Model::DeviceType::QPU) {
+      auto stub = std::make_shared<amazon::braket::qdmi::DeviceArchitecture>();
+      stub->name = architecture->name;
+      stub->provider = architecture->provider;
+      stub->deviceType = architecture->deviceType;
+      amazon::braket::qdmi::Device::get().setCachedArchitecture(deviceArn_,
+                                                                stub);
+    } else {
+      amazon::braket::qdmi::Device::get().setCachedArchitecture(deviceArn_,
+                                                                architecture);
+    }
     cachedArchitecture_ = architecture;
   }
   return QDMI_SUCCESS;
@@ -1659,9 +1679,8 @@ int AMAZON_BRAKET_QDMI_device_session_alloc(
 /**
  * Initialize a device session.
  *
- * Establishes connection to Amazon Braket and fetches device properties
- * including topology, supported gates, and qubit count. The session must be
- * configured with a device ARN using
+ * Establishes connection to Amazon Braket and fetches device properties.
+ * The session must be configured with a device ARN using
  * AMAZON_BRAKET_QDMI_device_session_set_parameter() before initialization.
  *
  * @param session The session handle to initialize

@@ -29,7 +29,7 @@
  *  - AmazonBraketQDMILocalJobTest  : session initialised with fake credentials
  */
 
-#include "amazon-braket-qdmi-device/Constants.hpp"
+#include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
 
 #include <array>
