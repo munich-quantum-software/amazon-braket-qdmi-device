@@ -100,6 +100,7 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -331,8 +332,7 @@ auto Device::sessionAlloc(AMAZON_BRAKET_QDMI_Device_Session* session)
       std::make_unique<AMAZON_BRAKET_QDMI_Device_Session_impl_d>();
   const std::scoped_lock<std::mutex> lock(sessionsMutex_);
   const auto& it =
-      sessions_.emplace(uniqueSession.get(), std::move(uniqueSession))
-          .first; // NOLINT(misc-include-cleaner)
+      sessions_.emplace(uniqueSession.get(), std::move(uniqueSession)).first;
   *session = it->first;
   return QDMI_SUCCESS;
 }
@@ -352,7 +352,11 @@ auto Device::queryProperty(const QDMI_Device_Property prop, const size_t size,
   if ((value != nullptr && size == 0) || prop == QDMI_DEVICE_PROPERTY_MAX) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
-
+  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_NAME, "Amazon Braket QDMI Device",
+                      prop, size, value, sizeRet)
+  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_VERSION,
+                      AMAZON_BRAKET_QDMI_DEVICE_VERSION, prop, size, value,
+                      sizeRet)
   // Braket device properties (library-level, not session device-specific)
   ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_LIBRARYVERSION, QDMI_VERSION, prop,
                       size, value, sizeRet)

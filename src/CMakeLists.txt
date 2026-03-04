@@ -37,7 +37,8 @@ target_compile_features(${QDMI_TARGET_NAME} PRIVATE cxx_std_20)
 get_target_property(qdmi_library_VERSION qdmi::qdmi VERSION)
 target_compile_definitions(
   ${QDMI_TARGET_NAME}
-  PRIVATE QDMI_VERSION="${qdmi_library_VERSION}" ${QDMI_PREFIX}_QDMI_VERSION="${PROJECT_VERSION}"
+  PRIVATE QDMI_VERSION="${qdmi_library_VERSION}"
+          ${QDMI_PREFIX}_QDMI_DEVICE_VERSION="${PROJECT_VERSION}"
           ${QDMI_PREFIX}_QDMI_device_EXPORTS)
 set_target_properties(${QDMI_TARGET_NAME} PROPERTIES CXX_VISIBILITY_PRESET hidden
                                                      CXX_VISIBILITY_INLINES_HIDDEN ON)
