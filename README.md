@@ -78,7 +78,7 @@ AMAZON_BRAKET_QDMI_device_session_set_parameter(
 // Configure device and initialize
 const char* deviceArn = "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
 AMAZON_BRAKET_QDMI_device_session_set_parameter(
-    session, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+    session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
     strlen(deviceArn) + 1, deviceArn);
 
 AMAZON_BRAKET_QDMI_device_session_init(session);
@@ -106,29 +106,29 @@ Use the QDMI custom parameters to specify credentials programmatically:
 // Set credentials directly via QDMI parameters
 const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
 AMAZON_BRAKET_QDMI_device_session_set_parameter(
-    session, QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID,
+    session, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
     strlen(accessKey) + 1, accessKey);
 
 const char* secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
 AMAZON_BRAKET_QDMI_device_session_set_parameter(
-    session, QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY,
+    session, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
     strlen(secretKey) + 1, secretKey);
 
 // Optional: session token for temporary credentials (STS, SSO)
 const char* sessionToken = "IQoJb3JpZ2luX2VjEOT//////////...";
 AMAZON_BRAKET_QDMI_device_session_set_parameter(
-    session, QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN,
+    session, QDMI_DEVICE_SESSION_PARAMETER_TOKEN,
     strlen(sessionToken) + 1, sessionToken);
 ```
 
 **Available Credential Parameters:**
 
-| Parameter                                             | Type    | Required | Description                                   |
-| ----------------------------------------------------- | ------- | -------- | --------------------------------------------- |
-| `QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE`              | `char*` | No       | Path to AWS credentials file (INI format)     |
-| `QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID`     | `char*` | No       | AWS Access Key ID                             |
-| `QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY` | `char*` | No       | AWS Secret Access Key                         |
-| `QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN`     | `char*` | No       | AWS Session Token (for temporary credentials) |
+| Parameter                                | Type    | Required | Description                                   |
+| ---------------------------------------- | ------- | -------- | --------------------------------------------- |
+| `QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE` | `char*` | No       | Path to AWS credentials file (INI format)     |
+| `QDMI_DEVICE_SESSION_PARAMETER_USERNAME` | `char*` | No       | AWS Access Key ID                             |
+| `QDMI_DEVICE_SESSION_PARAMETER_PASSWORD` | `char*` | No       | AWS Secret Access Key                         |
+| `QDMI_DEVICE_SESSION_PARAMETER_TOKEN`    | `char*` | No       | AWS Session Token (for temporary credentials) |
 
 **Device Configuration**
 
@@ -140,23 +140,21 @@ Configure the device using QDMI session parameters:
 // Configure session parameters before initialization
 const char* deviceArn = "arn:aws:braket:eu-north-1::device/qpu/iqm/Garnet";
 AMAZON_BRAKET_QDMI_device_session_set_parameter(
-    session, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+    session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
     strlen(deviceArn) + 1, deviceArn);
 ```
 
 **Configuration Parameters**
 
-| Parameter                                 | Type    | Required | Description                                         |
-| ----------------------------------------- | ------- | -------- | --------------------------------------------------- |
-| `QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN` | `char*` | Yes      | Amazon Braket device ARN                            |
-| `QDMI_DEVICE_SESSION_PARAMETER_REGION`    | `char*` | No       | AWS region override (extracted from ARN by default) |
+| Parameter                               | Type    | Required | Description                                         |
+| --------------------------------------- | ------- | -------- | --------------------------------------------------- |
+| `QDMI_DEVICE_SESSION_PARAMETER_BASEURL` | `char*` | Yes      | Amazon Braket device ARN                            |
+| `QDMI_DEVICE_SESSION_PARAMETER_REGION`  | `char*` | No       | AWS region override (extracted from ARN by default) |
 
 **Note**: AWS authentication is handled via:
 
 - `QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE` for credentials files (see AWS Credentials section)
-- `QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID`, `QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY`, `QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN` for direct credentials
-
-Special QDMI authentication parameters (`USERNAME`, `PASSWORD`, `TOKEN`, `AUTHURL`, `BASEURL`) are not supported - use the AWS-specific parameters above instead.
+- `QDMI_DEVICE_SESSION_PARAMETER_USERNAME`, `QDMI_DEVICE_SESSION_PARAMETER_PASSWORD`, `QDMI_DEVICE_SESSION_PARAMETER_TOKEN` for direct credentials
 
 ### Job Configuration
 
@@ -274,7 +272,7 @@ int main() {
     // Configure device ARN (required)
     const char* deviceArn = "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
     AMAZON_BRAKET_QDMI_device_session_set_parameter(
-        session, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+        session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
         strlen(deviceArn) + 1, deviceArn);
 
     // Initialize session (connects to Amazon Braket)

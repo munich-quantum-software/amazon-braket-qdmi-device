@@ -97,20 +97,20 @@ protected:
     // a BraketClient, but no AWS API call is issued at this stage.
     const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                  session, QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID,
+                  session, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
                   strlen(accessKey) + 1, accessKey),
               QDMI_SUCCESS);
 
     const char* secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                  session, QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY,
+                  session, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
                   strlen(secretKey) + 1, secretKey),
               QDMI_SUCCESS);
 
     const char* deviceArn =
         "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                  session, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+                  session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
                   strlen(deviceArn) + 1, deviceArn),
               QDMI_SUCCESS);
 
@@ -141,7 +141,7 @@ TEST_F(AmazonBraketQDMIOfflineTest, SessionInitNoCredentials) {
   const char* deviceArn =
       "arn:aws:braket:us-east-1::device/qpu/test/FakeDevice";
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+                session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
                 strlen(deviceArn) + 1, deviceArn),
             QDMI_SUCCESS);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
@@ -153,7 +153,7 @@ TEST_F(AmazonBraketQDMIOfflineTest, SessionInitNonexistentCredentialsFile) {
   const char* deviceArn =
       "arn:aws:braket:us-east-1::device/qpu/test/FakeDevice";
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+                session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
                 strlen(deviceArn) + 1, deviceArn),
             QDMI_SUCCESS);
   const char* badFile = "/nonexistent/path/to/credentials.ini";
@@ -232,7 +232,7 @@ TEST_F(AmazonBraketQDMIOfflineTest,
        SessionSetParameterDeviceArnNotNullTerminated) {
   const std::array<char, 7> notTerminated = {'a', 'r', 'n', ':', 'a', 'w', 's'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+                session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
                 notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
 }
@@ -259,7 +259,7 @@ TEST_F(AmazonBraketQDMIOfflineTest,
        SessionSetParameterAccessKeyNotNullTerminated) {
   const std::array<char, 7> notTerminated = {'A', 'K', 'I', 'A', '1', '2', '3'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID,
+                session, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
                 notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
 }
@@ -268,7 +268,7 @@ TEST_F(AmazonBraketQDMIOfflineTest,
        SessionSetParameterSecretKeyNotNullTerminated) {
   const std::array<char, 6> notTerminated = {'s', 'e', 'c', 'r', 'e', 't'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY,
+                session, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
                 notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
 }
@@ -277,7 +277,7 @@ TEST_F(AmazonBraketQDMIOfflineTest,
        SessionSetParameterSessionTokenNotNullTerminated) {
   const std::array<char, 5> notTerminated = {'t', 'o', 'k', 'e', 'n'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN,
+                session, QDMI_DEVICE_SESSION_PARAMETER_TOKEN,
                 notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
 }
@@ -339,7 +339,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, SessionCredentialsFile) {
   const char* deviceArn =
       "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                credsSession, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+                credsSession, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
                 strlen(deviceArn) + 1, deviceArn),
             QDMI_SUCCESS);
 
@@ -356,20 +356,19 @@ TEST_F(AmazonBraketQDMILocalJobTest, SessionDirectCredentials) {
 
   const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                credsSession, QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID,
+                credsSession, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
                 strlen(accessKey) + 1, accessKey),
             QDMI_SUCCESS);
 
   const char* secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                credsSession,
-                QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY,
+                credsSession, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
                 strlen(secretKey) + 1, secretKey),
             QDMI_SUCCESS);
 
   const char* sessionToken = "FakeSessionToken123";
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                credsSession, QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN,
+                credsSession, QDMI_DEVICE_SESSION_PARAMETER_TOKEN,
                 strlen(sessionToken) + 1, sessionToken),
             QDMI_SUCCESS);
 

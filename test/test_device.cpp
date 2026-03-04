@@ -86,14 +86,14 @@ void setupCredentials(AMAZON_BRAKET_QDMI_Device_Session session,
 
   if (accessKeyEnv != nullptr && secretKeyEnv != nullptr) {
     if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
-            session, QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID,
+            session, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
             strlen(accessKeyEnv) + 1, accessKeyEnv) != QDMI_SUCCESS) {
       if (failOnMissing) {
         throw std::runtime_error("Failed to set AWS_ACCESS_KEY_ID");
       }
     }
     if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
-            session, QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY,
+            session, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
             strlen(secretKeyEnv) + 1, secretKeyEnv) != QDMI_SUCCESS) {
       if (failOnMissing) {
         throw std::runtime_error("Failed to set AWS_SECRET_ACCESS_KEY");
@@ -101,7 +101,7 @@ void setupCredentials(AMAZON_BRAKET_QDMI_Device_Session session,
     }
     if (sessionTokenEnv != nullptr && strlen(sessionTokenEnv) > 0) {
       AMAZON_BRAKET_QDMI_device_session_set_parameter(
-          session, QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN,
+          session, QDMI_DEVICE_SESSION_PARAMETER_TOKEN,
           strlen(sessionTokenEnv) + 1, sessionTokenEnv);
     }
   } else if (failOnMissing) {
@@ -183,7 +183,7 @@ protected:
     const char* deviceArn =
         "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                  session, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+                  session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
                   strlen(deviceArn) + 1, deviceArn),
               QDMI_SUCCESS)
         << "Failed to set device ARN";
@@ -255,7 +255,7 @@ protected:
     const char* deviceArn =
         "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
     if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
-            sharedSession, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+            sharedSession, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
             strlen(deviceArn) + 1, deviceArn) != QDMI_SUCCESS) {
       GTEST_FAIL() << "Failed to set device ARN in SetUpTestSuite";
       return;
@@ -832,7 +832,7 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
   const char* deviceArn =
       "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+                session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
                 strlen(deviceArn) + 1, deviceArn),
             QDMI_SUCCESS);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
@@ -923,7 +923,7 @@ protected:
       GTEST_SKIP() << "Credentials not available: " << e.what();
     }
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                  session, QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+                  session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
                   strlen(deviceArn) + 1, deviceArn),
               QDMI_SUCCESS);
     if (AMAZON_BRAKET_QDMI_device_session_init(session) != QDMI_SUCCESS) {

@@ -445,7 +445,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
                    "parameters before calling session_init().\n";
       std::cerr << "Use QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE (credentials "
                    "file) or QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID "
-                   "+ QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY.\n";
+                   "+ QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY + "
+                   "optional QDMI_DEVICE_SESSION_PARAMETER_AWS_REGION\n";
       return QDMI_ERROR_NOTSUPPORTED;
     }
     const auto& device = outcome.GetResult();
@@ -487,7 +488,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
                  "parameters before calling session_init().\n";
     std::cerr << "Use QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE (credentials "
                  "file) or QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID "
-                 "+ QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY.\n";
+                 "+ QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY + "
+                 "optional QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN\n";
     return QDMI_ERROR_NOTSUPPORTED;
   }
 
@@ -721,15 +723,10 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
   }
 
   // Validate parameter: must be standard QDMI param or one of the specifically
-  // defined custom params (DEVICEARN, REGION, AWS_ACCESS_KEY_ID,
-  // AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN)
+  // defined custom params (REGION)
   const bool isStandardParam = param < QDMI_DEVICE_SESSION_PARAMETER_MAX;
   const bool isDefinedCustomParam =
-      (param == QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN ||
-       param == QDMI_DEVICE_SESSION_PARAMETER_REGION ||
-       param == QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID ||
-       param == QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY ||
-       param == QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN);
+      (param == QDMI_DEVICE_SESSION_PARAMETER_REGION);
 
   if (!isStandardParam && !isDefinedCustomParam) {
     return QDMI_ERROR_INVALIDARGUMENT;
@@ -740,10 +737,9 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
     return QDMI_ERROR_BADSTATE;
   }
 
-  // Handle Amazon Braket custom parameters
+  // Handle Amazon Braket parameters
   switch (param) {
-  case QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN: {
-    // Device ARN (required)
+  case QDMI_DEVICE_SESSION_PARAMETER_BASEURL: { // Device ARN
     const auto* arnStr = static_cast<const char*>(value);
     if (memchr(arnStr, '\0', size) == nullptr) {
       return QDMI_ERROR_INVALIDARGUMENT; // Not null-terminated
@@ -773,9 +769,9 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
     return QDMI_SUCCESS;
   }
 
-  // Method 2: Direct Credential Parameters (CUSTOM3-5)
+  // Method 2: Direct Credential Parameters
   // For programmatic credential specification
-  case QDMI_DEVICE_SESSION_PARAMETER_CUSTOM3: { // AWS_ACCESS_KEY_ID
+  case QDMI_DEVICE_SESSION_PARAMETER_USERNAME: { // AWS_ACCESS_KEY_ID
     const auto* accessKey = static_cast<const char*>(value);
     if (memchr(accessKey, '\0', size) == nullptr) {
       return QDMI_ERROR_INVALIDARGUMENT; // Not null-terminated
@@ -784,7 +780,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
     return QDMI_SUCCESS;
   }
 
-  case QDMI_DEVICE_SESSION_PARAMETER_CUSTOM4: { // AWS_SECRET_ACCESS_KEY
+  case QDMI_DEVICE_SESSION_PARAMETER_PASSWORD: { // AWS_SECRET_ACCESS_KEY
     const auto* secretKey = static_cast<const char*>(value);
     if (memchr(secretKey, '\0', size) == nullptr) {
       return QDMI_ERROR_INVALIDARGUMENT; // Not null-terminated
@@ -793,7 +789,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
     return QDMI_SUCCESS;
   }
 
-  case QDMI_DEVICE_SESSION_PARAMETER_CUSTOM5: { // AWS_SESSION_TOKEN
+  case QDMI_DEVICE_SESSION_PARAMETER_TOKEN: { // AWS_SESSION_TOKEN
     const auto* token = static_cast<const char*>(value);
     if (memchr(token, '\0', size) == nullptr) {
       return QDMI_ERROR_INVALIDARGUMENT; // Not null-terminated
