@@ -119,6 +119,10 @@ auto IDeviceParser::HasFullConnectivity(
 auto IDeviceParser::BuildFullConnectivity(ParsedDeviceProperties& properties)
     -> int {
   properties.connectivity.clear();
+  // Each unordered pair (i,j) contributes 4 entries (both directions, 2 ptrs
+  // each)
+  properties.connectivity.reserve(properties.qubitCount *
+                                  (properties.qubitCount - 1) * 2);
 
   // Create bidirectional edges between all pairs of qubits
   // Stored as flat list with alternating source/target per QDMI spec:
@@ -162,6 +166,8 @@ auto IDeviceParser::ParseOperationsFromOpenQASM(
   properties.operations.clear();
   properties.operationsPtr.clear();
   properties.operationsMap.clear();
+  properties.operations.reserve(gateSet.GetLength());
+  properties.operationsPtr.reserve(gateSet.GetLength());
 
   for (size_t i = 0; i < gateSet.GetLength(); ++i) {
     const std::string gateName = gateSet[i].AsString();
@@ -199,6 +205,8 @@ auto SimulatorPropertiesParser::ParseProperties(
   properties.sites.clear();
   properties.sitesPtr.clear();
   properties.sitesMap.clear();
+  properties.sites.reserve(properties.qubitCount);
+  properties.sitesPtr.reserve(properties.qubitCount);
 
   for (size_t i = 0; i < properties.qubitCount; ++i) {
     auto site = std::make_unique<AMAZON_BRAKET_QDMI_Site_impl_d>();
@@ -279,6 +287,8 @@ auto IQMDeviceParser::ParseProperties(
   }
 
   // Create sites in ascending numeric order
+  properties.sites.reserve(qubitNums.size());
+  properties.sitesPtr.reserve(qubitNums.size());
   for (const size_t qubitNum : qubitNums) {
     const std::string qubitId = std::to_string(qubitNum);
     auto site = std::make_unique<AMAZON_BRAKET_QDMI_Site_impl_d>();
