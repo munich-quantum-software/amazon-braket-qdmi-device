@@ -1568,7 +1568,7 @@ int AMAZON_BRAKET_QDMI_device_initialize() {
     Aws::InitAPI(gAWSOptions);
     gAWSInitialized = true;
   }
-  (void)amazon::braket::qdmi::Device::get();
+  std::ignore = amazon::braket::qdmi::Device::get();
   return QDMI_SUCCESS;
 }
 
