@@ -159,6 +159,23 @@
       return QDMI_SUCCESS;                                                     \
     }                                                                          \
   }
+
+// Assigns a null-terminated string parameter.
+// Validates that value contains a null byte within the given size, then
+// assigns. Use as the body of a case label or an if block.
+#define SET_STRING(size, value, member)                                        \
+  {                                                                            \
+    const auto* str_ = static_cast<const char*>((value));                      \
+    if (memchr(str_, '\0', (size)) == nullptr) {                               \
+      return QDMI_ERROR_INVALIDARGUMENT;                                       \
+    }                                                                          \
+    (member) = str_;                                                           \
+    return QDMI_SUCCESS;                                                       \
+  }
+
+#define SET_STRING_IF(param_name, param, size, value, member)                  \
+  if ((param) == (param_name))                                                 \
+  SET_STRING(size, value, member)
 // NOLINTEND(bugprone-macro-parentheses)
 
 namespace {
@@ -735,64 +752,22 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
 
   // Handle Amazon Braket parameters
   switch (param) {
-  case QDMI_DEVICE_SESSION_PARAMETER_BASEURL: { // Device ARN
-    const auto* arnStr = static_cast<const char*>(value);
-    if (memchr(arnStr, '\0', size) == nullptr) {
-      return QDMI_ERROR_INVALIDARGUMENT; // Not null-terminated
-    }
-    deviceArn_ = arnStr;
-    return QDMI_SUCCESS;
-  }
-
-  case QDMI_DEVICE_SESSION_PARAMETER_REGION: {
-    // AWS Region (optional - can be extracted from ARN)
-    const auto* regionStr = static_cast<const char*>(value);
-    if (memchr(regionStr, '\0', size) == nullptr) {
-      return QDMI_ERROR_INVALIDARGUMENT; // Not null-terminated
-    }
-    region_ = regionStr;
-    return QDMI_SUCCESS;
-  }
-
+  case QDMI_DEVICE_SESSION_PARAMETER_BASEURL: // Device ARN
+    SET_STRING(size, value, deviceArn_)
+  case QDMI_DEVICE_SESSION_PARAMETER_REGION: // AWS Region (optional)
+    SET_STRING(size, value, region_)
   // Method 1: AWS Credentials File (AUTHFILE)
   // Supports standard AWS credentials file format with profiles
-  case QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE: {
-    const auto* filePath = static_cast<const char*>(value);
-    if (memchr(filePath, '\0', size) == nullptr) {
-      return QDMI_ERROR_INVALIDARGUMENT; // Not null-terminated
-    }
-    credentialsFile_ = filePath;
-    return QDMI_SUCCESS;
-  }
-
+  case QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE:
+    SET_STRING(size, value, credentialsFile_)
   // Method 2: Direct Credential Parameters
   // For programmatic credential specification
-  case QDMI_DEVICE_SESSION_PARAMETER_USERNAME: { // AWS_ACCESS_KEY_ID
-    const auto* accessKey = static_cast<const char*>(value);
-    if (memchr(accessKey, '\0', size) == nullptr) {
-      return QDMI_ERROR_INVALIDARGUMENT; // Not null-terminated
-    }
-    accessKeyId_ = accessKey;
-    return QDMI_SUCCESS;
-  }
-
-  case QDMI_DEVICE_SESSION_PARAMETER_PASSWORD: { // AWS_SECRET_ACCESS_KEY
-    const auto* secretKey = static_cast<const char*>(value);
-    if (memchr(secretKey, '\0', size) == nullptr) {
-      return QDMI_ERROR_INVALIDARGUMENT; // Not null-terminated
-    }
-    secretAccessKey_ = secretKey;
-    return QDMI_SUCCESS;
-  }
-
-  case QDMI_DEVICE_SESSION_PARAMETER_TOKEN: { // AWS_SESSION_TOKEN
-    const auto* token = static_cast<const char*>(value);
-    if (memchr(token, '\0', size) == nullptr) {
-      return QDMI_ERROR_INVALIDARGUMENT; // Not null-terminated
-    }
-    sessionToken_ = token;
-    return QDMI_SUCCESS;
-  }
+  case QDMI_DEVICE_SESSION_PARAMETER_USERNAME: // AWS_ACCESS_KEY_ID
+    SET_STRING(size, value, accessKeyId_)
+  case QDMI_DEVICE_SESSION_PARAMETER_PASSWORD: // AWS_SECRET_ACCESS_KEY
+    SET_STRING(size, value, secretAccessKey_)
+  case QDMI_DEVICE_SESSION_PARAMETER_TOKEN: // AWS_SESSION_TOKEN
+    SET_STRING(size, value, sessionToken_)
   default:
     break;
   }
@@ -942,16 +917,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
     shots_ = *static_cast<const size_t*>(value);
     return QDMI_SUCCESS;
   }
-  if (param == QDMI_DEVICE_JOB_PARAMETER_PROGRAM) {
-    if (value == nullptr || size == 0) {
-      return QDMI_ERROR_INVALIDARGUMENT;
-    }
-    if (static_cast<const char*>(value)[size - 1] != '\0') {
-      return QDMI_ERROR_INVALIDARGUMENT;
-    }
-    program_ = std::string(static_cast<const char*>(value), size - 1);
-    return QDMI_SUCCESS;
-  }
+  SET_STRING_IF(QDMI_DEVICE_JOB_PARAMETER_PROGRAM, param, size, value, program_)
   if (param == QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT) {
     if (value == nullptr || size != sizeof(QDMI_Program_Format)) {
       return QDMI_ERROR_INVALIDARGUMENT;
@@ -968,43 +934,14 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
   }
 
   // Per-job S3 bucket configuration (required)
-  if (param == QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET) {
-    if (value == nullptr || size == 0) {
-      return QDMI_ERROR_INVALIDARGUMENT;
-    }
-    const char* bucketStr = static_cast<const char*>(value);
-    if (bucketStr[size - 1] != '\0') {
-      return QDMI_ERROR_INVALIDARGUMENT;
-    }
-    jobS3Bucket_ = bucketStr;
-    return QDMI_SUCCESS;
-  }
-
+  SET_STRING_IF(QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET, param, size, value,
+                jobS3Bucket_)
   // Per-job S3 prefix configuration (optional, defaults to timestamp)
-  if (param == QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX) {
-    if (value == nullptr || size == 0) {
-      return QDMI_ERROR_INVALIDARGUMENT;
-    }
-    const char* prefixStr = static_cast<const char*>(value);
-    if (prefixStr[size - 1] != '\0') {
-      return QDMI_ERROR_INVALIDARGUMENT;
-    }
-    jobS3Prefix_ = prefixStr;
-    return QDMI_SUCCESS;
-  }
-
+  SET_STRING_IF(QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX, param, size, value,
+                jobS3Prefix_)
   // Braket reservation ARN (optional, routes the task into a reserved window)
-  if (param == QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN) {
-    if (value == nullptr || size == 0) {
-      return QDMI_ERROR_INVALIDARGUMENT;
-    }
-    const char* arnStr = static_cast<const char*>(value);
-    if (arnStr[size - 1] != '\0') {
-      return QDMI_ERROR_INVALIDARGUMENT;
-    }
-    reservationArn_ = arnStr;
-    return QDMI_SUCCESS;
-  }
+  SET_STRING_IF(QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN, param, size, value,
+                reservationArn_)
 
   return QDMI_ERROR_NOTSUPPORTED;
 }
