@@ -32,7 +32,7 @@
  *   ./build/test/amazon-braket-qdmi-device-aws-test
  *
  * Fixtures:
- *  - AmazonBraketQDMISpecificationTest : SV1 simulator session
+ *  - AmazonBraketQDMISpecificationTest : AWS SV1 simulator session
  *  - AmazonBraketQDMIJobSpecificationTest : shared job that is submitted once
  *    per test suite via SetUpTestSuite() and reused across tests
  *  - DeviceParsingTestFixture : parameterised device-parsing tests
@@ -158,7 +158,7 @@ void setupCredentials(AMAZON_BRAKET_QDMI_Device_Session session,
 } // namespace
 
 // =============================================================================
-// Fixture: fully initialised SV1 session (real AWS connection)
+// Fixture: fully initialised AWS SV1 session (real AWS connection)
 // =============================================================================
 
 class AmazonBraketQDMISpecificationTest : public ::testing::Test {
@@ -202,7 +202,7 @@ protected:
 };
 
 // =============================================================================
-// Fixture: shared submitted job (real SV1 Bell-state execution)
+// Fixture: shared submitted job (real AWS SV1 Bell-state execution)
 // =============================================================================
 
 class AmazonBraketQDMIJobSpecificationTest

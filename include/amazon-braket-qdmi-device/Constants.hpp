@@ -102,5 +102,3 @@
  */
 #define QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN                              \
   QDMI_DEVICE_JOB_PARAMETER_CUSTOM3
-
-// CUSTOM4-5 reserved for future use

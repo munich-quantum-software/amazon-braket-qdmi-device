@@ -38,10 +38,10 @@ are **not** supported by this library. This library only handles QuantumTasks
 This implementation currently supports submitting jobs to simulator and gate-based Amazon Braket devices.
 Additionally, support for querying properties (e.g., qubit count, gate set) is implemented for:
 
-| Device Type         | Examples                                                       |
-| ------------------- | -------------------------------------------------------------- |
-| **Simulators**      | SV1 (State Vector), DM1 (Density Matrix), TN1 (Tensor Network) |
-| **Gate-based QPUs** | IQM Garnet, IQM Emerald                                        |
+| Device Type         | Examples                                                                   |
+| ------------------- | -------------------------------------------------------------------------- |
+| **Simulators**      | AWS SV1 (State Vector), AWS DM1 (Density Matrix), AWS TN1 (Tensor Network) |
+| **Gate-based QPUs** | IQM Garnet, IQM Emerald                                                    |
 
 ## Quick Start
 
@@ -479,7 +479,7 @@ amazon-braket-qdmi-device/
 ┌─────────────────────────────────────────────────────────────────────┐
 │                          Amazon Braket                              │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐               │
-│  │ SV1 Simulator│  │ DM1 Simulator│  │ TN1 Simulator│  ...          │
+│  │   AWS SV1    │  |   AWS DM1    │  |   AWS TN1    |   ...         │
 │  └──────────────┘  └──────────────┘  └──────────────┘               │
 └─────────────────────────────────────────────────────────────────────┘
 ```

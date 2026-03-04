@@ -31,7 +31,7 @@
  * Typical Usage Pattern:
  * A quantum software stack (compiler, orchestrator) initializes this library
  * once, then creates multiple sessions to address many AWS QPUs concurrently
- * (e.g., IQM Garnet, Lucy, sv1 simulator). Each session can have its own AWS
+ * (e.g., IQM Garnet, AWS SV1 simulator). Each session can have its own AWS
  * credentials specified via:
  * - Credentials file (AUTHFILE parameter with INI format)
  * - Direct parameters (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
@@ -45,7 +45,7 @@
  *   └─ Thread-safe coordination (sessionsMutex_, rngMutex_, deviceCacheMutex_)
  *
  * Device_Session (MANY - one per user+device combination)
- *   ├─ Connects to specific AWS Braket device (Garnet, sv1, etc.)
+ *   ├─ Connects to specific AWS Braket device (IQM Garnet, AWS SV1, etc.)
  *   ├─ References cached device architecture (shared if same ARN)
  *   ├─ Has own BraketClient instance with explicit credentials or defaults
  *   ├─ Fetches mutable device status (ONLINE/OFFLINE) per query
@@ -102,7 +102,7 @@ namespace amazon::braket::qdmi {
  * Multiple sessions to the same device ARN share one cached instance.
  */
 struct DeviceArchitecture {
-  std::string name;     // Real device name from AWS (e.g., "Garnet")
+  std::string name;     // Specific device name (e.g., "Garnet")
   std::string provider; // Provider name (e.g., "IQM")
   Aws::Braket::Model::DeviceType deviceType; // QPU or SIMULATOR
   size_t qubitsNum = 0;                      // Number of qubits
@@ -128,7 +128,7 @@ struct DeviceArchitecture {
  * Design Rationale:
  * This singleton enables a quantum software stack to initialize AWS SDK once
  * (expensive), then concurrently address multiple AWS QPUs through separate
- * sessions (e.g., simultaneously submit to Garnet, Lucy, and sv1).
+ * sessions (e.g., simultaneously submit to IQM Garnet, and AWS SV1).
  *
  * Multi-Credential Support:
  * When multiple users (with different AWS credentials) connect to the same

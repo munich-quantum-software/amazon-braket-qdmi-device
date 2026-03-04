@@ -22,8 +22,8 @@
  * @brief Implementation of device properties parsers for different providers
  *
  * This file contains parser implementations for:
- * - Amazon Braket Simulators (SV1, DM1, TN1)
- * - IQM Quantum Devices (Garnet, Emerald, etc.)
+ * - Amazon Braket Simulators (AWS SV1, AWS DM1, AWS TN1)
+ * - IQM Devices (IQM Garnet, IQM Emerald, etc.)
  *
  * Each parser handles the provider-specific JSON format and populates
  * the device architecture data (qubits, connectivity, operations).
