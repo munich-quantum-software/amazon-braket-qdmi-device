@@ -377,6 +377,9 @@ auto Device::queryProperty(const QDMI_Device_Property prop, const size_t size,
   // Braket device properties (library-level, not session device-specific)
   ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_LIBRARYVERSION, QDMI_VERSION, prop,
                       size, value, sizeRet)
+  // There is no notion of calibration in this context.
+  ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_NEEDSCALIBRATION, size_t, 0,
+                            prop, size, value, sizeRet)
 
   // Session device properties are handled by Session, not Braket device
   // singleton
