@@ -102,6 +102,11 @@
 #include <utility>
 #include <vector>
 
+// Forward declaration: defined in DeviceParser.cpp, uses DeviceType from above.
+std::unique_ptr<IDeviceParser>
+CreateDeviceParser(const Aws::Braket::Model::DeviceType& deviceType,
+                   const std::string& provider);
+
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ADD_SINGLE_VALUE_PROPERTY(prop_name, prop_type, prop_value, prop,      \
                                   size, value, size_ret)                       \
@@ -582,7 +587,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
 
   // Parse Session Device Properties
   ParsedDeviceProperties properties;
-  auto status = parser->ParseProperties(json.View(), properties);
+  auto status = parser->ParseProperties(propertiesStr, properties);
   if (status != QDMI_SUCCESS) {
     std::cerr << "Failed to parse session device properties\n";
     return static_cast<QDMI_STATUS>(status);

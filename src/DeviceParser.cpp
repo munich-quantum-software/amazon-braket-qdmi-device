@@ -89,32 +89,9 @@ auto IDeviceParser::ParseQubitCount(
   return QDMI_SUCCESS;
 }
 
-auto IDeviceParser::HasFullConnectivity(
-    const Aws::Utils::Json::JsonView& propertiesJson, bool& fullyConnected)
-    -> int {
-
-  if (!propertiesJson.ValueExists("paradigm")) {
-    std::cerr << "Missing 'paradigm' field in device properties\n";
-    return QDMI_ERROR_FATAL;
-  }
-
-  auto paradigm = propertiesJson.GetObject("paradigm");
-  if (!paradigm.ValueExists("connectivity")) {
-    // Some devices may not have connectivity field - assume not fully connected
-    fullyConnected = false;
-    return QDMI_SUCCESS;
-  }
-
-  auto connectivity = paradigm.GetObject("connectivity");
-  if (!connectivity.ValueExists("fullyConnected")) {
-    // If fullyConnected field missing, assume false (need explicit graph)
-    fullyConnected = false;
-    return QDMI_SUCCESS;
-  }
-
-  fullyConnected = connectivity.GetBool("fullyConnected");
-  return QDMI_SUCCESS;
-}
+// ============================================================================
+// Helper Functions (shared across parsers)
+// ============================================================================
 
 auto IDeviceParser::BuildFullConnectivity(ParsedDeviceProperties& properties)
     -> int {
@@ -192,8 +169,14 @@ auto IDeviceParser::ParseOperationsFromOpenQASM(
 // ============================================================================
 
 auto SimulatorPropertiesParser::ParseProperties(
-    const Aws::Utils::Json::JsonView& propertiesJson,
-    ParsedDeviceProperties& properties) -> int {
+    const std::string& propertiesJsonStr, ParsedDeviceProperties& properties)
+    -> int {
+  const Aws::Utils::Json::JsonValue jsonValue(propertiesJsonStr);
+  if (!jsonValue.WasParseSuccessful()) {
+    std::cerr << "Failed to parse device properties JSON\n";
+    return QDMI_ERROR_FATAL;
+  }
+  const auto propertiesJson = jsonValue.View();
 
   // 1. Parse qubit count (reusable helper - standard format)
   auto status = ParseQubitCount(propertiesJson, properties.qubitCount);
@@ -218,17 +201,8 @@ auto SimulatorPropertiesParser::ParseProperties(
     properties.sites.push_back(std::move(site));
   }
 
-  // 3. Verify full connectivity and build the graph.
-  bool fullyConnected = false;
-  status = HasFullConnectivity(propertiesJson, fullyConnected);
-  if (status != QDMI_SUCCESS) {
-    return status;
-  }
-  if (!fullyConnected) {
-    std::cerr << "Only simulators with full connectivity are supported, but "
-                 "'fullyConnected' is false\n";
-    return QDMI_ERROR_FATAL;
-  }
+  // 3. Build full all-to-all connectivity — simulators support any gate
+  // topology regardless of what the capabilities JSON reports.
   status = BuildFullConnectivity(properties);
   if (status != QDMI_SUCCESS) {
     return status;
@@ -242,9 +216,15 @@ auto SimulatorPropertiesParser::ParseProperties(
 // IQM Parser Implementation
 // ============================================================================
 
-auto IQMDeviceParser::ParseProperties(
-    const Aws::Utils::Json::JsonView& propertiesJson,
-    ParsedDeviceProperties& properties) -> int {
+auto IQMDeviceParser::ParseProperties(const std::string& propertiesJsonStr,
+                                      ParsedDeviceProperties& properties)
+    -> int {
+  const Aws::Utils::Json::JsonValue jsonValue(propertiesJsonStr);
+  if (!jsonValue.WasParseSuccessful()) {
+    std::cerr << "Failed to parse device properties JSON\n";
+    return QDMI_ERROR_FATAL;
+  }
+  const auto propertiesJson = jsonValue.View();
 
   // 1. Parse qubit count (reusable helper - standard format)
   auto status = ParseQubitCount(propertiesJson, properties.qubitCount);

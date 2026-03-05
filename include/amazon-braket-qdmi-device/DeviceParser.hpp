@@ -19,16 +19,42 @@
 
 #pragma once
 
-#include <aws/braket/model/DeviceType.h>
-#include <aws/core/utils/json/JsonSerializer.h>
+#include <cstddef>
+
+// Forward declaration to avoid pulling aws-cpp-sdk-core headers into this
+// public header. Implementations include the full header in their .cpp file.
+namespace Aws {
+namespace Utils {
+namespace Json {
+class JsonView;
+} // namespace Json
+} // namespace Utils
+} // namespace Aws
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
-// Forward declarations for internal implementation types
-struct AMAZON_BRAKET_QDMI_Site_impl_d;
-struct AMAZON_BRAKET_QDMI_Operation_impl_d;
+/**
+ * @brief Site implementation structure.
+ */
+struct AMAZON_BRAKET_QDMI_Site_impl_d {
+  std::string name_;
+  size_t id_ = 0;
+  double t1_ = 0.0; ///< T1 coherence time in seconds
+  double t2_ = 0.0; ///< T2 coherence time in seconds
+};
+
+/**
+ * @brief Operation implementation structure.
+ */
+struct AMAZON_BRAKET_QDMI_Operation_impl_d {
+  std::string name_;
+  size_t numQubits_ = 0;
+  size_t numParams_ = 0;
+  double fidelity_ = 0.0;
+  std::vector<std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*>> applicable_sites_;
+};
 
 /**
  * @brief Parsed device properties data structure
@@ -66,11 +92,11 @@ public:
   /**
    * @brief Parse device properties from JSON
    *
-   * @param propertiesJson The JSON view of the device properties
+   * @param propertiesJson Raw JSON string of the device properties
    * @param properties Output structure to populate with parsed data
    * @return QDMI_SUCCESS on success, error code otherwise
    */
-  virtual auto ParseProperties(const Aws::Utils::Json::JsonView& propertiesJson,
+  virtual auto ParseProperties(const std::string& propertiesJson,
                                ParsedDeviceProperties& properties) -> int = 0;
 
 protected:
@@ -100,16 +126,6 @@ protected:
                               size_t& qubitCount) -> int;
 
   /**
-   * @brief Check if device has full connectivity from paradigm
-   *
-   * Parses: paradigm.connectivity.fullyConnected
-   * Returns true for all-to-all connectivity, false for limited connectivity.
-   */
-  static auto
-  HasFullConnectivity(const Aws::Utils::Json::JsonView& propertiesJson,
-                      bool& fullyConnected) -> int;
-
-  /**
    * @brief Build full all-to-all connectivity graph
    *
    * Creates bidirectional edges between all qubit pairs.
@@ -130,7 +146,7 @@ protected:
  */
 class SimulatorPropertiesParser : public IDeviceParser {
 public:
-  auto ParseProperties(const Aws::Utils::Json::JsonView& propertiesJson,
+  auto ParseProperties(const std::string& propertiesJson,
                        ParsedDeviceProperties& properties) -> int override;
 };
 
@@ -142,7 +158,7 @@ public:
  */
 class IQMDeviceParser : public IDeviceParser {
 public:
-  auto ParseProperties(const Aws::Utils::Json::JsonView& propertiesJson,
+  auto ParseProperties(const std::string& propertiesJson,
                        ParsedDeviceProperties& properties) -> int override;
 
 private:
@@ -162,14 +178,3 @@ private:
   ParseSiteCoherenceTimes(const Aws::Utils::Json::JsonView& propertiesJson,
                           ParsedDeviceProperties& properties) -> void;
 };
-
-/**
- * @brief Factory function to create the appropriate parser
- *
- * @param deviceType DeviceType enum from AWS Braket
- * @param provider Provider name from device capabilities
- * @return Parser instance, or nullptr if unsupported
- */
-auto CreateDeviceParser(const Aws::Braket::Model::DeviceType& deviceType,
-                        const std::string& provider)
-    -> std::unique_ptr<IDeviceParser>;

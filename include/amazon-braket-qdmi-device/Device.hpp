@@ -72,6 +72,7 @@
 
 #pragma once
 
+#include "amazon-braket-qdmi-device/DeviceParser.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
 
@@ -93,8 +94,6 @@
 #include <vector>
 
 // Forward declarations
-struct AMAZON_BRAKET_QDMI_Site_impl_d;
-struct AMAZON_BRAKET_QDMI_Operation_impl_d;
 struct AMAZON_BRAKET_QDMI_Device_Job_impl_d;
 
 namespace amazon::braket::qdmi {
@@ -273,27 +272,6 @@ private:
 
   // Allow Job to access session internals
   friend struct AMAZON_BRAKET_QDMI_Device_Job_impl_d;
-};
-
-/**
- * @brief Site implementation structure.
- */
-struct AMAZON_BRAKET_QDMI_Site_impl_d {
-  std::string name_;
-  size_t id_ = 0;
-  double t1_ = 0.0; // T1 coherence time in seconds
-  double t2_ = 0.0; // T2 coherence time in seconds
-};
-
-/**
- * @brief Operation implementation structure.
- */
-struct AMAZON_BRAKET_QDMI_Operation_impl_d {
-  std::string name_;
-  size_t numQubits_ = 0;
-  size_t numParams_ = 0;
-  double fidelity_ = 0.0;
-  std::vector<std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*>> applicable_sites_;
 };
 
 /**

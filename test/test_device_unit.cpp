@@ -29,7 +29,6 @@
  *  - AmazonBraketQDMILocalJobTest  : session initialised with fake credentials
  */
 
-#include "amazon-braket-qdmi-device/Device.hpp"
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
@@ -845,63 +844,70 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSubmitNoS3Bucket) {
 TEST(DeviceParserOfflineTest, SimulatorMissingParadigm) {
   SimulatorPropertiesParser parser;
   ParsedDeviceProperties props;
-  const Aws::Utils::Json::JsonValue json(R"({})");
-  EXPECT_EQ(parser.ParseProperties(json.View(), props), QDMI_ERROR_FATAL);
+  EXPECT_EQ(parser.ParseProperties(R"({})", props), QDMI_ERROR_FATAL);
 }
 
 TEST(DeviceParserOfflineTest, SimulatorParadigmMissingQubitCount) {
   SimulatorPropertiesParser parser;
   ParsedDeviceProperties props;
-  const Aws::Utils::Json::JsonValue json(R"({"paradigm":{}})");
-  EXPECT_EQ(parser.ParseProperties(json.View(), props), QDMI_ERROR_FATAL);
+  EXPECT_EQ(parser.ParseProperties(R"({"paradigm":{}})", props),
+            QDMI_ERROR_FATAL);
 }
 
 TEST(DeviceParserOfflineTest, SimulatorMissingAction) {
   SimulatorPropertiesParser parser;
   ParsedDeviceProperties props;
-  const Aws::Utils::Json::JsonValue json(
-      R"({"paradigm":{"qubitCount":2,"connectivity":{"fullyConnected":true}}})");
-  EXPECT_EQ(parser.ParseProperties(json.View(), props), QDMI_ERROR_FATAL);
+  EXPECT_EQ(
+      parser.ParseProperties(
+          R"({"paradigm":{"qubitCount":2,"connectivity":{"fullyConnected":true}}})",
+          props),
+      QDMI_ERROR_FATAL);
 }
 
 TEST(DeviceParserOfflineTest, SimulatorActionMissingOpenQASMProgram) {
   SimulatorPropertiesParser parser;
   ParsedDeviceProperties props;
-  const Aws::Utils::Json::JsonValue json(
-      R"({"paradigm":{"qubitCount":2,"connectivity":{"fullyConnected":true}},"action":{}})");
-  EXPECT_EQ(parser.ParseProperties(json.View(), props), QDMI_ERROR_FATAL);
+  EXPECT_EQ(
+      parser.ParseProperties(
+          R"({"paradigm":{"qubitCount":2,"connectivity":{"fullyConnected":true}},"action":{}})",
+          props),
+      QDMI_ERROR_FATAL);
 }
 
 TEST(DeviceParserOfflineTest,
      SimulatorOpenQASMProgramMissingSupportedOperations) {
   SimulatorPropertiesParser parser;
   ParsedDeviceProperties props;
-  const Aws::Utils::Json::JsonValue json(
-      R"({"paradigm":{"qubitCount":2,"connectivity":{"fullyConnected":true}},"action":{"braket.ir.openqasm.program":{}}})");
-  EXPECT_EQ(parser.ParseProperties(json.View(), props), QDMI_ERROR_FATAL);
+  EXPECT_EQ(
+      parser.ParseProperties(
+          R"({"paradigm":{"qubitCount":2,"connectivity":{"fullyConnected":true}},"action":{"braket.ir.openqasm.program":{}}})",
+          props),
+      QDMI_ERROR_FATAL);
 }
 
 TEST(DeviceParserOfflineTest, IQMMissingConnectivity) {
   IQMDeviceParser parser;
   ParsedDeviceProperties props;
-  const Aws::Utils::Json::JsonValue json(R"({"paradigm":{"qubitCount":5}})");
-  EXPECT_EQ(parser.ParseProperties(json.View(), props), QDMI_ERROR_FATAL);
+  EXPECT_EQ(parser.ParseProperties(R"({"paradigm":{"qubitCount":5}})", props),
+            QDMI_ERROR_FATAL);
 }
 
 TEST(DeviceParserOfflineTest, IQMConnectivityMissingGraph) {
   IQMDeviceParser parser;
   ParsedDeviceProperties props;
-  const Aws::Utils::Json::JsonValue json(
-      R"({"paradigm":{"qubitCount":5,"connectivity":{}}})");
-  EXPECT_EQ(parser.ParseProperties(json.View(), props), QDMI_ERROR_FATAL);
+  EXPECT_EQ(parser.ParseProperties(
+                R"({"paradigm":{"qubitCount":5,"connectivity":{}}})", props),
+            QDMI_ERROR_FATAL);
 }
 
 TEST(DeviceParserOfflineTest, IQMNonNumericQubitID) {
   IQMDeviceParser parser;
   ParsedDeviceProperties props;
-  const Aws::Utils::Json::JsonValue json(
-      R"({"paradigm":{"qubitCount":2,"connectivity":{"connectivityGraph":{"QB1":["QB2"]}}}})");
-  EXPECT_EQ(parser.ParseProperties(json.View(), props), QDMI_ERROR_FATAL);
+  EXPECT_EQ(
+      parser.ParseProperties(
+          R"({"paradigm":{"qubitCount":2,"connectivity":{"connectivityGraph":{"QB1":["QB2"]}}}})",
+          props),
+      QDMI_ERROR_FATAL);
 }
 
 // =============================================================================
