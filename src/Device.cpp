@@ -59,10 +59,10 @@
  *
  */
 
-#include "amazon-braket-qdmi-device/device.hpp"
+#include "amazon-braket-qdmi-device/Device.hpp"
 
+#include "amazon-braket-qdmi-device/DeviceParser.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
-#include "amazon-braket-qdmi-device/device_parser.hpp"
 #include "amazon_braket_qdmi/constants.h"
 #include "amazon_braket_qdmi/device.h"
 
