@@ -39,8 +39,9 @@ target_compile_definitions(
   PRIVATE QDMI_VERSION="${qdmi_library_VERSION}"
           ${QDMI_PREFIX}_QDMI_DEVICE_VERSION="${PROJECT_VERSION}"
           ${QDMI_PREFIX}_QDMI_device_EXPORTS)
-set_target_properties(${QDMI_TARGET_NAME} PROPERTIES CXX_VISIBILITY_PRESET hidden
-                                                     CXX_VISIBILITY_INLINES_HIDDEN ON)
+set_target_properties(
+  ${QDMI_TARGET_NAME} PROPERTIES VERSION ${PROJECT_VERSION}
+                                 SOVERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 target_sources(${QDMI_TARGET_NAME} PRIVATE ${SRC_FILES})
 
 target_sources(
@@ -65,7 +66,7 @@ target_sources(
 
 target_link_libraries(
   ${QDMI_TARGET_NAME} PRIVATE AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket
-                              qdmi::qdmi_project_warnings)
+                              qdmi::qdmi qdmi::qdmi_project_warnings)
 
 option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
 if(ENABLE_COVERAGE)
