@@ -29,12 +29,16 @@
  *  - AmazonBraketQDMILocalJobTest  : session initialised with fake credentials
  */
 
+#include "amazon-braket-qdmi-device/Device.hpp"
+#include "amazon-braket-qdmi-device/DeviceParser.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
 
 #include <array>
 #include <cstddef>
+#include <cstdio>
 #include <cstring>
+#include <fstream>
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
 #include <string>
@@ -346,6 +350,41 @@ TEST_F(AmazonBraketQDMILocalJobTest, SessionCredentialsFile) {
   // Result is not asserted — credentials may or may not be present.
   (void)AMAZON_BRAKET_QDMI_device_session_init(credsSession);
   AMAZON_BRAKET_QDMI_device_session_free(credsSession);
+}
+
+// A credentials file that contains more than one profile section triggers a
+// warning and uses the first profile's credentials.
+// This covers the multi-profile warning branch in parseCredentialsFile().
+TEST_F(AmazonBraketQDMIOfflineTest,
+       SessionInitMultipleProfilesCredentialsFile) {
+  const std::string tmpFile = "/tmp/qdmi_test_multi_profile_creds.ini";
+  {
+    std::ofstream f(tmpFile);
+    f << "[default]\n"
+      << "aws_access_key_id=AKIAIOSFODNN7EXAMPLE\n"
+      << "aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n"
+      << "[profile2]\n"
+      << "aws_access_key_id=AKIAI44QH8DHBEXAMPLE\n"
+      << "aws_secret_access_key=je7MtGbClwBF/2Zp9Utk/h3yCo8nvbEXAMPLEKEY\n";
+  }
+
+  const char* deviceArn =
+      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                strlen(deviceArn) + 1, deviceArn),
+            QDMI_SUCCESS);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
+                tmpFile.size() + 1, tmpFile.c_str()),
+            QDMI_SUCCESS);
+
+  // init() parses the two-profile file (triggering the warning), then builds
+  // a BraketClient with the first profile's (fake) credentials.  The AWS
+  // connection itself will fail, but we only care that the parsing path ran.
+  (void)AMAZON_BRAKET_QDMI_device_session_init(session);
+
+  std::remove(tmpFile.c_str());
 }
 
 // Verify that direct AWS credential parameters are accepted without error.
@@ -793,6 +832,76 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSubmitNoS3Bucket) {
   EXPECT_EQ(status, QDMI_JOB_STATUS_FAILED);
 
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
+}
+
+// =============================================================================
+// DeviceParser offline error-path tests
+// =============================================================================
+//
+// Each test drives a concrete parser with deliberately malformed JSON to reach
+// the QDMI_ERROR_FATAL returns in SimulatorPropertiesParser and
+// IQMDeviceParser. No AWS credentials or network calls are needed.
+
+TEST(DeviceParserOfflineTest, SimulatorMissingParadigm) {
+  SimulatorPropertiesParser parser;
+  ParsedDeviceProperties props;
+  const Aws::Utils::Json::JsonValue json(R"({})");
+  EXPECT_EQ(parser.ParseProperties(json.View(), props), QDMI_ERROR_FATAL);
+}
+
+TEST(DeviceParserOfflineTest, SimulatorParadigmMissingQubitCount) {
+  SimulatorPropertiesParser parser;
+  ParsedDeviceProperties props;
+  const Aws::Utils::Json::JsonValue json(R"({"paradigm":{}})");
+  EXPECT_EQ(parser.ParseProperties(json.View(), props), QDMI_ERROR_FATAL);
+}
+
+TEST(DeviceParserOfflineTest, SimulatorMissingAction) {
+  SimulatorPropertiesParser parser;
+  ParsedDeviceProperties props;
+  const Aws::Utils::Json::JsonValue json(
+      R"({"paradigm":{"qubitCount":2,"connectivity":{"fullyConnected":true}}})");
+  EXPECT_EQ(parser.ParseProperties(json.View(), props), QDMI_ERROR_FATAL);
+}
+
+TEST(DeviceParserOfflineTest, SimulatorActionMissingOpenQASMProgram) {
+  SimulatorPropertiesParser parser;
+  ParsedDeviceProperties props;
+  const Aws::Utils::Json::JsonValue json(
+      R"({"paradigm":{"qubitCount":2,"connectivity":{"fullyConnected":true}},"action":{}})");
+  EXPECT_EQ(parser.ParseProperties(json.View(), props), QDMI_ERROR_FATAL);
+}
+
+TEST(DeviceParserOfflineTest,
+     SimulatorOpenQASMProgramMissingSupportedOperations) {
+  SimulatorPropertiesParser parser;
+  ParsedDeviceProperties props;
+  const Aws::Utils::Json::JsonValue json(
+      R"({"paradigm":{"qubitCount":2,"connectivity":{"fullyConnected":true}},"action":{"braket.ir.openqasm.program":{}}})");
+  EXPECT_EQ(parser.ParseProperties(json.View(), props), QDMI_ERROR_FATAL);
+}
+
+TEST(DeviceParserOfflineTest, IQMMissingConnectivity) {
+  IQMDeviceParser parser;
+  ParsedDeviceProperties props;
+  const Aws::Utils::Json::JsonValue json(R"({"paradigm":{"qubitCount":5}})");
+  EXPECT_EQ(parser.ParseProperties(json.View(), props), QDMI_ERROR_FATAL);
+}
+
+TEST(DeviceParserOfflineTest, IQMConnectivityMissingGraph) {
+  IQMDeviceParser parser;
+  ParsedDeviceProperties props;
+  const Aws::Utils::Json::JsonValue json(
+      R"({"paradigm":{"qubitCount":5,"connectivity":{}}})");
+  EXPECT_EQ(parser.ParseProperties(json.View(), props), QDMI_ERROR_FATAL);
+}
+
+TEST(DeviceParserOfflineTest, IQMNonNumericQubitID) {
+  IQMDeviceParser parser;
+  ParsedDeviceProperties props;
+  const Aws::Utils::Json::JsonValue json(
+      R"({"paradigm":{"qubitCount":2,"connectivity":{"connectivityGraph":{"QB1":["QB2"]}}}})");
+  EXPECT_EQ(parser.ParseProperties(json.View(), props), QDMI_ERROR_FATAL);
 }
 
 // =============================================================================

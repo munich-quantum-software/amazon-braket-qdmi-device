@@ -218,17 +218,16 @@ auto SimulatorPropertiesParser::ParseProperties(
     properties.sites.push_back(std::move(site));
   }
 
-  // 3. Verify the device reports full connectivity and build the graph.
-  //    All Amazon Braket simulators are all-to-all connected; log a warning
-  //    if the JSON says otherwise (unexpected, but harmless).
+  // 3. Verify full connectivity and build the graph.
   bool fullyConnected = false;
   status = HasFullConnectivity(propertiesJson, fullyConnected);
   if (status != QDMI_SUCCESS) {
     return status;
   }
   if (!fullyConnected) {
-    std::cerr << "WARNING: Simulator device does not report full connectivity; "
-                 "building all-to-all graph anyway.\n";
+    std::cerr << "Only simulators with full connectivity are supported, but "
+                 "'fullyConnected' is false\n";
+    return QDMI_ERROR_FATAL;
   }
   status = BuildFullConnectivity(properties);
   if (status != QDMI_SUCCESS) {

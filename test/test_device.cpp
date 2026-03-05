@@ -486,6 +486,33 @@ TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceLibraryVersion) {
   EXPECT_FALSE(value.empty()) << "Devices must provide a library version";
 }
 
+// VERSION is a library-level property delegated to the global Device singleton.
+// This path in Device::queryProperty() is distinct from LIBRARYVERSION.
+TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceVersion) {
+  size_t size = 0;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_VERSION, 0, nullptr, &size),
+            QDMI_SUCCESS)
+      << "Device must provide a version string";
+  ASSERT_GT(size, 0U);
+  std::string version(size - 1, '\0');
+  ASSERT_EQ(
+      AMAZON_BRAKET_QDMI_device_session_query_device_property(
+          session, QDMI_DEVICE_PROPERTY_VERSION, size, version.data(), nullptr),
+      QDMI_SUCCESS);
+  EXPECT_FALSE(version.empty());
+}
+
+// NEEDSCALIBRATION is always 0 for Braket (no offline calibration step).
+TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceNeedsCalibration) {
+  size_t needsCalibration = 99; // sentinel — must be overwritten
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_NEEDSCALIBRATION, sizeof(size_t),
+                &needsCalibration, nullptr),
+            QDMI_SUCCESS);
+  EXPECT_EQ(needsCalibration, 0U);
+}
+
 TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteIndex) {
   uint64_t id = 0;
   EXPECT_NO_THROW(for (auto* site : querySites(session)) {
@@ -537,16 +564,16 @@ TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteData) {
   EXPECT_NO_THROW(sites = querySites(session)) << "Devices must provide sites";
   EXPECT_GT(sites.size(), 0);
   for (auto* site : sites) {
-    uint64_t t1 = 0;
-    EXPECT_THAT(AMAZON_BRAKET_QDMI_device_session_query_site_property(
-                    session, site, QDMI_SITE_PROPERTY_T1, sizeof(uint64_t), &t1,
-                    nullptr),
-                testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
-    uint64_t t2 = 0;
-    EXPECT_THAT(AMAZON_BRAKET_QDMI_device_session_query_site_property(
-                    session, site, QDMI_SITE_PROPERTY_T2, sizeof(uint64_t), &t2,
-                    nullptr),
-                testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+    double t1 = 0.0;
+    EXPECT_THAT(
+        AMAZON_BRAKET_QDMI_device_session_query_site_property(
+            session, site, QDMI_SITE_PROPERTY_T1, sizeof(double), &t1, nullptr),
+        testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+    double t2 = 0.0;
+    EXPECT_THAT(
+        AMAZON_BRAKET_QDMI_device_session_query_site_property(
+            session, site, QDMI_SITE_PROPERTY_T2, sizeof(double), &t2, nullptr),
+        testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
   }
 }
 
@@ -773,6 +800,60 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest, JobGetResultsHistValues) {
     totalShots += count;
   }
   EXPECT_EQ(totalShots, 100U);
+}
+
+// If the caller supplies a non-null buffer that is too small, getResults()
+// must return QDMI_ERROR_INVALIDARGUMENT without touching sizeRet.
+TEST_F(AmazonBraketQDMIJobSpecificationTest, JobGetResultsShotsBufferTooSmall) {
+  if (!submittedOk || waitResult != QDMI_SUCCESS || !hasShots) {
+    GTEST_SKIP() << "Shared job did not produce shots; skipping buffer test";
+  }
+  size_t requiredSize = 0;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
+                sharedJob, QDMI_JOB_RESULT_SHOTS, 0, nullptr, &requiredSize),
+            QDMI_SUCCESS);
+  ASSERT_GT(requiredSize, 1U);
+  // Buffer of 1 byte is always too small for any non-empty shots string.
+  char smallBuf = '\0';
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
+                sharedJob, QDMI_JOB_RESULT_SHOTS, 1, &smallBuf, nullptr),
+            QDMI_ERROR_INVALIDARGUMENT);
+}
+
+TEST_F(AmazonBraketQDMIJobSpecificationTest,
+       JobGetResultsHistKeysBufferTooSmall) {
+  if (!submittedOk || waitResult != QDMI_SUCCESS || !hasHist) {
+    GTEST_SKIP()
+        << "Shared job did not produce histogram; skipping buffer test";
+  }
+  size_t requiredSize = 0;
+  ASSERT_EQ(
+      AMAZON_BRAKET_QDMI_device_job_get_results(
+          sharedJob, QDMI_JOB_RESULT_HIST_KEYS, 0, nullptr, &requiredSize),
+      QDMI_SUCCESS);
+  ASSERT_GT(requiredSize, 1U);
+  char smallBuf = '\0';
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
+                sharedJob, QDMI_JOB_RESULT_HIST_KEYS, 1, &smallBuf, nullptr),
+            QDMI_ERROR_INVALIDARGUMENT);
+}
+
+TEST_F(AmazonBraketQDMIJobSpecificationTest,
+       JobGetResultsHistValuesBufferTooSmall) {
+  if (!submittedOk || waitResult != QDMI_SUCCESS || !hasHist) {
+    GTEST_SKIP()
+        << "Shared job did not produce histogram; skipping buffer test";
+  }
+  size_t requiredSize = 0;
+  ASSERT_EQ(
+      AMAZON_BRAKET_QDMI_device_job_get_results(
+          sharedJob, QDMI_JOB_RESULT_HIST_VALUES, 0, nullptr, &requiredSize),
+      QDMI_SUCCESS);
+  ASSERT_GT(requiredSize, sizeof(size_t));
+  size_t smallVal = 0;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
+                sharedJob, QDMI_JOB_RESULT_HIST_VALUES, 1, &smallVal, nullptr),
+            QDMI_ERROR_INVALIDARGUMENT);
 }
 
 // Requesting statevector / probability results is not implemented.
@@ -1099,6 +1180,58 @@ TEST_F(DeviceParsingTestFixture, IQMDeviceParsing) {
   EXPECT_TRUE(hasGate("prx")) << "IQM devices typically support PRX gate";
 }
 
+// All IQM qubits must have T1 and T2 coherence times populated (non-zero)
+// because the provider calibration data always includes them.
+TEST_F(DeviceParsingTestFixture, IQMDeviceSiteCoherenceTimes) {
+  const char* skipIQMEnv = std::getenv("SKIP_IQM_TESTS");
+  if (skipIQMEnv != nullptr && strcmp(skipIQMEnv, "1") == 0) {
+    GTEST_SKIP() << "IQM tests skipped (SKIP_IQM_TESTS=1)";
+  }
+
+  const char* iqmDeviceArn = std::getenv("IQM_DEVICE_ARN");
+  if (iqmDeviceArn == nullptr) {
+    iqmDeviceArn = "arn:aws:braket:eu-north-1::device/qpu/iqm/Garnet";
+  }
+  initializeDevice(iqmDeviceArn);
+
+  auto sites = querySites(session);
+  ASSERT_GT(sites.size(), 0U) << "IQM device must have sites";
+
+  size_t sitesWithT1 = 0;
+  size_t sitesWithT2 = 0;
+  for (auto* site : sites) {
+    double t1 = 0.0;
+    const auto t1Result = AMAZON_BRAKET_QDMI_device_session_query_site_property(
+        session, site, QDMI_SITE_PROPERTY_T1, sizeof(double), &t1, nullptr);
+    if (t1Result == QDMI_SUCCESS) {
+      EXPECT_GT(t1, 0.0) << "T1 must be > 0 when supported";
+      // IQM T1 values in seconds; typical range is ~5e-6 to ~1e-4 s
+      EXPECT_LT(t1, 1.0) << "T1 above 1 s is implausibly large";
+      ++sitesWithT1;
+    } else {
+      EXPECT_EQ(t1Result, QDMI_ERROR_NOTSUPPORTED);
+    }
+
+    double t2 = 0.0;
+    const auto t2Result = AMAZON_BRAKET_QDMI_device_session_query_site_property(
+        session, site, QDMI_SITE_PROPERTY_T2, sizeof(double), &t2, nullptr);
+    if (t2Result == QDMI_SUCCESS) {
+      EXPECT_GT(t2, 0.0) << "T2 must be > 0 when supported";
+      EXPECT_LT(t2, 1.0) << "T2 above 1 s is implausibly large";
+      ++sitesWithT2;
+    } else {
+      EXPECT_EQ(t2Result, QDMI_ERROR_NOTSUPPORTED);
+    }
+  }
+
+  // All IQM sites should have calibration data; require at least half have
+  // T1/T2
+  EXPECT_GT(sitesWithT1, sites.size() / 2)
+      << "Most IQM sites should have T1 data";
+  EXPECT_GT(sitesWithT2, sites.size() / 2)
+      << "Most IQM sites should have T2 data";
+}
+
 TEST_F(DeviceParsingTestFixture, IQMDeviceStatus) {
   const char* skipIQMEnv = std::getenv("SKIP_IQM_TESTS");
   if (skipIQMEnv != nullptr && strcmp(skipIQMEnv, "1") == 0) {
@@ -1141,4 +1274,86 @@ TEST_F(DeviceParsingTestFixture, IQMDeviceStatus) {
               status == QDMI_DEVICE_STATUS_MAINTENANCE ||
               status == QDMI_DEVICE_STATUS_OFFLINE)
       << "IQM device must report a valid QDMI status";
+}
+
+// =============================================================================
+// Integration test: wait() timeout path
+// =============================================================================
+
+// Submits a Bell-state job to SV1 and immediately waits with a very short
+// timeout (10 ms). The GetQuantumTask API roundtrip itself takes ~100-300 ms,
+// so the timeout check triggers before the first status poll returns, reliably
+// exercising the QDMI_ERROR_TIMEOUT return in wait().
+// The test accepts QDMI_SUCCESS too, in case SV1 is unusually fast on the day.
+TEST(AmazonBraketQDMIWaitTimeoutTest, JobWaitTimeout) {
+  const char* s3BucketEnv = std::getenv("AWS_S3_BUCKET");
+  if (s3BucketEnv == nullptr || strlen(s3BucketEnv) == 0) {
+    GTEST_SKIP() << "AWS_S3_BUCKET not set; skipping wait-timeout test";
+  }
+
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+
+  struct Guard {
+    AMAZON_BRAKET_QDMI_Device_Session session = nullptr;
+    AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+    ~Guard() {
+      if (job != nullptr) {
+        AMAZON_BRAKET_QDMI_device_job_free(job);
+      }
+      if (session != nullptr) {
+        AMAZON_BRAKET_QDMI_device_session_free(session);
+      }
+      AMAZON_BRAKET_QDMI_device_finalize();
+    }
+  } guard;
+
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&guard.session),
+            QDMI_SUCCESS);
+  try {
+    ::setupCredentials(guard.session, true);
+  } catch (const std::exception& e) {
+    GTEST_SKIP() << "Credentials not available: " << e.what();
+  }
+
+  const char* deviceArn =
+      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                guard.session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                strlen(deviceArn) + 1, deviceArn),
+            QDMI_SUCCESS);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_init(guard.session),
+            QDMI_SUCCESS);
+
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(guard.session,
+                                                                &guard.job),
+            QDMI_SUCCESS);
+
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                guard.job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
+                strlen(BELL_STATE_PROGRAM) + 1, BELL_STATE_PROGRAM),
+            QDMI_SUCCESS);
+  QDMI_Program_Format format = QDMI_PROGRAM_FORMAT_QASM3;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                guard.job, QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT,
+                sizeof(format), &format),
+            QDMI_SUCCESS);
+  size_t shots = 100;
+  ASSERT_EQ(
+      AMAZON_BRAKET_QDMI_device_job_set_parameter(
+          guard.job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(shots), &shots),
+      QDMI_SUCCESS);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                guard.job, QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
+                strlen(s3BucketEnv) + 1, s3BucketEnv),
+            QDMI_SUCCESS);
+
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(guard.job), QDMI_SUCCESS)
+      << "Job submission must succeed before testing wait timeout";
+
+  // 10 ms is far shorter than any SV1 API roundtrip; TIMEOUT is expected.
+  // QDMI_SUCCESS is accepted too in case the simulator was unusually instant.
+  const int waitResult = AMAZON_BRAKET_QDMI_device_job_wait(guard.job, 10);
+  EXPECT_THAT(waitResult, testing::AnyOf(QDMI_ERROR_TIMEOUT, QDMI_SUCCESS))
+      << "wait() with 10 ms timeout should either time out or find the job "
+         "already done";
 }

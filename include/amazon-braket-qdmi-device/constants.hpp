@@ -23,7 +23,7 @@
 
 #pragma once
 
-#include "amazon_braket_qdmi/constants.h"
+#include "amazon_braket_qdmi/device.h"
 
 /**
  * @brief Amazon Braket-specific device session parameters.

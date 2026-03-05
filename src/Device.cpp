@@ -63,7 +63,6 @@
 
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
-#include "amazon_braket_qdmi/constants.h"
 #include "amazon_braket_qdmi/device.h"
 
 #include <aws/braket/BraketClient.h>
@@ -855,12 +854,12 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::querySiteProperty(
                             size, value, sizeRet)
   ADD_STRING_PROPERTY(QDMI_SITE_PROPERTY_NAME, site->name_.c_str(), prop, size,
                       value, sizeRet)
-  if (site->t1_ > 0) {
-    ADD_SINGLE_VALUE_PROPERTY(QDMI_SITE_PROPERTY_T1, uint64_t, site->t1_, prop,
+  if (site->t1_ > 0.0) {
+    ADD_SINGLE_VALUE_PROPERTY(QDMI_SITE_PROPERTY_T1, double, site->t1_, prop,
                               size, value, sizeRet)
   }
-  if (site->t2_ > 0) {
-    ADD_SINGLE_VALUE_PROPERTY(QDMI_SITE_PROPERTY_T2, uint64_t, site->t2_, prop,
+  if (site->t2_ > 0.0) {
+    ADD_SINGLE_VALUE_PROPERTY(QDMI_SITE_PROPERTY_T2, double, site->t2_, prop,
                               size, value, sizeRet)
   }
 

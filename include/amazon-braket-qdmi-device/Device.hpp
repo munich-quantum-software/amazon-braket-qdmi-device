@@ -281,8 +281,8 @@ private:
 struct AMAZON_BRAKET_QDMI_Site_impl_d {
   std::string name_;
   size_t id_ = 0;
-  uint64_t t1_ = 0; // T1 coherence time in microseconds
-  uint64_t t2_ = 0; // T2 coherence time in microseconds
+  double t1_ = 0.0; // T1 coherence time in seconds
+  double t2_ = 0.0; // T2 coherence time in seconds
 };
 
 /**
