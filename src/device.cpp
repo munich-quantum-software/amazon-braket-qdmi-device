@@ -1115,8 +1115,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
   // - Some devices may not support mid-execution cancellation
   //
   // After cancellation request:
-  // - Call check() to poll for the final terminal status
-  // - check() handles the CANCELLING→terminal state transition automatically
+  // - Call check() repeatedly; it returns the last known status while
+  //   CANCELLING and updates to the terminal state once AWS resolves it
 
   std::string localTaskArn;
   {
@@ -1137,11 +1137,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
     return QDMI_ERROR_NOTSUPPORTED;
   }
 
-  // Cancellation request succeeded - task is now in CANCELLING state
-  // Do NOT set status to CANCELED here - the actual terminal state will be
-  // determined by the next check() call, which handles the CANCELLING
-  // transition The final state could be CANCELLED, COMPLETED, or FAILED
-  // depending on timing
+  // Cancellation request succeeded - task is now in CANCELLING state.
+  // Do NOT set status to CANCELED here; check() will report the last known
+  // status while CANCELLING and update to the terminal state once resolved.
 
   return QDMI_SUCCESS;
 }
@@ -1168,7 +1166,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
   // - RUNNING: Actively executing on device
   // - COMPLETED: Finished successfully, results available
   // - FAILED: Execution failed (circuit error, device error, etc.)
-  // - CANCELLING: Transitional state after cancel request (poll until terminal)
+  // - CANCELLING: Transitional state after cancel request (returns last known
+  // status)
   // - CANCELLED: User cancelled the task
   // - NOT_SET: Uninitialized/unknown state, should not occur with IsSuccess()
   //
@@ -1178,7 +1177,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
   // AWS RUNNING    → QDMI_JOB_STATUS_RUNNING
   // AWS COMPLETED  → QDMI_JOB_STATUS_DONE
   // AWS FAILED     → QDMI_JOB_STATUS_FAILED
-  // AWS CANCELLING → Poll until terminal state (CANCELLED/COMPLETED/FAILED)
+  // AWS CANCELLING → last known status
   // AWS CANCELLED  → QDMI_JOB_STATUS_CANCELED
   // AWS NOT_SET    → QDMI_ERROR_NOTSUPPORTED
   // AWS unknown    → QDMI_ERROR_NOTSUPPORTED

@@ -142,7 +142,8 @@ struct DeviceArchitecture {
  * Multi-Credential Support:
  * When multiple users (with different AWS credentials) connect to the same
  * device ARN, the immutable device architecture is fetched once and cached.
- * Only mutable properties (status) and credentials differ per session.
+ * Only mutable (status, operation, site) properties and credentials differ per
+ * session.
  *
  * The singleton coordinates:
  * - AWS SDK initialization/shutdown lifecycle
