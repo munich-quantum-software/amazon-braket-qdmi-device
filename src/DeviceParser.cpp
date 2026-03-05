@@ -32,7 +32,7 @@
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
 
 #include "amazon-braket-qdmi-device/Device.hpp"
-#include "amazon_braket_qdmi/constants.h"
+#include "amazon_braket_qdmi/device.h"
 
 #include <aws/braket/model/DeviceType.h>
 #include <aws/core/utils/json/JsonSerializer.h>
@@ -218,9 +218,18 @@ auto SimulatorPropertiesParser::ParseProperties(
     properties.sites.push_back(std::move(site));
   }
 
-  // 3. Build connectivity - simulators always have full connectivity
-  //    (We expect paradigm.connectivity.fullyConnected == true, but we
-  //     build it regardless since simulators have no physical constraints)
+  // 3. Verify the device reports full connectivity and build the graph.
+  //    All Amazon Braket simulators are all-to-all connected; log a warning
+  //    if the JSON says otherwise (unexpected, but harmless).
+  bool fullyConnected = false;
+  status = HasFullConnectivity(propertiesJson, fullyConnected);
+  if (status != QDMI_SUCCESS) {
+    return status;
+  }
+  if (!fullyConnected) {
+    std::cerr << "WARNING: Simulator device does not report full connectivity; "
+                 "building all-to-all graph anyway.\n";
+  }
   status = BuildFullConnectivity(properties);
   if (status != QDMI_SUCCESS) {
     return status;
@@ -306,7 +315,11 @@ auto IQMDeviceParser::ParseProperties(
     return status;
   }
 
-  // 4. Parse operations (reusable helper - standard OpenQASM format)
+  // 4. Populate T1/T2 coherence times from provider calibration data
+  //    (best-effort: missing fields are silently skipped)
+  ParseSiteCoherenceTimes(propertiesJson, properties);
+
+  // 5. Parse operations (reusable helper - standard OpenQASM format)
   return ParseOperationsFromOpenQASM(propertiesJson, properties);
 }
 
@@ -362,6 +375,48 @@ auto IQMDeviceParser::ParseConnectivityGraph(
   }
 
   return QDMI_SUCCESS;
+}
+
+auto IQMDeviceParser::ParseSiteCoherenceTimes(
+    const Aws::Utils::Json::JsonView& propertiesJson,
+    ParsedDeviceProperties& properties) -> void {
+  // Guard: provider.properties.one_qubit must exist
+  if (!propertiesJson.ValueExists("provider")) {
+    return;
+  }
+  const auto providerObj = propertiesJson.GetObject("provider");
+  if (!providerObj.ValueExists("properties")) {
+    return;
+  }
+  const auto propsObj = providerObj.GetObject("properties");
+  if (!propsObj.ValueExists("one_qubit")) {
+    return;
+  }
+  const auto oneQubit = propsObj.GetObject("one_qubit");
+
+  // Each entry key is the qubit ID string ("1", "2", ...)
+  // Values are seconds (double); stored directly without conversion.
+  for (const auto& entry : oneQubit.GetAllObjects()) {
+    const std::string& qubitId = entry.first;
+    const auto it = properties.sitesMap.find(qubitId);
+    if (it == properties.sitesMap.end()) {
+      continue; // qubit not in topology — skip
+    }
+    auto* site = it->second;
+    const auto& qubitData = entry.second;
+    if (qubitData.ValueExists("T1")) {
+      const double t1Seconds = qubitData.GetDouble("T1");
+      if (t1Seconds > 0.0) {
+        site->t1_ = t1Seconds;
+      }
+    }
+    if (qubitData.ValueExists("T2")) {
+      const double t2Seconds = qubitData.GetDouble("T2");
+      if (t2Seconds > 0.0) {
+        site->t2_ = t2Seconds;
+      }
+    }
+  }
 }
 
 // ============================================================================

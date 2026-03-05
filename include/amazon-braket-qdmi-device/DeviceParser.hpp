@@ -151,6 +151,16 @@ private:
    */
   static auto ParseConnectivityGraph(const Aws::Utils::Json::JsonView& paradigm,
                                      ParsedDeviceProperties& properties) -> int;
+
+  /**
+   * @brief Populate T1/T2 coherence times from provider calibration data
+   *
+   * Reads provider.properties.one_qubit.<qubitId>.T1 and .T2 (seconds)
+   * and stores them as microseconds in site->t1_ and site->t2_.
+   */
+  static auto
+  ParseSiteCoherenceTimes(const Aws::Utils::Json::JsonView& propertiesJson,
+                          ParsedDeviceProperties& properties) -> void;
 };
 
 /**
