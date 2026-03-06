@@ -39,9 +39,9 @@ if(BUILD_AMAZON_BRAKET_TESTS)
 endif()
 
 # cmake-format: off
-set(QDMI_VERSION 1.2.2
+set(QDMI_VERSION 1.2.1
         CACHE STRING "QDMI version")
-set(QDMI_REV "08fa78984f40f9202cdd9bc71a627ff98adf3329" # v1.2.x
+set(QDMI_REV "d5e657c777b54c482b6fd372961ee59add2ded8b"
         CACHE STRING "QDMI identifier (tag, branch or commit hash)")
 set(QDMI_REPO_OWNER "Munich-Quantum-Software-Stack"
         CACHE STRING "QDMI repository owner (change when using a fork)")
