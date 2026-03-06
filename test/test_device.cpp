@@ -115,7 +115,7 @@ void setupCredentials(AMAZON_BRAKET_QDMI_Device_Session session,
   if (AMAZON_BRAKET_QDMI_device_session_query_device_property(
           session,
           static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_SITES), 0,
-          nullptr, &size) != QDMI_SUCCESS) { // NOLINT(clang-diagnostic-nonnull)
+          nullptr, &size) != QDMI_SUCCESS) {
     throw std::runtime_error("Failed to query sites");
   }
   if (size == 0) {
@@ -138,7 +138,7 @@ void setupCredentials(AMAZON_BRAKET_QDMI_Device_Session session,
   if (AMAZON_BRAKET_QDMI_device_session_query_device_property(
           session,
           static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_OPERATIONS), 0,
-          nullptr, &size) != QDMI_SUCCESS) { // NOLINT(clang-diagnostic-nonnull)
+          nullptr, &size) != QDMI_SUCCESS) {
     throw std::runtime_error("Failed to query operations");
   }
   if (size == 0) {
@@ -315,8 +315,7 @@ protected:
           finalStatus == QDMI_JOB_STATUS_DONE) {
         size_t shotsSize = 0;
         if (AMAZON_BRAKET_QDMI_device_job_get_results(
-                sharedJob, QDMI_JOB_RESULT_SHOTS, 0, nullptr,
-                &shotsSize) == // NOLINT(clang-diagnostic-nonnull)
+                sharedJob, QDMI_JOB_RESULT_SHOTS, 0, nullptr, &shotsSize) ==
                 QDMI_SUCCESS &&
             shotsSize > 0) {
           std::string shotsStr(shotsSize - 1, '\0');
@@ -329,8 +328,7 @@ protected:
         }
         size_t keysSize = 0;
         if (AMAZON_BRAKET_QDMI_device_job_get_results(
-                sharedJob, QDMI_JOB_RESULT_HIST_KEYS, 0, nullptr,
-                &keysSize) == // NOLINT(clang-diagnostic-nonnull)
+                sharedJob, QDMI_JOB_RESULT_HIST_KEYS, 0, nullptr, &keysSize) ==
                 QDMI_SUCCESS &&
             keysSize > 0) {
           std::vector<char> keysData(keysSize);
@@ -531,8 +529,7 @@ TEST_F(AmazonBraketQDMISpecificationTest, QueryOperationName) {
   EXPECT_NO_THROW(for (auto* operation : queryOperations(session)) {
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
                   session, operation, 0, nullptr, 0, nullptr,
-                  QDMI_OPERATION_PROPERTY_NAME, 0, nullptr,
-                  &nameSize), // NOLINT(clang-diagnostic-nonnull)
+                  QDMI_OPERATION_PROPERTY_NAME, 0, nullptr, &nameSize),
               QDMI_SUCCESS)
         << "Devices must provide an operation name";
     std::string name(nameSize - 1, '\0');
@@ -587,8 +584,7 @@ TEST_F(AmazonBraketQDMISpecificationTest, QueryOperationData) {
     size_t nameSize = 0;
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
                   session, operation, 0, nullptr, 0, nullptr,
-                  QDMI_OPERATION_PROPERTY_NAME, 0, nullptr,
-                  &nameSize), // NOLINT(clang-diagnostic-nonnull)
+                  QDMI_OPERATION_PROPERTY_NAME, 0, nullptr, &nameSize),
               QDMI_SUCCESS);
     std::string name(nameSize - 1, '\0');
     EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(

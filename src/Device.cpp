@@ -737,8 +737,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
     const QDMI_Device_Session_Parameter param, const size_t size,
     const void* value) -> QDMI_STATUS {
-  // Check for invalid arguments
-  if (value == nullptr && size == 0) {
+  // Check for invalid arguments (value must never be null for a setter)
+  if (value == nullptr || size == 0) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
