@@ -32,8 +32,8 @@ add_executable(${QDMI_TEST_TARGET_NAME} test_device.cpp test_device_unit.cpp)
 
 # link the Google test infrastructure to the test executable.
 target_link_libraries(
-  ${QDMI_TEST_TARGET_NAME} PRIVATE GTest::gtest_main GTest::gmock ${QDMI_TARGET_NAME}
-                                   AWS::aws-cpp-sdk-braket qdmi::qdmi qdmi::qdmi_project_warnings)
+  ${QDMI_TEST_TARGET_NAME} PRIVATE GTest::gtest_main GTest::gmock ${QDMI_TARGET_NAME} qdmi::qdmi
+                                   qdmi::qdmi_project_warnings)
 
 # set c++ standard
 target_compile_features(${QDMI_TEST_TARGET_NAME} PRIVATE cxx_std_20)
