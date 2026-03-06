@@ -35,6 +35,8 @@ target_link_libraries(
   ${QDMI_TEST_TARGET_NAME} PRIVATE GTest::gtest_main GTest::gmock ${QDMI_TARGET_NAME} qdmi::qdmi
                                    qdmi::qdmi_project_warnings)
 
+target_include_directories(${QDMI_TEST_TARGET_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include)
+
 # set c++ standard
 target_compile_features(${QDMI_TEST_TARGET_NAME} PRIVATE cxx_std_20)
 
