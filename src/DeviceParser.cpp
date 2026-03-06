@@ -33,7 +33,6 @@
 
 #include "amazon_braket_qdmi/device.h"
 
-#include <aws/braket/model/DeviceType.h>
 #include <aws/core/utils/json/JsonSerializer.h>
 #include <cstddef>
 #include <iostream>
@@ -395,29 +394,4 @@ auto IQMDeviceParser::ParseSiteCoherenceTimes(
       }
     }
   }
-}
-
-// ============================================================================
-// Factory Function
-// ============================================================================
-
-auto createDeviceParser(const Aws::Braket::Model::DeviceType& deviceType,
-                        const std::string& provider)
-    -> std::unique_ptr<IDeviceParser> {
-
-  if (deviceType == Aws::Braket::Model::DeviceType::SIMULATOR) {
-    return std::make_unique<SimulatorPropertiesParser>();
-  }
-
-  if (deviceType == Aws::Braket::Model::DeviceType::QPU) {
-    if (provider == "IQM") {
-      return std::make_unique<IQMDeviceParser>();
-    }
-
-    std::cerr << "Unsupported QPU provider: " << provider << "\n";
-    return nullptr;
-  }
-
-  std::cerr << "Unsupported device type\n";
-  return nullptr;
 }

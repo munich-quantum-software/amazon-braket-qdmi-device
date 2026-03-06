@@ -30,7 +30,6 @@ class JsonView;
 } // namespace Json
 } // namespace Utils
 } // namespace Aws
-#include <aws/braket/model/DeviceType.h>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -179,15 +178,3 @@ private:
   ParseSiteCoherenceTimes(const Aws::Utils::Json::JsonView& propertiesJson,
                           ParsedDeviceProperties& properties) -> void;
 };
-
-/**
- * @brief Factory function to create the appropriate device properties parser.
- *
- * @param deviceType The Braket device type (SIMULATOR or QPU)
- * @param provider The device provider string (e.g. "IQM")
- * @return The appropriate IDeviceParser implementation, or nullptr if
- * unsupported
- */
-auto createDeviceParser(const Aws::Braket::Model::DeviceType& deviceType,
-                        const std::string& provider)
-    -> std::unique_ptr<IDeviceParser>;

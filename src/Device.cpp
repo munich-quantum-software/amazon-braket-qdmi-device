@@ -568,8 +568,14 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
   }
 
   // Create Provider-Specific Parser
-  auto parser =
-      createDeviceParser(architecture->deviceType, architecture->provider);
+  std::unique_ptr<IDeviceParser> parser;
+  if (architecture->deviceType == Aws::Braket::Model::DeviceType::SIMULATOR) {
+    parser = std::make_unique<SimulatorPropertiesParser>();
+  } else if (architecture->deviceType == Aws::Braket::Model::DeviceType::QPU) {
+    if (architecture->provider == "IQM") {
+      parser = std::make_unique<IQMDeviceParser>();
+    }
+  }
   if (parser == nullptr) {
     const char* deviceTypeStr =
         (architecture->deviceType == Aws::Braket::Model::DeviceType::QPU)
