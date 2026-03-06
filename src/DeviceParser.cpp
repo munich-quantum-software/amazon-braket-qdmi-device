@@ -31,7 +31,6 @@
 
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
 
-#include "amazon-braket-qdmi-device/Device.hpp"
 #include "amazon_braket_qdmi/device.h"
 
 #include <aws/braket/model/DeviceType.h>
@@ -402,7 +401,7 @@ auto IQMDeviceParser::ParseSiteCoherenceTimes(
 // Factory Function
 // ============================================================================
 
-auto CreateDeviceParser(const Aws::Braket::Model::DeviceType& deviceType,
+auto createDeviceParser(const Aws::Braket::Model::DeviceType& deviceType,
                         const std::string& provider)
     -> std::unique_ptr<IDeviceParser> {
 

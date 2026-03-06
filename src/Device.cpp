@@ -102,11 +102,6 @@
 #include <utility>
 #include <vector>
 
-// Forward declaration: defined in DeviceParser.cpp, uses DeviceType from above.
-std::unique_ptr<IDeviceParser>
-CreateDeviceParser(const Aws::Braket::Model::DeviceType& deviceType,
-                   const std::string& provider);
-
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ADD_SINGLE_VALUE_PROPERTY(prop_name, prop_type, prop_value, prop,      \
                                   size, value, size_ret)                       \
@@ -574,7 +569,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
 
   // Create Provider-Specific Parser
   auto parser =
-      CreateDeviceParser(architecture->deviceType, architecture->provider);
+      createDeviceParser(architecture->deviceType, architecture->provider);
   if (parser == nullptr) {
     const char* deviceTypeStr =
         (architecture->deviceType == Aws::Braket::Model::DeviceType::QPU)

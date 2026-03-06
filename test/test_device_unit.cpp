@@ -174,52 +174,61 @@ TEST_F(AmazonBraketQDMIOfflineTest, SessionInitNonexistentCredentialsFile) {
 
 // alloc(nullptr) must return INVALIDARGUMENT.
 TEST_F(AmazonBraketQDMIOfflineTest, SessionAllocNullptr) {
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(nullptr),
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(
+                nullptr), // NOLINT(clang-diagnostic-nonnull)
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 // init(nullptr) must return INVALIDARGUMENT.
 TEST_F(AmazonBraketQDMIOfflineTest, SessionInitNullptr) {
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(nullptr),
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(
+                nullptr), // NOLINT(clang-diagnostic-nonnull)
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 // job API functions with a null job handle must all return INVALIDARGUMENT.
 TEST_F(AmazonBraketQDMIOfflineTest, JobSetParameterNullptr) {
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                nullptr, QDMI_DEVICE_JOB_PARAMETER_MAX, 0, nullptr),
+                nullptr, QDMI_DEVICE_JOB_PARAMETER_MAX, 0,
+                nullptr), // NOLINT(clang-diagnostic-nonnull)
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest, JobQueryPropertyNullptr) {
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
-                nullptr, QDMI_DEVICE_JOB_PROPERTY_MAX, 0, nullptr, nullptr),
+                nullptr, QDMI_DEVICE_JOB_PROPERTY_MAX, 0, nullptr,
+                nullptr), // NOLINT(clang-diagnostic-nonnull)
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest, JobSubmitNullptr) {
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(nullptr),
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(
+                nullptr), // NOLINT(clang-diagnostic-nonnull)
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest, JobCancelNullptr) {
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_cancel(nullptr),
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_cancel(
+                nullptr), // NOLINT(clang-diagnostic-nonnull)
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest, JobCheckNullptr) {
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(nullptr, nullptr),
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(
+                nullptr, nullptr), // NOLINT(clang-diagnostic-nonnull)
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest, JobWaitNullptr) {
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(nullptr, 0),
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(
+                nullptr, 0), // NOLINT(clang-diagnostic-nonnull)
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest, JobGetResultsNullptr) {
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
-                nullptr, QDMI_JOB_RESULT_MAX, 0, nullptr, nullptr),
+                nullptr, QDMI_JOB_RESULT_MAX, 0, nullptr,
+                nullptr), // NOLINT(clang-diagnostic-nonnull)
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
