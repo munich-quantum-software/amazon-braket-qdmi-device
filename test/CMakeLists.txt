@@ -28,14 +28,23 @@ generate_device_defs_executable(${QDMI_PREFIX} TARGET ${QDMI_TARGET_NAME})
 set(QDMI_TEST_TARGET_NAME "${QDMI_TARGET_NAME}-test")
 
 # create an executable in which the tests will be stored
-add_executable(${QDMI_TEST_TARGET_NAME} test_device.cpp test_device_unit.cpp)
+if(USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
+  # Install mode: only test the public C API against the installed library
+  add_executable(${QDMI_TEST_TARGET_NAME} test_device.cpp)
+else()
+  # Build-from-source: also compile offline unit tests for internal parser classes.
+  add_executable(${QDMI_TEST_TARGET_NAME} test_device.cpp test_device_unit.cpp)
+  target_link_libraries(${QDMI_TEST_TARGET_NAME} PRIVATE ${QDMI_TARGET_NAME}-parser-objects)
+endif()
 
 # link the Google test infrastructure to the test executable.
 target_link_libraries(
   ${QDMI_TEST_TARGET_NAME} PRIVATE GTest::gtest_main GTest::gmock ${QDMI_TARGET_NAME} qdmi::qdmi
                                    qdmi::qdmi_project_warnings)
 
-target_include_directories(${QDMI_TEST_TARGET_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include)
+if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
+  target_link_libraries(${QDMI_TEST_TARGET_NAME} PRIVATE AWS::aws-cpp-sdk-core)
+endif()
 
 # set c++ standard
 target_compile_features(${QDMI_TEST_TARGET_NAME} PRIVATE cxx_std_20)

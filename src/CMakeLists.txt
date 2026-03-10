@@ -21,7 +21,7 @@ include(GNUInstallDirs)
 generate_prefixed_qdmi_headers(${QDMI_PREFIX})
 
 # Collect source files
-file(GLOB_RECURSE SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
+set(DEVICE_SRC "${CMAKE_CURRENT_SOURCE_DIR}/Device.cpp")
 # Private header files (internal implementation only)
 set(PRIVATE_HEADER_FILES "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/Device.hpp"
                          "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/DeviceParser.hpp")
@@ -34,6 +34,23 @@ list(APPEND PUBLIC_HEADER_FILES
 add_library(${QDMI_TARGET_NAME} SHARED)
 target_compile_features(${QDMI_TARGET_NAME} PRIVATE cxx_std_20)
 get_target_property(qdmi_library_VERSION qdmi::qdmi VERSION)
+
+# Internal object library for DeviceParser. Both the shared library and the unit-test target consume
+# it, so private parser classes need not be exported from the shared library ABI.
+set(QDMI_PARSER_OBJECTS "${QDMI_TARGET_NAME}-parser-objects")
+add_library(${QDMI_PARSER_OBJECTS} OBJECT "${CMAKE_CURRENT_SOURCE_DIR}/DeviceParser.cpp")
+target_compile_features(${QDMI_PARSER_OBJECTS} PRIVATE cxx_std_20)
+set_target_properties(${QDMI_PARSER_OBJECTS} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_compile_definitions(
+  ${QDMI_PARSER_OBJECTS}
+  PRIVATE QDMI_VERSION="${qdmi_library_VERSION}"
+          ${QDMI_PREFIX}_QDMI_DEVICE_VERSION="${PROJECT_VERSION}"
+          ${QDMI_PREFIX}_QDMI_device_EXPORTS)
+target_include_directories(${QDMI_PARSER_OBJECTS} PUBLIC ${PROJECT_SOURCE_DIR}/include
+                                                         ${CMAKE_CURRENT_BINARY_DIR}/include)
+target_link_libraries(${QDMI_PARSER_OBJECTS} PRIVATE AWS::aws-cpp-sdk-core qdmi::qdmi
+                                                     qdmi::qdmi_project_warnings)
+
 target_compile_definitions(
   ${QDMI_TARGET_NAME}
   PRIVATE QDMI_VERSION="${qdmi_library_VERSION}"
@@ -43,8 +60,9 @@ set_target_properties(
   ${QDMI_TARGET_NAME}
   PROPERTIES VERSION ${PROJECT_VERSION}
              SOVERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
-             WINDOWS_EXPORT_ALL_SYMBOLS ON)
-target_sources(${QDMI_TARGET_NAME} PRIVATE ${SRC_FILES})
+             CXX_VISIBILITY_PRESET hidden
+             CXX_VISIBILITY_INLINES_HIDDEN ON)
+target_sources(${QDMI_TARGET_NAME} PRIVATE ${DEVICE_SRC})
 
 target_sources(
   ${QDMI_TARGET_NAME}
@@ -68,7 +86,7 @@ target_sources(
 
 target_link_libraries(
   ${QDMI_TARGET_NAME} PRIVATE AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket
-                              qdmi::qdmi qdmi::qdmi_project_warnings)
+                              qdmi::qdmi qdmi::qdmi_project_warnings ${QDMI_PARSER_OBJECTS})
 
 option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
 if(ENABLE_COVERAGE)
