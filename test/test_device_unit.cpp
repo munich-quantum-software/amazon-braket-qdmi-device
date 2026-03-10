@@ -41,6 +41,7 @@
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
 #include <string>
+#include <tuple>
 
 namespace {
 constexpr const char* BELL_STATE_PROGRAM = "OPENQASM 3.0;\n"
@@ -356,7 +357,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, SessionCredentialsFile) {
             QDMI_SUCCESS);
 
   // Result is not asserted — credentials may or may not be present.
-  (void)AMAZON_BRAKET_QDMI_device_session_init(credsSession);
+  std::ignore = AMAZON_BRAKET_QDMI_device_session_init(credsSession);
   AMAZON_BRAKET_QDMI_device_session_free(credsSession);
 }
 
@@ -390,7 +391,7 @@ TEST_F(AmazonBraketQDMIOfflineTest,
   // init() parses the two-profile file (triggering the warning), then builds
   // a BraketClient with the first profile's (fake) credentials.  The AWS
   // connection itself will fail, but we only care that the parsing path ran.
-  (void)AMAZON_BRAKET_QDMI_device_session_init(session);
+  std::ignore = AMAZON_BRAKET_QDMI_device_session_init(session);
 
   std::remove(tmpFile.c_str());
 }
