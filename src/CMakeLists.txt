@@ -48,7 +48,7 @@ target_compile_definitions(
           ${QDMI_PREFIX}_QDMI_device_EXPORTS)
 target_include_directories(${QDMI_PARSER_OBJECTS} PUBLIC ${PROJECT_SOURCE_DIR}/include
                                                          ${CMAKE_CURRENT_BINARY_DIR}/include)
-target_link_libraries(${QDMI_PARSER_OBJECTS} PRIVATE AWS::aws-cpp-sdk-core qdmi::qdmi
+target_link_libraries(${QDMI_PARSER_OBJECTS} PRIVATE AWS::aws-cpp-sdk-core
                                                      qdmi::qdmi_project_warnings)
 
 target_compile_definitions(
@@ -86,7 +86,7 @@ target_sources(
 
 target_link_libraries(
   ${QDMI_TARGET_NAME} PRIVATE AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket
-                              qdmi::qdmi qdmi::qdmi_project_warnings ${QDMI_PARSER_OBJECTS})
+                              qdmi::qdmi_project_warnings ${QDMI_PARSER_OBJECTS})
 
 option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
 if(ENABLE_COVERAGE)
