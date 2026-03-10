@@ -307,12 +307,13 @@ int main() {
         sizeof(format), &format);
 
     // Submit a Bell state circuit
-    const char* circuit = R"(
-        OPENQASM 3.0;
+    const char* circuit = R"(OPENQASM 3.0;
         qubit[2] q;
+        bit[2] c;
         h q[0];
         cnot q[0], q[1];
-        bit[2] c = measure q;
+        c[0] = measure q[0];
+        c[1] = measure q[1];
     )";
     AMAZON_BRAKET_QDMI_device_job_set_parameter(
         job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
