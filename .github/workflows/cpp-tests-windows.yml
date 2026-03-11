@@ -52,11 +52,11 @@ jobs:
       - name: Configure CMake
         env:
           CONFIG: ${{ inputs.config }}
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE="$env:CONFIG"
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE="$env:CONFIG" --log-level=VERBOSE
       - name: Build
         env:
           CONFIG: ${{ inputs.config }}
-        run: cmake --build build --config $env:CONFIG
+        run: cmake --build build --config $env:CONFIG --verbose
       - name: Test
         env:
           CONFIG: ${{ inputs.config }}
@@ -65,4 +65,4 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEVICE_ARN: ${{ inputs.device-arn }}
         run: |
-          ctest -C $env:CONFIG --output-on-failure --test-dir build --repeat after-timeout:3 --timeout 600
+          ctest -C $env:CONFIG --output-on-failure --test-dir build --repeat after-timeout:3 --timeout 600 --verbose

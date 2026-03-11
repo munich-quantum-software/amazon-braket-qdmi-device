@@ -45,7 +45,7 @@
  * Device                | BraketClient + GetDeviceRequest/Result
  * Session               | BraketClient instance with credentials
  *
- * Job                   | QuantumTask
+ * Job                   | QuantumTask (single circuit execution)
  * Job Status            | QuantumTaskStatus (CREATED, QUEUED, RUNNING, etc.)
  * Job Submission        | BraketClient::CreateQuantumTask()
  * Job Cancellation      | BraketClient::CancelQuantumTask()
@@ -61,34 +61,44 @@
 
 #include "amazon-braket-qdmi-device/Device.hpp"
 
-#include "amazon_braket_qdmi/constants.h"
+#include "amazon-braket-qdmi-device/DeviceParser.hpp"
+#include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
-#include "aws/core/utils/Array.h"
 
 #include <aws/braket/BraketClient.h>
+#include <aws/braket/model/Association.h>
+#include <aws/braket/model/AssociationType.h>
 #include <aws/braket/model/CancelQuantumTaskRequest.h>
 #include <aws/braket/model/CreateQuantumTaskRequest.h>
+#include <aws/braket/model/DeviceStatus.h>
 #include <aws/braket/model/DeviceType.h>
 #include <aws/braket/model/GetDeviceRequest.h>
+#include <aws/braket/model/GetDeviceResult.h>
 #include <aws/braket/model/GetQuantumTaskRequest.h>
 #include <aws/braket/model/QuantumTaskStatus.h>
 #include <aws/braket/model/SearchDevicesFilter.h>
 #include <aws/core/Aws.h>
+#include <aws/core/auth/AWSCredentials.h>
 #include <aws/core/client/ClientConfiguration.h>
+#include <aws/core/utils/Array.h>
 #include <aws/core/utils/json/JsonSerializer.h>
+#include <aws/core/utils/memory/stl/AWSString.h>
 #include <aws/s3/S3Client.h>
+#include <aws/s3/S3ClientConfiguration.h>
 #include <aws/s3/model/GetObjectRequest.h>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <mutex>
 #include <sstream>
 #include <string>
 #include <thread>
-#include <tuple>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -147,27 +157,186 @@
       return QDMI_SUCCESS;                                                     \
     }                                                                          \
   }
+
+// Assigns a null-terminated string parameter.
+// Validates that value contains a null byte within the given size, then
+// assigns. Use as the body of a case label or an if block.
+#define SET_STRING(size, value, member)                                        \
+  {                                                                            \
+    const auto* str_ = static_cast<const char*>((value));                      \
+    if (memchr(str_, '\0', (size)) == nullptr) {                               \
+      return QDMI_ERROR_INVALIDARGUMENT;                                       \
+    }                                                                          \
+    (member) = str_;                                                           \
+    return QDMI_SUCCESS;                                                       \
+  }
+
+#define SET_STRING_IF(param_name, param, size, value, member)                  \
+  if ((param) == (param_name))                                                 \
+  SET_STRING(size, value, member)
 // NOLINTEND(bugprone-macro-parentheses)
 
-namespace Aws::Braket::qdmi {
+namespace {
+/**
+ * @brief Parse AWS credentials from an INI-format credentials file.
+ *
+ * Reads the first profile section found in the credentials file.
+ * Only one profile section should be present in the file.
+ * Format:
+ * [default]
+ * aws_access_key_id=AKIA...
+ * aws_secret_access_key=...
+ * aws_session_token=... (optional)
+ *
+ * @param filePath Path to the credentials file
+ * @param accessKeyId Output parameter for access key
+ * @param secretAccessKey Output parameter for secret key
+ * @param sessionToken Output parameter for session token (optional)
+ * @return true if credentials were successfully parsed, false otherwise
+ */
+auto parseCredentialsFile(const std::string& filePath, std::string& accessKeyId,
+                          std::string& secretAccessKey,
+                          std::string& sessionToken) -> bool {
+  std::ifstream file(filePath);
+  if (!file.is_open()) {
+    std::cerr << "ERROR: Failed to open credentials file: " << filePath << "\n";
+    return false;
+  }
+
+  std::string line;
+  std::string currentProfile;
+  std::string firstProfile;     // Track the first profile name
+  bool inTargetProfile = false; // Only parse after finding a profile header
+  bool foundCredentials = false;
+
+  while (std::getline(file, line)) {
+    // Trim leading whitespace
+    line.erase(0, line.find_first_not_of(" \t\r\n"));
+    // Trim trailing whitespace
+    {
+      const auto last = line.find_last_not_of(" \t\r\n");
+      line.erase(last == std::string::npos ? 0 : last + 1);
+    }
+    // Skip empty lines and comments
+    if (line.empty() || line[0] == '#' || line[0] == ';') {
+      continue;
+    }
+    // Check for profile header [default] or [profile_name]
+    if (line[0] == '[' && line[line.length() - 1] == ']') {
+      currentProfile = line.substr(1, line.length() - 2);
+      if (foundCredentials) {
+        // Multiple profiles detected - warn and use the first one
+        std::cerr << "WARNING: Multiple profiles detected in credentials file. "
+                  << "Using first profile [" << firstProfile << "]\n";
+        break;
+      }
+      if (firstProfile.empty()) {
+        firstProfile = currentProfile;
+      }
+      inTargetProfile = true;
+      continue;
+    }
+
+    // Parse key=value pairs within the target profile
+    if (inTargetProfile) {
+      const size_t equalPos = line.find('=');
+      if (equalPos != std::string::npos) {
+        std::string key = line.substr(0, equalPos);
+        std::string value = line.substr(equalPos + 1);
+
+        // Trim whitespace from key and value
+        key.erase(0, key.find_first_not_of(" \t"));
+        {
+          const auto last = key.find_last_not_of(" \t");
+          key.erase(last == std::string::npos ? 0 : last + 1);
+        }
+        value.erase(0, value.find_first_not_of(" \t"));
+        {
+          const auto last = value.find_last_not_of(" \t");
+          value.erase(last == std::string::npos ? 0 : last + 1);
+        }
+
+        if (key == "aws_access_key_id") {
+          accessKeyId = value;
+          foundCredentials = true;
+        } else if (key == "aws_secret_access_key") {
+          secretAccessKey = value;
+        } else if (key == "aws_session_token") {
+          sessionToken = value;
+        }
+      }
+    }
+  }
+
+  if (!foundCredentials || accessKeyId.empty() || secretAccessKey.empty()) {
+    std::cerr << "ERROR: Invalid credentials file format or missing required "
+                 "fields\n";
+    std::cerr
+        << "Expected format (only one profile section should be present):\n";
+    std::cerr << "[default]\n";
+    std::cerr << "aws_access_key_id=AKIA...\n";
+    std::cerr << "aws_secret_access_key=...\n";
+    std::cerr << "aws_session_token=... (optional)\n";
+    return false;
+  }
+
+  return true;
+}
 
 /**
- * Device constructor - initializes the global device singleton.
+ * @brief Threshold for considering an ONLINE device as BUSY.
  *
- * This singleton manages all device sessions and provides device-level
- * properties. In QDMI, the device represents the physical or simulated quantum
- * processor, while sessions represent individual connections that can submit
- * jobs.
+ * If the total number of queued quantum tasks across all queue entries
+ * is >= this value, the device is reported as QDMI_DEVICE_STATUS_BUSY.
+ * Below this value, the device is reported as QDMI_DEVICE_STATUS_IDLE.
  *
- * The device maintains:
- * - Global state (idle/busy based on running jobs)
+ */
+constexpr int QUEUE_BUSY_THRESHOLD = 5;
+
+/**
+ * @brief Compute total queue depth from a Braket GetDevice result.
+ *
+ * Sums the `queueSize` field across all entries in `deviceQueueInfo`.
+ * AWS returns queue sizes as strings (e.g. "12" or ">50"); values that
+ * cannot be parsed as integers are treated as QUEUE_BUSY_THRESHOLD to
+ * indicate "definitely busy".
+ *
+ * @param result Result of a successful BraketClient::GetDevice() call
+ * @return Total queue depth (>= 0)
+ */
+auto getTotalQueueDepth(const Aws::Braket::Model::GetDeviceResult& result)
+    -> int {
+  int totalDepth = 0;
+  for (const auto& queueItem : result.GetDeviceQueueInfo()) {
+    const Aws::String& sizeStr = queueItem.GetQueueSize();
+    try {
+      totalDepth += std::stoi(std::string(sizeStr));
+    } catch (...) {
+      // Non-integer strings like ">50" indicate a busy queue; treat as
+      // threshold to ensure the device is reported as BUSY.
+      totalDepth += QUEUE_BUSY_THRESHOLD;
+    }
+  }
+  return totalDepth;
+}
+} // anonymous namespace
+
+namespace amazon::braket::qdmi {
+
+/**
+ * Device constructor - initializes the global Braket device singleton.
+ *
+ * This singleton manages all sessions and provides library-level properties.
+ * In QDMI terminology:
+ * - Braket device = this library singleton (manages sessions, caching)
+ * - Session device = actual quantum backend from AWS Braket
+ *
+ * The Braket device maintains:
  * - Session registry for lifecycle management
+ * - Session device architecture cache (shared across credentials)
  * - Random number generation for unique job IDs
  */
-Device::Device()
-    : name_("Amazon Braket QDMI Device"), provider_("AWS"), deviceType_("QPU") {
-  status_.store(QDMI_DEVICE_STATUS_IDLE);
-}
+Device::Device() = default;
 
 auto Device::sessionAlloc(AMAZON_BRAKET_QDMI_Device_Session* session)
     -> QDMI_STATUS {
@@ -193,25 +362,25 @@ auto Device::sessionFree(AMAZON_BRAKET_QDMI_Device_Session session) -> void {
 }
 
 auto Device::queryProperty(const QDMI_Device_Property prop, const size_t size,
-                           void* value, size_t* sizeRet) const -> QDMI_STATUS {
+                           void* value, size_t* sizeRet) -> QDMI_STATUS {
   // Validate arguments and reject MAX sentinel value
   if ((value != nullptr && size == 0) || prop == QDMI_DEVICE_PROPERTY_MAX) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
-
-  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_NAME, name_.c_str(), prop, size,
-                      value, sizeRet)
-  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_VERSION, "1.0.0", prop, size, value,
+  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_NAME, "Amazon Braket QDMI Device",
+                      prop, size, value, sizeRet)
+  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_VERSION,
+                      AMAZON_BRAKET_QDMI_DEVICE_VERSION, prop, size, value,
                       sizeRet)
-  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_LIBRARYVERSION,
-                      AMAZON_BRAKET_QDMI_VERSION, prop, size, value, sizeRet)
-  ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_STATUS, QDMI_Device_Status,
-                            status_.load(), prop, size, value, sizeRet)
-  ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_QUBITSNUM, size_t, qubitsNum_,
-                            prop, size, value, sizeRet)
+  // Braket device properties (library-level, not session device-specific)
+  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_LIBRARYVERSION, QDMI_VERSION, prop,
+                      size, value, sizeRet)
+  // There is no notion of calibration in this context.
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_NEEDSCALIBRATION, size_t, 0,
                             prop, size, value, sizeRet)
 
+  // Session device properties are handled by Session, not Braket device
+  // singleton
   return QDMI_ERROR_NOTSUPPORTED;
 }
 
@@ -220,47 +389,112 @@ auto Device::generateUniqueID() -> int {
   return dis_(rng_);
 }
 
-auto Device::setStatus(const QDMI_Device_Status status) -> void {
-  status_.store(status);
-}
-
-auto Device::increaseRunningJobs() -> void {
-  if (const auto prev = runningJobs_.fetch_add(1); prev == 0) {
-    setStatus(QDMI_DEVICE_STATUS_BUSY);
+auto Device::getCachedArchitecture(const std::string& deviceArn) const
+    -> std::shared_ptr<DeviceArchitecture> {
+  const std::scoped_lock<std::mutex> lock(deviceCacheMutex_);
+  auto it = deviceCache_.find(deviceArn);
+  if (it != deviceCache_.end()) {
+    return it->second;
   }
+  return nullptr;
 }
 
-auto Device::decreaseRunningJobs() -> void {
-  if (const auto prev = runningJobs_.fetch_sub(1); prev == 1) {
-    setStatus(QDMI_DEVICE_STATUS_IDLE);
-  }
+auto Device::setCachedArchitecture(
+    const std::string& deviceArn,
+    std::shared_ptr<DeviceArchitecture> architecture) -> void {
+  const std::scoped_lock<std::mutex> lock(deviceCacheMutex_);
+  deviceCache_[deviceArn] =
+      std::move(architecture); // NOLINT(misc-include-cleaner)
 }
 
-} // namespace Aws::Braket::qdmi
+} // namespace amazon::braket::qdmi
 
 // ============================================================================
 // Session Implementation
 // ============================================================================
 
 /**
- * Fetches the device architecture from Amazon Braket.
+ * Fetches the session device architecture from Amazon Braket.
  *
- * This function queries the device capabilities:
+ * This function queries the session device properties:
  * - Number of qubits (sites)
  * - Qubit connectivity (which qubits can interact)
- * - Available quantum gates/operations
+ * - Available quantum operations
+ * - Device operational status (ONLINE/OFFLINE/RETIRED)
+ *
+ * Caching strategy:
+ * - Simulators: full architecture is cached globally.
+ *   Cache hits only re-fetch the mutable device status.
+ * - QPUs: only name/provider/deviceType are cached globally. Sites,
+ *   operations, and connectivity data may change between calibration cycles
+ *   and are re-fetched from the API on every query.
  *
  * @return QDMI_SUCCESS on successful fetch, error code otherwise
  */
-auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture()
+auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
     -> QDMI_STATUS {
   if (deviceArn_.empty() || client_ == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
-  // ============================================================================
-  // Amazon Braket GetDevice API Call
-  // ============================================================================
+  // Check if architecture is already cached
+  // lock the shared_ptr when queryDeviceProperty() is called from multiple
+  // threads
+  std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture> localArch;
+  {
+    const std::scoped_lock lock(cachedArchitectureMutex_);
+    cachedArchitecture_ =
+        amazon::braket::qdmi::Device::get().getCachedArchitecture(deviceArn_);
+    localArch = cachedArchitecture_;
+  }
+
+  if (localArch != nullptr &&
+      localArch->deviceType != Aws::Braket::Model::DeviceType::QPU) {
+    // Simulator cache hit: only re-fetch the mutable device status.
+    // QPUs fall through to a full re-fetch every time because their sites,
+    // operations, and connectivity may change between calibration cycles.
+    Aws::Braket::Model::GetDeviceRequest request;
+    request.SetDeviceArn(deviceArn_.c_str());
+    auto outcome = client_->GetDevice(request);
+    if (!outcome.IsSuccess()) {
+      std::cerr << "Failed to get device: " << outcome.GetError().GetMessage()
+                << "\n";
+      std::cerr << "Please ensure credentials are supplied via QDMI session "
+                   "parameters before calling session_init().\n";
+      std::cerr << "Use QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE (credentials "
+                   "file) or QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID "
+                   "+ QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY + "
+                   "optional QDMI_DEVICE_SESSION_PARAMETER_AWS_REGION\n";
+      return QDMI_ERROR_NOTSUPPORTED;
+    }
+    const auto& device = outcome.GetResult();
+    const auto braketStatus = device.GetDeviceStatus();
+    switch (braketStatus) {
+    case Aws::Braket::Model::DeviceStatus::ONLINE: {
+      // Differentiate IDLE vs BUSY based on current queue depth
+      const int queueDepth = getTotalQueueDepth(device);
+      braketDeviceStatus_.store(queueDepth >= QUEUE_BUSY_THRESHOLD
+                                    ? QDMI_DEVICE_STATUS_BUSY
+                                    : QDMI_DEVICE_STATUS_IDLE);
+      break;
+    }
+    case Aws::Braket::Model::DeviceStatus::OFFLINE:
+      braketDeviceStatus_.store(QDMI_DEVICE_STATUS_MAINTENANCE);
+      break;
+    case Aws::Braket::Model::DeviceStatus::RETIRED:
+      braketDeviceStatus_.store(QDMI_DEVICE_STATUS_OFFLINE);
+      break;
+    case Aws::Braket::Model::DeviceStatus::NOT_SET:
+    default:
+      std::cerr << "ERROR: Unknown device status (enum value: "
+                << static_cast<int>(braketStatus) << ")\n";
+      return QDMI_ERROR_NOTSUPPORTED;
+    }
+    return QDMI_SUCCESS;
+  }
+
+  // Cache miss (any device type) or QPU cache hit: request full device
+  // architecture. QPUs always re-fetch because calibration data is mutable.
   Aws::Braket::Model::GetDeviceRequest request;
   request.SetDeviceArn(deviceArn_.c_str());
 
@@ -268,123 +502,131 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture()
   if (!outcome.IsSuccess()) {
     std::cerr << "Failed to get device: " << outcome.GetError().GetMessage()
               << "\n";
-    std::cerr << "Please ensure you have configured your AWS credentials "
-                 "correctly.\n";
-    std::cerr
-        << "You can set them via environment variables (AWS_ACCESS_KEY_ID, "
-           "AWS_SECRET_ACCESS_KEY) or in ~/.aws/credentials.\n";
+    std::cerr << "Please ensure credentials are supplied via QDMI session "
+                 "parameters before calling session_init().\n";
+    std::cerr << "Use QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE (credentials "
+                 "file) or QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID "
+                 "+ QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY + "
+                 "optional QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN\n";
     return QDMI_ERROR_NOTSUPPORTED;
   }
 
   const auto& device = outcome.GetResult();
-  name_ = device.GetDeviceName();
-  provider_ = device.GetProviderName();
-  deviceType_ = (device.GetDeviceType() == Aws::Braket::Model::DeviceType::QPU)
-                    ? "QPU"
-                    : "Simulator";
 
-  // Currently, only simulators are supported
-  if (deviceType_ == "QPU") {
+  // Create new cached architecture
+  auto architecture =
+      std::make_shared<amazon::braket::qdmi::DeviceArchitecture>();
+  architecture->name = device.GetDeviceName();
+  architecture->provider = device.GetProviderName();
+  architecture->deviceType = device.GetDeviceType();
+
+  // Map Amazon Braket DeviceStatus to QDMI Device Status
+  // Amazon Braket has three statuses: ONLINE, OFFLINE, RETIRED
+  // QDMI has: OFFLINE, IDLE, BUSY, ERROR, MAINTENANCE, CALIBRATION
+  const auto braketStatus = device.GetDeviceStatus();
+
+  switch (braketStatus) {
+  case Aws::Braket::Model::DeviceStatus::ONLINE: {
+    // Differentiate IDLE vs BUSY based on current queue depth.
+    // Device still accepts submissions in the BUSY state; this is
+    // purely informational.
+    const int queueDepth = getTotalQueueDepth(device);
+    braketDeviceStatus_.store(queueDepth >= QUEUE_BUSY_THRESHOLD
+                                  ? QDMI_DEVICE_STATUS_BUSY
+                                  : QDMI_DEVICE_STATUS_IDLE);
+    break;
+  }
+
+  case Aws::Braket::Model::DeviceStatus::OFFLINE:
+    // Device is temporarily unavailable (maintenance/calibration),
+    // tasks will queue until it returns
+    braketDeviceStatus_.store(QDMI_DEVICE_STATUS_MAINTENANCE);
+    break;
+
+  case Aws::Braket::Model::DeviceStatus::RETIRED:
+    // Device is permanently decommissioned
+    braketDeviceStatus_.store(QDMI_DEVICE_STATUS_OFFLINE);
+    std::cerr << "ERROR: Device " << device.GetDeviceName()
+              << " is RETIRED and permanently unavailable.\n";
+    std::cerr << "Please update your device ARN to a newer generation.\n";
+    return QDMI_ERROR_NOTSUPPORTED;
+
+  case Aws::Braket::Model::DeviceStatus::NOT_SET:
+  default:
+    std::cerr << "ERROR: Unknown device status (enum value: "
+              << static_cast<int>(braketStatus) << ")\n";
     return QDMI_ERROR_NOTSUPPORTED;
   }
 
-  const auto& capabilitiesStr =
-      device.GetDeviceCapabilities(); // Returns JSON string
+  // Parse session device properties JSON
+  const auto& propertiesStr = device.GetDeviceCapabilities();
 
-  Aws::Utils::Json::JsonValue const json(capabilitiesStr);
+  Aws::Utils::Json::JsonValue const json(propertiesStr);
   if (!json.WasParseSuccessful()) {
-    std::cerr << "Failed to parse device capabilities JSON\n";
+    std::cerr << "Failed to parse session device properties JSON\n";
     return QDMI_ERROR_FATAL;
   }
 
-  auto view = json.View();
-  if (!view.ValueExists("paradigm")) {
-    return QDMI_ERROR_FATAL;
-  }
-  auto paradigm = view.GetObject("paradigm");
-
-  if (!paradigm.ValueExists("qubitCount")) {
-    return QDMI_ERROR_FATAL;
-  }
-
-  // 1. Parse Qubit Count
-  qubitsNum_ = static_cast<size_t>(paradigm.GetInteger("qubitCount"));
-
-  sites_.clear();
-  sites_ptr_.clear();
-  sites_map_.clear();
-
-  for (size_t i = 0; i < qubitsNum_; ++i) {
-    auto site = std::make_unique<AMAZON_BRAKET_QDMI_Site_impl_d>();
-    site->id_ = i;
-    site->name_ = "Q" + std::to_string(i);
-
-    sites_ptr_.push_back(site.get());
-    sites_map_[site->name_] = site.get();
-    sites_.push_back(std::move(site));
-  }
-
-  // 2. Build Full Connectivity (for simulators)
-  // Stored as flat list with alternating source/target per QDMI spec:
-  // source at index 2n, target at index 2n+1
-  connectivity_.clear();
-  for (size_t i = 0; i < qubitsNum_; ++i) {
-    for (size_t j = i + 1; j < qubitsNum_; ++j) {
-      // Edge i -> j
-      connectivity_.push_back(sites_ptr_[i]);
-      connectivity_.push_back(sites_ptr_[j]);
-      // Edge j -> i
-      connectivity_.push_back(sites_ptr_[j]);
-      connectivity_.push_back(sites_ptr_[i]);
+  // Create Provider-Specific Parser
+  std::unique_ptr<IDeviceParser> parser;
+  if (architecture->deviceType == Aws::Braket::Model::DeviceType::SIMULATOR) {
+    parser = std::make_unique<SimulatorPropertiesParser>();
+  } else if (architecture->deviceType == Aws::Braket::Model::DeviceType::QPU) {
+    if (architecture->provider == "IQM") {
+      parser = std::make_unique<IQMDeviceParser>();
     }
   }
-
-  // 3. Parse Supported Operations from action.braket.ir.openqasm.program
-  operations_.clear();
-  operations_ptr_.clear();
-  operations_map_.clear();
-
-  if (view.ValueExists("action")) {
-    auto action = view.GetObject("action");
-    if (action.ValueExists("braket.ir.openqasm.program")) {
-      auto openqasm = action.GetObject("braket.ir.openqasm.program");
-      if (openqasm.ValueExists("supportedOperations")) {
-        auto gateSet = openqasm.GetArray("supportedOperations");
-
-        for (size_t i = 0; i < gateSet.GetLength(); ++i) {
-          const std::string gateName = gateSet[i].AsString();
-
-          auto op = std::make_unique<AMAZON_BRAKET_QDMI_Operation_impl_d>();
-          op->name_ = gateName;
-
-          // Determine qubit count based on gate name
-          if (gateName == "cnot" || gateName == "cz" || gateName == "swap" ||
-              gateName == "xx" || gateName == "yy" || gateName == "zz" ||
-              gateName == "xy" || gateName == "cphaseshift" ||
-              gateName == "cphaseshift00" || gateName == "cphaseshift01" ||
-              gateName == "cphaseshift10" || gateName == "iswap" ||
-              gateName == "pswap" || gateName == "ecr" || gateName == "cy" ||
-              gateName == "ms" || gateName == "gpi2") {
-            op->numQubits_ = 2;
-          } else if (gateName == "ccnot" || gateName == "cswap") {
-            op->numQubits_ = 3;
-          } else {
-            // Single-qubit gates: x, y, z, h, rx, ry, rz, s, si, t, ti, v, vi,
-            // i, phaseshift, gpi, unitary
-            op->numQubits_ = 1;
-          }
-
-          // Simulators have perfect fidelity
-          op->fidelity_ = 1.0;
-
-          operations_ptr_.push_back(op.get());
-          operations_map_[gateName] = op.get();
-          operations_.push_back(std::move(op));
-        }
-      }
-    }
+  if (parser == nullptr) {
+    const char* deviceTypeStr =
+        (architecture->deviceType == Aws::Braket::Model::DeviceType::QPU)
+            ? "QPU"
+            : "Simulator";
+    std::cerr << "Unsupported device type or provider: " << deviceTypeStr
+              << " / " << architecture->provider << "\n";
+    return QDMI_ERROR_NOTSUPPORTED;
   }
 
+  // Parse Session Device Properties
+  ParsedDeviceProperties properties;
+  auto status = parser->ParseProperties(propertiesStr, properties);
+  if (status != QDMI_SUCCESS) {
+    std::cerr << "Failed to parse session device properties\n";
+    return static_cast<QDMI_STATUS>(status);
+  }
+
+  // Transfer Parsed Data to Cached Architecture
+  architecture->qubitsNum = properties.qubitCount;
+  architecture->connectivity = std::move(properties.connectivity);
+
+  architecture->sites = std::move(properties.sites);
+  architecture->sitesPtr = std::move(properties.sitesPtr);
+  architecture->sitesMap = std::move(properties.sitesMap);
+
+  architecture->operations = std::move(properties.operations);
+  architecture->operationsPtr = std::move(properties.operationsPtr);
+  architecture->operationsMap = std::move(properties.operationsMap);
+
+  // Store in global singleton cache and assign to session.
+  // QPUs: only a stub {name, provider, deviceType} goes into the global cache
+  // so that future calls know the device type and provider (for parser
+  // selection) without caching the mutable sites, operations, and connectivity.
+  // Simulators: the full architecture is cached (sites and operations are
+  // static).
+  {
+    const std::scoped_lock lock(cachedArchitectureMutex_);
+    if (architecture->deviceType == Aws::Braket::Model::DeviceType::QPU) {
+      auto stub = std::make_shared<amazon::braket::qdmi::DeviceArchitecture>();
+      stub->name = architecture->name;
+      stub->provider = architecture->provider;
+      stub->deviceType = architecture->deviceType;
+      amazon::braket::qdmi::Device::get().setCachedArchitecture(deviceArn_,
+                                                                stub);
+    } else {
+      amazon::braket::qdmi::Device::get().setCachedArchitecture(deviceArn_,
+                                                                architecture);
+    }
+    cachedArchitecture_ = architecture;
+  }
   return QDMI_SUCCESS;
 }
 
@@ -392,32 +634,35 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture()
  * Initialize a device session.
  *
  * Session initialization involves:
- * 1. Setting up the AWS SDK client with proper region configuration
- * 2. Fetching device capabilities (topology, gates, etc.)
+ * 1. Validating required parameters (device ARN and credentials)
+ * 2. Setting up the AWS SDK client with proper region configuration
  * 3. Transitioning the session to INITIALIZED state
  *
- * A session must be initialized before it can create and submit jobs.
+ * Configuration:
+ * QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN
+ * - Credentials: Must be set via one of:
+ *   - QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE (credentials file path)
+ *   - QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY +
+ * QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN (optional)
+ *  - QDMI_DEVICE_SESSION_PARAMETER_REGION (defaults to value from ARN or
+ * us-east-1)
  *
- * AWS Regions: Amazon Braket is available in specific regions (us-east-1,
- * us-west-2, etc.)
+ *
+ * @return QDMI_SUCCESS on successful initialization
+ * @return QDMI_ERROR_BADSTATE if session is not in ALLOCATED state
+ * @return QDMI_ERROR_INVALIDARGUMENT if device ARN is not configured
  */
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
-  if (status_ != Status::ALLOCATED) {
+  if (initialized_) {
     return QDMI_ERROR_BADSTATE;
   }
 
-  // Check for environment variables if parameters not set
+  // Check that required parameters are set
   if (deviceArn_.empty()) {
-    if (const char* envArn = std::getenv("AWS_DEVICE_ARN"); envArn != nullptr) {
-      deviceArn_ = envArn;
-    }
-  }
-
-  if (s3Bucket_.empty()) {
-    if (const char* envBucket = std::getenv("AWS_S3_BUCKET");
-        envBucket != nullptr) {
-      s3Bucket_ = envBucket;
-    }
+    std::cerr << "ERROR: Device ARN not configured. Set via:\n";
+    std::cerr << "  AMAZON_BRAKET_QDMI_device_session_set_parameter() with "
+                 "QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN\n";
+    return QDMI_ERROR_INVALIDARGUMENT;
   }
 
   // Extract region from ARN if not explicitly set
@@ -445,41 +690,94 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
   if (!region_.empty()) {
     config.region = region_;
   }
-  client_ = std::make_unique<Aws::Braket::BraketClient>(config);
 
-  // Always fetch device architecture
-  const auto ret = fetchDeviceArchitecture();
-  if (ret != QDMI_SUCCESS) {
-    return ret;
+  // Parse credentials file if provided (takes precedence over direct
+  // parameters)
+  if (!credentialsFile_.empty()) {
+    std::string accessKeyId;
+    std::string secretAccessKey;
+    std::string sessionToken;
+    if (parseCredentialsFile(credentialsFile_, accessKeyId, secretAccessKey,
+                             sessionToken)) {
+      accessKeyId_ = accessKeyId;
+      secretAccessKey_ = secretAccessKey;
+      sessionToken_ = sessionToken;
+    } else {
+      std::cerr << "ERROR: Failed to parse credentials file: "
+                << credentialsFile_ << "\n";
+      return QDMI_ERROR_INVALIDARGUMENT;
+    }
   }
-  status_ = Status::INITIALIZED;
+
+  // Create BraketClient with explicit credentials
+  // Credentials MUST be provided via one of these methods:
+  // 1. QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE (credentials file)
+  // 2. QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY
+  if (!accessKeyId_.empty() && !secretAccessKey_.empty()) {
+    // Explicit credentials provided via setParameter() or credentials file
+    const Aws::Auth::AWSCredentials credentials(
+        accessKeyId_, secretAccessKey_,
+        sessionToken_.empty() ? "" : sessionToken_);
+    client_ = std::make_unique<Aws::Braket::BraketClient>(credentials, config);
+  } else {
+    // No credentials provided - return error
+    std::cerr << "ERROR: AWS credentials required but not provided.\n";
+    std::cerr << "Please provide credentials via one of these methods:\n";
+    std::cerr << "  1. QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE (path to "
+                 "credentials file)\n";
+    std::cerr << "  2. QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID + "
+                 "AWS_SECRET_ACCESS_KEY\n";
+    return QDMI_ERROR_INVALIDARGUMENT;
+  }
+
+  initialized_ = true;
   return QDMI_SUCCESS;
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
     const QDMI_Device_Session_Parameter param, const size_t size,
     const void* value) -> QDMI_STATUS {
-  // Check for invalid arguments
-  if (value != nullptr && size == 0) {
+  // Check for invalid arguments (value must never be null for a setter)
+  if (value == nullptr || size == 0) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
-  // Validate parameter: must be standard QDMI param, CUSTOM param
+  // Validate parameter: must be standard QDMI param or one of the specifically
+  // defined custom params (REGION)
   const bool isStandardParam = param < QDMI_DEVICE_SESSION_PARAMETER_MAX;
-  const bool isCustomParam = (param == QDMI_DEVICE_SESSION_PARAMETER_CUSTOM1 ||
-                              param == QDMI_DEVICE_SESSION_PARAMETER_CUSTOM2 ||
-                              param == QDMI_DEVICE_SESSION_PARAMETER_CUSTOM3 ||
-                              param == QDMI_DEVICE_SESSION_PARAMETER_CUSTOM4 ||
-                              param == QDMI_DEVICE_SESSION_PARAMETER_CUSTOM5);
+  const bool isDefinedCustomParam =
+      (param == QDMI_DEVICE_SESSION_PARAMETER_REGION);
 
-  if (!isStandardParam && !isCustomParam) {
+  if (!isStandardParam && !isDefinedCustomParam) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
-  if (status_ != Status::ALLOCATED) {
+  // Parameters can only be set before initialization
+  if (initialized_) {
     return QDMI_ERROR_BADSTATE;
   }
 
+  // Handle Amazon Braket parameters
+  switch (param) {
+  case QDMI_DEVICE_SESSION_PARAMETER_BASEURL: // Device ARN
+    SET_STRING(size, value, deviceArn_)
+  case QDMI_DEVICE_SESSION_PARAMETER_REGION: // AWS Region (optional)
+    SET_STRING(size, value, region_)
+  // Method 1: AWS Credentials File (AUTHFILE)
+  // Supports standard AWS credentials file format with profiles
+  case QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE:
+    SET_STRING(size, value, credentialsFile_)
+  // Method 2: Direct Credential Parameters
+  // For programmatic credential specification
+  case QDMI_DEVICE_SESSION_PARAMETER_USERNAME: // AWS_ACCESS_KEY_ID
+    SET_STRING(size, value, accessKeyId_)
+  case QDMI_DEVICE_SESSION_PARAMETER_PASSWORD: // AWS_SECRET_ACCESS_KEY
+    SET_STRING(size, value, secretAccessKey_)
+  case QDMI_DEVICE_SESSION_PARAMETER_TOKEN: // AWS_SESSION_TOKEN
+    SET_STRING(size, value, sessionToken_)
+  default:
+    break;
+  }
   return QDMI_ERROR_NOTSUPPORTED;
 }
 
@@ -488,10 +786,11 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::createDeviceJob(
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
-  if (status_ == Status::ALLOCATED) {
+  if (!initialized_) {
     return QDMI_ERROR_BADSTATE;
   }
 
+  // Amazon Braket validates device availability during CreateQuantumTask().
   auto uniqueJob = std::make_unique<AMAZON_BRAKET_QDMI_Device_Job_impl_d>(this);
   const std::scoped_lock<std::mutex> lock(jobsMutex_);
   *job = jobs_.emplace(uniqueJob.get(), std::move(uniqueJob)).first->first;
@@ -509,30 +808,44 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::freeDeviceJob(
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
     const QDMI_Device_Property prop, const size_t size, void* value,
     size_t* sizeRet) const -> QDMI_STATUS {
-  if (status_ != Status::INITIALIZED) {
+  if (!initialized_) {
     return QDMI_ERROR_BADSTATE;
   }
 
-  // Session-specific properties
-  ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_SITES, AMAZON_BRAKET_QDMI_Site,
-                    sites_ptr_, prop, size, value, sizeRet)
-  ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_OPERATIONS,
-                    AMAZON_BRAKET_QDMI_Operation, operations_ptr_, prop, size,
-                    value, sizeRet)
-  ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_COUPLINGMAP, AMAZON_BRAKET_QDMI_Site,
-                    connectivity_, prop, size, value, sizeRet)
-  ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_QUBITSNUM, size_t, qubitsNum_,
-                            prop, size, value, sizeRet)
-  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_NAME, name_.c_str(), prop, size,
-                      value, sizeRet)
-  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_DURATIONUNIT, "us", prop, size,
-                      value, sizeRet)
-  ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_DURATIONSCALEFACTOR, double,
-                            1.0, prop, size, value, sizeRet)
+  // fetchDeviceArchitecture() uses the internal cache
+  if (const auto ret = fetchDeviceArchitecture(); ret != QDMI_SUCCESS) {
+    return ret;
+  }
 
-  // Delegate to device singleton for other properties
-  return Aws::Braket::qdmi::Device::get().queryProperty(prop, size, value,
-                                                        sizeRet);
+  // Snapshot the shared_ptr under the lock
+  std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture> arch;
+  {
+    const std::scoped_lock lock(cachedArchitectureMutex_);
+    arch = cachedArchitecture_;
+  }
+
+  // Session device architecture properties (from cache)
+  ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_SITES, AMAZON_BRAKET_QDMI_Site,
+                    arch->sitesPtr, prop, size, value, sizeRet)
+  ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_OPERATIONS,
+                    AMAZON_BRAKET_QDMI_Operation, arch->operationsPtr, prop,
+                    size, value, sizeRet)
+  ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_COUPLINGMAP, AMAZON_BRAKET_QDMI_Site,
+                    arch->connectivity, prop, size, value, sizeRet)
+  ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_QUBITSNUM, size_t,
+                            arch->qubitsNum, prop, size, value, sizeRet)
+  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_NAME, arch->name.c_str(), prop, size,
+                      value, sizeRet)
+
+  // Return device status from Amazon Braket (mutable, per-query)
+  ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_STATUS, QDMI_Device_Status,
+                            braketDeviceStatus_.load(), prop, size, value,
+                            sizeRet)
+
+  // Delegate to Braket device singleton for library-level properties only
+  // (LIBRARYVERSION, NEEDSCALIBRATION)
+  return amazon::braket::qdmi::Device::queryProperty(prop, size, value,
+                                                     sizeRet);
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::querySiteProperty(
@@ -547,12 +860,12 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::querySiteProperty(
                             size, value, sizeRet)
   ADD_STRING_PROPERTY(QDMI_SITE_PROPERTY_NAME, site->name_.c_str(), prop, size,
                       value, sizeRet)
-  if (site->t1_ > 0) {
-    ADD_SINGLE_VALUE_PROPERTY(QDMI_SITE_PROPERTY_T1, uint64_t, site->t1_, prop,
+  if (site->t1_ > 0.0) {
+    ADD_SINGLE_VALUE_PROPERTY(QDMI_SITE_PROPERTY_T1, double, site->t1_, prop,
                               size, value, sizeRet)
   }
-  if (site->t2_ > 0) {
-    ADD_SINGLE_VALUE_PROPERTY(QDMI_SITE_PROPERTY_T2, uint64_t, site->t2_, prop,
+  if (site->t2_ > 0.0) {
+    ADD_SINGLE_VALUE_PROPERTY(QDMI_SITE_PROPERTY_T2, double, site->t2_, prop,
                               size, value, sizeRet)
   }
 
@@ -584,29 +897,26 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryOperationProperty(
 }
 
 // Job implementation
-auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::free() -> void {
-  session_->freeDeviceJob(this);
-}
-
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
     const QDMI_Device_Job_Parameter param, const size_t size, const void* value)
     -> QDMI_STATUS {
+  // Validate parameter: must be standard QDMI param or one of the specifically
+  // defined custom params (OUTPUTS3BUCKET, OUTPUTS3PREFIX)
+  const bool isStandardParam = param < QDMI_DEVICE_JOB_PARAMETER_MAX;
+  const bool isDefinedCustomParam =
+      (param == QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET ||
+       param == QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX ||
+       param == QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN);
+
   if ((value != nullptr && size == 0) ||
-      (param >= QDMI_DEVICE_JOB_PARAMETER_MAX &&
-       param != QDMI_DEVICE_JOB_PARAMETER_CUSTOM1 &&
-       param != QDMI_DEVICE_JOB_PARAMETER_CUSTOM2 &&
-       param != QDMI_DEVICE_JOB_PARAMETER_CUSTOM3 &&
-       param != QDMI_DEVICE_JOB_PARAMETER_CUSTOM4 &&
-       param != QDMI_DEVICE_JOB_PARAMETER_CUSTOM5)) {
+      (!isStandardParam && !isDefinedCustomParam)) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
-  const auto currentStatus = status_.load();
-  if (currentStatus != QDMI_JOB_STATUS_CREATED) {
+  const std::scoped_lock<std::mutex> lock(jobMutex_);
+  if (status_.load() != QDMI_JOB_STATUS_CREATED) {
     return QDMI_ERROR_BADSTATE;
   }
-
-  const std::scoped_lock<std::mutex> lock(jobMutex_);
   if (param == QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM) {
     if (value == nullptr || size != sizeof(size_t)) {
       return QDMI_ERROR_INVALIDARGUMENT;
@@ -614,13 +924,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
     shots_ = *static_cast<const size_t*>(value);
     return QDMI_SUCCESS;
   }
-  if (param == QDMI_DEVICE_JOB_PARAMETER_PROGRAM) {
-    if (value == nullptr || size == 0) {
-      return QDMI_ERROR_INVALIDARGUMENT;
-    }
-    program_ = std::string(static_cast<const char*>(value), size - 1);
-    return QDMI_SUCCESS;
-  }
+  SET_STRING_IF(QDMI_DEVICE_JOB_PARAMETER_PROGRAM, param, size, value, program_)
   if (param == QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT) {
     if (value == nullptr || size != sizeof(QDMI_Program_Format)) {
       return QDMI_ERROR_INVALIDARGUMENT;
@@ -635,6 +939,16 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
     format_ = fmt;
     return QDMI_SUCCESS;
   }
+
+  // Per-job S3 bucket configuration (required)
+  SET_STRING_IF(QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET, param, size, value,
+                jobS3Bucket_)
+  // Per-job S3 prefix configuration (optional, defaults to timestamp)
+  SET_STRING_IF(QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX, param, size, value,
+                jobS3Prefix_)
+  // Braket reservation ARN (optional, routes the task into a reserved window)
+  SET_STRING_IF(QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN, param, size, value,
+                reservationArn_)
 
   return QDMI_ERROR_NOTSUPPORTED;
 }
@@ -659,19 +973,12 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
-  const auto currentStatus = status_.load();
-  if (currentStatus != QDMI_JOB_STATUS_CREATED) {
-    return QDMI_ERROR_BADSTATE;
-  }
-
-  // ============================================================================
   // Amazon Braket CreateQuantumTask API Call
-  // ============================================================================
+
   // Purpose: Submit a quantum circuit for execution on the target device
   //
   // Required Parameters:
-  // - deviceArn: Target device (e.g.,
-  // "arn:aws:braket:::device/quantum-simulator/amazon/sv1")
+  // - deviceArn: Target device ARN string
   // - action: OpenQASM 2.0/3.0 circuit string WRAPPED in Braket JSON schema
   // - shots: Number of circuit executions (measurements)
   // - outputS3Bucket: S3 location for storing results
@@ -689,24 +996,33 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
   //    }
   // 4. Set Output S3 Bucket and Prefix
   // 5. Call BraketClient::CreateQuantumTask()
-  // ============================================================================
 
-  if (program_.empty() || session_->getDeviceArn().empty()) {
-    return QDMI_ERROR_INVALIDARGUMENT;
-  }
-
+  // Capture all shared fields under jobMutex_ to prevent data races with
+  // concurrent setParameter() calls
+  std::string localProgram;
+  std::string localS3Bucket;
+  std::string localS3Prefix;
+  std::string localReservationArn;
+  size_t localShots = 0;
   {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
-    status_.store(QDMI_JOB_STATUS_QUEUED);
-    if (!isRunningCounted_) {
-      Aws::Braket::qdmi::Device::get().increaseRunningJobs();
-      isRunningCounted_ = true;
+    if (status_.load() != QDMI_JOB_STATUS_CREATED) {
+      return QDMI_ERROR_BADSTATE;
     }
+    if (program_.empty() || session_->getDeviceArn().empty()) {
+      return QDMI_ERROR_INVALIDARGUMENT;
+    }
+    status_.store(QDMI_JOB_STATUS_QUEUED);
+    localProgram = program_;
+    localS3Bucket = jobS3Bucket_;
+    localS3Prefix = jobS3Prefix_;
+    localReservationArn = reservationArn_;
+    localShots = shots_;
   }
 
   Aws::Braket::Model::CreateQuantumTaskRequest request;
-  request.SetDeviceArn(session_->getDeviceArn().c_str());
-  request.SetShots(static_cast<int64_t>(shots_));
+  request.SetDeviceArn(session_->getDeviceArn());
+  request.SetShots(static_cast<int64_t>(localShots));
 
   // Construct the Action JSON
   Aws::Utils::Json::JsonValue actionJson;
@@ -714,26 +1030,44 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
   header.WithString("name", "braket.ir.openqasm.program");
   header.WithString("version", "1");
   actionJson.WithObject("braketSchemaHeader", header);
-  actionJson.WithString("source", program_);
+  actionJson.WithString("source", localProgram);
 
-  request.SetAction(actionJson.View().WriteCompact().c_str());
+  request.SetAction(actionJson.View().WriteCompact());
 
-  // Configure Output S3 Bucket
-  if (!session_->getS3Bucket().empty()) {
-    request.SetOutputS3Bucket(session_->getS3Bucket().c_str());
-
-    // Generate a prefix for this specific job to avoid collisions
-    const std::string prefix = "qdmi-tasks/" + std::to_string(id_);
-    request.SetOutputS3KeyPrefix(prefix.c_str());
-  } else {
-    std::cerr << "Error: S3 bucket must be configured to store task results.\n";
+  // Configure Output S3 Bucket and Prefix
+  // Bucket is required per job (no session-level fallback in AWS Braket)
+  if (localS3Bucket.empty()) {
+    std::cerr << "Error: S3 bucket must be configured per job to store task "
+                 "results.\n";
     const std::scoped_lock<std::mutex> lock(jobMutex_);
     status_.store(QDMI_JOB_STATUS_FAILED);
-    if (isRunningCounted_) {
-      Aws::Braket::qdmi::Device::get().decreaseRunningJobs();
-      isRunningCounted_ = false;
-    }
     return QDMI_ERROR_INVALIDARGUMENT;
+  }
+
+  request.SetOutputS3Bucket(localS3Bucket);
+
+  // Use provided prefix or generate timestamp-based prefix
+  std::string effectivePrefix;
+  if (!localS3Prefix.empty()) {
+    effectivePrefix = localS3Prefix;
+  } else {
+    // Generate timestamp-based prefix
+    const auto now = std::chrono::system_clock::now();
+    const auto timestamp =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            now.time_since_epoch())
+            .count();
+    effectivePrefix = std::to_string(timestamp);
+  }
+  request.SetOutputS3KeyPrefix(effectivePrefix);
+
+  // Attach reservation ARN when provided (routes task into dedicated window)
+  if (!localReservationArn.empty()) {
+    Aws::Braket::Model::Association reservation;
+    reservation.SetArn(localReservationArn);
+    reservation.SetType(
+        Aws::Braket::Model::AssociationType::RESERVATION_TIME_WINDOW_ARN);
+    request.AddAssociations(reservation);
   }
 
   auto outcome = session_->getClient()->CreateQuantumTask(request);
@@ -742,14 +1076,13 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
               << "\n";
     const std::scoped_lock<std::mutex> lock(jobMutex_);
     status_.store(QDMI_JOB_STATUS_FAILED);
-    if (isRunningCounted_) {
-      Aws::Braket::qdmi::Device::get().decreaseRunningJobs();
-      isRunningCounted_ = false;
-    }
     return QDMI_ERROR_NOTSUPPORTED;
   }
 
-  taskArn_ = outcome.GetResult().GetQuantumTaskArn();
+  {
+    const std::scoped_lock<std::mutex> lock(jobMutex_);
+    taskArn_ = outcome.GetResult().GetQuantumTaskArn();
+  }
   status_.store(QDMI_JOB_STATUS_RUNNING);
   return QDMI_SUCCESS;
 }
@@ -767,34 +1100,40 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
-  // ============================================================================
   // Amazon Braket CancelQuantumTask API Call
-  // ============================================================================
+
   //
   // AWS SDK Usage:
   // 1. Create CancelQuantumTaskRequest with taskArn
   // 2. Call BraketClient::CancelQuantumTask()
-  // 3. Task status will transition to CANCELLED
+  // 3. Task transitions to CANCELLING (transitional state)
+  // 4. Task eventually reaches terminal state: CANCELLED, COMPLETED, or FAILED
   //
   // Important Notes:
   // - Can only cancel tasks in CREATED, QUEUED, or RUNNING state
   // - Cannot cancel COMPLETED or FAILED tasks
-  // - Cancellation is best-effort: if task is already executing, it may
-  // complete
+  // - After successful cancel request, task enters CANCELLING state
+  // - Final outcome depends on race conditions:
+  //   * CANCELLED: Cancellation succeeded (standard path)
+  //   * COMPLETED: Task finished before cancellation took effect
+  //   * FAILED: Task failed while cancellation was in flight
   // - Some devices may not support mid-execution cancellation
   //
-  // After cancellation:
-  // - Task status becomes CANCELLED
-  // - No results will be available
-  // - GetQuantumTask() will show status and cancellation reason
-  // ============================================================================
+  // After cancellation request:
+  // - Call check() repeatedly; it returns the last known status while
+  //   CANCELLING and updates to the terminal state once AWS resolves it
 
-  if (taskArn_.empty()) {
+  std::string localTaskArn;
+  {
+    const std::scoped_lock<std::mutex> lock(jobMutex_);
+    localTaskArn = taskArn_;
+  }
+  if (localTaskArn.empty()) {
     return QDMI_ERROR_BADSTATE;
   }
 
   Aws::Braket::Model::CancelQuantumTaskRequest request;
-  request.SetQuantumTaskArn(taskArn_.c_str());
+  request.SetQuantumTaskArn(localTaskArn);
 
   auto outcome = session_->getClient()->CancelQuantumTask(request);
   if (!outcome.IsSuccess()) {
@@ -803,14 +1142,10 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
     return QDMI_ERROR_NOTSUPPORTED;
   }
 
-  {
-    const std::scoped_lock<std::mutex> lock(jobMutex_);
-    status_.store(QDMI_JOB_STATUS_CANCELED);
-    if (isRunningCounted_) {
-      Aws::Braket::qdmi::Device::get().decreaseRunningJobs();
-      isRunningCounted_ = false;
-    }
-  }
+  // Cancellation request succeeded - task is now in CANCELLING state.
+  // Do NOT set status to CANCELED here; check() will report the last known
+  // status while CANCELLING and update to the terminal state once resolved.
+
   return QDMI_SUCCESS;
 }
 
@@ -820,9 +1155,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
-  // ============================================================================
   // Amazon Braket GetQuantumTask API Call
-  // ============================================================================
+
   // Purpose: Poll the current status of a submitted quantum task
   //
   // AWS SDK Usage:
@@ -837,7 +1171,10 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
   // - RUNNING: Actively executing on device
   // - COMPLETED: Finished successfully, results available
   // - FAILED: Execution failed (circuit error, device error, etc.)
+  // - CANCELLING: Transitional state after cancel request (returns last known
+  // status)
   // - CANCELLED: User cancelled the task
+  // - NOT_SET: Uninitialized/unknown state, should not occur with IsSuccess()
   //
   // Status Mapping to QDMI:
   // AWS CREATED    → QDMI_JOB_STATUS_CREATED
@@ -845,15 +1182,17 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
   // AWS RUNNING    → QDMI_JOB_STATUS_RUNNING
   // AWS COMPLETED  → QDMI_JOB_STATUS_DONE
   // AWS FAILED     → QDMI_JOB_STATUS_FAILED
+  // AWS CANCELLING → last known status
   // AWS CANCELLED  → QDMI_JOB_STATUS_CANCELED
+  // AWS NOT_SET    → QDMI_ERROR_NOTSUPPORTED
+  // AWS unknown    → QDMI_ERROR_NOTSUPPORTED
   //
-  // Typical polling pattern:
-  // - Call check() every 1-5 seconds until status is DONE/FAILED/CANCELLED
-  // - Simulators: usually complete in < 1 minute
-  // - Real QPUs: can take minutes to hours depending on queue
-  // ============================================================================
-
-  if (taskArn_.empty()) {
+  std::string localTaskArn;
+  {
+    const std::scoped_lock<std::mutex> lock(jobMutex_);
+    localTaskArn = taskArn_;
+  }
+  if (localTaskArn.empty()) {
     *status = status_.load();
     return QDMI_SUCCESS;
   }
@@ -870,7 +1209,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
   }
 
   Aws::Braket::Model::GetQuantumTaskRequest request;
-  request.SetQuantumTaskArn(taskArn_.c_str());
+  request.SetQuantumTaskArn(localTaskArn);
 
   auto outcome = session_->getClient()->GetQuantumTask(request);
   if (!outcome.IsSuccess()) {
@@ -880,39 +1219,52 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
   }
 
   const auto& taskStatus = outcome.GetResult().GetStatus();
-  QDMI_Job_Status newStatus = QDMI_JOB_STATUS_CREATED;
 
+  QDMI_Job_Status newStatus = QDMI_JOB_STATUS_CREATED;
   {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
-    if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::CREATED) {
+    switch (taskStatus) {
+    case Aws::Braket::Model::QuantumTaskStatus::CREATED:
       newStatus = QDMI_JOB_STATUS_CREATED;
-    } else if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::QUEUED) {
+      break;
+
+    case Aws::Braket::Model::QuantumTaskStatus::QUEUED:
       newStatus = QDMI_JOB_STATUS_QUEUED;
-    } else if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::RUNNING) {
+      break;
+
+    case Aws::Braket::Model::QuantumTaskStatus::RUNNING:
       newStatus = QDMI_JOB_STATUS_RUNNING;
-    } else if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::COMPLETED) {
+      break;
+
+    case Aws::Braket::Model::QuantumTaskStatus::COMPLETED:
       newStatus = QDMI_JOB_STATUS_DONE;
       // Store S3 location for result retrieval
       outputS3Bucket_ = outcome.GetResult().GetOutputS3Bucket();
       outputS3Directory_ = outcome.GetResult().GetOutputS3Directory();
-    } else if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::FAILED) {
+      break;
+
+    case Aws::Braket::Model::QuantumTaskStatus::FAILED:
       newStatus = QDMI_JOB_STATUS_FAILED;
-    } else if (taskStatus == Aws::Braket::Model::QuantumTaskStatus::CANCELLED) {
+      break;
+
+    case Aws::Braket::Model::QuantumTaskStatus::CANCELLED:
       newStatus = QDMI_JOB_STATUS_CANCELED;
-    } else {
-      newStatus = status_.load();
+      break;
+
+    case Aws::Braket::Model::QuantumTaskStatus::CANCELLING:
+      // Transitional state: keep reporting the last known status until
+      // the task reaches a terminal state on the next check() call.
+      *status = status_.load();
+      return QDMI_SUCCESS;
+
+    case Aws::Braket::Model::QuantumTaskStatus::NOT_SET:
+    default:
+      std::cerr << "ERROR: Unknown task status (enum value: "
+                << static_cast<int>(taskStatus) << ")\n";
+      return QDMI_ERROR_NOTSUPPORTED;
     }
 
     status_.store(newStatus);
-
-    // Only decrement if we transition to a terminal state AND we were being
-    // counted
-    if (isRunningCounted_ && (newStatus == QDMI_JOB_STATUS_DONE ||
-                              newStatus == QDMI_JOB_STATUS_FAILED ||
-                              newStatus == QDMI_JOB_STATUS_CANCELED)) {
-      Aws::Braket::qdmi::Device::get().decreaseRunningJobs();
-      isRunningCounted_ = false;
-    }
   }
 
   *status = newStatus;
@@ -947,7 +1299,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
       return QDMI_SUCCESS;
     }
 
-    if (timeout > 0) {
+    if (timeout > 0U) {
       const auto elapsed =
           std::chrono::duration_cast<std::chrono::milliseconds>(
               std::chrono::steady_clock::now() - startTime)
@@ -992,18 +1344,21 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal() const
     return QDMI_ERROR_FATAL;
   }
 
-  // Create S3 client with same region as Braket client
-  Aws::Client::ClientConfiguration s3Config;
+  // Create S3 client with the same credentials and region as the Braket client.
+  // Uses Aws::S3::S3ClientConfiguration (new SDK API) and passes explicit
+  // credentials so the client works regardless of env-var credential setup.
+  Aws::S3::S3ClientConfiguration s3Config;
   s3Config.region = session_->getRegion();
-  Aws::S3::S3Client const s3Client(s3Config);
+  Aws::S3::S3Client const s3Client(session_->getCredentials(), nullptr,
+                                   s3Config);
 
   // Download results.json from S3
   // Key format: {outputS3Directory}/results.json
   const std::string objectKey = outputS3Directory_ + "/results.json";
 
   Aws::S3::Model::GetObjectRequest getRequest;
-  getRequest.SetBucket(outputS3Bucket_.c_str());
-  getRequest.SetKey(objectKey.c_str());
+  getRequest.SetBucket(outputS3Bucket_);
+  getRequest.SetKey(objectKey);
 
   auto outcome = s3Client.GetObject(getRequest);
   if (!outcome.IsSuccess()) {
@@ -1062,7 +1417,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal() const
 }
 
 /**
- * Retrieve results from a completed quantum job.
+ * Retrieve results from a completed QDMI job (Amazon Braket quantum task).
  *
  * Result Types:
  * - SHOTS: Comma-separated bitstrings "00,11,00,11,..."
@@ -1153,8 +1508,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::getResults(
       result == QDMI_JOB_RESULT_STATEVECTOR_SPARSE_VALUES ||
       result == QDMI_JOB_RESULT_PROBABILITIES_SPARSE_KEYS ||
       result == QDMI_JOB_RESULT_PROBABILITIES_SPARSE_VALUES) {
-    // Statevector and probabilities only available from simulators
-    // TODO: Parse from S3 results if device supports statevector
+    // Statevector and probability results are not currently supported
     if (sizeRet != nullptr) {
       *sizeRet = 0;
     }
@@ -1170,17 +1524,6 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::getResults(
 // These functions provide the C interface required by QDMI specification.
 // They wrap the C++ implementation classes above.
 
-/**
- * Initialize the QDMI device library.
- *
- * Must be called once at program startup before any other QDMI functions.
- * Initializes the AWS SDK and sets up the device singleton.
- *
- * Thread-safe: Can be called multiple times, only first call initializes.
- *
- * @return QDMI_SUCCESS on successful initialization
- */
-
 // Global SDK state - must be in same translation unit for safe init/shutdown
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 namespace {
@@ -1190,13 +1533,23 @@ std::mutex gAWSInitMutex;
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 } // namespace
 
+/**
+ * Initialize the QDMI device library.
+ *
+ * Must be called once at program startup before any other QDMI functions.
+ * Initializes the AWS SDK and sets up the Braket device singleton.
+ *
+ * Thread-safe: Can be called multiple times, only first call initializes.
+ *
+ * @return QDMI_SUCCESS on successful initialization
+ */
 int AMAZON_BRAKET_QDMI_device_initialize() {
   const std::scoped_lock lock(gAWSInitMutex);
   if (!gAWSInitialized) {
     Aws::InitAPI(gAWSOptions);
     gAWSInitialized = true;
   }
-  std::ignore = Aws::Braket::qdmi::Device::get();
+  std::ignore = amazon::braket::qdmi::Device::get();
   return QDMI_SUCCESS;
 }
 
@@ -1222,11 +1575,31 @@ int AMAZON_BRAKET_QDMI_device_finalize() {
   return QDMI_SUCCESS;
 }
 
+/**
+ * Allocate a new device session.
+ *
+ * Creates a new session object that can be used to interact with an Amazon
+ * Braket device. The session must be initialized with
+ * AMAZON_BRAKET_QDMI_device_session_init() before use.
+ *
+ * @param session Pointer to receive the allocated session handle
+ * @return QDMI_SUCCESS on successful allocation, error code otherwise
+ */
 int AMAZON_BRAKET_QDMI_device_session_alloc(
     AMAZON_BRAKET_QDMI_Device_Session* session) {
-  return Aws::Braket::qdmi::Device::get().sessionAlloc(session);
+  return amazon::braket::qdmi::Device::get().sessionAlloc(session);
 }
 
+/**
+ * Initialize a device session.
+ *
+ * Establishes connection to Amazon Braket and fetches device properties.
+ * The session must be configured with a device ARN using
+ * AMAZON_BRAKET_QDMI_device_session_set_parameter() before initialization.
+ *
+ * @param session The session handle to initialize
+ * @return QDMI_SUCCESS on successful initialization, error code otherwise
+ */
 int AMAZON_BRAKET_QDMI_device_session_init(
     AMAZON_BRAKET_QDMI_Device_Session session) {
   if (session == nullptr) {
@@ -1235,11 +1608,71 @@ int AMAZON_BRAKET_QDMI_device_session_init(
   return session->init();
 }
 
+/**
+ * Free a device session.
+ *
+ * Releases local resources associated with the session (memory, BraketClient).
+ * All jobs created from this session should be freed before freeing the
+ * session.
+ *
+ * AWS Braket Note: This only frees local C++ objects. AWS SDK clients and
+ * their auth connections are cleaned up, but no AWS infrastructure cleanup
+ * is needed (Braket is fully managed/serverless).
+ *
+ * @param session The session handle to free
+ */
 void AMAZON_BRAKET_QDMI_device_session_free(
     AMAZON_BRAKET_QDMI_Device_Session session) {
-  Aws::Braket::qdmi::Device::get().sessionFree(session);
+  amazon::braket::qdmi::Device::get().sessionFree(session);
 }
 
+/**
+ * Set a session parameter.
+ *
+ * Configures session-level parameters before initialization. All parameters
+ * must be set BEFORE calling AMAZON_BRAKET_QDMI_device_session_init().
+ *
+ * Required Parameters:
+ * - QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN: Device ARN (string) **REQUIRED**
+ *   Format: arn:aws:braket:<region>::device/<type>/<provider>/<device-name>
+ *   Example: "arn:aws:braket:::device/quantum-simulator/amazon/<sim-name>"
+ *            "arn:aws:braket:eu-north-1::device/qpu/<vendor>/<device-name>"
+ *
+ * AWS Authentication (one method required):
+ * - QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE: Path to credentials file (INI
+ * format) Example: "/path/to/credentials"
+ *
+ * OR
+ *
+ * - QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID: AWS Access Key ID (string)
+ * - QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY: AWS Secret Access Key
+ * (string)
+ * - QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN: AWS Session Token (string,
+ * optional) For temporary credentials from STS or SSO
+ *
+ * Optional Parameters:
+ * - QDMI_DEVICE_SESSION_PARAMETER_REGION: AWS region override (string)
+ *   If not set, region is extracted from ARN. Example: "us-east-1",
+ * "eu-north-1"
+ *
+ * Unsupported QDMI Authentication Parameters:
+ * The following standard QDMI authentication parameters return
+ * QDMI_ERROR_NOTSUPPORTED:
+ * - USERNAME, PASSWORD, TOKEN, AUTHURL, BASEURL
+ * Use the AWS-specific parameters above instead.
+ *
+ * @param session The session handle
+ * @param param The parameter to set
+ * @param size Size of the value in bytes (must include null terminator for
+ * strings)
+ * @param value Pointer to the parameter value (must be null-terminated for
+ * strings)
+ * @return QDMI_SUCCESS on success
+ * @return QDMI_ERROR_INVALIDARGUMENT if value is NULL, size is 0, or string not
+ * null-terminated
+ * @return QDMI_ERROR_BADSTATE if session is already initialized
+ * @return QDMI_ERROR_NOTSUPPORTED if parameter is not supported
+ */
 int AMAZON_BRAKET_QDMI_device_session_set_parameter(
     AMAZON_BRAKET_QDMI_Device_Session session,
     QDMI_Device_Session_Parameter param, const size_t size, const void* value) {
@@ -1249,6 +1682,23 @@ int AMAZON_BRAKET_QDMI_device_session_set_parameter(
   return session->setParameter(param, size, value);
 }
 
+/**
+ * Query a device property.
+ *
+ * Retrieves device-level properties such as qubit count, connectivity,
+ * available gates, and device name. The session must be initialized before
+ * querying properties.
+ *
+ * The first property query fetches device capabilities from Amazon Braket
+ * via GetDevice(). Results are cached for subsequent queries.
+ *
+ * @param session The session handle
+ * @param prop The property to query
+ * @param size Size of the output buffer in bytes
+ * @param value Pointer to output buffer (can be NULL to query size)
+ * @param sizeRet Pointer to receive required size (can be NULL)
+ * @return QDMI_SUCCESS on success, error code otherwise
+ */
 int AMAZON_BRAKET_QDMI_device_session_query_device_property(
     AMAZON_BRAKET_QDMI_Device_Session session, const QDMI_Device_Property prop,
     const size_t size, void* value, size_t* sizeRet) {
@@ -1258,6 +1708,18 @@ int AMAZON_BRAKET_QDMI_device_session_query_device_property(
   return session->queryDeviceProperty(prop, size, value, sizeRet);
 }
 
+/**
+ * Create a new device job.
+ *
+ * Allocates a new job object that can be configured with quantum circuit
+ * and execution parameters before submission to Amazon Braket.
+ *
+ * Device availability is validated by Amazon Braket during task submission.
+ *
+ * @param session The session handle
+ * @param job Pointer to receive the allocated job handle
+ * @return QDMI_SUCCESS on successful creation, error code otherwise
+ */
 int AMAZON_BRAKET_QDMI_device_session_create_device_job(
     AMAZON_BRAKET_QDMI_Device_Session session,
     AMAZON_BRAKET_QDMI_Device_Job* job) {
@@ -1267,12 +1729,50 @@ int AMAZON_BRAKET_QDMI_device_session_create_device_job(
   return session->createDeviceJob(job);
 }
 
+/**
+ * Free a device job.
+ *
+ * Releases local resources associated with the job (memory, cached results).
+ *
+ * AWS Braket Note: This only frees local C++ objects. AWS automatically
+ * releases compute resources when the quantum task completes. Task metadata
+ * remains in AWS history and cannot be manually deleted.
+ *
+ * To stop a running task, call AMAZON_BRAKET_QDMI_device_job_cancel() before
+ * freeing.
+ *
+ * @param job The job handle to free
+ */
 void AMAZON_BRAKET_QDMI_device_job_free(AMAZON_BRAKET_QDMI_Device_Job job) {
   if (job != nullptr) {
-    job->free();
+    job->getSession()->freeDeviceJob(job);
   }
 }
 
+/**
+ * Set a job parameter.
+ *
+ * Configures job-level parameters.
+ *
+ * Required parameters:
+ * - QDMI_DEVICE_JOB_PARAMETER_PROGRAM: OpenQASM circuit string
+ * - QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT: Format (QASM2 or QASM3)
+ * - QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET: S3 bucket for results (string)
+ *   Example: "amazon-braket-my-bucket"
+ *
+ * Optional parameters:
+ * - QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM: Number of measurement shots (default:
+ * 100)
+ * - QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX: S3 prefix for results (string)
+ *   Optional. If not set, uses timestamp (epoch milliseconds): "1234567890123"
+ *   Example: "my-experiment/1234567890123/"
+ *
+ * @param job The job handle
+ * @param param The parameter to set
+ * @param size Size of the value in bytes
+ * @param value Pointer to the parameter value
+ * @return QDMI_SUCCESS on success, error code otherwise
+ */
 int AMAZON_BRAKET_QDMI_device_job_set_parameter(
     AMAZON_BRAKET_QDMI_Device_Job job, const QDMI_Device_Job_Parameter param,
     const size_t size, const void* value) {
@@ -1282,6 +1782,18 @@ int AMAZON_BRAKET_QDMI_device_job_set_parameter(
   return job->setParameter(param, size, value);
 }
 
+/**
+ * Query a job property.
+ *
+ * Retrieves job-level properties such as shot count, job ID, and status.
+ *
+ * @param job The job handle
+ * @param prop The property to query
+ * @param size Size of the output buffer in bytes
+ * @param value Pointer to output buffer (can be NULL to query size)
+ * @param sizeRet Pointer to receive required size (can be NULL)
+ * @return QDMI_SUCCESS on success, error code otherwise
+ */
 int AMAZON_BRAKET_QDMI_device_job_query_property(
     AMAZON_BRAKET_QDMI_Device_Job job, const QDMI_Device_Job_Property prop,
     const size_t size, void* value, size_t* sizeRet) {
@@ -1291,6 +1803,18 @@ int AMAZON_BRAKET_QDMI_device_job_query_property(
   return job->queryProperty(prop, size, value, sizeRet);
 }
 
+/**
+ * Submit a QDMI job to Amazon Braket.
+ *
+ * Creates and submits a quantum task (single circuit execution) to Amazon
+ * Braket. The QDMI job must have all required parameters set before submission.
+ *
+ * Note: This submits a QuantumTask, not a hybrid Job. Amazon Braket "Jobs"
+ * (hybrid classical-quantum workflows) are not supported by this library.
+ *
+ * @param job The QDMI job handle to submit
+ * @return QDMI_SUCCESS on successful submission, error code otherwise
+ */
 int AMAZON_BRAKET_QDMI_device_job_submit(AMAZON_BRAKET_QDMI_Device_Job job) {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
@@ -1298,6 +1822,15 @@ int AMAZON_BRAKET_QDMI_device_job_submit(AMAZON_BRAKET_QDMI_Device_Job job) {
   return job->submit();
 }
 
+/**
+ * Cancel a submitted QDMI job.
+ *
+ * Attempts to cancel the underlying quantum task on Amazon Braket.
+ * Quantum tasks that have already completed cannot be cancelled.
+ *
+ * @param job The QDMI job handle to cancel
+ * @return QDMI_SUCCESS on successful cancellation, error code otherwise
+ */
 int AMAZON_BRAKET_QDMI_device_job_cancel(AMAZON_BRAKET_QDMI_Device_Job job) {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
@@ -1305,6 +1838,16 @@ int AMAZON_BRAKET_QDMI_device_job_cancel(AMAZON_BRAKET_QDMI_Device_Job job) {
   return job->cancel();
 }
 
+/**
+ * Check the status of a QDMI job.
+ *
+ * Queries Amazon Braket for the current quantum task status.
+ * Status values include: CREATED, QUEUED, RUNNING, DONE, FAILED, CANCELLED.
+ *
+ * @param job The QDMI job handle
+ * @param status Pointer to receive the current job status
+ * @return QDMI_SUCCESS on successful check, error code otherwise
+ */
 int AMAZON_BRAKET_QDMI_device_job_check(AMAZON_BRAKET_QDMI_Device_Job job,
                                         QDMI_Job_Status* status) {
   if (job == nullptr) {
@@ -1313,6 +1856,17 @@ int AMAZON_BRAKET_QDMI_device_job_check(AMAZON_BRAKET_QDMI_Device_Job job,
   return job->check(status);
 }
 
+/**
+ * Wait for a QDMI job to complete.
+ *
+ * Blocks until the underlying quantum task completes or the timeout expires.
+ * Polls the quantum task status periodically using exponential backoff.
+ *
+ * @param job The QDMI job handle
+ * @param timeout Maximum time to wait in milliseconds (0 = infinite)
+ * @return QDMI_SUCCESS when quantum task completes, QDMI_ERROR_TIMEOUT on
+ * timeout
+ */
 int AMAZON_BRAKET_QDMI_device_job_wait(AMAZON_BRAKET_QDMI_Device_Job job,
                                        const size_t timeout) {
   if (job == nullptr) {
@@ -1321,6 +1875,22 @@ int AMAZON_BRAKET_QDMI_device_job_wait(AMAZON_BRAKET_QDMI_Device_Job job,
   return job->wait(timeout);
 }
 
+/**
+ * Retrieve results from a completed QDMI job.
+ *
+ * Downloads quantum task results from S3 and returns them in the requested
+ * format. Result types:
+ * - QDMI_JOB_RESULT_SHOTS: Comma-separated bitstrings
+ * - QDMI_JOB_RESULT_HIST_KEYS: Unique measurement outcomes
+ * - QDMI_JOB_RESULT_HIST_VALUES: Counts for each outcome
+ *
+ * @param job The QDMI job handle
+ * @param result The type of result to retrieve
+ * @param size Size of the output buffer in bytes
+ * @param data Pointer to output buffer (can be NULL to query size)
+ * @param sizeRet Pointer to receive required size (can be NULL)
+ * @return QDMI_SUCCESS on success, error code otherwise
+ */
 int AMAZON_BRAKET_QDMI_device_job_get_results(AMAZON_BRAKET_QDMI_Device_Job job,
                                               QDMI_Job_Result result,
                                               const size_t size, void* data,
@@ -1331,6 +1901,20 @@ int AMAZON_BRAKET_QDMI_device_job_get_results(AMAZON_BRAKET_QDMI_Device_Job job,
   return job->getResults(result, size, data, sizeRet);
 }
 
+/**
+ * Query properties of a device site (qubit).
+ *
+ * Retrieves site-specific properties such as qubit index, connectivity,
+ * and calibration data.
+ *
+ * @param session The session handle
+ * @param site The site handle
+ * @param prop The property to query
+ * @param size Size of the output buffer in bytes
+ * @param value Pointer to output buffer (can be NULL to query size)
+ * @param sizeRet Pointer to receive required size (can be NULL)
+ * @return QDMI_SUCCESS on success, error code otherwise
+ */
 int AMAZON_BRAKET_QDMI_device_session_query_site_property(
     AMAZON_BRAKET_QDMI_Device_Session session, AMAZON_BRAKET_QDMI_Site site,
     QDMI_Site_Property prop, const size_t size, void* value, size_t* sizeRet) {
@@ -1341,6 +1925,24 @@ int AMAZON_BRAKET_QDMI_device_session_query_site_property(
       ->querySiteProperty(site, prop, size, value, sizeRet);
 }
 
+/**
+ * Query properties of a quantum operation (gate).
+ *
+ * Retrieves operation-specific properties such as gate name, qubit count,
+ * parameter count, and fidelity for a specific instantiation on given sites.
+ *
+ * @param session The session handle
+ * @param operation The operation handle
+ * @param numSites Number of sites (qubits) the operation acts on
+ * @param sites Array of site handles
+ * @param numParams Number of gate parameters
+ * @param params Array of gate parameter values
+ * @param prop The property to query
+ * @param size Size of the output buffer in bytes
+ * @param value Pointer to output buffer (can be NULL to query size)
+ * @param sizeRet Pointer to receive required size (can be NULL)
+ * @return QDMI_SUCCESS on success, error code otherwise
+ */
 int AMAZON_BRAKET_QDMI_device_session_query_operation_property(
     AMAZON_BRAKET_QDMI_Device_Session session,
     AMAZON_BRAKET_QDMI_Operation operation, size_t numSites,
