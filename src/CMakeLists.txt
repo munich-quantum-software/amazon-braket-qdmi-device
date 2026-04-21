@@ -60,8 +60,9 @@ set_target_properties(
   ${QDMI_TARGET_NAME}
   PROPERTIES VERSION ${PROJECT_VERSION}
              SOVERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
+             C_VISIBILITY_PRESET hidden
              CXX_VISIBILITY_PRESET hidden
-             CXX_VISIBILITY_INLINES_HIDDEN ON)
+             VISIBILITY_INLINES_HIDDEN 1)
 target_sources(${QDMI_TARGET_NAME} PRIVATE ${DEVICE_SRC})
 
 target_sources(
