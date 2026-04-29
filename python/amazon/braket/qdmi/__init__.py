@@ -17,6 +17,7 @@
 
 """Python wrapper for exposing the Amazon Braket QDMI device library."""
 
+import sys
 from importlib.metadata import distribution
 from pathlib import Path
 
@@ -43,14 +44,40 @@ if not _AMAZON_BRAKET_QDMI_DATA.exists():
     msg = f"AMAZON_BRAKET_QDMI_DATA does not exist: {_AMAZON_BRAKET_QDMI_DATA}"
     raise FileNotFoundError(msg)
 
-_AMAZON_BRAKET_QDMI_LIBRARY_DIR = _AMAZON_BRAKET_QDMI_DATA / "lib"
-if not _AMAZON_BRAKET_QDMI_LIBRARY_DIR.exists():
-    _AMAZON_BRAKET_QDMI_LIBRARY_DIR = _AMAZON_BRAKET_QDMI_DATA / "lib64"
-if not _AMAZON_BRAKET_QDMI_LIBRARY_DIR.exists():
-    msg = f"AMAZON_BRAKET_QDMI_LIBRARY_DIR does not exist: {_AMAZON_BRAKET_QDMI_LIBRARY_DIR}"
+
+def _resolve_library_dir() -> Path:
+    """Return the directory containing the packaged Amazon Braket QDMI shared library.
+
+    Raises:
+        FileNotFoundError: If the expected library directory does not exist.
+    """
+    if sys.platform == "win32":
+        library_dir = _AMAZON_BRAKET_QDMI_DATA / "bin"
+        if library_dir.exists():
+            return library_dir
+        msg = (
+            f"Expected 'bin' directory for Amazon Braket QDMI library on Windows, but it does not exist: {library_dir}"
+        )
+        raise FileNotFoundError(msg)
+
+    library_dir = _AMAZON_BRAKET_QDMI_DATA / "lib"
+    if library_dir.exists():
+        return library_dir
+
+    library_dir = _AMAZON_BRAKET_QDMI_DATA / "lib64"
+    if library_dir.exists():
+        return library_dir
+
+    msg = (
+        "Expected 'lib' or 'lib64' directory for Amazon Braket QDMI library on Unix-like systems, "
+        f"but neither exists: {_AMAZON_BRAKET_QDMI_DATA}"
+    )
     raise FileNotFoundError(msg)
 
-# the library is the sole file in the lib directory
+
+_AMAZON_BRAKET_QDMI_LIBRARY_DIR = _resolve_library_dir()
+
+# the library is the sole file in the packaged library directory
 library_files = list(_AMAZON_BRAKET_QDMI_LIBRARY_DIR.glob("*amazon-braket-qdmi-device*"))
 if not library_files:
     msg = f"No Amazon Braket QDMI library found in: {_AMAZON_BRAKET_QDMI_LIBRARY_DIR}"
