@@ -343,16 +343,18 @@ int main() {
 
 ### Device Status
 
-The library maps Amazon Braket device states to QDMI status values:
+The library maps Amazon Braket device states to QDMI status values. When
+Braket publishes `service.executionWindows`, the current UTC time must be
+inside a window for the device to be reported as idle.
 
-| Amazon Braket Status | QDMI Status                      | Description                                                                                 |
-| -------------------- | -------------------------------- | ------------------------------------------------------------------------------------------- |
-| `ONLINE` (queue < 5) | `QDMI_DEVICE_STATUS_IDLE`        | Device is operational and ready to accept quantum tasks.                                    |
-| `ONLINE` (queue ≥ 5) | `QDMI_DEVICE_STATUS_BUSY`        | Device is operational but has a significant queue of pending tasks.                         |
-| `OFFLINE`            | `QDMI_DEVICE_STATUS_MAINTENANCE` | Device is temporarily unavailable (maintenance/calibration). Tasks will queue until return. |
-| `RETIRED`            | `QDMI_DEVICE_STATUS_OFFLINE`     | Device is permanently decommissioned. Task submission is blocked.                           |
+| Amazon Braket Status                             | QDMI Status                      | Description                                                                                                                        |
+| ------------------------------------------------ | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `ONLINE`/`OFFLINE` (in window, queue < 5)        | `QDMI_DEVICE_STATUS_IDLE`        | Device is available and ready to accept quantum tasks.                                                                             |
+| `ONLINE`/`OFFLINE` (outside window or queue ≥ 5) | `QDMI_DEVICE_STATUS_BUSY`        | Device accepts queued work but is not currently idle.                                                                              |
+| `OFFLINE` (no execution window data)             | `QDMI_DEVICE_STATUS_MAINTENANCE` | Device is temporarily unavailable. For example, it could be offline due to scheduled maintenance, upgrades, or operational issues. |
+| `RETIRED`                                        | `QDMI_DEVICE_STATUS_OFFLINE`     | Device is permanently decommissioned. Task submission is blocked.                                                                  |
 
-**Note**: Amazon Braket does not distinguish between maintenance and calibration - both are reported as OFFLINE and mapped to the QDMI MAINTENANCE status.
+**Note**: Amazon Braket execution window hours are interpreted as UTC.
 
 Query the current status using:
 
