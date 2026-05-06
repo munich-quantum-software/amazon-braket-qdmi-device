@@ -39,6 +39,16 @@
   QDMI_DEVICE_SESSION_PARAMETER_CUSTOM2
 
 /**
+ * @brief `char*` (string) AWS Braket Reservation ARN.
+ * @details Optional parameter. When set, device status reporting ignores the
+ * public execution-window availability check because the session targets a
+ * reserved time window. Jobs created from the session inherit this reservation
+ * ARN unless a job-level reservation ARN is set.
+ */
+#define QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN                          \
+  QDMI_DEVICE_SESSION_PARAMETER_CUSTOM3
+
+/**
  * @brief Amazon Braket-specific device job parameters.
  * @details These extend the standard QDMI job parameters using the CUSTOM
  * slots.

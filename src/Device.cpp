@@ -454,9 +454,13 @@ auto getCurrentExecutionWindowAvailability(
 }
 
 auto getQDMIStatusForAvailableBraketDevice(
-    const Aws::Braket::Model::GetDeviceResult& device) -> QDMI_Device_Status {
-  const auto executionWindowAvailability =
-      getCurrentExecutionWindowAvailability(device.GetDeviceCapabilities());
+    const Aws::Braket::Model::GetDeviceResult& device,
+    const bool hasReservationArn) -> QDMI_Device_Status {
+  std::optional<bool> executionWindowAvailability;
+  if (!hasReservationArn) {
+    executionWindowAvailability =
+        getCurrentExecutionWindowAvailability(device.GetDeviceCapabilities());
+  }
   const bool isOutsideExecutionWindow =
       executionWindowAvailability.has_value() && !*executionWindowAvailability;
   const int queueDepth = getTotalQueueDepth(device);
@@ -467,16 +471,17 @@ auto getQDMIStatusForAvailableBraketDevice(
 }
 
 auto getQDMIStatusForBraketDevice(
-    const Aws::Braket::Model::GetDeviceResult& device)
-    -> std::optional<QDMI_Device_Status> {
+    const Aws::Braket::Model::GetDeviceResult& device,
+    const bool hasReservationArn) -> std::optional<QDMI_Device_Status> {
   const auto braketStatus = device.GetDeviceStatus();
   switch (braketStatus) {
   case Aws::Braket::Model::DeviceStatus::ONLINE:
-    return getQDMIStatusForAvailableBraketDevice(device);
+    return getQDMIStatusForAvailableBraketDevice(device, hasReservationArn);
   case Aws::Braket::Model::DeviceStatus::OFFLINE:
-    if (getCurrentExecutionWindowAvailability(device.GetDeviceCapabilities())
+    if (hasReservationArn ||
+        getCurrentExecutionWindowAvailability(device.GetDeviceCapabilities())
             .has_value()) {
-      return getQDMIStatusForAvailableBraketDevice(device);
+      return getQDMIStatusForAvailableBraketDevice(device, hasReservationArn);
     }
     return QDMI_DEVICE_STATUS_MAINTENANCE;
   case Aws::Braket::Model::DeviceStatus::RETIRED:
@@ -635,7 +640,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
       return QDMI_ERROR_NOTSUPPORTED;
     }
     const auto& device = outcome.GetResult();
-    const auto qdmiStatus = getQDMIStatusForBraketDevice(device);
+    const auto qdmiStatus =
+        getQDMIStatusForBraketDevice(device, !reservationArn_.empty());
     if (!qdmiStatus.has_value()) {
       const auto braketStatus = device.GetDeviceStatus();
       std::cerr << "ERROR: Unknown device status (enum value: "
@@ -678,7 +684,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
   // QDMI has: OFFLINE, IDLE, BUSY, ERROR, MAINTENANCE, CALIBRATION
   const auto braketStatus = device.GetDeviceStatus();
 
-  const auto qdmiStatus = getQDMIStatusForBraketDevice(device);
+  const auto qdmiStatus =
+      getQDMIStatusForBraketDevice(device, !reservationArn_.empty());
   if (!qdmiStatus.has_value()) {
     std::cerr << "ERROR: Unknown device status (enum value: "
               << static_cast<int>(braketStatus) << ")\n";
@@ -782,6 +789,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
  * QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN (optional)
  *  - QDMI_DEVICE_SESSION_PARAMETER_REGION (defaults to value from ARN or
  * us-east-1)
+ *  - QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN (optional session default;
+ *    skips public execution-window status checks and is inherited by jobs)
  *
  *
  * @return QDMI_SUCCESS on successful initialization
@@ -879,10 +888,11 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
   }
 
   // Validate parameter: must be standard QDMI param or one of the specifically
-  // defined custom params (REGION)
+  // defined custom params (REGION, RESERVATION_ARN)
   const bool isStandardParam = param < QDMI_DEVICE_SESSION_PARAMETER_MAX;
   const bool isDefinedCustomParam =
-      (param == QDMI_DEVICE_SESSION_PARAMETER_REGION);
+      (param == QDMI_DEVICE_SESSION_PARAMETER_REGION ||
+       param == QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN);
 
   if (!isStandardParam && !isDefinedCustomParam) {
     return QDMI_ERROR_INVALIDARGUMENT;
@@ -899,6 +909,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
     SET_STRING(size, value, deviceArn_)
   case QDMI_DEVICE_SESSION_PARAMETER_REGION: // AWS Region (optional)
     SET_STRING(size, value, region_)
+  case QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN: // Reserved window
+    SET_STRING(size, value, reservationArn_)
   // Method 1: AWS Credentials File (AUTHFILE)
   // Supports standard AWS credentials file format with profiles
   case QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE:
@@ -1152,7 +1164,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
     localProgram = program_;
     localS3Bucket = jobS3Bucket_;
     localS3Prefix = jobS3Prefix_;
-    localReservationArn = reservationArn_;
+    localReservationArn = reservationArn_.empty()
+                              ? session_->getReservationArn()
+                              : reservationArn_;
     localShots = shots_;
   }
 
@@ -1197,7 +1211,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
   }
   request.SetOutputS3KeyPrefix(effectivePrefix);
 
-  // Attach reservation ARN when provided (routes task into dedicated window)
+  // Attach reservation ARN when provided (routes task into a reserved window).
+  // A job-level reservation overrides the session default.
   if (!localReservationArn.empty()) {
     Aws::Braket::Model::Association reservation;
     reservation.SetArn(localReservationArn);

@@ -211,6 +211,7 @@ private:
 
   std::string region_;
   std::string deviceArn_;
+  std::string reservationArn_; // Optional - session default reserved window
 
   // AWS Credentials
   std::string credentialsFile_; // Path to AWS credentials file (INI format)
@@ -265,6 +266,9 @@ private:
     return deviceArn_;
   }
   [[nodiscard]] auto getRegion() const -> const std::string& { return region_; }
+  [[nodiscard]] auto getReservationArn() const -> const std::string& {
+    return reservationArn_;
+  }
   [[nodiscard]] auto getCredentials() const -> Aws::Auth::AWSCredentials {
     return Aws::Auth::AWSCredentials(accessKeyId_, secretAccessKey_,
                                      sessionToken_);

@@ -295,12 +295,31 @@ TEST_F(AmazonBraketQDMIOfflineTest,
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
+TEST_F(AmazonBraketQDMIOfflineTest,
+       SessionSetParameterReservationArnNotNullTerminated) {
+  const std::array<char, 7> notTerminated = {'a', 'r', 'n', ':', 'a', 'w', 's'};
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
+                notTerminated.size(), notTerminated.data()),
+            QDMI_ERROR_INVALIDARGUMENT);
+}
+
 // Region is optional and must be accepted without error when valid.
 TEST_F(AmazonBraketQDMIOfflineTest, SessionSetParameterRegionValid) {
   const char* region = "eu-north-1";
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 session, QDMI_DEVICE_SESSION_PARAMETER_REGION,
                 strlen(region) + 1, region),
+            QDMI_SUCCESS);
+}
+
+TEST_F(AmazonBraketQDMIOfflineTest, SessionSetParameterReservationArnValid) {
+  const char* reservationArn =
+      "arn:aws:braket:us-east-1:123456789012:reservation/"
+      "a1b2c3d4-5678-90ab-cdef-1234567890ab";
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
+                strlen(reservationArn) + 1, reservationArn),
             QDMI_SUCCESS);
 }
 
@@ -328,6 +347,13 @@ TEST_F(AmazonBraketQDMILocalJobTest, SessionSetParameter) {
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL, 20,
                 "https://example.com"),
+            QDMI_ERROR_BADSTATE);
+  const char* reservationArn =
+      "arn:aws:braket:us-east-1:123456789012:reservation/"
+      "a1b2c3d4-5678-90ab-cdef-1234567890ab";
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
+                strlen(reservationArn) + 1, reservationArn),
             QDMI_ERROR_BADSTATE);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 session, QDMI_DEVICE_SESSION_PARAMETER_MAX, 0, nullptr),
