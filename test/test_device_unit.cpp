@@ -29,6 +29,7 @@
  *  - AmazonBraketQDMILocalJobTest  : session initialised with fake credentials
  */
 
+#include "amazon-braket-qdmi-device/Device.hpp"
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
@@ -40,6 +41,7 @@
 #include <fstream>
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
+#include <optional>
 #include <string>
 #include <tuple>
 
@@ -867,6 +869,148 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSubmitNoS3Bucket) {
   EXPECT_EQ(status, QDMI_JOB_STATUS_FAILED);
 
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       JobSubmitNoS3BucketWithSessionReservationArn) {
+  AMAZON_BRAKET_QDMI_Device_Session reservedSession = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&reservedSession),
+            QDMI_SUCCESS);
+
+  const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
+                strlen(accessKey) + 1, accessKey),
+            QDMI_SUCCESS);
+  const char* secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
+                strlen(secretKey) + 1, secretKey),
+            QDMI_SUCCESS);
+  const char* deviceArn =
+      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                strlen(deviceArn) + 1, deviceArn),
+            QDMI_SUCCESS);
+  const char* reservationArn =
+      "arn:aws:braket:us-east-1:123456789012:reservation/"
+      "a1b2c3d4-5678-90ab-cdef-1234567890ab";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
+                strlen(reservationArn) + 1, reservationArn),
+            QDMI_SUCCESS);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_init(reservedSession),
+            QDMI_SUCCESS);
+
+  AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(reservedSession,
+                                                                &freshJob),
+            QDMI_SUCCESS);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                freshJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
+                strlen(BELL_STATE_PROGRAM) + 1, BELL_STATE_PROGRAM),
+            QDMI_SUCCESS);
+
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(freshJob),
+            QDMI_ERROR_INVALIDARGUMENT);
+
+  QDMI_Job_Status status = QDMI_JOB_STATUS_CREATED;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(freshJob, &status),
+            QDMI_SUCCESS);
+  EXPECT_EQ(status, QDMI_JOB_STATUS_FAILED);
+
+  AMAZON_BRAKET_QDMI_device_job_free(freshJob);
+  AMAZON_BRAKET_QDMI_device_session_free(reservedSession);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       JobSubmitNoS3BucketJobReservationOverridesSessionReservation) {
+  AMAZON_BRAKET_QDMI_Device_Session reservedSession = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&reservedSession),
+            QDMI_SUCCESS);
+
+  const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
+                strlen(accessKey) + 1, accessKey),
+            QDMI_SUCCESS);
+  const char* secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
+                strlen(secretKey) + 1, secretKey),
+            QDMI_SUCCESS);
+  const char* deviceArn =
+      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                strlen(deviceArn) + 1, deviceArn),
+            QDMI_SUCCESS);
+  const char* sessionReservationArn =
+      "arn:aws:braket:us-east-1:123456789012:reservation/"
+      "a1b2c3d4-5678-90ab-cdef-1234567890ab";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
+                strlen(sessionReservationArn) + 1, sessionReservationArn),
+            QDMI_SUCCESS);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_init(reservedSession),
+            QDMI_SUCCESS);
+
+  AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(reservedSession,
+                                                                &freshJob),
+            QDMI_SUCCESS);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                freshJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
+                strlen(BELL_STATE_PROGRAM) + 1, BELL_STATE_PROGRAM),
+            QDMI_SUCCESS);
+  const char* jobReservationArn =
+      "arn:aws:braket:us-east-1:123456789012:reservation/"
+      "b2c3d4e5-6789-0abc-def1-234567890abc";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                freshJob, QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN,
+                strlen(jobReservationArn) + 1, jobReservationArn),
+            QDMI_SUCCESS);
+
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(freshJob),
+            QDMI_ERROR_INVALIDARGUMENT);
+
+  QDMI_Job_Status status = QDMI_JOB_STATUS_CREATED;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(freshJob, &status),
+            QDMI_SUCCESS);
+  EXPECT_EQ(status, QDMI_JOB_STATUS_FAILED);
+
+  AMAZON_BRAKET_QDMI_device_job_free(freshJob);
+  AMAZON_BRAKET_QDMI_device_session_free(reservedSession);
+}
+
+TEST(DeviceStatusOfflineReservationTest,
+     OnlineReservationIgnoresMissingWindowData) {
+  // Keep window parsing in AWS-backed tests. These offline tests only cover the
+  // reservation branch after window availability has intentionally not been
+  // read.
+  const auto status = amazon::braket::qdmi::getQDMIStatusForBraketDevice(
+      Aws::Braket::Model::DeviceStatus::ONLINE, std::nullopt,
+      /*queueDepth=*/0, /*hasReservationArn=*/true);
+  ASSERT_TRUE(status.has_value());
+  EXPECT_EQ(*status, QDMI_DEVICE_STATUS_IDLE);
+}
+
+TEST(DeviceStatusOfflineReservationTest,
+     OfflineReservationIgnoresMissingWindowData) {
+  const auto status = amazon::braket::qdmi::getQDMIStatusForBraketDevice(
+      Aws::Braket::Model::DeviceStatus::OFFLINE, std::nullopt,
+      /*queueDepth=*/0, /*hasReservationArn=*/true);
+  ASSERT_TRUE(status.has_value());
+  EXPECT_EQ(*status, QDMI_DEVICE_STATUS_IDLE);
+}
+
+TEST(DeviceStatusOfflineReservationTest, ReservationKeepsQueueThresholdBusy) {
+  const auto status = amazon::braket::qdmi::getQDMIStatusForBraketDevice(
+      Aws::Braket::Model::DeviceStatus::ONLINE, std::nullopt,
+      /*queueDepth=*/5, /*hasReservationArn=*/true);
+  ASSERT_TRUE(status.has_value());
+  EXPECT_EQ(*status, QDMI_DEVICE_STATUS_BUSY);
 }
 
 // =============================================================================
