@@ -454,16 +454,11 @@ auto getCurrentExecutionWindowAvailability(
 }
 
 auto getQDMIStatusForAvailableBraketDevice(
-    const Aws::Braket::Model::GetDeviceResult& device,
-    const bool hasReservationArn) -> QDMI_Device_Status {
-  std::optional<bool> executionWindowAvailability;
-  if (!hasReservationArn) {
-    executionWindowAvailability =
-        getCurrentExecutionWindowAvailability(device.GetDeviceCapabilities());
-  }
+    const bool hasReservationArn,
+    const std::optional<bool>& executionWindowAvailability,
+    const int queueDepth) -> QDMI_Device_Status {
   const bool isOutsideExecutionWindow =
       executionWindowAvailability.has_value() && !*executionWindowAvailability;
-  const int queueDepth = getTotalQueueDepth(device);
   if (isOutsideExecutionWindow || queueDepth >= QUEUE_BUSY_THRESHOLD) {
     return QDMI_DEVICE_STATUS_BUSY;
   }
@@ -473,15 +468,31 @@ auto getQDMIStatusForAvailableBraketDevice(
 auto getQDMIStatusForBraketDevice(
     const Aws::Braket::Model::GetDeviceResult& device,
     const bool hasReservationArn) -> std::optional<QDMI_Device_Status> {
-  const auto braketStatus = device.GetDeviceStatus();
+  std::optional<bool> executionWindowAvailability;
+  if (!hasReservationArn) {
+    executionWindowAvailability =
+        getCurrentExecutionWindowAvailability(device.GetDeviceCapabilities());
+  }
+  return amazon::braket::qdmi::getQDMIStatusForBraketDevice(
+      device.GetDeviceStatus(), executionWindowAvailability,
+      getTotalQueueDepth(device), hasReservationArn);
+}
+} // anonymous namespace
+
+namespace amazon::braket::qdmi {
+
+auto getQDMIStatusForBraketDevice(
+    const Aws::Braket::Model::DeviceStatus braketStatus,
+    const std::optional<bool> executionWindowAvailability, const int queueDepth,
+    const bool hasReservationArn) -> std::optional<QDMI_Device_Status> {
   switch (braketStatus) {
   case Aws::Braket::Model::DeviceStatus::ONLINE:
-    return getQDMIStatusForAvailableBraketDevice(device, hasReservationArn);
+    return getQDMIStatusForAvailableBraketDevice(
+        hasReservationArn, executionWindowAvailability, queueDepth);
   case Aws::Braket::Model::DeviceStatus::OFFLINE:
-    if (hasReservationArn ||
-        getCurrentExecutionWindowAvailability(device.GetDeviceCapabilities())
-            .has_value()) {
-      return getQDMIStatusForAvailableBraketDevice(device, hasReservationArn);
+    if (hasReservationArn || executionWindowAvailability.has_value()) {
+      return getQDMIStatusForAvailableBraketDevice(
+          hasReservationArn, executionWindowAvailability, queueDepth);
     }
     return QDMI_DEVICE_STATUS_MAINTENANCE;
   case Aws::Braket::Model::DeviceStatus::RETIRED:
@@ -491,9 +502,6 @@ auto getQDMIStatusForBraketDevice(
     return std::nullopt;
   }
 }
-} // anonymous namespace
-
-namespace amazon::braket::qdmi {
 
 /**
  * Device constructor - initializes the global Braket device singleton.

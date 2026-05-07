@@ -78,6 +78,7 @@
 
 #include <atomic>
 #include <aws/braket/BraketClient.h>
+#include <aws/braket/model/DeviceStatus.h>
 #include <aws/braket/model/DeviceType.h>
 #include <aws/core/auth/AWSCredentials.h>
 #include <cstddef>
@@ -87,6 +88,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <random>
 #include <string>
 #include <unordered_map>
@@ -97,6 +99,12 @@
 struct AMAZON_BRAKET_QDMI_Device_Job_impl_d;
 
 namespace amazon::braket::qdmi {
+
+AMAZON_BRAKET_QDMI_EXPORT auto
+getQDMIStatusForBraketDevice(Aws::Braket::Model::DeviceStatus braketStatus,
+                             std::optional<bool> executionWindowAvailability,
+                             int queueDepth, bool hasReservationArn)
+    -> std::optional<QDMI_Device_Status>;
 
 /**
  * @brief Device architecture data.
