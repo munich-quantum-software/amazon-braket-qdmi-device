@@ -357,8 +357,6 @@ public execution windows are ignored because the session targets a reserved wind
 | `OFFLINE`                              | `QDMI_DEVICE_STATUS_MAINTENANCE` | Device is temporarily unavailable. For example, it could be offline due to scheduled maintenance, upgrades, or operational issues. |
 | `RETIRED`                              | `QDMI_DEVICE_STATUS_OFFLINE`     | Device is permanently decommissioned. Task submission is blocked.                                                                  |
 
-**Note**: Amazon Braket execution window hours are interpreted as UTC.
-
 Query the current status using:
 
 ```cpp

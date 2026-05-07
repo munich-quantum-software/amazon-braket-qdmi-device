@@ -291,8 +291,8 @@ auto parseCredentialsFile(const std::string& filePath, std::string& accessKeyId,
  *
  * If the total number of queued quantum tasks across all queue entries
  * is >= this value, the device is reported as QDMI_DEVICE_STATUS_BUSY.
- * Below this value, the device is reported as QDMI_DEVICE_STATUS_IDLE
- * and when the current UTC time is within an execution window.
+ * Below this value (within an execution window) the device is reported as
+ * QDMI_DEVICE_STATUS_IDLE.
  *
  */
 constexpr int QUEUE_BUSY_THRESHOLD = 5;
