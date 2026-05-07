@@ -926,7 +926,7 @@ TEST_F(AmazonBraketQDMILocalJobTest,
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest,
-       JobSubmitNoS3BucketJobReservationOverridesSessionReservation) {
+       JobSubmitWithBothReservationArnsNoS3BucketFails) {
   AMAZON_BRAKET_QDMI_Device_Session reservedSession = nullptr;
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&reservedSession),
             QDMI_SUCCESS);
@@ -983,6 +983,23 @@ TEST_F(AmazonBraketQDMILocalJobTest,
 
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
   AMAZON_BRAKET_QDMI_device_session_free(reservedSession);
+}
+
+TEST(DeviceStatusOfflineReservationTest,
+     OfflineNoReservationNoWindowIsMaintenance) {
+  const auto status = amazon::braket::qdmi::getQDMIStatusForBraketDevice(
+      Aws::Braket::Model::DeviceStatus::OFFLINE, std::nullopt,
+      /*queueDepth=*/0, /*hasReservationArn=*/false);
+  ASSERT_TRUE(status.has_value());
+  EXPECT_EQ(*status, QDMI_DEVICE_STATUS_MAINTENANCE);
+}
+
+TEST(DeviceStatusOfflineReservationTest, RetiredIsOffline) {
+  const auto status = amazon::braket::qdmi::getQDMIStatusForBraketDevice(
+      Aws::Braket::Model::DeviceStatus::RETIRED, std::nullopt,
+      /*queueDepth=*/0, /*hasReservationArn=*/false);
+  ASSERT_TRUE(status.has_value());
+  EXPECT_EQ(*status, QDMI_DEVICE_STATUS_OFFLINE);
 }
 
 TEST(DeviceStatusOfflineReservationTest,

@@ -393,6 +393,8 @@ auto isTimeInExecutionWindow(const std::string& executionDay,
                              const int windowStart, const int windowEnd,
                              const UtcTimeOfWeek& time) -> bool {
   if (windowStart == windowEnd) {
+    // Braket execution windows with equal start/end times are interpreted
+    // as an all-day window for the matching executionDay
     return executionDayMatches(executionDay, time.dayOfWeek);
   }
 
@@ -431,6 +433,7 @@ auto getCurrentExecutionWindowAvailability(
   }
 
   const auto now = getCurrentUtcTimeOfWeek();
+  bool anyWindowParsed = false;
   for (size_t i = 0; i < executionWindows.GetLength(); ++i) {
     const auto window = executionWindows[i].AsObject();
     if (!window.ValueExists("executionDay") ||
@@ -447,13 +450,13 @@ auto getCurrentExecutionWindowAvailability(
                                   windowEnd)) {
       continue;
     }
-
+    anyWindowParsed = true;
     if (isTimeInExecutionWindow(window.GetString("executionDay"), windowStart,
                                 windowEnd, now)) {
       return true;
     }
   }
-  return false;
+  return anyWindowParsed ? std::optional<bool>{false} : std::nullopt;
 }
 
 auto getQDMIStatusForAvailableBraketDevice(
@@ -467,7 +470,7 @@ auto getQDMIStatusForAvailableBraketDevice(
   return QDMI_DEVICE_STATUS_IDLE;
 }
 
-auto getQDMIStatusForBraketDevice(
+auto computeQDMIStatusFromDevice(
     const Aws::Braket::Model::GetDeviceResult& device,
     const bool hasReservationArn) -> std::optional<QDMI_Device_Status> {
   std::optional<bool> executionWindowAvailability;
@@ -651,7 +654,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
     }
     const auto& device = outcome.GetResult();
     const auto qdmiStatus =
-        getQDMIStatusForBraketDevice(device, !reservationArn_.empty());
+        computeQDMIStatusFromDevice(device, !reservationArn_.empty());
     if (!qdmiStatus.has_value()) {
       const auto braketStatus = device.GetDeviceStatus();
       std::cerr << "ERROR: Unknown device status (enum value: "
@@ -695,7 +698,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
   const auto braketStatus = device.GetDeviceStatus();
 
   const auto qdmiStatus =
-      getQDMIStatusForBraketDevice(device, !reservationArn_.empty());
+      computeQDMIStatusFromDevice(device, !reservationArn_.empty());
   if (!qdmiStatus.has_value()) {
     std::cerr << "ERROR: Unknown device status (enum value: "
               << static_cast<int>(braketStatus) << ")\n";
