@@ -495,10 +495,6 @@ AMAZON_BRAKET_QDMI_EXPORT auto getQDMIStatusForBraketDevice(
     return getQDMIStatusForAvailableBraketDevice(executionWindowAvailability,
                                                  queueDepth);
   case Aws::Braket::Model::DeviceStatus::OFFLINE:
-    if (hasReservationArn || executionWindowAvailability.has_value()) {
-      return getQDMIStatusForAvailableBraketDevice(executionWindowAvailability,
-                                                   queueDepth);
-    }
     return QDMI_DEVICE_STATUS_MAINTENANCE;
   case Aws::Braket::Model::DeviceStatus::RETIRED:
     return QDMI_DEVICE_STATUS_OFFLINE;
