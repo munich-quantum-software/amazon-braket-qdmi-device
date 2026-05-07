@@ -985,48 +985,34 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   AMAZON_BRAKET_QDMI_device_session_free(reservedSession);
 }
 
-TEST(DeviceStatusOfflineReservationTest,
-     OfflineNoReservationNoWindowIsMaintenance) {
+TEST(DeviceStatusMappingTest, OfflineIsMaintenance) {
   const auto status = amazon::braket::qdmi::getQDMIStatusForBraketDevice(
       Aws::Braket::Model::DeviceStatus::OFFLINE, std::nullopt,
-      /*queueDepth=*/0, /*hasReservationArn=*/false);
+      /*queueDepth=*/0);
   ASSERT_TRUE(status.has_value());
   EXPECT_EQ(*status, QDMI_DEVICE_STATUS_MAINTENANCE);
 }
 
-TEST(DeviceStatusOfflineReservationTest, RetiredIsOffline) {
+TEST(DeviceStatusMappingTest, RetiredIsOffline) {
   const auto status = amazon::braket::qdmi::getQDMIStatusForBraketDevice(
       Aws::Braket::Model::DeviceStatus::RETIRED, std::nullopt,
-      /*queueDepth=*/0, /*hasReservationArn=*/false);
+      /*queueDepth=*/0);
   ASSERT_TRUE(status.has_value());
   EXPECT_EQ(*status, QDMI_DEVICE_STATUS_OFFLINE);
 }
 
-TEST(DeviceStatusOfflineReservationTest,
-     OnlineReservationIgnoresMissingWindowData) {
-  // Keep window parsing in AWS-backed tests. These offline tests only cover the
-  // reservation branch after window availability has intentionally not been
-  // read.
+TEST(DeviceStatusMappingTest, OnlineStatusUsesQueueWhenWindowIsNotChecked) {
   const auto status = amazon::braket::qdmi::getQDMIStatusForBraketDevice(
       Aws::Braket::Model::DeviceStatus::ONLINE, std::nullopt,
-      /*queueDepth=*/0, /*hasReservationArn=*/true);
+      /*queueDepth=*/0);
   ASSERT_TRUE(status.has_value());
   EXPECT_EQ(*status, QDMI_DEVICE_STATUS_IDLE);
 }
 
-TEST(DeviceStatusOfflineReservationTest,
-     OfflineReservationIgnoresMissingWindowData) {
-  const auto status = amazon::braket::qdmi::getQDMIStatusForBraketDevice(
-      Aws::Braket::Model::DeviceStatus::OFFLINE, std::nullopt,
-      /*queueDepth=*/0, /*hasReservationArn=*/true);
-  ASSERT_TRUE(status.has_value());
-  EXPECT_EQ(*status, QDMI_DEVICE_STATUS_IDLE);
-}
-
-TEST(DeviceStatusOfflineReservationTest, ReservationKeepsQueueThresholdBusy) {
+TEST(DeviceStatusMappingTest, QueueThresholdBusyWhenWindowIsNotChecked) {
   const auto status = amazon::braket::qdmi::getQDMIStatusForBraketDevice(
       Aws::Braket::Model::DeviceStatus::ONLINE, std::nullopt,
-      /*queueDepth=*/5, /*hasReservationArn=*/true);
+      /*queueDepth=*/5);
   ASSERT_TRUE(status.has_value());
   EXPECT_EQ(*status, QDMI_DEVICE_STATUS_BUSY);
 }

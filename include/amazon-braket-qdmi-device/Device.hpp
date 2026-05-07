@@ -103,7 +103,7 @@ namespace amazon::braket::qdmi {
 AMAZON_BRAKET_QDMI_EXPORT auto
 getQDMIStatusForBraketDevice(Aws::Braket::Model::DeviceStatus braketStatus,
                              std::optional<bool> executionWindowAvailability,
-                             int queueDepth, bool hasReservationArn)
+                             int queueDepth)
     -> std::optional<QDMI_Device_Status>;
 
 /**

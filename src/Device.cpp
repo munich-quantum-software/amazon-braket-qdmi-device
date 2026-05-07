@@ -480,7 +480,7 @@ auto computeQDMIStatusFromDevice(
   }
   return amazon::braket::qdmi::getQDMIStatusForBraketDevice(
       device.GetDeviceStatus(), executionWindowAvailability,
-      getTotalQueueDepth(device), hasReservationArn);
+      getTotalQueueDepth(device));
 }
 } // anonymous namespace
 
@@ -488,8 +488,8 @@ namespace amazon::braket::qdmi {
 
 AMAZON_BRAKET_QDMI_EXPORT auto getQDMIStatusForBraketDevice(
     const Aws::Braket::Model::DeviceStatus braketStatus,
-    const std::optional<bool> executionWindowAvailability, const int queueDepth,
-    const bool hasReservationArn) -> std::optional<QDMI_Device_Status> {
+    const std::optional<bool> executionWindowAvailability, const int queueDepth)
+    -> std::optional<QDMI_Device_Status> {
   switch (braketStatus) {
   case Aws::Braket::Model::DeviceStatus::ONLINE:
     return getQDMIStatusForAvailableBraketDevice(executionWindowAvailability,
