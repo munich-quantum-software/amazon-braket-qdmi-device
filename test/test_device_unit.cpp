@@ -35,6 +35,7 @@
 #include "amazon_braket_qdmi/device.h"
 
 #include <array>
+#include <aws/braket/model/DeviceStatus.h>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
@@ -177,61 +178,62 @@ TEST_F(AmazonBraketQDMIOfflineTest, SessionInitNonexistentCredentialsFile) {
 
 // alloc(nullptr) must return INVALIDARGUMENT.
 TEST_F(AmazonBraketQDMIOfflineTest, SessionAllocNullptr) {
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(
-                nullptr), // NOLINT(clang-diagnostic-nonnull)
+  AMAZON_BRAKET_QDMI_Device_Session* nullSessionOut = nullptr;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(nullSessionOut),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 // init(nullptr) must return INVALIDARGUMENT.
 TEST_F(AmazonBraketQDMIOfflineTest, SessionInitNullptr) {
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(
-                nullptr), // NOLINT(clang-diagnostic-nonnull)
+  AMAZON_BRAKET_QDMI_Device_Session nullSession = nullptr;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(nullSession),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 // job API functions with a null job handle must all return INVALIDARGUMENT.
 TEST_F(AmazonBraketQDMIOfflineTest, JobSetParameterNullptr) {
+  AMAZON_BRAKET_QDMI_Device_Job nullJob = nullptr;
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                nullptr, QDMI_DEVICE_JOB_PARAMETER_MAX, 0,
-                nullptr), // NOLINT(clang-diagnostic-nonnull)
+                nullJob, QDMI_DEVICE_JOB_PARAMETER_MAX, 0, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest, JobQueryPropertyNullptr) {
+  AMAZON_BRAKET_QDMI_Device_Job nullJob = nullptr;
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
-                nullptr, QDMI_DEVICE_JOB_PROPERTY_MAX, 0, nullptr,
-                nullptr), // NOLINT(clang-diagnostic-nonnull)
+                nullJob, QDMI_DEVICE_JOB_PROPERTY_MAX, 0, nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest, JobSubmitNullptr) {
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(
-                nullptr), // NOLINT(clang-diagnostic-nonnull)
+  AMAZON_BRAKET_QDMI_Device_Job nullJob = nullptr;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(nullJob),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest, JobCancelNullptr) {
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_cancel(
-                nullptr), // NOLINT(clang-diagnostic-nonnull)
+  AMAZON_BRAKET_QDMI_Device_Job nullJob = nullptr;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_cancel(nullJob),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest, JobCheckNullptr) {
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(
-                nullptr, nullptr), // NOLINT(clang-diagnostic-nonnull)
+  AMAZON_BRAKET_QDMI_Device_Job nullJob = nullptr;
+  QDMI_Job_Status* nullStatusOut = nullptr;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(nullJob, nullStatusOut),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest, JobWaitNullptr) {
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(
-                nullptr, 0), // NOLINT(clang-diagnostic-nonnull)
+  AMAZON_BRAKET_QDMI_Device_Job nullJob = nullptr;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(nullJob, 0),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest, JobGetResultsNullptr) {
+  AMAZON_BRAKET_QDMI_Device_Job nullJob = nullptr;
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
-                nullptr, QDMI_JOB_RESULT_MAX, 0, nullptr,
-                nullptr), // NOLINT(clang-diagnostic-nonnull)
+                nullJob, QDMI_JOB_RESULT_MAX, 0, nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
@@ -374,8 +376,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, SessionCredentialsFile) {
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 credsSession, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
                 strlen(credsFile) + 1, credsFile),
-            QDMI_SUCCESS)
-      << "Failed to set credentials file parameter";
+            QDMI_SUCCESS);
 
   const char* deviceArn =
       "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
@@ -1022,20 +1023,20 @@ TEST(DeviceStatusOfflineReservationTest, ReservationKeepsQueueThresholdBusy) {
 // IQMDeviceParser. No AWS credentials or network calls are needed.
 
 TEST(DeviceParserOfflineTest, SimulatorMissingParadigm) {
-  SimulatorPropertiesParser parser;
+  const SimulatorPropertiesParser parser;
   ParsedDeviceProperties props;
   EXPECT_EQ(parser.ParseProperties(R"({})", props), QDMI_ERROR_FATAL);
 }
 
 TEST(DeviceParserOfflineTest, SimulatorParadigmMissingQubitCount) {
-  SimulatorPropertiesParser parser;
+  const SimulatorPropertiesParser parser;
   ParsedDeviceProperties props;
   EXPECT_EQ(parser.ParseProperties(R"({"paradigm":{}})", props),
             QDMI_ERROR_FATAL);
 }
 
 TEST(DeviceParserOfflineTest, SimulatorMissingAction) {
-  SimulatorPropertiesParser parser;
+  const SimulatorPropertiesParser parser;
   ParsedDeviceProperties props;
   EXPECT_EQ(
       parser.ParseProperties(
@@ -1045,7 +1046,7 @@ TEST(DeviceParserOfflineTest, SimulatorMissingAction) {
 }
 
 TEST(DeviceParserOfflineTest, SimulatorActionMissingOpenQASMProgram) {
-  SimulatorPropertiesParser parser;
+  const SimulatorPropertiesParser parser;
   ParsedDeviceProperties props;
   EXPECT_EQ(
       parser.ParseProperties(
@@ -1056,7 +1057,7 @@ TEST(DeviceParserOfflineTest, SimulatorActionMissingOpenQASMProgram) {
 
 TEST(DeviceParserOfflineTest,
      SimulatorOpenQASMProgramMissingSupportedOperations) {
-  SimulatorPropertiesParser parser;
+  const SimulatorPropertiesParser parser;
   ParsedDeviceProperties props;
   EXPECT_EQ(
       parser.ParseProperties(
@@ -1066,14 +1067,14 @@ TEST(DeviceParserOfflineTest,
 }
 
 TEST(DeviceParserOfflineTest, IQMMissingConnectivity) {
-  IQMDeviceParser parser;
+  const IQMDeviceParser parser;
   ParsedDeviceProperties props;
   EXPECT_EQ(parser.ParseProperties(R"({"paradigm":{"qubitCount":5}})", props),
             QDMI_ERROR_FATAL);
 }
 
 TEST(DeviceParserOfflineTest, IQMConnectivityMissingGraph) {
-  IQMDeviceParser parser;
+  const IQMDeviceParser parser;
   ParsedDeviceProperties props;
   EXPECT_EQ(parser.ParseProperties(
                 R"({"paradigm":{"qubitCount":5,"connectivity":{}}})", props),
@@ -1081,7 +1082,7 @@ TEST(DeviceParserOfflineTest, IQMConnectivityMissingGraph) {
 }
 
 TEST(DeviceParserOfflineTest, IQMNonNumericQubitID) {
-  IQMDeviceParser parser;
+  const IQMDeviceParser parser;
   ParsedDeviceProperties props;
   EXPECT_EQ(
       parser.ParseProperties(

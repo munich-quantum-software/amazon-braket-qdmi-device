@@ -97,7 +97,8 @@ public:
    * @return QDMI_SUCCESS on success, error code otherwise
    */
   virtual auto ParseProperties(const std::string& propertiesJson,
-                               ParsedDeviceProperties& properties) -> int = 0;
+                               ParsedDeviceProperties& properties) const
+      -> int = 0;
 
 protected:
   // ============================================================================
@@ -147,7 +148,8 @@ protected:
 class SimulatorPropertiesParser : public IDeviceParser {
 public:
   auto ParseProperties(const std::string& propertiesJson,
-                       ParsedDeviceProperties& properties) -> int override;
+                       ParsedDeviceProperties& properties) const
+      -> int override;
 };
 
 /**
@@ -159,7 +161,8 @@ public:
 class IQMDeviceParser : public IDeviceParser {
 public:
   auto ParseProperties(const std::string& propertiesJson,
-                       ParsedDeviceProperties& properties) -> int override;
+                       ParsedDeviceProperties& properties) const
+      -> int override;
 
 private:
   /**

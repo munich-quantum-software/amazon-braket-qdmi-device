@@ -347,7 +347,7 @@ auto parseExecutionWindowTime(const std::string& timeStr, int& secondsOfDay)
         seconds > 59) {
       return false;
     }
-    secondsOfDay = hours * 60 * 60 + minutes * 60 + seconds;
+    secondsOfDay = (hours * 60 * 60) + (minutes * 60) + seconds;
   } catch (...) {
     return false;
   }
@@ -365,25 +365,28 @@ auto executionDayMatches(const std::string& executionDay, const int dayOfWeek)
   if (executionDay == "Weekend") {
     return dayOfWeek == 0 || dayOfWeek == 6;
   }
-  static const std::array<const char*, 7> dayNames = {
+  static const std::array<const char*, 7> DAY_NAMES = {
       "Sunday",   "Monday", "Tuesday", "Wednesday",
       "Thursday", "Friday", "Saturday"};
-  return dayOfWeek >= 0 && dayOfWeek < static_cast<int>(dayNames.size()) &&
-         executionDay == dayNames[static_cast<size_t>(dayOfWeek)];
+  if (dayOfWeek < 0) {
+    return false;
+  }
+  const auto dayIndex = static_cast<size_t>(dayOfWeek);
+  return dayIndex < DAY_NAMES.size() && executionDay == DAY_NAMES[dayIndex];
 }
 
 auto getCurrentUtcTimeOfWeek() -> UtcTimeOfWeek {
   const auto now = std::chrono::system_clock::now();
   const std::time_t nowTime = std::chrono::system_clock::to_time_t(now);
   std::tm utcTime{};
-#if defined(_WIN32)
+#ifdef _WIN32
   gmtime_s(&utcTime, &nowTime);
 #else
   gmtime_r(&nowTime, &utcTime);
 #endif
   return {.dayOfWeek = utcTime.tm_wday,
-          .secondOfDay =
-              utcTime.tm_hour * 60 * 60 + utcTime.tm_min * 60 + utcTime.tm_sec};
+          .secondOfDay = (utcTime.tm_hour * 60 * 60) + (utcTime.tm_min * 60) +
+                         utcTime.tm_sec};
 }
 
 auto isTimeInExecutionWindow(const std::string& executionDay,
@@ -454,7 +457,6 @@ auto getCurrentExecutionWindowAvailability(
 }
 
 auto getQDMIStatusForAvailableBraketDevice(
-    const bool hasReservationArn,
     const std::optional<bool>& executionWindowAvailability,
     const int queueDepth) -> QDMI_Device_Status {
   const bool isOutsideExecutionWindow =
@@ -481,18 +483,18 @@ auto getQDMIStatusForBraketDevice(
 
 namespace amazon::braket::qdmi {
 
-auto getQDMIStatusForBraketDevice(
+AMAZON_BRAKET_QDMI_EXPORT auto getQDMIStatusForBraketDevice(
     const Aws::Braket::Model::DeviceStatus braketStatus,
     const std::optional<bool> executionWindowAvailability, const int queueDepth,
     const bool hasReservationArn) -> std::optional<QDMI_Device_Status> {
   switch (braketStatus) {
   case Aws::Braket::Model::DeviceStatus::ONLINE:
-    return getQDMIStatusForAvailableBraketDevice(
-        hasReservationArn, executionWindowAvailability, queueDepth);
+    return getQDMIStatusForAvailableBraketDevice(executionWindowAvailability,
+                                                 queueDepth);
   case Aws::Braket::Model::DeviceStatus::OFFLINE:
     if (hasReservationArn || executionWindowAvailability.has_value()) {
-      return getQDMIStatusForAvailableBraketDevice(
-          hasReservationArn, executionWindowAvailability, queueDepth);
+      return getQDMIStatusForAvailableBraketDevice(executionWindowAvailability,
+                                                   queueDepth);
     }
     return QDMI_DEVICE_STATUS_MAINTENANCE;
   case Aws::Braket::Model::DeviceStatus::RETIRED:
@@ -1064,7 +1066,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
        param == QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX ||
        param == QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN);
 
-  if ((value != nullptr && size == 0) ||
+  if (value == nullptr || size == 0 ||
       (!isStandardParam && !isDefinedCustomParam)) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
