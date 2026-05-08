@@ -191,6 +191,7 @@ public:
 
   auto sessionAlloc(AMAZON_BRAKET_QDMI_Device_Session* session) -> QDMI_STATUS;
   auto sessionFree(AMAZON_BRAKET_QDMI_Device_Session session) -> void;
+  auto clear() -> void;
   static auto queryProperty(QDMI_Device_Property prop, size_t size, void* value,
                             size_t* sizeRet) -> QDMI_STATUS;
   auto generateUniqueID() -> int;

@@ -542,6 +542,17 @@ auto Device::sessionFree(AMAZON_BRAKET_QDMI_Device_Session session) -> void {
   }
 }
 
+auto Device::clear() -> void {
+  {
+    const std::scoped_lock<std::mutex> lock(sessionsMutex_);
+    sessions_.clear();
+  }
+  {
+    const std::scoped_lock<std::mutex> lock(deviceCacheMutex_);
+    deviceCache_.clear();
+  }
+}
+
 auto Device::queryProperty(const QDMI_Device_Property prop, const size_t size,
                            void* value, size_t* sizeRet) -> QDMI_STATUS {
   // Validate arguments and reject MAX sentinel value
@@ -1729,6 +1740,7 @@ int AMAZON_BRAKET_QDMI_device_initialize() {
 int AMAZON_BRAKET_QDMI_device_finalize() {
   const std::scoped_lock lock(gAWSInitMutex);
   if (gAWSInitialized) {
+    amazon::braket::qdmi::Device::get().clear();
     Aws::ShutdownAPI(gAWSOptions);
     gAWSInitialized = false;
   }
