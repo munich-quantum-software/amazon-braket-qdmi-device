@@ -43,8 +43,10 @@ target_link_libraries(
                                    qdmi::qdmi_project_warnings)
 
 if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
-  target_link_libraries(${QDMI_TEST_TARGET_NAME} PRIVATE AWS::aws-cpp-sdk-core
-                                                         AWS::aws-cpp-sdk-braket)
+  target_link_libraries(${QDMI_TEST_TARGET_NAME} PRIVATE AWS::aws-cpp-sdk-core)
+  target_include_directories(
+    ${QDMI_TEST_TARGET_NAME}
+    PRIVATE $<TARGET_PROPERTY:AWS::aws-cpp-sdk-braket,INTERFACE_INCLUDE_DIRECTORIES>)
 endif()
 
 # set c++ standard

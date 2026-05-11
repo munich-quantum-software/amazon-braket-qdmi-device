@@ -43,7 +43,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libcurl4-openssl-dev
+          sudo apt-get install -y gdb libcurl4-openssl-dev
       # Set up ccache for faster C++ builds
       - name: Setup ccache
         uses: Chocobo1/setup-ccache-action@7e813cbdf161f77737576f5c370b2810dbae058c # v1.5.7
@@ -66,4 +66,37 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEVICE_ARN: ${{ inputs.device-arn }}
-        run: ctest --output-on-failure --test-dir build --timeout 600 --repeat after-timeout:3
+        run: |
+          set +e
+          ctest --output-on-failure --test-dir build --timeout 600 --repeat after-timeout:3 --verbose
+          status=$?
+          set -e
+
+          if [ "$status" -ne 0 ]; then
+            test_bin="$(find build -type f -name amazon-braket-qdmi-device-test -perm -111 | head -n 1)"
+            if [ -n "$test_bin" ]; then
+              echo "::group::gdb backtrace: local BraketClient initialization"
+              gdb --batch \
+                --ex "set pagination off" \
+                --ex run \
+                --ex "thread apply all bt full" \
+                --args "$test_bin" \
+                  --gtest_filter=AmazonBraketQDMILocalJobTest.JobCreate \
+                  --gtest_also_run_disabled_tests || true
+              echo "::endgroup::"
+
+              echo "::group::gdb backtrace: AWS device parsing"
+              gdb --batch \
+                --ex "set pagination off" \
+                --ex run \
+                --ex "thread apply all bt full" \
+                --args "$test_bin" \
+                  --gtest_filter=DeviceParsingTestFixture.SV1SimulatorParsing \
+                  --gtest_also_run_disabled_tests || true
+              echo "::endgroup::"
+            else
+              echo "Could not find amazon-braket-qdmi-device-test for gdb rerun"
+            fi
+          fi
+
+          exit "$status"

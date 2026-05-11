@@ -1069,7 +1069,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
     const QDMI_Device_Job_Parameter param, const size_t size, const void* value)
     -> QDMI_STATUS {
   // Validate parameter: must be standard QDMI param or one of the specifically
-  // defined custom params (OUTPUTS3BUCKET, OUTPUTS3PREFIX)
+  // defined custom params (OUTPUTS3BUCKET, OUTPUTS3PREFIX, RESERVATION_ARN)
   const bool isStandardParam = param < QDMI_DEVICE_JOB_PARAMETER_MAX;
   const bool isDefinedCustomParam =
       (param == QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET ||
