@@ -668,6 +668,12 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
                 << static_cast<int>(braketStatus) << ")\n";
       return QDMI_ERROR_NOTSUPPORTED;
     }
+    if (*qdmiStatus == QDMI_DEVICE_STATUS_OFFLINE) {
+      std::cerr << "ERROR: Device " << device.GetDeviceName()
+                << " is RETIRED and permanently unavailable.\n";
+      std::cerr << "Please update your device ARN to a newer generation.\n";
+      return QDMI_ERROR_NOTSUPPORTED;
+    }
     braketDeviceStatus_.store(*qdmiStatus);
     return QDMI_SUCCESS;
   }
