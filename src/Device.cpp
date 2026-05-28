@@ -1042,7 +1042,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
        param == QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX ||
        param == QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN);
 
-  if (value == nullptr || size == 0 ||
+  if ((value != nullptr && size == 0) ||
       (!isStandardParam && !isDefinedCustomParam)) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
