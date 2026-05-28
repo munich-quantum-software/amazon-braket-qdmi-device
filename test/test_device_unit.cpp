@@ -986,33 +986,37 @@ TEST_F(AmazonBraketQDMILocalJobTest,
 }
 
 TEST(DeviceStatusMappingTest, OfflineIsMaintenance) {
-  const auto status = amazon::braket::qdmi::getQDMIStatusForBraketDevice(
-      Aws::Braket::Model::DeviceStatus::OFFLINE, std::nullopt,
-      /*queueDepth=*/0);
+  const auto status =
+      amazon::braket::qdmi::detail::getQDMIStatusForBraketDevice(
+          Aws::Braket::Model::DeviceStatus::OFFLINE, std::nullopt,
+          /*queueDepth=*/0);
   ASSERT_TRUE(status.has_value());
   EXPECT_EQ(*status, QDMI_DEVICE_STATUS_MAINTENANCE);
 }
 
 TEST(DeviceStatusMappingTest, RetiredIsOffline) {
-  const auto status = amazon::braket::qdmi::getQDMIStatusForBraketDevice(
-      Aws::Braket::Model::DeviceStatus::RETIRED, std::nullopt,
-      /*queueDepth=*/0);
+  const auto status =
+      amazon::braket::qdmi::detail::getQDMIStatusForBraketDevice(
+          Aws::Braket::Model::DeviceStatus::RETIRED, std::nullopt,
+          /*queueDepth=*/0);
   ASSERT_TRUE(status.has_value());
   EXPECT_EQ(*status, QDMI_DEVICE_STATUS_OFFLINE);
 }
 
 TEST(DeviceStatusMappingTest, OnlineStatusUsesQueueWhenWindowIsNotChecked) {
-  const auto status = amazon::braket::qdmi::getQDMIStatusForBraketDevice(
-      Aws::Braket::Model::DeviceStatus::ONLINE, std::nullopt,
-      /*queueDepth=*/0);
+  const auto status =
+      amazon::braket::qdmi::detail::getQDMIStatusForBraketDevice(
+          Aws::Braket::Model::DeviceStatus::ONLINE, std::nullopt,
+          /*queueDepth=*/0);
   ASSERT_TRUE(status.has_value());
   EXPECT_EQ(*status, QDMI_DEVICE_STATUS_IDLE);
 }
 
 TEST(DeviceStatusMappingTest, QueueThresholdBusyWhenWindowIsNotChecked) {
-  const auto status = amazon::braket::qdmi::getQDMIStatusForBraketDevice(
-      Aws::Braket::Model::DeviceStatus::ONLINE, std::nullopt,
-      /*queueDepth=*/5);
+  const auto status =
+      amazon::braket::qdmi::detail::getQDMIStatusForBraketDevice(
+          Aws::Braket::Model::DeviceStatus::ONLINE, std::nullopt,
+          /*queueDepth=*/5);
   ASSERT_TRUE(status.has_value());
   EXPECT_EQ(*status, QDMI_DEVICE_STATUS_BUSY);
 }

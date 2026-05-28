@@ -100,11 +100,43 @@ struct AMAZON_BRAKET_QDMI_Device_Job_impl_d;
 
 namespace amazon::braket::qdmi {
 
-AMAZON_BRAKET_QDMI_EXPORT auto
-getQDMIStatusForBraketDevice(Aws::Braket::Model::DeviceStatus braketStatus,
-                             std::optional<bool> executionWindowAvailability,
-                             int queueDepth)
-    -> std::optional<QDMI_Device_Status>;
+namespace detail {
+
+/**
+ * @brief Threshold for considering an ONLINE device as BUSY.
+ *
+ * If the total number of queued quantum tasks across all queue entries
+ * is >= this value, the device is reported as QDMI_DEVICE_STATUS_BUSY.
+ * Below this value (within an execution window) the device is reported as
+ * QDMI_DEVICE_STATUS_IDLE.
+ */
+inline constexpr int QUEUE_BUSY_THRESHOLD = 5;
+
+inline auto getQDMIStatusForBraketDevice(
+    const Aws::Braket::Model::DeviceStatus braketStatus,
+    const std::optional<bool>& executionWindowAvailability,
+    const int queueDepth) -> std::optional<QDMI_Device_Status> {
+  switch (braketStatus) {
+  case Aws::Braket::Model::DeviceStatus::ONLINE: {
+    const bool isOutsideExecutionWindow =
+        executionWindowAvailability.has_value() &&
+        !*executionWindowAvailability;
+    if (isOutsideExecutionWindow || queueDepth >= QUEUE_BUSY_THRESHOLD) {
+      return QDMI_DEVICE_STATUS_BUSY;
+    }
+    return QDMI_DEVICE_STATUS_IDLE;
+  }
+  case Aws::Braket::Model::DeviceStatus::OFFLINE:
+    return QDMI_DEVICE_STATUS_MAINTENANCE;
+  case Aws::Braket::Model::DeviceStatus::RETIRED:
+    return QDMI_DEVICE_STATUS_OFFLINE;
+  case Aws::Braket::Model::DeviceStatus::NOT_SET:
+  default:
+    return std::nullopt;
+  }
+}
+
+} // namespace detail
 
 /**
  * @brief Device architecture data.
