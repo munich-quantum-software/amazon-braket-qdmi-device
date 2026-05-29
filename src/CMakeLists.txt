@@ -91,10 +91,11 @@ target_link_libraries(
 
 # Prevent Linux symbol interposition: the AWS SDK static libs are absorbed into the .so with default
 # visibility, so a consumer that also links the SDK directly gets its uninitialised CRT copy
-# interposed — crashing on aarch64 inside aws_sha256_hmac_default_new. `-Bsymbolic-functions` makes
-# the .so resolve all internal function calls to its own copies, bypassing the PLT.
+# interposed — crashing on aarch64 inside aws_sha256_hmac_default_new. -Bsymbolic covers both PLT
+# function calls and data symbols (vtables), keeping all internal references self-contained in the
+# .so file.
 if(UNIX AND NOT APPLE)
-  target_link_options(${QDMI_TARGET_NAME} PRIVATE -Wl,-Bsymbolic-functions)
+  target_link_options(${QDMI_TARGET_NAME} PRIVATE -Wl,-Bsymbolic)
 endif()
 
 option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
