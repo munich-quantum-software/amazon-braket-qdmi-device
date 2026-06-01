@@ -77,7 +77,6 @@
 #include <aws/braket/model/GetDeviceResult.h>
 #include <aws/braket/model/GetQuantumTaskRequest.h>
 #include <aws/braket/model/QuantumTaskStatus.h>
-#include <aws/braket/model/SearchDevicesFilter.h>
 #include <aws/core/Aws.h>
 #include <aws/core/auth/AWSCredentials.h>
 #include <aws/core/client/ClientConfiguration.h>
@@ -292,6 +291,16 @@ struct UtcTimeOfWeek {
 };
 
 /**
+ * @brief Threshold for considering an ONLINE device as BUSY.
+ *
+ * If the total number of queued quantum tasks across all queue entries
+ * is >= this value, the device is reported as QDMI_DEVICE_STATUS_BUSY.
+ * Below this value (within an execution window) the device is reported as
+ * QDMI_DEVICE_STATUS_IDLE.
+ */
+constexpr int QUEUE_BUSY_THRESHOLD = 5;
+
+/**
  * @brief Compute total queue depth from a Braket GetDevice result.
  *
  * Sums the `queueSize` field across all entries in `deviceQueueInfo`.
@@ -312,7 +321,7 @@ auto getTotalQueueDepth(const Aws::Braket::Model::GetDeviceResult& result)
     } catch (...) {
       // Non-integer strings like ">50" indicate a busy queue; treat as
       // threshold to ensure the device is reported as BUSY.
-      totalDepth += amazon::braket::qdmi::detail::QUEUE_BUSY_THRESHOLD;
+      totalDepth += QUEUE_BUSY_THRESHOLD;
     }
   }
   return totalDepth;
@@ -448,6 +457,30 @@ auto getCurrentExecutionWindowAvailability(
   return anyWindowParsed ? std::optional<bool>{false} : std::nullopt;
 }
 
+auto getQDMIStatusForBraketDevice(
+    const Aws::Braket::Model::DeviceStatus braketStatus,
+    const std::optional<bool>& executionWindowAvailability,
+    const int queueDepth) -> std::optional<QDMI_Device_Status> {
+  switch (braketStatus) {
+  case Aws::Braket::Model::DeviceStatus::ONLINE: {
+    const bool isOutsideExecutionWindow =
+        executionWindowAvailability.has_value() &&
+        !*executionWindowAvailability;
+    if (isOutsideExecutionWindow || queueDepth >= QUEUE_BUSY_THRESHOLD) {
+      return QDMI_DEVICE_STATUS_BUSY;
+    }
+    return QDMI_DEVICE_STATUS_IDLE;
+  }
+  case Aws::Braket::Model::DeviceStatus::OFFLINE:
+    return QDMI_DEVICE_STATUS_MAINTENANCE;
+  case Aws::Braket::Model::DeviceStatus::RETIRED:
+    return QDMI_DEVICE_STATUS_OFFLINE;
+  case Aws::Braket::Model::DeviceStatus::NOT_SET:
+  default:
+    return std::nullopt;
+  }
+}
+
 auto computeQDMIStatusFromDevice(
     const Aws::Braket::Model::GetDeviceResult& device,
     const bool hasReservationArn) -> std::optional<QDMI_Device_Status> {
@@ -456,9 +489,9 @@ auto computeQDMIStatusFromDevice(
     executionWindowAvailability =
         getCurrentExecutionWindowAvailability(device.GetDeviceCapabilities());
   }
-  return amazon::braket::qdmi::detail::getQDMIStatusForBraketDevice(
-      device.GetDeviceStatus(), executionWindowAvailability,
-      getTotalQueueDepth(device));
+  return getQDMIStatusForBraketDevice(device.GetDeviceStatus(),
+                                      executionWindowAvailability,
+                                      getTotalQueueDepth(device));
 }
 } // anonymous namespace
 
