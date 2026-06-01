@@ -89,15 +89,6 @@ target_link_libraries(
   ${QDMI_TARGET_NAME} PRIVATE AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket
                               qdmi::qdmi_project_warnings ${QDMI_PARSER_OBJECTS})
 
-# Prevent Linux symbol interposition: the AWS SDK static libs are absorbed into the .so with default
-# visibility, so a consumer that also links the SDK directly gets its uninitialised CRT copy
-# interposed — crashing on aarch64 inside aws_sha256_hmac_default_new. -Bsymbolic covers both PLT
-# function calls and data symbols (vtables), keeping all internal references self-contained in the
-# .so file.
-if(UNIX AND NOT APPLE)
-  target_link_options(${QDMI_TARGET_NAME} PRIVATE -Wl,-Bsymbolic)
-endif()
-
 option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
 if(ENABLE_COVERAGE)
   target_link_libraries(${QDMI_TARGET_NAME} PRIVATE qdmi::qdmi_coverage_flags)
