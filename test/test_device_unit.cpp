@@ -175,61 +175,62 @@ TEST_F(AmazonBraketQDMIOfflineTest, SessionInitNonexistentCredentialsFile) {
 
 // alloc(nullptr) must return INVALIDARGUMENT.
 TEST_F(AmazonBraketQDMIOfflineTest, SessionAllocNullptr) {
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(
-                nullptr), // NOLINT(clang-diagnostic-nonnull)
+  AMAZON_BRAKET_QDMI_Device_Session* nullSessionOut = nullptr;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(nullSessionOut),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 // init(nullptr) must return INVALIDARGUMENT.
 TEST_F(AmazonBraketQDMIOfflineTest, SessionInitNullptr) {
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(
-                nullptr), // NOLINT(clang-diagnostic-nonnull)
+  AMAZON_BRAKET_QDMI_Device_Session nullSession = nullptr;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(nullSession),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 // job API functions with a null job handle must all return INVALIDARGUMENT.
 TEST_F(AmazonBraketQDMIOfflineTest, JobSetParameterNullptr) {
+  AMAZON_BRAKET_QDMI_Device_Job nullJob = nullptr;
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                nullptr, QDMI_DEVICE_JOB_PARAMETER_MAX, 0,
-                nullptr), // NOLINT(clang-diagnostic-nonnull)
+                nullJob, QDMI_DEVICE_JOB_PARAMETER_MAX, 0, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest, JobQueryPropertyNullptr) {
+  AMAZON_BRAKET_QDMI_Device_Job nullJob = nullptr;
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
-                nullptr, QDMI_DEVICE_JOB_PROPERTY_MAX, 0, nullptr,
-                nullptr), // NOLINT(clang-diagnostic-nonnull)
+                nullJob, QDMI_DEVICE_JOB_PROPERTY_MAX, 0, nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest, JobSubmitNullptr) {
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(
-                nullptr), // NOLINT(clang-diagnostic-nonnull)
+  AMAZON_BRAKET_QDMI_Device_Job nullJob = nullptr;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(nullJob),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest, JobCancelNullptr) {
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_cancel(
-                nullptr), // NOLINT(clang-diagnostic-nonnull)
+  AMAZON_BRAKET_QDMI_Device_Job nullJob = nullptr;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_cancel(nullJob),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest, JobCheckNullptr) {
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(
-                nullptr, nullptr), // NOLINT(clang-diagnostic-nonnull)
+  AMAZON_BRAKET_QDMI_Device_Job nullJob = nullptr;
+  QDMI_Job_Status* nullStatusOut = nullptr;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(nullJob, nullStatusOut),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest, JobWaitNullptr) {
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(
-                nullptr, 0), // NOLINT(clang-diagnostic-nonnull)
+  AMAZON_BRAKET_QDMI_Device_Job nullJob = nullptr;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(nullJob, 0),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest, JobGetResultsNullptr) {
+  AMAZON_BRAKET_QDMI_Device_Job nullJob = nullptr;
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
-                nullptr, QDMI_JOB_RESULT_MAX, 0, nullptr,
-                nullptr), // NOLINT(clang-diagnostic-nonnull)
+                nullJob, QDMI_JOB_RESULT_MAX, 0, nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
@@ -295,12 +296,31 @@ TEST_F(AmazonBraketQDMIOfflineTest,
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
+TEST_F(AmazonBraketQDMIOfflineTest,
+       SessionSetParameterReservationArnNotNullTerminated) {
+  const std::array<char, 7> notTerminated = {'a', 'r', 'n', ':', 'a', 'w', 's'};
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
+                notTerminated.size(), notTerminated.data()),
+            QDMI_ERROR_INVALIDARGUMENT);
+}
+
 // Region is optional and must be accepted without error when valid.
 TEST_F(AmazonBraketQDMIOfflineTest, SessionSetParameterRegionValid) {
   const char* region = "eu-north-1";
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 session, QDMI_DEVICE_SESSION_PARAMETER_REGION,
                 strlen(region) + 1, region),
+            QDMI_SUCCESS);
+}
+
+TEST_F(AmazonBraketQDMIOfflineTest, SessionSetParameterReservationArnValid) {
+  const char* reservationArn =
+      "arn:aws:braket:us-east-1:123456789012:reservation/"
+      "a1b2c3d4-5678-90ab-cdef-1234567890ab";
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
+                strlen(reservationArn) + 1, reservationArn),
             QDMI_SUCCESS);
 }
 
@@ -329,6 +349,13 @@ TEST_F(AmazonBraketQDMILocalJobTest, SessionSetParameter) {
                 session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL, 20,
                 "https://example.com"),
             QDMI_ERROR_BADSTATE);
+  const char* reservationArn =
+      "arn:aws:braket:us-east-1:123456789012:reservation/"
+      "a1b2c3d4-5678-90ab-cdef-1234567890ab";
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
+                strlen(reservationArn) + 1, reservationArn),
+            QDMI_ERROR_BADSTATE);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 session, QDMI_DEVICE_SESSION_PARAMETER_MAX, 0, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
@@ -346,8 +373,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, SessionCredentialsFile) {
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 credsSession, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
                 strlen(credsFile) + 1, credsFile),
-            QDMI_SUCCESS)
-      << "Failed to set credentials file parameter";
+            QDMI_SUCCESS);
 
   const char* deviceArn =
       "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
@@ -843,6 +869,119 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSubmitNoS3Bucket) {
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
+TEST_F(AmazonBraketQDMILocalJobTest,
+       JobSubmitNoS3BucketWithSessionReservationArn) {
+  AMAZON_BRAKET_QDMI_Device_Session reservedSession = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&reservedSession),
+            QDMI_SUCCESS);
+
+  const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
+                strlen(accessKey) + 1, accessKey),
+            QDMI_SUCCESS);
+  const char* secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
+                strlen(secretKey) + 1, secretKey),
+            QDMI_SUCCESS);
+  const char* deviceArn =
+      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                strlen(deviceArn) + 1, deviceArn),
+            QDMI_SUCCESS);
+  const char* reservationArn =
+      "arn:aws:braket:us-east-1:123456789012:reservation/"
+      "a1b2c3d4-5678-90ab-cdef-1234567890ab";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
+                strlen(reservationArn) + 1, reservationArn),
+            QDMI_SUCCESS);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_init(reservedSession),
+            QDMI_SUCCESS);
+
+  AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(reservedSession,
+                                                                &freshJob),
+            QDMI_SUCCESS);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                freshJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
+                strlen(BELL_STATE_PROGRAM) + 1, BELL_STATE_PROGRAM),
+            QDMI_SUCCESS);
+
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(freshJob),
+            QDMI_ERROR_INVALIDARGUMENT);
+
+  QDMI_Job_Status status = QDMI_JOB_STATUS_CREATED;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(freshJob, &status),
+            QDMI_SUCCESS);
+  EXPECT_EQ(status, QDMI_JOB_STATUS_FAILED);
+
+  AMAZON_BRAKET_QDMI_device_job_free(freshJob);
+  AMAZON_BRAKET_QDMI_device_session_free(reservedSession);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       JobSubmitWithBothReservationArnsNoS3BucketFails) {
+  AMAZON_BRAKET_QDMI_Device_Session reservedSession = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&reservedSession),
+            QDMI_SUCCESS);
+
+  const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
+                strlen(accessKey) + 1, accessKey),
+            QDMI_SUCCESS);
+  const char* secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
+                strlen(secretKey) + 1, secretKey),
+            QDMI_SUCCESS);
+  const char* deviceArn =
+      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                strlen(deviceArn) + 1, deviceArn),
+            QDMI_SUCCESS);
+  const char* sessionReservationArn =
+      "arn:aws:braket:us-east-1:123456789012:reservation/"
+      "a1b2c3d4-5678-90ab-cdef-1234567890ab";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
+                strlen(sessionReservationArn) + 1, sessionReservationArn),
+            QDMI_SUCCESS);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_init(reservedSession),
+            QDMI_SUCCESS);
+
+  AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(reservedSession,
+                                                                &freshJob),
+            QDMI_SUCCESS);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                freshJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
+                strlen(BELL_STATE_PROGRAM) + 1, BELL_STATE_PROGRAM),
+            QDMI_SUCCESS);
+  const char* jobReservationArn =
+      "arn:aws:braket:us-east-1:123456789012:reservation/"
+      "b2c3d4e5-6789-0abc-def1-234567890abc";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                freshJob, QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN,
+                strlen(jobReservationArn) + 1, jobReservationArn),
+            QDMI_SUCCESS);
+
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(freshJob),
+            QDMI_ERROR_INVALIDARGUMENT);
+
+  QDMI_Job_Status status = QDMI_JOB_STATUS_CREATED;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(freshJob, &status),
+            QDMI_SUCCESS);
+  EXPECT_EQ(status, QDMI_JOB_STATUS_FAILED);
+
+  AMAZON_BRAKET_QDMI_device_job_free(freshJob);
+  AMAZON_BRAKET_QDMI_device_session_free(reservedSession);
+}
+
 // =============================================================================
 // DeviceParser offline error-path tests
 // =============================================================================
@@ -852,20 +991,20 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSubmitNoS3Bucket) {
 // IQMDeviceParser. No AWS credentials or network calls are needed.
 
 TEST(DeviceParserOfflineTest, SimulatorMissingParadigm) {
-  SimulatorPropertiesParser parser;
+  const SimulatorPropertiesParser parser;
   ParsedDeviceProperties props;
   EXPECT_EQ(parser.ParseProperties(R"({})", props), QDMI_ERROR_FATAL);
 }
 
 TEST(DeviceParserOfflineTest, SimulatorParadigmMissingQubitCount) {
-  SimulatorPropertiesParser parser;
+  const SimulatorPropertiesParser parser;
   ParsedDeviceProperties props;
   EXPECT_EQ(parser.ParseProperties(R"({"paradigm":{}})", props),
             QDMI_ERROR_FATAL);
 }
 
 TEST(DeviceParserOfflineTest, SimulatorMissingAction) {
-  SimulatorPropertiesParser parser;
+  const SimulatorPropertiesParser parser;
   ParsedDeviceProperties props;
   EXPECT_EQ(
       parser.ParseProperties(
@@ -875,7 +1014,7 @@ TEST(DeviceParserOfflineTest, SimulatorMissingAction) {
 }
 
 TEST(DeviceParserOfflineTest, SimulatorActionMissingOpenQASMProgram) {
-  SimulatorPropertiesParser parser;
+  const SimulatorPropertiesParser parser;
   ParsedDeviceProperties props;
   EXPECT_EQ(
       parser.ParseProperties(
@@ -886,7 +1025,7 @@ TEST(DeviceParserOfflineTest, SimulatorActionMissingOpenQASMProgram) {
 
 TEST(DeviceParserOfflineTest,
      SimulatorOpenQASMProgramMissingSupportedOperations) {
-  SimulatorPropertiesParser parser;
+  const SimulatorPropertiesParser parser;
   ParsedDeviceProperties props;
   EXPECT_EQ(
       parser.ParseProperties(
@@ -896,14 +1035,14 @@ TEST(DeviceParserOfflineTest,
 }
 
 TEST(DeviceParserOfflineTest, IQMMissingConnectivity) {
-  IQMDeviceParser parser;
+  const IQMDeviceParser parser;
   ParsedDeviceProperties props;
   EXPECT_EQ(parser.ParseProperties(R"({"paradigm":{"qubitCount":5}})", props),
             QDMI_ERROR_FATAL);
 }
 
 TEST(DeviceParserOfflineTest, IQMConnectivityMissingGraph) {
-  IQMDeviceParser parser;
+  const IQMDeviceParser parser;
   ParsedDeviceProperties props;
   EXPECT_EQ(parser.ParseProperties(
                 R"({"paradigm":{"qubitCount":5,"connectivity":{}}})", props),
@@ -911,7 +1050,7 @@ TEST(DeviceParserOfflineTest, IQMConnectivityMissingGraph) {
 }
 
 TEST(DeviceParserOfflineTest, IQMNonNumericQubitID) {
-  IQMDeviceParser parser;
+  const IQMDeviceParser parser;
   ParsedDeviceProperties props;
   EXPECT_EQ(
       parser.ParseProperties(

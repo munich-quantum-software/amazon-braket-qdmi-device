@@ -65,6 +65,7 @@
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
 
+#include <array>
 #include <aws/braket/BraketClient.h>
 #include <aws/braket/model/Association.h>
 #include <aws/braket/model/AssociationType.h>
@@ -76,7 +77,6 @@
 #include <aws/braket/model/GetDeviceResult.h>
 #include <aws/braket/model/GetQuantumTaskRequest.h>
 #include <aws/braket/model/QuantumTaskStatus.h>
-#include <aws/braket/model/SearchDevicesFilter.h>
 #include <aws/core/Aws.h>
 #include <aws/core/auth/AWSCredentials.h>
 #include <aws/core/client/ClientConfiguration.h>
@@ -91,10 +91,12 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 #include <fstream>
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -283,13 +285,18 @@ auto parseCredentialsFile(const std::string& filePath, std::string& accessKeyId,
   return true;
 }
 
+struct UtcTimeOfWeek {
+  int dayOfWeek = 0; // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  int secondOfDay = 0;
+};
+
 /**
  * @brief Threshold for considering an ONLINE device as BUSY.
  *
  * If the total number of queued quantum tasks across all queue entries
  * is >= this value, the device is reported as QDMI_DEVICE_STATUS_BUSY.
- * Below this value, the device is reported as QDMI_DEVICE_STATUS_IDLE.
- *
+ * Below this value (within an execution window) the device is reported as
+ * QDMI_DEVICE_STATUS_IDLE.
  */
 constexpr int QUEUE_BUSY_THRESHOLD = 5;
 
@@ -318,6 +325,173 @@ auto getTotalQueueDepth(const Aws::Braket::Model::GetDeviceResult& result)
     }
   }
   return totalDepth;
+}
+
+auto parseExecutionWindowTime(const std::string& timeStr, int& secondsOfDay)
+    -> bool {
+  if (timeStr.size() != 5 && timeStr.size() != 8) {
+    return false;
+  }
+  if (timeStr[2] != ':' || (timeStr.size() == 8 && timeStr[5] != ':')) {
+    return false;
+  }
+
+  try {
+    const int hours = std::stoi(timeStr.substr(0, 2));
+    const int minutes = std::stoi(timeStr.substr(3, 2));
+    const int seconds =
+        timeStr.size() == 8 ? std::stoi(timeStr.substr(6, 2)) : 0;
+    if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59 || seconds < 0 ||
+        seconds > 59) {
+      return false;
+    }
+    secondsOfDay = (hours * 60 * 60) + (minutes * 60) + seconds;
+  } catch (...) {
+    return false;
+  }
+  return true;
+}
+
+auto executionDayMatches(const std::string& executionDay, const int dayOfWeek)
+    -> bool {
+  if (executionDay == "Everyday") {
+    return true;
+  }
+  if (executionDay == "Weekdays") {
+    return dayOfWeek >= 1 && dayOfWeek <= 5;
+  }
+  if (executionDay == "Weekend") {
+    return dayOfWeek == 0 || dayOfWeek == 6;
+  }
+  static const std::array<const char*, 7> DAY_NAMES = {
+      "Sunday",   "Monday", "Tuesday", "Wednesday",
+      "Thursday", "Friday", "Saturday"};
+  if (dayOfWeek < 0) {
+    return false;
+  }
+  const auto dayIndex = static_cast<size_t>(dayOfWeek);
+  return dayIndex < DAY_NAMES.size() && executionDay == DAY_NAMES[dayIndex];
+}
+
+auto getCurrentUtcTimeOfWeek() -> UtcTimeOfWeek {
+  const auto now = std::chrono::system_clock::now();
+  const std::time_t nowTime = std::chrono::system_clock::to_time_t(now);
+  std::tm utcTime{};
+#ifdef _WIN32
+  gmtime_s(&utcTime, &nowTime);
+#else
+  gmtime_r(&nowTime, &utcTime);
+#endif
+  return {.dayOfWeek = utcTime.tm_wday,
+          .secondOfDay = (utcTime.tm_hour * 60 * 60) + (utcTime.tm_min * 60) +
+                         utcTime.tm_sec};
+}
+
+auto isTimeInExecutionWindow(const std::string& executionDay,
+                             const int windowStart, const int windowEnd,
+                             const UtcTimeOfWeek& time) -> bool {
+  if (windowStart == windowEnd) {
+    // Braket execution windows with equal start/end times are interpreted
+    // as an all-day window for the matching executionDay
+    return executionDayMatches(executionDay, time.dayOfWeek);
+  }
+
+  if (windowStart < windowEnd) {
+    return executionDayMatches(executionDay, time.dayOfWeek) &&
+           time.secondOfDay >= windowStart && time.secondOfDay <= windowEnd;
+  }
+
+  const int previousDayOfWeek = (time.dayOfWeek + 6) % 7;
+  return (executionDayMatches(executionDay, time.dayOfWeek) &&
+          time.secondOfDay >= windowStart) ||
+         (executionDayMatches(executionDay, previousDayOfWeek) &&
+          time.secondOfDay <= windowEnd);
+}
+
+auto getCurrentExecutionWindowAvailability(
+    const Aws::String& deviceCapabilities) -> std::optional<bool> {
+  Aws::Utils::Json::JsonValue const json(deviceCapabilities);
+  if (!json.WasParseSuccessful()) {
+    return std::nullopt;
+  }
+
+  const auto propertiesJson = json.View();
+  if (!propertiesJson.ValueExists("service")) {
+    return std::nullopt;
+  }
+
+  const auto service = propertiesJson.GetObject("service");
+  if (!service.ValueExists("executionWindows")) {
+    return std::nullopt;
+  }
+
+  const auto executionWindows = service.GetArray("executionWindows");
+  if (executionWindows.GetLength() == 0) {
+    return std::nullopt;
+  }
+
+  const auto now = getCurrentUtcTimeOfWeek();
+  bool anyWindowParsed = false;
+  for (size_t i = 0; i < executionWindows.GetLength(); ++i) {
+    const auto window = executionWindows[i].AsObject();
+    if (!window.ValueExists("executionDay") ||
+        !window.ValueExists("windowStartHour") ||
+        !window.ValueExists("windowEndHour")) {
+      continue;
+    }
+
+    int windowStart = 0;
+    int windowEnd = 0;
+    if (!parseExecutionWindowTime(window.GetString("windowStartHour"),
+                                  windowStart) ||
+        !parseExecutionWindowTime(window.GetString("windowEndHour"),
+                                  windowEnd)) {
+      continue;
+    }
+    anyWindowParsed = true;
+    if (isTimeInExecutionWindow(window.GetString("executionDay"), windowStart,
+                                windowEnd, now)) {
+      return true;
+    }
+  }
+  return anyWindowParsed ? std::optional<bool>{false} : std::nullopt;
+}
+
+auto getQDMIStatusForBraketDevice(
+    const Aws::Braket::Model::DeviceStatus braketStatus,
+    const std::optional<bool>& executionWindowAvailability,
+    const int queueDepth) -> std::optional<QDMI_Device_Status> {
+  switch (braketStatus) {
+  case Aws::Braket::Model::DeviceStatus::ONLINE: {
+    const bool isOutsideExecutionWindow =
+        executionWindowAvailability.has_value() &&
+        !*executionWindowAvailability;
+    if (isOutsideExecutionWindow || queueDepth >= QUEUE_BUSY_THRESHOLD) {
+      return QDMI_DEVICE_STATUS_BUSY;
+    }
+    return QDMI_DEVICE_STATUS_IDLE;
+  }
+  case Aws::Braket::Model::DeviceStatus::OFFLINE:
+    return QDMI_DEVICE_STATUS_MAINTENANCE;
+  case Aws::Braket::Model::DeviceStatus::RETIRED:
+    return QDMI_DEVICE_STATUS_OFFLINE;
+  case Aws::Braket::Model::DeviceStatus::NOT_SET:
+  default:
+    return std::nullopt;
+  }
+}
+
+auto computeQDMIStatusFromDevice(
+    const Aws::Braket::Model::GetDeviceResult& device,
+    const bool hasReservationArn) -> std::optional<QDMI_Device_Status> {
+  std::optional<bool> executionWindowAvailability;
+  if (!hasReservationArn) {
+    executionWindowAvailability =
+        getCurrentExecutionWindowAvailability(device.GetDeviceCapabilities());
+  }
+  return getQDMIStatusForBraketDevice(device.GetDeviceStatus(),
+                                      executionWindowAvailability,
+                                      getTotalQueueDepth(device));
 }
 } // anonymous namespace
 
@@ -358,6 +532,17 @@ auto Device::sessionFree(AMAZON_BRAKET_QDMI_Device_Session session) -> void {
     if (const auto& it = sessions_.find(session); it != sessions_.end()) {
       sessions_.erase(it);
     }
+  }
+}
+
+auto Device::clear() -> void {
+  {
+    const std::scoped_lock<std::mutex> lock(sessionsMutex_);
+    sessions_.clear();
+  }
+  {
+    const std::scoped_lock<std::mutex> lock(deviceCacheMutex_);
+    deviceCache_.clear();
   }
 }
 
@@ -468,28 +653,21 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
       return QDMI_ERROR_NOTSUPPORTED;
     }
     const auto& device = outcome.GetResult();
-    const auto braketStatus = device.GetDeviceStatus();
-    switch (braketStatus) {
-    case Aws::Braket::Model::DeviceStatus::ONLINE: {
-      // Differentiate IDLE vs BUSY based on current queue depth
-      const int queueDepth = getTotalQueueDepth(device);
-      braketDeviceStatus_.store(queueDepth >= QUEUE_BUSY_THRESHOLD
-                                    ? QDMI_DEVICE_STATUS_BUSY
-                                    : QDMI_DEVICE_STATUS_IDLE);
-      break;
-    }
-    case Aws::Braket::Model::DeviceStatus::OFFLINE:
-      braketDeviceStatus_.store(QDMI_DEVICE_STATUS_MAINTENANCE);
-      break;
-    case Aws::Braket::Model::DeviceStatus::RETIRED:
-      braketDeviceStatus_.store(QDMI_DEVICE_STATUS_OFFLINE);
-      break;
-    case Aws::Braket::Model::DeviceStatus::NOT_SET:
-    default:
+    const auto qdmiStatus =
+        computeQDMIStatusFromDevice(device, !reservationArn_.empty());
+    if (!qdmiStatus.has_value()) {
+      const auto braketStatus = device.GetDeviceStatus();
       std::cerr << "ERROR: Unknown device status (enum value: "
                 << static_cast<int>(braketStatus) << ")\n";
       return QDMI_ERROR_NOTSUPPORTED;
     }
+    if (*qdmiStatus == QDMI_DEVICE_STATUS_OFFLINE) {
+      std::cerr << "ERROR: Device " << device.GetDeviceName()
+                << " is RETIRED and permanently unavailable.\n";
+      std::cerr << "Please update your device ARN to a newer generation.\n";
+      return QDMI_ERROR_NOTSUPPORTED;
+    }
+    braketDeviceStatus_.store(*qdmiStatus);
     return QDMI_SUCCESS;
   }
 
@@ -525,36 +703,20 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
   // QDMI has: OFFLINE, IDLE, BUSY, ERROR, MAINTENANCE, CALIBRATION
   const auto braketStatus = device.GetDeviceStatus();
 
-  switch (braketStatus) {
-  case Aws::Braket::Model::DeviceStatus::ONLINE: {
-    // Differentiate IDLE vs BUSY based on current queue depth.
-    // Device still accepts submissions in the BUSY state; this is
-    // purely informational.
-    const int queueDepth = getTotalQueueDepth(device);
-    braketDeviceStatus_.store(queueDepth >= QUEUE_BUSY_THRESHOLD
-                                  ? QDMI_DEVICE_STATUS_BUSY
-                                  : QDMI_DEVICE_STATUS_IDLE);
-    break;
+  const auto qdmiStatus =
+      computeQDMIStatusFromDevice(device, !reservationArn_.empty());
+  if (!qdmiStatus.has_value()) {
+    std::cerr << "ERROR: Unknown device status (enum value: "
+              << static_cast<int>(braketStatus) << ")\n";
+    return QDMI_ERROR_NOTSUPPORTED;
   }
+  braketDeviceStatus_.store(*qdmiStatus);
 
-  case Aws::Braket::Model::DeviceStatus::OFFLINE:
-    // Device is temporarily unavailable (maintenance/calibration),
-    // tasks will queue until it returns
-    braketDeviceStatus_.store(QDMI_DEVICE_STATUS_MAINTENANCE);
-    break;
-
-  case Aws::Braket::Model::DeviceStatus::RETIRED:
+  if (braketStatus == Aws::Braket::Model::DeviceStatus::RETIRED) {
     // Device is permanently decommissioned
-    braketDeviceStatus_.store(QDMI_DEVICE_STATUS_OFFLINE);
     std::cerr << "ERROR: Device " << device.GetDeviceName()
               << " is RETIRED and permanently unavailable.\n";
     std::cerr << "Please update your device ARN to a newer generation.\n";
-    return QDMI_ERROR_NOTSUPPORTED;
-
-  case Aws::Braket::Model::DeviceStatus::NOT_SET:
-  default:
-    std::cerr << "ERROR: Unknown device status (enum value: "
-              << static_cast<int>(braketStatus) << ")\n";
     return QDMI_ERROR_NOTSUPPORTED;
   }
 
@@ -646,6 +808,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
  * QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN (optional)
  *  - QDMI_DEVICE_SESSION_PARAMETER_REGION (defaults to value from ARN or
  * us-east-1)
+ *  - QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN (optional session default;
+ *    skips public execution-window status checks and is inherited by jobs)
  *
  *
  * @return QDMI_SUCCESS on successful initialization
@@ -743,10 +907,11 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
   }
 
   // Validate parameter: must be standard QDMI param or one of the specifically
-  // defined custom params (REGION)
+  // defined custom params (REGION, RESERVATION_ARN)
   const bool isStandardParam = param < QDMI_DEVICE_SESSION_PARAMETER_MAX;
   const bool isDefinedCustomParam =
-      (param == QDMI_DEVICE_SESSION_PARAMETER_REGION);
+      (param == QDMI_DEVICE_SESSION_PARAMETER_REGION ||
+       param == QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN);
 
   if (!isStandardParam && !isDefinedCustomParam) {
     return QDMI_ERROR_INVALIDARGUMENT;
@@ -763,6 +928,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
     SET_STRING(size, value, deviceArn_)
   case QDMI_DEVICE_SESSION_PARAMETER_REGION: // AWS Region (optional)
     SET_STRING(size, value, region_)
+  case QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN: // Reserved window
+    SET_STRING(size, value, reservationArn_)
   // Method 1: AWS Credentials File (AUTHFILE)
   // Supports standard AWS credentials file format with profiles
   case QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE:
@@ -901,7 +1068,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
     const QDMI_Device_Job_Parameter param, const size_t size, const void* value)
     -> QDMI_STATUS {
   // Validate parameter: must be standard QDMI param or one of the specifically
-  // defined custom params (OUTPUTS3BUCKET, OUTPUTS3PREFIX)
+  // defined custom params (OUTPUTS3BUCKET, OUTPUTS3PREFIX, RESERVATION_ARN)
   const bool isStandardParam = param < QDMI_DEVICE_JOB_PARAMETER_MAX;
   const bool isDefinedCustomParam =
       (param == QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET ||
@@ -1016,7 +1183,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
     localProgram = program_;
     localS3Bucket = jobS3Bucket_;
     localS3Prefix = jobS3Prefix_;
-    localReservationArn = reservationArn_;
+    localReservationArn = reservationArn_.empty()
+                              ? session_->getReservationArn()
+                              : reservationArn_;
     localShots = shots_;
   }
 
@@ -1061,7 +1230,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
   }
   request.SetOutputS3KeyPrefix(effectivePrefix);
 
-  // Attach reservation ARN when provided (routes task into dedicated window)
+  // Attach reservation ARN when provided (routes task into a reserved window).
+  // A job-level reservation overrides the session default.
   if (!localReservationArn.empty()) {
     Aws::Braket::Model::Association reservation;
     reservation.SetArn(localReservationArn);
@@ -1569,6 +1739,7 @@ int AMAZON_BRAKET_QDMI_device_initialize() {
 int AMAZON_BRAKET_QDMI_device_finalize() {
   const std::scoped_lock lock(gAWSInitMutex);
   if (gAWSInitialized) {
+    amazon::braket::qdmi::Device::get().clear();
     Aws::ShutdownAPI(gAWSOptions);
     gAWSInitialized = false;
   }

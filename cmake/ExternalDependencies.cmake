@@ -41,7 +41,7 @@ endif()
 # cmake-format: off
 set(QDMI_VERSION 1.3.0
         CACHE STRING "QDMI version")
-set(QDMI_REV "0f7e08c58b72800d1022a01cfb618af67b9a9c30" # v1.3.0
+set(QDMI_REV "416e648b83a99361a54719003f463dade9cf7c71" # v1.3.1
         CACHE STRING "QDMI identifier (tag, branch or commit hash)")
 set(QDMI_REPO_OWNER "Munich-Quantum-Software-Stack"
         CACHE STRING "QDMI repository owner (change when using a fork)")
@@ -58,11 +58,14 @@ set(BUILD_TESTING_PREV ${BUILD_TESTING})
 set(BUILD_SHARED_LIBS_PREV ${BUILD_SHARED_LIBS})
 if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
   set(AWSSDK_VERSION
-      1.11.752
+      1.11.817
       CACHE STRING "AWS SDK version")
   set(BUILD_TESTING
       OFF
       CACHE BOOL "Disable building unit and integration tests for AWS SDK" FORCE)
+  set(ENABLE_TESTING
+      OFF
+      CACHE BOOL "Disable AWS SDK test targets" FORCE)
   set(BUILD_SHARED_LIBS
       OFF
       CACHE BOOL "Disable building shared libraries for AWS SDK" FORCE)

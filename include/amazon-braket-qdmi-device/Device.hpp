@@ -73,7 +73,6 @@
 #pragma once
 
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
-#include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
 
 #include <atomic>
@@ -81,7 +80,6 @@
 #include <aws/braket/model/DeviceType.h>
 #include <aws/core/auth/AWSCredentials.h>
 #include <cstddef>
-#include <cstdint>
 #include <future>
 #include <limits>
 #include <map>
@@ -183,6 +181,7 @@ public:
 
   auto sessionAlloc(AMAZON_BRAKET_QDMI_Device_Session* session) -> QDMI_STATUS;
   auto sessionFree(AMAZON_BRAKET_QDMI_Device_Session session) -> void;
+  auto clear() -> void;
   static auto queryProperty(QDMI_Device_Property prop, size_t size, void* value,
                             size_t* sizeRet) -> QDMI_STATUS;
   auto generateUniqueID() -> int;
@@ -211,6 +210,7 @@ private:
 
   std::string region_;
   std::string deviceArn_;
+  std::string reservationArn_; // Optional - session default reserved window
 
   // AWS Credentials
   std::string credentialsFile_; // Path to AWS credentials file (INI format)
@@ -265,6 +265,9 @@ private:
     return deviceArn_;
   }
   [[nodiscard]] auto getRegion() const -> const std::string& { return region_; }
+  [[nodiscard]] auto getReservationArn() const -> const std::string& {
+    return reservationArn_;
+  }
   [[nodiscard]] auto getCredentials() const -> Aws::Auth::AWSCredentials {
     return Aws::Auth::AWSCredentials(accessKeyId_, secretAccessKey_,
                                      sessionToken_);

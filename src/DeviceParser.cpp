@@ -167,8 +167,8 @@ auto IDeviceParser::ParseOperationsFromOpenQASM(
 // ============================================================================
 
 auto SimulatorPropertiesParser::ParseProperties(
-    const std::string& propertiesJsonStr, ParsedDeviceProperties& properties)
-    -> int {
+    const std::string& propertiesJsonStr,
+    ParsedDeviceProperties& properties) const -> int {
   const Aws::Utils::Json::JsonValue jsonValue(propertiesJsonStr);
   if (!jsonValue.WasParseSuccessful()) {
     std::cerr << "Failed to parse device properties JSON\n";
@@ -215,7 +215,7 @@ auto SimulatorPropertiesParser::ParseProperties(
 // ============================================================================
 
 auto IQMDeviceParser::ParseProperties(const std::string& propertiesJsonStr,
-                                      ParsedDeviceProperties& properties)
+                                      ParsedDeviceProperties& properties) const
     -> int {
   const Aws::Utils::Json::JsonValue jsonValue(propertiesJsonStr);
   if (!jsonValue.WasParseSuccessful()) {
