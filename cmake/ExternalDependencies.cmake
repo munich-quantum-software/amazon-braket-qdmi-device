@@ -63,6 +63,9 @@ if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
   set(BUILD_TESTING
       OFF
       CACHE BOOL "Disable building unit and integration tests for AWS SDK" FORCE)
+  set(ENABLE_TESTING
+      OFF
+      CACHE BOOL "Disable AWS SDK test targets" FORCE)
   set(BUILD_SHARED_LIBS
       OFF
       CACHE BOOL "Disable building shared libraries for AWS SDK" FORCE)
