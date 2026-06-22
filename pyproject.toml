@@ -171,6 +171,22 @@ convention = "google"
 "test/python/**" = ["T20", "INP001"]
 
 
+[tool.typos]
+default.extend-ignore-re = [
+  "(?Rm)^.*(#|//)\\s*spellchecker:disable-line$",  # ignore line
+  "(?s)(#|//)\\s*spellchecker:off.*?\\n\\s*(#|//)\\s*spellchecker:on", # ignore block
+]
+
+[tool.typos.default.extend-words]
+wille = "wille"
+anc = "anc"
+braket = "braket"
+mch = "mch"
+ket = "ket"
+optin = "optin"
+nd = "nd"
+
+
 [tool.repo-review.ignore]
 GH200 = "We use Renovate instead of Dependabot"
 MY100 = "We use ty instead of mypy"
