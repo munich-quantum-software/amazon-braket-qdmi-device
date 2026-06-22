@@ -75,7 +75,6 @@ dev = [
   {include-group = "build"},
   {include-group = "test"},
   "nox>=2026.02.09",
-  "ty==0.0.40",
 ]
 
 
