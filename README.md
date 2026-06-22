@@ -8,7 +8,7 @@ This library enables **any QDMI-compliant quantum software** to run on Amazon Br
 
 ### What is QDMI?
 
-QDMI (Quantum Device Management Interface) is a standardized C API for quantum devices, developed among others by the [Munich Quantum Software Company](https://github.com/munich-quantum-software). It provides a vendor-neutral interface for:
+QDMI (Quantum Device Management Interface) is a standardized C API for quantum devices, developed among others by [MQSC](https://mq.sc). It provides a vendor-neutral interface for:
 
 - Querying device properties (e.g., qubit count, connectivity, gate sets)
 - Submitting quantum circuits (e.g., OpenQASM 2.0/3.0)
