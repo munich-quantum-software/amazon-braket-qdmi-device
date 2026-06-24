@@ -279,6 +279,7 @@ cmake --build build
 #include <amazon-braket-qdmi-device/constants.hpp>
 #include <cstring>
 #include <iostream>
+#include <vector>
 
 int main() {
     // Initialize the library
@@ -352,7 +353,28 @@ int main() {
     AMAZON_BRAKET_QDMI_device_job_check(job, &status);
     if (status == QDMI_JOB_STATUS_DONE) {
         std::cout << "Job completed successfully\n";
-        // Retrieve histogram results...
+
+        size_t keysSize = 0;
+        size_t valuesSize = 0;
+        AMAZON_BRAKET_QDMI_device_job_get_results(
+            job, QDMI_JOB_RESULT_HIST_KEYS, 0, nullptr, &keysSize);
+        AMAZON_BRAKET_QDMI_device_job_get_results(
+            job, QDMI_JOB_RESULT_HIST_VALUES, 0, nullptr, &valuesSize);
+
+        std::vector<char> keys(keysSize);
+        std::vector<size_t> counts(valuesSize / sizeof(size_t));
+        AMAZON_BRAKET_QDMI_device_job_get_results(
+            job, QDMI_JOB_RESULT_HIST_KEYS, keysSize, keys.data(), nullptr);
+        AMAZON_BRAKET_QDMI_device_job_get_results(
+            job, QDMI_JOB_RESULT_HIST_VALUES, valuesSize, counts.data(), nullptr);
+
+        std::cout << "Shot counts: {";
+        const char* key = keys.data();
+        for (size_t i = 0; i < counts.size(); ++i) {
+            std::cout << (i == 0 ? "" : ", ") << '"' << key << "\": " << counts[i];
+            key += std::strlen(key) + 1;
+        }
+        std::cout << "}\n";
     }
 
     // Cleanup
