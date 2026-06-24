@@ -204,14 +204,14 @@ AMAZON_BRAKET_QDMI_device_job_set_parameter(
 
 ## Job Parameters
 
-| Parameter                                   | Type                  | Required | Description                                                          |
-| ------------------------------------------- | --------------------- | -------- | -------------------------------------------------------------------- |
-| `QDMI_DEVICE_JOB_PARAMETER_PROGRAM`         | `char*`               | Yes      | OpenQASM circuit source                                              |
-| `QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT`   | `QDMI_Program_Format` | No       | QASM2 or QASM3; default QASM3                                        |
-| `QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM`        | `size_t`              | No       | Number of shots; defaults to 100                                     |
-| `QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET`  | `char*`               | Yes      | S3 bucket for quantum task results                                   |
-| `QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX`  | `char*`               | No       | S3 prefix for results; defaults to `<epoch-millis>`                  |
-| `QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN` | `char*`               | No       | Braket reservation ARN to route the task into a reserved time window |
+| Parameter                                   | Type                  | Required | Description                            |
+| ------------------------------------------- | --------------------- | -------- | -------------------------------------- |
+| `QDMI_DEVICE_JOB_PARAMETER_PROGRAM`         | `char*`               | Yes      | OpenQASM circuit source                |
+| `QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT`   | `QDMI_Program_Format` | No       | QASM2 or QASM3; default QASM3          |
+| `QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM`        | `size_t`              | No       | Number of shots; defaults to 100       |
+| `QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET`  | `char*`               | Yes      | S3 bucket for quantum task results     |
+| `QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX`  | `char*`               | No       | S3 prefix for results                  |
+| `QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN` | `char*`               | No       | Braket reservation ARN for time window |
 
 ### Installation
 
