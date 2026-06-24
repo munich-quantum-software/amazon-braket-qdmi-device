@@ -114,7 +114,7 @@ same process.
 
 **Method 2: Direct Parameters:**
 
-Use the QDMI custom parameters to specify credentials programmatically:
+Use QDMI session parameters to specify credentials programmatically:
 
 ```c
 #include <amazon-braket-qdmi-device/constants.hpp>
@@ -202,13 +202,16 @@ AMAZON_BRAKET_QDMI_device_job_set_parameter(
     strlen(s3Prefix) + 1, s3Prefix);
 ```
 
-**Job S3 Parameters:**
+## Job Parameters
 
-| Parameter                                   | Type    | Required | Description                                                          |
-| ------------------------------------------- | ------- | -------- | -------------------------------------------------------------------- |
-| `QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET`  | `char*` | Yes      | S3 bucket for quantum task results                                   |
-| `QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX`  | `char*` | No       | S3 prefix for results (defaults to timestamp: `<epoch-millis>`)      |
-| `QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN` | `char*` | No       | Braket reservation ARN to route the task into a reserved time window |
+| Parameter                                   | Type                  | Required | Description                                                          |
+| ------------------------------------------- | --------------------- | -------- | -------------------------------------------------------------------- |
+| `QDMI_DEVICE_JOB_PARAMETER_PROGRAM`         | `char*`               | Yes      | OpenQASM circuit source                                              |
+| `QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT`   | `QDMI_Program_Format` | No       | QASM2 or QASM3; default QASM3                                        |
+| `QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM`        | `size_t`              | No       | Number of shots; defaults to 100                                     |
+| `QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET`  | `char*`               | Yes      | S3 bucket for quantum task results                                   |
+| `QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX`  | `char*`               | No       | S3 prefix for results; defaults to `<epoch-millis>`                  |
+| `QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN` | `char*`               | No       | Braket reservation ARN to route the task into a reserved time window |
 
 ### Installation
 
@@ -389,6 +392,55 @@ AMAZON_BRAKET_QDMI_device_session_query_device_property(
     sizeof(status), &status, nullptr);
 ```
 
+### Supported QDMI Values
+
+Other standard QDMI values return `QDMI_ERROR_NOTSUPPORTED`.
+
+## Device Properties
+
+| Property | Notes |
+| -------- | ----- |
+| `QDMI_DEVICE_PROPERTY_NAME` | Braket device name |
+| `QDMI_DEVICE_PROPERTY_VERSION` | Library device version |
+| `QDMI_DEVICE_PROPERTY_STATUS` | Current Braket device status |
+| `QDMI_DEVICE_PROPERTY_LIBRARYVERSION` | QDMI version |
+| `QDMI_DEVICE_PROPERTY_QUBITSNUM` | Number of qubits |
+| `QDMI_DEVICE_PROPERTY_SITES` | Qubit handles |
+| `QDMI_DEVICE_PROPERTY_OPERATIONS` | Gate handles |
+| `QDMI_DEVICE_PROPERTY_COUPLINGMAP` | Flat source/target site pairs |
+
+## Site Properties
+
+| Property | Notes |
+| -------- | ----- |
+| `QDMI_SITE_PROPERTY_INDEX` | Site id |
+| `QDMI_SITE_PROPERTY_NAME` | Site name |
+| `QDMI_SITE_PROPERTY_T1` | When Braket reports it |
+| `QDMI_SITE_PROPERTY_T2` | When Braket reports it |
+
+## Operation Properties
+
+| Property | Notes |
+| -------- | ----- |
+| `QDMI_OPERATION_PROPERTY_NAME` | Gate name |
+| `QDMI_OPERATION_PROPERTY_QUBITSNUM` | Gate arity |
+
+## Job Properties
+
+| Property | Notes |
+| -------- | ----- |
+| `QDMI_DEVICE_JOB_PROPERTY_PROGRAMFORMAT` | Current program format |
+| `QDMI_DEVICE_JOB_PROPERTY_PROGRAM` | Current program source |
+| `QDMI_DEVICE_JOB_PROPERTY_SHOTSNUM` | Current shot count |
+
+## Job Results
+
+| Result | Notes |
+| ------ | ----- |
+| `QDMI_JOB_RESULT_SHOTS` | Comma-separated shot bitstrings |
+| `QDMI_JOB_RESULT_HIST_KEYS` | Null-separated histogram keys |
+| `QDMI_JOB_RESULT_HIST_VALUES` | `size_t` counts matching histogram keys |
+
 ### Lifecycle Functions
 
 | Function                                 | AWS SDK Counterpart  | Description                                   |
@@ -401,6 +453,7 @@ AMAZON_BRAKET_QDMI_device_session_query_device_property(
 | Function                                                       | AWS SDK Counterpart            | Description                              |
 | -------------------------------------------------------------- | ------------------------------ | ---------------------------------------- |
 | `AMAZON_BRAKET_QDMI_device_session_alloc()`                    | (internal allocation)          | Allocate a new session                   |
+| `AMAZON_BRAKET_QDMI_device_session_set_parameter()`            | (store session config)         | Set credentials, device ARN, and region  |
 | `AMAZON_BRAKET_QDMI_device_session_init()`                     | `BraketClient` + `GetDevice()` | Initialize session and connect to device |
 | `AMAZON_BRAKET_QDMI_device_session_free()`                     | `BraketClient` destructor      | Free session resources                   |
 | `AMAZON_BRAKET_QDMI_device_session_query_device_property()`    | (parse GetDevice JSON)         | Query device properties                  |
@@ -413,7 +466,7 @@ AMAZON_BRAKET_QDMI_device_session_query_device_property(
 | ------------------------------------------------------- | ------------------------- | ------------------------------------------- |
 | `AMAZON_BRAKET_QDMI_device_session_create_device_job()` | (internal allocation)     | Create a new QDMI job                       |
 | `AMAZON_BRAKET_QDMI_device_job_set_parameter()`         | (store job config)        | Set job parameters (circuit, shots, format) |
-| `AMAZON_BRAKET_QDMI_device_job_query_property()`        | (return stored values)    | Query job properties (ID, taskArn)          |
+| `AMAZON_BRAKET_QDMI_device_job_query_property()`        | (return stored values)    | Query job format, program, and shots        |
 | `AMAZON_BRAKET_QDMI_device_job_submit()`                | `CreateQuantumTask()`     | Submit QDMI job as AWS QuantumTask          |
 | `AMAZON_BRAKET_QDMI_device_job_check()`                 | `GetQuantumTask()`        | Check quantum task status                   |
 | `AMAZON_BRAKET_QDMI_device_job_wait()`                  | (poll `GetQuantumTask()`) | Wait for quantum task completion            |
