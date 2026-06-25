@@ -21,6 +21,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- Version links -->
 
+[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/releases/tag/v1.0.0
 
 <!-- PR links -->
