@@ -10,6 +10,13 @@ with the exception that minor releases may include breaking changes.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-06-26
+
+### Fixed
+
+- 👷 Fix deployment to PyPI by configuring job to use `ubuntu-latest` instead of
+  `ubuntu-slim` ([#117]) ([**@denialhaag**])
+
 ## [1.0.0] - 2026-06-26
 
 _This is the initial release of the `amazon-braket-qdmi-device` project._
@@ -21,15 +28,19 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- Version links -->
 
-[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.0.0...HEAD
+[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/releases/tag/v1.0.1
 [1.0.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/releases/tag/v1.0.0
 
 <!-- PR links -->
+
+[#117]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/117
 
 <!-- Contributor -->
 
 [**@flowerthrower**]: https://github.com/flowerthrower
 [**@burgholzer**]: https://github.com/burgholzer
+[**@denialhaag**]: https://github.com/denialhaag
 
 <!-- General links -->
 
