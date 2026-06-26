@@ -20,7 +20,7 @@ cmake_minimum_required(VERSION 3.25...4.2)
 
 project(
   amazon-braket-qdmi-device
-  VERSION 1.0.0
+  VERSION 1.0.1
   LANGUAGES C CXX
   DESCRIPTION "Amazon Braket QDMI Device Implementation")
 
