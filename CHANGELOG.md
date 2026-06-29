@@ -5,8 +5,8 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on a mixture of [Keep a Changelog] and [Common Changelog].
-This project adheres to [Semantic Versioning],
-with the exception that minor releases may include breaking changes.
+This project adheres to [Semantic Versioning], with the exception that minor
+releases may include breaking changes.
 
 ## [Unreleased]
 
@@ -23,8 +23,8 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 ### Added
 
-- ✨ Add initial version of the Amazon Braket QDMI Device
-  ([**@flowerthrower**], [**@burgholzer**])
+- ✨ Add initial version of the Amazon Braket QDMI Device ([**@flowerthrower**],
+  [**@burgholzer**])
 
 <!-- Version links -->
 
