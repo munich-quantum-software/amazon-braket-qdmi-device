@@ -96,7 +96,7 @@ def _run_tests(
         "--inexact",
         "--no-dev",  # do not auto-install dev dependencies
         "--no-build-isolation-package",
-        "mqt-core",  # build the project without isolation
+        "amazon-braket-qdmi",  # build the project without isolation
         *install_args,
         env=env,
     )
