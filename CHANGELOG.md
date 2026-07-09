@@ -10,6 +10,10 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+### Changed
+
+- ⬆️ Update QDMI to version 1.3.2 ([#130]) ([**@denialhaag**])
+
 ## [1.0.1] - 2026-06-26
 
 ### Fixed
@@ -34,6 +38,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#130]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/130
 [#117]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/117
 
 <!-- Contributor -->
