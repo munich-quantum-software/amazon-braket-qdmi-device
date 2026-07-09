@@ -24,7 +24,12 @@ vendor-neutral interface for:
 
 ### What is Amazon Braket?
 
-TODO
+Amazon Braket is a fully managed cloud service for building quantum algorithms
+in a technology-agnostic framework, testing them on simulators, or running them
+on real quantum computers. It provides on-demand or reserved access to QPUs from
+different hardware providers, handles queuing and scheduling, supports hybrid
+quantum--classical workloads, and integrates with AWS SDKs for languages such as
+Python, Rust, and C++.
 
 ### Terminology
 
