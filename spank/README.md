@@ -1,7 +1,7 @@
 # Amazon Braket QDMI SPANK Plugin
 
-This plugin validates a user-selected Amazon Braket device once per remote job step and
-passes the resulting session configuration to the job.
+This plugin validates a user-selected Amazon Braket device once per remote job
+step and passes the resulting session configuration to the job.
 
 ## Build and install
 
@@ -33,8 +33,8 @@ The plugin must be rebuilt when the target Slurm release changes.
 exec ./submit_qdmi_job
 ```
 
-The application only needs to initialize a session from the injected
-parameters, set a program and S3 output bucket, and submit:
+The application only needs to initialize a session from the injected parameters,
+set a program and S3 output bucket, and submit:
 
 ```cpp
 #include <amazon-braket-qdmi-device/constants.hpp>
@@ -70,11 +70,11 @@ int main() {
 ## Options and environment
 
 The plugin is opt-in. The current adapter requires both the base URL and auth
-file.
-Optional options are `--qdmi-device-session-parameter-region` and
+file. Optional options are `--qdmi-device-session-parameter-region` and
 `--qdmi-device-session-parameter-reservation-arn`.
 
-The plugin sets the following QDMI session-parameters; applications may still overwrite them:
+The plugin sets the following QDMI session-parameters; applications may still
+overwrite them:
 
 - `QDMI_DEVICE_SESSION_PARAMETER_BASEURL`
 - `QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE`
@@ -83,11 +83,11 @@ The plugin sets the following QDMI session-parameters; applications may still ov
 
 ## Validation and failure behavior
 
-1. In the `sbatch` allocator context, providing either the base URL or auth
-   file opts into validation. The other missing option fails submission before
+1. In the `sbatch` allocator context, providing either the base URL or auth file
+   opts into validation. The other missing option fails submission before
    scheduling; providing neither leaves the plugin inactive.
-2. `user_init` creates a QDMI session after privileges are dropped, verifies
-   the device status is `IDLE` or `BUSY`, and injects the variables above.
+2. `user_init` creates a QDMI session after privileges are dropped, verifies the
+   device status is `IDLE` or `BUSY`, and injects the variables above.
 3. `task_init`, immediately before task execution, rejects the job if remote
    validation or environment injection failed. This reports a user/device
    failure as a job failure instead of a compute-node failure.

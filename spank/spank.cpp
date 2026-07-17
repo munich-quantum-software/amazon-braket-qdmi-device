@@ -2,6 +2,18 @@
  * Copyright (c) 2025 - 2026 Munich Quantum Software Company GmbH
  * All rights reserved.
  *
+ * Licensed under the Apache License v2.0 with LLVM Exceptions (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * https://llvm.org/LICENSE.txt
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
@@ -16,10 +28,10 @@
 
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
-#include <slurm/spank.h>
 
 #include <array>
 #include <mutex>
+#include <slurm/spank.h>
 #include <string>
 #include <syslog.h>
 
@@ -47,20 +59,18 @@ ValidationState validationState;
 
 spank_option options[] = {
     {const_cast<char*>("qdmi-device-session-parameter-baseurl"),
-     const_cast<char*>("ARN"),
-     const_cast<char*>("Amazon Braket device ARN"), 1, OPTION_DEVICE_ARN,
-     nullptr},
+     const_cast<char*>("ARN"), const_cast<char*>("Amazon Braket device ARN"), 1,
+     OPTION_DEVICE_ARN, nullptr},
     {const_cast<char*>("qdmi-device-session-parameter-region"),
-     const_cast<char*>("REGION"),
-     const_cast<char*>("AWS region"), 1, OPTION_REGION, nullptr},
+     const_cast<char*>("REGION"), const_cast<char*>("AWS region"), 1,
+     OPTION_REGION, nullptr},
     {const_cast<char*>("qdmi-device-session-parameter-reservation-arn"),
      const_cast<char*>("ARN"),
      const_cast<char*>("Amazon Braket reservation ARN"), 1,
      OPTION_RESERVATION_ARN, nullptr},
     {const_cast<char*>("qdmi-device-session-parameter-authfile"),
-     const_cast<char*>("PATH"),
-     const_cast<char*>("AWS credentials file path"), 1, OPTION_AUTHFILE,
-     nullptr},
+     const_cast<char*>("PATH"), const_cast<char*>("AWS credentials file path"),
+     1, OPTION_AUTHFILE, nullptr},
 };
 
 auto validOptionValue(const char* value) -> bool {
@@ -122,21 +132,18 @@ auto logFailure(spank_t spank, const char* message) -> void {
 }
 
 auto validateRequiredOptions(spank_t spank,
-                             const std::array<std::string, 4>& values)
-    -> bool {
+                             const std::array<std::string, 4>& values) -> bool {
   const bool hasBaseUrl =
       !values[OPTION_DEVICE_ARN - OPTION_DEVICE_ARN].empty();
-  const bool hasAuthFile =
-      !values[OPTION_AUTHFILE - OPTION_DEVICE_ARN].empty();
+  const bool hasAuthFile = !values[OPTION_AUTHFILE - OPTION_DEVICE_ARN].empty();
 
   // Neither option means inactive; providing only one is invalid.
   if (!hasBaseUrl && !hasAuthFile) {
     return true;
   }
   if (hasBaseUrl != hasAuthFile) {
-    logFailure(spank,
-               "--qdmi-device-session-parameter-baseurl and "
-               "--qdmi-device-session-parameter-authfile are required");
+    logFailure(spank, "--qdmi-device-session-parameter-baseurl and "
+                      "--qdmi-device-session-parameter-authfile are required");
     return false;
   }
   return true;
@@ -304,7 +311,8 @@ int slurm_spank_user_init(spank_t spank, int /*ac*/, char* /*argv*/[]) {
     validationState = {.active = true, .complete = true, .successful = false};
     return 0;
   }
-  validationState = {.active = true, .complete = true, .successful = successful};
+  validationState = {
+      .active = true, .complete = true, .successful = successful};
   return 0;
 }
 
