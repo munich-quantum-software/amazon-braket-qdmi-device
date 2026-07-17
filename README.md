@@ -59,11 +59,13 @@ gate-based Amazon Braket devices. Additionally, support for querying properties
 - **C++20** compatible compiler
 - **CMake** 3.24 or later
 - **AWS credentials** available to the AWS SDK (see Configuration below)
+- **Slurm** XX.XX or later (optional for SPANK plugin)
 
 **Note**: Dependencies (AWS SDK for C++, QDMI) are automatically downloaded and
-built by CMake during the configuration step.
+built by CMake during the configuration step. Further information on the SPANK
+plugin is available in the [SPANK README](spank/README.md).
 
-### Configuration
+### Session Configuration
 
 **AWS Credentials:**
 
@@ -80,7 +82,7 @@ session-specific credentials:
 
 Use the QDMI `AUTHFILE` parameter to specify a credentials file path:
 
-```c
+```cpp
 #include <amazon-braket-qdmi-device/constants.hpp>
 
 AMAZON_BRAKET_QDMI_Device_Session session;
@@ -119,7 +121,7 @@ use different credentials within the same process.
 
 Use QDMI session parameters to specify credentials programmatically:
 
-```c
+```cpp
 #include <amazon-braket-qdmi-device/constants.hpp>
 
 // Set credentials directly via QDMI parameters
