@@ -254,6 +254,10 @@ auto injectEnvironment(spank_t spank, const std::array<std::string, 4>& values)
 extern "C" {
 
 int slurm_spank_init(spank_t spank, int /*ac*/, char* /*argv*/[]) {
+  {
+    const std::scoped_lock lock(optionsMutex);
+    optionValues = {};
+  }
   for (auto& option : options) {
     option.cb = optionCallback;
     if (spank_option_register(spank, &option) != ESPANK_SUCCESS) {

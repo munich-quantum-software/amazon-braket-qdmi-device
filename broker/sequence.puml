@@ -1,0 +1,202 @@
+@startuml
+title Device Broker Sequence Diagram
+
+actor User
+
+box "Slurm side" #8e9dce
+participant "Slurm" as Slurm
+participant "SPANK\nqdmi-spank-plugin" as SPANK
+end box
+
+participant "User Job\nQiskit Amazon Braket QDMI target" as Job
+
+box "Service node"  #7fcac9
+participant "device-brokerd" as Daemon
+database "Allocation Store" as Store
+participant "Amazon Braket\nQDMI Device" as Device
+end box
+
+
+== Daemon start ==
+
+Daemon -> Daemon: load device-broker.toml\n(socket_path, device_library, symbol_prefix,\ntarget_map, authfile, S3 defaults)
+
+Daemon -> Daemon: load device_library and resolve symbol_prefix + interface symbols
+
+Daemon -> Device: QDMI_device_initialize()
+
+
+== Submit Slurm job ==
+
+User -> Slurm: sbatch --qpu=sv1,iqm_garnet job.sh
+
+note left of Slurm
+job.sh contains user code, e.g.
+
+from qiskit_amazon_braket_qdmi import AmazonBraketQDMITarget
+
+target_A = AmazonBraketQDMITarget(target="sv1")
+target_B = AmazonBraketQDMITarget(target="iqm_garnet")
+
+sampler_A = target_A.sampler()
+sampler_B = target_B.sampler()
+
+job_A = sampler_A.run([(qc_A,)], shots=1000)
+job_B = sampler_B.run([(qc_B,)], shots=1000)
+
+status_A = job_A.status()
+result_A = job_A.result()
+result_B = job_B.result()
+end note
+
+
+== Allocate sessions ==
+
+Slurm -> Daemon: create_allocations(job_id, uid,\nresources=[sv1, iqm_garnet]) via Prolog
+
+Daemon -> Daemon: create job socket_path
+
+loop for resource in [sv1, iqm_garnet]
+Daemon -> Daemon: generate allocation_id
+
+Daemon -> Daemon: map target to device ARN\n(and AWS region, if needed)
+
+Daemon -> Device: QDMI_device_session_alloc(&session)
+
+Daemon -> Device: QDMI_device_session_set_parameter(session,\nQDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,\nauthfile_size, authfile)
+
+Daemon -> Device: QDMI_device_session_set_parameter(session,\nQDMI_DEVICE_SESSION_PARAMETER_BASEURL,\nbase_url_size, base_url)
+
+Daemon -> Device: QDMI_device_session_init(session)
+
+Daemon -> Store: save(allocation_id, job_id, uid, resource,\nsocket_path, session, status=active)
+
+Store --> Daemon: ok
+end
+
+Daemon --> Slurm: socket_path, resource map
+
+
+== Inject broker env ==
+
+Slurm -> SPANK: slurm_spank_task_init(sp, ac, argv)
+
+SPANK -> Daemon: get_allocations(job_id, uid)
+
+Daemon -> Store: get_allocations(job_id, uid)
+
+Store --> Daemon: socket_path, resource map
+
+Daemon --> SPANK: socket_path, resource map
+
+SPANK -> SPANK: spank_setenv(sp, "DEVICE_BROKER_SOCKET",\nsocket_path, 1)
+
+SPANK -> SPANK: spank_setenv(sp, "DEVICE_BROKER_ALLOCATIONS",\n"sv1=allocation_id_A;iqm_garnet=allocation_id_B", 1)
+
+note right of SPANK
+Broker injects broker-only job env.
+Vendor auth stays inside device-brokerd.
+end note
+
+Slurm -> Job: execve(path, argv, envp)
+
+
+== Submit QDMI jobs ==
+
+Job -> Job: AmazonBraketQDMITarget reads\nDEVICE_BROKER_SOCKET and\nDEVICE_BROKER_ALLOCATIONS
+
+loop for each logical QPU job
+Job -> Daemon: submit_job(allocation_id, OpenQASM, shots)
+
+Daemon -> Store: lookup(allocation_id)
+
+Store --> Daemon: allocation + session
+
+Daemon -> Store: authorize(SO_PEERCRED(fd), allocation_id)
+
+Daemon -> Device: QDMI_device_session_create_device_job(session, &device_job)
+
+Daemon -> Device: QDMI_device_job_set_parameter(device_job,\nQDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT,\nsizeof(format), &format)
+
+Daemon -> Device: QDMI_device_job_set_parameter(device_job,\nQDMI_DEVICE_JOB_PARAMETER_PROGRAM,\nprogram_size, program)
+
+Daemon -> Device: QDMI_device_job_set_parameter(device_job,\nQDMI_DEVICE_JOB_PARAMETER_SHOTSNUM,\nsizeof(size_t), &shots)
+
+Daemon -> Device: QDMI_device_job_set_parameter(device_job,\nQDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,\nbucket_size, s3_bucket)
+
+Daemon -> Device: QDMI_device_job_set_parameter(device_job,\nQDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX,\nprefix_size, s3_prefix)
+
+Daemon -> Device: QDMI_device_job_submit(device_job)
+
+Daemon -> Daemon: generate task_id
+
+Daemon -> Store: save_task(allocation_id, task_id, device_job)
+
+Store --> Daemon: ok
+
+Daemon --> Job: task_id
+end
+
+
+== Check status and get result ==
+
+Job -> Daemon: status(allocation_id, task_id)
+
+Daemon -> Store: lookup_task(allocation_id, task_id)
+
+Store --> Daemon: allocation + device_job
+
+Daemon -> Store: authorize(SO_PEERCRED(fd), allocation_id)
+
+Daemon -> Device: QDMI_device_job_check(device_job, &status)
+
+Daemon --> Job: status
+
+Job -> Daemon: result(allocation_id, task_id)
+
+Daemon -> Store: lookup_task(allocation_id, task_id)
+
+Store --> Daemon: allocation + device_job
+
+Daemon -> Store: authorize(SO_PEERCRED(fd), allocation_id)
+
+Daemon -> Device: QDMI_device_job_get_results(device_job,\nQDMI_JOB_RESULT_SHOTS, result_size, result, nullptr)
+
+Device --> Daemon: result
+
+Daemon --> Job: result
+
+
+== Cleanup ==
+
+Slurm -> Daemon: revoke_allocations(job_id) via Epilog
+
+Daemon -> Store: lookup_active_allocations(job_id)
+
+Store --> Daemon: tracked device_jobs, sessions, allocation_ids
+
+loop for each tracked device_job
+Daemon -> Device: QDMI_device_job_free(device_job)
+
+Device --> Daemon: void
+end
+
+loop for each session
+Daemon -> Device: QDMI_device_session_free(session)
+
+Device --> Daemon: void
+end
+
+loop for each allocation_id
+Daemon -> Store: revoke(allocation_id)
+
+Store --> Daemon: ok
+end
+
+Daemon --> Slurm: ok
+
+
+== Daemon stop ==
+
+Daemon -> Device: QDMI_device_finalize()
+@enduml

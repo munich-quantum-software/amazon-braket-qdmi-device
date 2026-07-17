@@ -1,0 +1,127 @@
+@startuml
+title Device Broker Daemon and MQT Core Sequence Diagram
+
+participant "device-brokerd" as Daemon
+
+box "MQT Core v4" #7fcac9
+participant "qdmi::DeviceRegistry" as Registry
+participant "qdmi::DeviceManager" as Manager
+participant "Braket Device" as Braket
+participant "IQM Device" as IQM
+end box
+
+box "Provider libraries" #f4c2c2
+participant "Amazon Braket\nQDMI library" as BraketLib
+participant "IQM\nQDMI library" as IQMLib
+end box
+
+database "Daemon inventory /\nallocation store" as Store
+
+note over Daemon, Store
+The daemon owns scheduling, authorization, allocations, and IPC.
+MQT Core owns QDMI discovery, provider loading, sessions, device
+hierarchies, and QDMI jobs. The daemon stores stable IDs and its
+own allocation metadata; it does not reproduce QDMI handles.
+end note
+
+== Discover configured devices ==
+
+Daemon -> Registry: DeviceRegistry(config options)
+Registry -> Registry: merge packaged, system, user,\nproject, environment, and runtime definitions
+Daemon -> Registry: definitions()
+Registry --> Daemon: definitions (stable IDs)\n[braket-fleet, iqm-garnet]
+
+note right of Registry
+Discovery is side-effect free:
+provider libraries are not loaded
+and sessions are not initialized.
+end note
+
+Daemon -> Manager: DeviceManager(registry)
+
+== Open the device inventory ==
+
+Daemon -> Manager: openAll(session overrides)
+
+par Open Braket definition
+  Manager -> BraketLib: loadDeviceApi(library, prefix)
+  BraketLib -> BraketLib: QDMI_device_initialize()
+  Manager -> BraketLib: QDMI_device_session_alloc()
+  Manager -> BraketLib: QDMI_device_session_set_parameter(...)\nfor SessionParameters
+  Manager -> BraketLib: QDMI_device_session_init()
+  BraketLib -> BraketLib: QDMI_device_session_query_device_property(\nQDMI_DEVICE_PROPERTY_CHILDDEVICES)
+  loop each returned child handle
+    BraketLib -> BraketLib: QDMI_device_session_alloc()
+    BraketLib -> BraketLib: QDMI_device_session_set_parameter(\nCHILDDEVICE, handle)
+    BraketLib -> BraketLib: QDMI_device_session_init()
+  end
+  BraketLib --> Manager: Device(braket-fleet)\nwith child Device objects
+  Manager -> Braket: getChildDevices()
+  Braket --> Manager: [sv1, dm1, tn1, ...]
+else Open IQM definition
+  Manager -> IQMLib: loadDeviceApi(library, prefix)
+  IQMLib -> IQMLib: QDMI_device_initialize()
+  Manager -> IQMLib: QDMI_device_session_alloc()
+  Manager -> IQMLib: QDMI_device_session_set_parameter(...)\nfor SessionParameters
+  Manager -> IQMLib: QDMI_device_session_init()
+  IQMLib -> IQMLib: QDMI_device_session_query_device_property(\nQDMI_DEVICE_PROPERTY_CHILDDEVICES)\n(empty or not supported)
+  IQMLib --> Manager: Device(iqm-garnet)
+end
+
+Manager --> Daemon: OpenAllResult\ndevices + per-ID errors
+
+Daemon -> Store: save device inventory\n(stable ID, child IDs, capabilities, status)
+Store --> Daemon: ok
+
+note over Manager, IQMLib
+Each enabled definition is opened independently. Different definitions
+may use different libraries and per-device SessionParameters. A shared
+library is loaded once internally when definitions can share it.
+end note
+
+== Route work through the common MQT Core API ==
+
+loop job allocated to one selected device
+  Daemon -> Store: authorize allocation and resolve\nlogical target to stable device ID
+  Store --> Daemon: stable device ID + target metadata
+  Daemon -> Daemon: select the matching in-memory\nMQT Device or child Device object
+
+  alt Amazon Braket child selected
+    Daemon -> Braket: submitJob(program, QASM3, shots)
+    Braket -> BraketLib: QDMI_device_session_create_device_job()
+    Braket -> BraketLib: QDMI_device_job_set_parameter(...)\nPROGRAMFORMAT, PROGRAM, SHOTSNUM
+    Braket -> BraketLib: QDMI_device_job_submit()
+    BraketLib --> Braket: Job
+  else IQM device selected
+    Daemon -> IQM: submitJob(program, QASM3, shots)
+    IQM -> IQMLib: QDMI_device_session_create_device_job()
+    IQM -> IQMLib: QDMI_device_job_set_parameter(...)\nPROGRAMFORMAT, PROGRAM, SHOTSNUM
+    IQM -> IQMLib: QDMI_device_job_submit()
+    IQMLib --> IQM: Job
+  end
+
+  Daemon -> Daemon: retain MQT Job by allocation/task ID
+  Daemon -> Store: save allocation/task mapping
+end
+
+== Poll, collect, and clean up ==
+
+loop status or result request
+  Daemon -> Daemon: Job.check() / Job.getShots() / Job.getCounts()
+  alt Amazon Braket child selected
+    Braket -> BraketLib: QDMI_device_job_check() /\nQDMI_device_job_get_results()
+  else IQM device selected
+    IQM -> IQMLib: QDMI_device_job_check() /\nQDMI_device_job_get_results()
+  end
+  Daemon -> Store: update task status and result metadata
+end
+
+Daemon -> Braket: drop Device and Job objects\n(RAII releases child jobs and sessions)
+Braket -> BraketLib: QDMI_device_job_free() /\nQDMI_device_session_free()
+Daemon -> IQM: drop Device and Job objects\n(RAII releases jobs and session)
+IQM -> IQMLib: QDMI_device_job_free() /\nQDMI_device_session_free()
+BraketLib -> BraketLib: QDMI_device_finalize()\nwhen last shared API object is released
+IQMLib -> IQMLib: QDMI_device_finalize()\nwhen last shared API object is released
+Daemon -> Store: remove inactive inventory and allocations
+
+@enduml
