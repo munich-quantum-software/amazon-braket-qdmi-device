@@ -831,19 +831,20 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
   // the corresponding API parameter, so explicit application configuration
   // takes precedence.
   const auto applyEnvironmentFallback = [](std::string& destination,
-                                            const char* variable) {
+                                           const char* variable) {
     if (destination.empty()) {
-      if (const char* value = std::getenv(variable); value != nullptr &&
-          value[0] != '\0') {
+      if (const char* value = std::getenv(variable);
+          value != nullptr && value[0] != '\0') {
         destination = value;
       }
     }
   };
-  applyEnvironmentFallback(deviceArn_, AMAZON_BRAKET_QDMI_ENV_DEVICE_ARN);
-  applyEnvironmentFallback(region_, AMAZON_BRAKET_QDMI_ENV_AWS_REGION);
+  applyEnvironmentFallback(deviceArn_, AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL);
+  applyEnvironmentFallback(region_, AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION);
   applyEnvironmentFallback(reservationArn_,
-                            AMAZON_BRAKET_QDMI_ENV_RESERVATION_ARN);
-  applyEnvironmentFallback(credentialsFile_, AMAZON_BRAKET_QDMI_ENV_AUTHFILE);
+                           AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN);
+  applyEnvironmentFallback(credentialsFile_,
+                           AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE);
 
   // Check that required parameters are set
   if (deviceArn_.empty()) {
