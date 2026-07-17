@@ -54,8 +54,15 @@ int main() {
     AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
     AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job);
 
-    // Configure job parameters and submit
-    AMAZON_BRAKET_QDMI_device_job_set_parameter(...);
+    // Configure and submit the OpenQASM program
+    const char* program =
+        "OPENQASM 3.0; include \"stdgates.inc\"; qubit[1] q;";
+    const char* bucket = "my-amazon-braket-bucket";
+    AMAZON_BRAKET_QDMI_device_job_set_parameter(
+        job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM, strlen(program) + 1, program);
+    AMAZON_BRAKET_QDMI_device_job_set_parameter(
+        job, QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET, strlen(bucket) + 1,
+        bucket);
     AMAZON_BRAKET_QDMI_device_job_submit(job);
 
     // Cleanup

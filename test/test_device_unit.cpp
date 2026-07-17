@@ -35,6 +35,8 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -104,6 +106,36 @@ public:
 private:
   std::filesystem::path path_;
 };
+
+class ScopedEnvironment {
+public:
+  ScopedEnvironment(const char* name, const char* value) : name_(name) {
+    if (const char* previous = std::getenv(name); previous != nullptr) {
+      previous_ = previous;
+    }
+#ifdef _WIN32
+    _putenv_s(name, value);
+#else
+    setenv(name, value, 1);
+#endif
+  }
+
+  ~ScopedEnvironment() {
+#ifdef _WIN32
+    _putenv_s(name_.c_str(), previous_.empty() ? "" : previous_.c_str());
+#else
+    if (previous_.empty()) {
+      unsetenv(name_.c_str());
+    } else {
+      setenv(name_.c_str(), previous_.c_str(), 1);
+    }
+#endif
+  }
+
+private:
+  std::string name_;
+  std::string previous_;
+};
 } // namespace
 
 // =============================================================================
@@ -131,6 +163,29 @@ protected:
     AMAZON_BRAKET_QDMI_device_finalize();
   }
 };
+
+TEST_F(AmazonBraketQDMIOfflineTest, SessionInitUsesEnvironmentFallbacks) {
+  const auto credentialsFile =
+      std::filesystem::temp_directory_path() / "qdmi_test_env_credentials.ini";
+  {
+    std::ofstream file(credentialsFile);
+    ASSERT_TRUE(file.is_open());
+    file << "[default]\n"
+         << "aws_access_key_id=AKIAIOSFODNN7EXAMPLE\n"
+         << "aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n";
+  }
+
+  const ScopedEnvironment baseUrl(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL,
+      "arn:aws:braket:::device/quantum-simulator/amazon/sv1");
+  const ScopedEnvironment authFile(AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE,
+                                   credentialsFile.string().c_str());
+  const ScopedEnvironment region(AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION,
+                                 "us-east-1");
+
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
+  std::filesystem::remove(credentialsFile);
+}
 
 // =============================================================================
 // Fixture: initialised with fake credentials (no network calls in tests)
