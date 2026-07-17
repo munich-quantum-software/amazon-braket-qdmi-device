@@ -196,7 +196,7 @@ configuration for results. Configure using job-level parameters:
 #include <amazon-braket-qdmi-device/constants.hpp>
 
 // Create and configure a job
-AMAZON_BRAKET_QDMI_Device_Job job;
+AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
 AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job);
 
 // Set S3 bucket (required)
@@ -285,18 +285,16 @@ cmake --build build
 ### Example Program
 
 ```cpp
-#include <amazon_braket_qdmi/device.h>
 #include <amazon-braket-qdmi-device/constants.hpp>
+#include <amazon_braket_qdmi/device.h>
 #include <cstring>
 #include <iostream>
-#include <vector>
 
 int main() {
     // Initialize the library
     AMAZON_BRAKET_QDMI_device_initialize();
 
-    // Create session
-    AMAZON_BRAKET_QDMI_Device_Session session;
+    AMAZON_BRAKET_QDMI_Device_Session session = nullptr;
     AMAZON_BRAKET_QDMI_device_session_alloc(&session);
 
     // No credential parameters are needed when the AWS SDK default credential
@@ -312,14 +310,14 @@ int main() {
     AMAZON_BRAKET_QDMI_device_session_init(session);
 
     // Query device properties
-    size_t qubits;
+    size_t qubits = 0;
     AMAZON_BRAKET_QDMI_device_session_query_device_property(
-        session, QDMI_DEVICE_PROPERTY_QUBITSNUM,
-        sizeof(qubits), &qubits, nullptr);
+        session, QDMI_DEVICE_PROPERTY_QUBITSNUM, sizeof(qubits), &qubits,
+        nullptr);
     std::cout << "Device has " << qubits << " qubits\n";
 
     // Create a quantum job
-    AMAZON_BRAKET_QDMI_Device_Job job;
+    AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
     AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job);
 
     // Configure S3 bucket for results (required)
