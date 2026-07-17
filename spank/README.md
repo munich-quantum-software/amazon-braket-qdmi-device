@@ -1,8 +1,7 @@
-# QDMI SPANK Plugin
+# Amazon Braket QDMI SPANK Plugin
 
-This plugin validates a user-selected QDMI device once per remote job step and
-passes the resulting session configuration to the job. The current adapter
-uses Amazon Braket.
+This plugin validates a user-selected Amazon Braket device once per remote job step and
+passes the resulting session configuration to the job.
 
 ## Build and install
 
