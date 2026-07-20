@@ -24,12 +24,10 @@
 #include <gtest/gtest.h>
 #include <string>
 
-extern "C" {
 int slurm_spank_init(spank_t spank, int argc, char* argv[]);
 int slurm_spank_init_post_opt(spank_t spank, int argc, char* argv[]);
 int slurm_spank_user_init(spank_t spank, int argc, char* argv[]);
 int slurm_spank_task_init(spank_t spank, int argc, char* argv[]);
-}
 
 namespace {
 

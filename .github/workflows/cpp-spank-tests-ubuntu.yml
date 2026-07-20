@@ -1,4 +1,4 @@
-name: 🇨 • SPANK tests • ubuntu
+name: 🇨 • SPANK • ubuntu
 on:
   workflow_call:
     inputs:

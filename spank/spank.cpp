@@ -249,8 +249,6 @@ auto injectEnvironment(spank_t spank, const std::array<std::string, 4>& values)
 
 } // namespace
 
-extern "C" {
-
 int slurm_spank_init(spank_t spank, int /*ac*/, char* /*argv*/[]) {
   {
     const std::scoped_lock lock(optionsMutex);
@@ -333,5 +331,3 @@ int slurm_spank_task_init(spank_t spank, int /*ac*/, char* /*argv*/[]) {
   }
   return 0;
 }
-
-} // extern "C"
