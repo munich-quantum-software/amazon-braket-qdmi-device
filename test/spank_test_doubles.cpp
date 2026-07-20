@@ -19,23 +19,31 @@
 
 #include "spank_test_doubles.hpp"
 
-#include "amazon-braket-qdmi-device/constants.hpp"
+#include "amazon_braket_qdmi/device.h"
 
-#include <cstring>
+#include <cstddef>
+#include <slurm/slurm_errno.h>
+#include <slurm/spank.h>
+#include <string>
 
 namespace {
-spank_test::State testState;
-char testSessionStorage;
+auto sessionStorage() -> char* {
+  static char storage;
+  return &storage;
+}
 } // namespace
 
 namespace spank_test {
 
-auto state() -> State& { return testState; }
+auto state() -> State& {
+  static State testState;
+  return testState;
+}
 
-auto reset() -> void { testState = {}; }
+auto reset() -> void { state() = {}; }
 
 auto registeredOption(const std::string& name) -> spank_option* {
-  for (auto* option : testState.registeredOptions) {
+  for (auto* option : state().registeredOptions) {
     if (name == option->name) {
       return option;
     }
@@ -53,24 +61,26 @@ auto configureOptIn() -> void {
 }
 
 auto beginRemote() -> spank_t {
-  testState.remote = true;
-  testState.context = S_CTX_REMOTE;
-  return reinterpret_cast<spank_t>(&testState);
+  state().remote = true;
+  state().context = S_CTX_REMOTE;
+  return reinterpret_cast<spank_t>(&state());
 }
 
 auto beginAllocator() -> spank_t {
-  testState.remote = false;
-  testState.context = S_CTX_ALLOCATOR;
-  return reinterpret_cast<spank_t>(&testState);
+  state().remote = false;
+  state().context = S_CTX_ALLOCATOR;
+  return reinterpret_cast<spank_t>(&state());
 }
 
 } // namespace spank_test
 
 extern "C" {
 
-int spank_remote(spank_t /*spank*/) { return spank_test::state().remote; }
+int spank_remote(spank_t /*spank*/) {
+  return static_cast<int>(spank_test::state().remote);
+}
 
-spank_context_type spank_context(void) { return spank_test::state().context; }
+spank_context_t spank_context(void) { return spank_test::state().context; }
 
 int spank_option_register(spank_t /*spank*/, spank_option* option) {
   spank_test::state().registeredOptions.push_back(option);
@@ -79,11 +89,11 @@ int spank_option_register(spank_t /*spank*/, spank_option* option) {
 
 int spank_option_getopt(spank_t /*spank*/, spank_option* option,
                         char** argument) {
-  const auto found = spank_test::state().forwardedOptions.find(option->name);
+  auto found = spank_test::state().forwardedOptions.find(option->name);
   if (found == spank_test::state().forwardedOptions.end()) {
     return ESPANK_ERROR;
   }
-  *argument = const_cast<char*>(found->second.c_str());
+  *argument = found->second.data();
   return ESPANK_SUCCESS;
 }
 
@@ -115,8 +125,8 @@ int AMAZON_BRAKET_QDMI_device_session_alloc(
     AMAZON_BRAKET_QDMI_Device_Session* session) {
   ++spank_test::state().sessionAllocCalls;
   if (spank_test::state().sessionAllocResult == QDMI_SUCCESS) {
-    *session = reinterpret_cast<AMAZON_BRAKET_QDMI_Device_Session>(
-        &testSessionStorage);
+    *session =
+        reinterpret_cast<AMAZON_BRAKET_QDMI_Device_Session>(sessionStorage());
   }
   return spank_test::state().sessionAllocResult;
 }

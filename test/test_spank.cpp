@@ -18,36 +18,44 @@
  */
 
 #include "amazon-braket-qdmi-device/constants.hpp"
+#include "amazon_braket_qdmi/device.h"
 #include "spank_test_doubles.hpp"
 
 #include <array>
 #include <gtest/gtest.h>
+#include <slurm/slurm_errno.h>
+#include <slurm/spank.h>
 #include <string>
 
-int slurm_spank_init(spank_t spank, int argc, char* argv[]);
-int slurm_spank_init_post_opt(spank_t spank, int argc, char* argv[]);
-int slurm_spank_user_init(spank_t spank, int argc, char* argv[]);
-int slurm_spank_task_init(spank_t spank, int argc, char* argv[]);
+// These declarations mirror the required Slurm SPANK entry-point ABI.
+// NOLINTBEGIN(readability-identifier-naming, cppcoreguidelines-avoid-c-arrays,
+//             modernize-avoid-c-arrays)
+int slurm_spank_init(spank_t, int, char*[]);
+int slurm_spank_init_post_opt(spank_t, int, char*[]);
+int slurm_spank_user_init(spank_t, int, char*[]);
+int slurm_spank_task_init(spank_t, int, char*[]);
+// NOLINTEND(readability-identifier-naming, cppcoreguidelines-avoid-c-arrays,
+//           modernize-avoid-c-arrays)
 
 namespace {
 
-constexpr auto baseUrlOption = "qdmi-device-session-parameter-baseurl";
-constexpr auto authFileOption = "qdmi-device-session-parameter-authfile";
+constexpr auto BASE_URL_OPTION = "qdmi-device-session-parameter-baseurl";
+constexpr auto AUTH_FILE_OPTION = "qdmi-device-session-parameter-authfile";
 
 class SpankTest : public ::testing::Test {
 protected:
-  auto initialize(spank_t spank) -> void {
+  static auto initialize(spank_t spank) -> void {
     ASSERT_EQ(slurm_spank_init(spank, 0, nullptr), 0);
   }
 
-  auto initializeRemote() -> spank_t {
-    auto spank = spank_test::beginRemote();
+  static auto initializeRemote() -> spank_t {
+    auto* spank = spank_test::beginRemote();
     initialize(spank);
     return spank;
   }
 
-  auto initializeAllocator() -> spank_t {
-    auto spank = spank_test::beginAllocator();
+  static auto initializeAllocator() -> spank_t {
+    auto* spank = spank_test::beginAllocator();
     initialize(spank);
     return spank;
   }
@@ -55,15 +63,17 @@ protected:
   void SetUp() override { spank_test::reset(); }
 };
 
+// GoogleTest owns the fixture objects created by TEST_F.
+// NOLINTBEGIN(cppcoreguidelines-owning-memory)
 TEST_F(SpankTest, RegistersAllOptions) {
-  const auto spank = initializeAllocator();
+  auto* const spank = initializeAllocator();
   ASSERT_EQ(spank_test::state().registeredOptions.size(), 4);
 
   const std::array expected = {
-      baseUrlOption,
+      BASE_URL_OPTION,
       "qdmi-device-session-parameter-region",
       "qdmi-device-session-parameter-reservation-arn",
-      authFileOption,
+      AUTH_FILE_OPTION,
   };
   for (const auto* name : expected) {
     ASSERT_NE(spank_test::registeredOption(name), nullptr);
@@ -73,7 +83,7 @@ TEST_F(SpankTest, RegistersAllOptions) {
 
 TEST_F(SpankTest, RejectsInvalidOptionValues) {
   initializeAllocator();
-  auto* option = spank_test::registeredOption(baseUrlOption);
+  auto* option = spank_test::registeredOption(BASE_URL_OPTION);
   ASSERT_NE(option, nullptr);
 
   EXPECT_NE(option->cb(0, "value", 0), 0);
@@ -86,15 +96,15 @@ TEST_F(SpankTest, RejectsInvalidOptionValues) {
 }
 
 TEST_F(SpankTest, AllocatorWithoutOptInIsAccepted) {
-  const auto spank = initializeAllocator();
+  auto* const spank = initializeAllocator();
   EXPECT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
   EXPECT_EQ(spank_test::state().initializeCalls, 0);
 }
 
 TEST_F(SpankTest, AllocatorRequiresBothOptInOptions) {
-  auto spank = initializeAllocator();
-  auto* baseUrl = spank_test::registeredOption(baseUrlOption);
-  auto* authFile = spank_test::registeredOption(authFileOption);
+  auto* spank = initializeAllocator();
+  auto* baseUrl = spank_test::registeredOption(BASE_URL_OPTION);
+  auto* authFile = spank_test::registeredOption(AUTH_FILE_OPTION);
   ASSERT_NE(baseUrl, nullptr);
   ASSERT_NE(authFile, nullptr);
 
@@ -102,13 +112,13 @@ TEST_F(SpankTest, AllocatorRequiresBothOptInOptions) {
   EXPECT_NE(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
 
   spank = initializeAllocator();
-  authFile = spank_test::registeredOption(authFileOption);
+  authFile = spank_test::registeredOption(AUTH_FILE_OPTION);
   ASSERT_EQ(authFile->cb(authFile->val, "/tmp/credentials", 0), 0);
   EXPECT_NE(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
 }
 
 TEST_F(SpankTest, AllocatorAcceptsCompleteOptInAndOptionalParameters) {
-  const auto spank = initializeAllocator();
+  auto* const spank = initializeAllocator();
   spank_test::configureOptIn();
   ASSERT_EQ(spank_test::registeredOption("qdmi-device-session-parameter-region")
                 ->cb(2, "us-east-1", 0),
@@ -121,7 +131,7 @@ TEST_F(SpankTest, AllocatorAcceptsCompleteOptInAndOptionalParameters) {
 }
 
 TEST_F(SpankTest, RemoteWithoutOptInSkipsValidation) {
-  const auto spank = initializeRemote();
+  auto* const spank = initializeRemote();
   ASSERT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
   ASSERT_EQ(slurm_spank_user_init(spank, 0, nullptr), 0);
   EXPECT_EQ(slurm_spank_task_init(spank, 0, nullptr), 0);
@@ -129,8 +139,8 @@ TEST_F(SpankTest, RemoteWithoutOptInSkipsValidation) {
 }
 
 TEST_F(SpankTest, RemoteIncompleteOptInRejectsJob) {
-  const auto spank = initializeRemote();
-  auto* baseUrl = spank_test::registeredOption(baseUrlOption);
+  auto* const spank = initializeRemote();
+  auto* baseUrl = spank_test::registeredOption(BASE_URL_OPTION);
   ASSERT_EQ(baseUrl->cb(baseUrl->val, "device", 0), 0);
   ASSERT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
   ASSERT_EQ(slurm_spank_user_init(spank, 0, nullptr), 0);
@@ -139,7 +149,7 @@ TEST_F(SpankTest, RemoteIncompleteOptInRejectsJob) {
 }
 
 TEST_F(SpankTest, RemoteValidationUsesForwardedOptionsAndInjectsEnvironment) {
-  const auto spank = initializeRemote();
+  auto* const spank = initializeRemote();
   spank_test::configureOptIn();
   ASSERT_EQ(spank_test::registeredOption("qdmi-device-session-parameter-region")
                 ->cb(2, "us-east-1", 0),
@@ -148,8 +158,8 @@ TEST_F(SpankTest, RemoteValidationUsesForwardedOptionsAndInjectsEnvironment) {
                 "qdmi-device-session-parameter-reservation-arn")
                 ->cb(3, "reservation", 0),
             0);
-  spank_test::state().forwardedOptions[baseUrlOption] = "forwarded-device";
-  spank_test::state().forwardedOptions[authFileOption] = "/forwarded/auth";
+  spank_test::state().forwardedOptions[BASE_URL_OPTION] = "forwarded-device";
+  spank_test::state().forwardedOptions[AUTH_FILE_OPTION] = "/forwarded/auth";
   ASSERT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
   ASSERT_EQ(slurm_spank_user_init(spank, 0, nullptr), 0);
   EXPECT_EQ(slurm_spank_user_init(spank, 0, nullptr), 0);
@@ -189,7 +199,7 @@ TEST_F(SpankTest, RemoteValidationUsesForwardedOptionsAndInjectsEnvironment) {
 TEST_F(SpankTest, RemoteAcceptsIdleAndBusyDevices) {
   for (const auto status : {QDMI_DEVICE_STATUS_IDLE, QDMI_DEVICE_STATUS_BUSY}) {
     spank_test::reset();
-    const auto spank = initializeRemote();
+    auto* const spank = initializeRemote();
     spank_test::configureOptIn();
     spank_test::state().deviceStatus = status;
     ASSERT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
@@ -202,7 +212,7 @@ TEST_F(SpankTest, RemoteRejectsUnavailableDevices) {
   for (const auto status :
        {QDMI_DEVICE_STATUS_OFFLINE, QDMI_DEVICE_STATUS_MAINTENANCE}) {
     spank_test::reset();
-    const auto spank = initializeRemote();
+    auto* const spank = initializeRemote();
     spank_test::configureOptIn();
     spank_test::state().deviceStatus = status;
     ASSERT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
@@ -219,24 +229,40 @@ TEST_F(SpankTest, RemoteQdmiFailuresRejectAndCleanUp) {
     int* result;
     int value;
     bool sessionWasAllocated;
+    bool shouldFinalize;
   };
 
   const std::array failures = {
-      Failure{"initialize", &spank_test::state().deviceInitializeResult,
-              QDMI_ERROR_FATAL, false},
-      Failure{"allocate", &spank_test::state().sessionAllocResult,
-              QDMI_ERROR_OUTOFMEM, true},
-      Failure{"parameter", &spank_test::state().setParameterResult,
-              QDMI_ERROR_NOTSUPPORTED, true},
-      Failure{"session init", &spank_test::state().sessionInitResult,
-              QDMI_ERROR_PERMISSIONDENIED, true},
-      Failure{"status query", &spank_test::state().queryStatusResult,
-              QDMI_ERROR_FATAL, true},
+      Failure{.name = "initialize",
+              .result = &spank_test::state().deviceInitializeResult,
+              .value = QDMI_ERROR_FATAL,
+              .sessionWasAllocated = false,
+              .shouldFinalize = false},
+      Failure{.name = "allocate",
+              .result = &spank_test::state().sessionAllocResult,
+              .value = QDMI_ERROR_OUTOFMEM,
+              .sessionWasAllocated = false,
+              .shouldFinalize = true},
+      Failure{.name = "parameter",
+              .result = &spank_test::state().setParameterResult,
+              .value = QDMI_ERROR_NOTSUPPORTED,
+              .sessionWasAllocated = true,
+              .shouldFinalize = true},
+      Failure{.name = "session init",
+              .result = &spank_test::state().sessionInitResult,
+              .value = QDMI_ERROR_PERMISSIONDENIED,
+              .sessionWasAllocated = true,
+              .shouldFinalize = true},
+      Failure{.name = "status query",
+              .result = &spank_test::state().queryStatusResult,
+              .value = QDMI_ERROR_FATAL,
+              .sessionWasAllocated = true,
+              .shouldFinalize = true},
   };
 
   for (const auto& failure : failures) {
     spank_test::reset();
-    const auto spank = initializeRemote();
+    auto* const spank = initializeRemote();
     spank_test::configureOptIn();
     *failure.result = failure.value;
     ASSERT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0) << failure.name;
@@ -245,14 +271,13 @@ TEST_F(SpankTest, RemoteQdmiFailuresRejectAndCleanUp) {
     EXPECT_EQ(spank_test::state().sessionFreeCalls,
               failure.sessionWasAllocated ? 1 : 0)
         << failure.name;
-    EXPECT_EQ(spank_test::state().finalizeCalls,
-              failure.sessionWasAllocated ? 1 : 0)
+    EXPECT_EQ(spank_test::state().finalizeCalls, failure.shouldFinalize ? 1 : 0)
         << failure.name;
   }
 }
 
 TEST_F(SpankTest, EnvironmentFailureRejectsJob) {
-  const auto spank = initializeRemote();
+  auto* const spank = initializeRemote();
   spank_test::configureOptIn();
   spank_test::state().environmentResult = ESPANK_ERROR;
   ASSERT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
@@ -262,7 +287,7 @@ TEST_F(SpankTest, EnvironmentFailureRejectsJob) {
 }
 
 TEST_F(SpankTest, LocalContextIsUnaffected) {
-  const auto spank = initializeAllocator();
+  auto* const spank = initializeAllocator();
   spank_test::configureOptIn();
   spank_test::state().context = S_CTX_LOCAL;
   EXPECT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
@@ -270,5 +295,7 @@ TEST_F(SpankTest, LocalContextIsUnaffected) {
   EXPECT_EQ(slurm_spank_task_init(spank, 0, nullptr), 0);
   EXPECT_EQ(spank_test::state().initializeCalls, 0);
 }
+
+// NOLINTEND(cppcoreguidelines-owning-memory)
 
 } // namespace

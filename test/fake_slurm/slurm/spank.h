@@ -19,22 +19,22 @@
 
 #pragma once
 
-#include <cstdarg>
+#include <slurm/slurm_errno.h>
 
-typedef struct spank_context* spank_t;
+using spank_t = struct spank_handle*;
+using spank_err_t = slurm_err_t;
 
-enum spank_err {
-  ESPANK_SUCCESS = 0,
-  ESPANK_ERROR = 1,
-};
-
-enum spank_context_type {
+// These declarations intentionally mirror Slurm's public SPANK ABI.
+// NOLINTBEGIN(readability-identifier-naming, performance-enum-size,
+//             modernize-use-scoped-enum)
+enum spank_context {
   S_CTX_LOCAL = 0,
   S_CTX_REMOTE = 1,
   S_CTX_ALLOCATOR = 2,
 };
+using spank_context_t = enum spank_context;
 
-typedef int (*spank_option_cb_f)(int, const char*, int);
+using spank_opt_cb_f = int (*)(int, const char*, int);
 
 struct spank_option {
   char* name;
@@ -42,17 +42,21 @@ struct spank_option {
   char* usage;
   int has_arg;
   int val;
-  spank_option_cb_f cb;
+  spank_opt_cb_f cb;
 };
 
 #define SPANK_PLUGIN(name, version)
 
 extern "C" {
 int spank_remote(spank_t spank);
-spank_context_type spank_context(void);
-int spank_option_register(spank_t spank, spank_option* option);
-int spank_option_getopt(spank_t spank, spank_option* option, char** argument);
-int spank_setenv(spank_t spank, const char* name, const char* value,
-                 int overwrite);
+spank_context_t spank_context(void);
+spank_err_t spank_option_register(spank_t spank, spank_option* option);
+spank_err_t spank_option_getopt(spank_t spank, spank_option* option,
+                                char** argument);
+spank_err_t spank_setenv(spank_t spank, const char* name, const char* value,
+                         int overwrite);
 void slurm_spank_log(const char* format, ...);
 }
+
+// NOLINTEND(readability-identifier-naming, performance-enum-size,
+//           modernize-use-scoped-enum)

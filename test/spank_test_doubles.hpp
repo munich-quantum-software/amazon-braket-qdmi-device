@@ -21,6 +21,7 @@
 
 #include "amazon_braket_qdmi/device.h"
 
+#include <slurm/slurm_errno.h>
 #include <slurm/spank.h>
 #include <string>
 #include <unordered_map>
@@ -30,7 +31,7 @@ namespace spank_test {
 
 struct State {
   bool remote = false;
-  spank_context_type context = S_CTX_LOCAL;
+  spank_context_t context = S_CTX_LOCAL;
   std::vector<spank_option*> registeredOptions;
   std::unordered_map<std::string, std::string> forwardedOptions;
   std::unordered_map<std::string, std::string> environment;

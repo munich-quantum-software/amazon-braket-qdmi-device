@@ -107,6 +107,7 @@ private:
   std::filesystem::path path_;
 };
 
+// NOLINTBEGIN(misc-include-cleaner)
 class ScopedEnvironment {
 public:
   ScopedEnvironment(const char* name, const char* value) : name_(name) {
@@ -136,6 +137,7 @@ private:
   std::string name_;
   std::string previous_;
 };
+// NOLINTEND(misc-include-cleaner)
 } // namespace
 
 // =============================================================================
