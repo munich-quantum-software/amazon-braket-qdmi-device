@@ -30,6 +30,7 @@
 #include "amazon_braket_qdmi/device.h"
 
 #include <array>
+#include <cstdint>
 #include <mutex>
 #include <slurm/spank.h>
 #include <string>
@@ -39,12 +40,17 @@ SPANK_PLUGIN(amazon_braket_qdmi, 1);
 
 namespace {
 
-enum OptionValue : int {
-  OPTION_DEVICE_ARN = 1,
-  OPTION_REGION,
-  OPTION_RESERVATION_ARN,
-  OPTION_AUTHFILE,
+enum class OptionValue : std::uint8_t {
+  DeviceArn = 1,
+  Region,
+  ReservationArn,
+  AuthFile,
 };
+
+constexpr auto optionIndex(const OptionValue option) -> size_t {
+  return static_cast<size_t>(option) -
+         static_cast<size_t>(OptionValue::DeviceArn);
+}
 
 struct ValidationState {
   bool active = false;
@@ -60,17 +66,17 @@ ValidationState validationState;
 spank_option options[] = {
     {const_cast<char*>("qdmi-device-session-parameter-baseurl"),
      const_cast<char*>("ARN"), const_cast<char*>("Amazon Braket device ARN"), 1,
-     OPTION_DEVICE_ARN, nullptr},
+     static_cast<int>(OptionValue::DeviceArn), nullptr},
     {const_cast<char*>("qdmi-device-session-parameter-region"),
      const_cast<char*>("REGION"), const_cast<char*>("AWS region"), 1,
-     OPTION_REGION, nullptr},
+     static_cast<int>(OptionValue::Region), nullptr},
     {const_cast<char*>("qdmi-device-session-parameter-reservation-arn"),
      const_cast<char*>("ARN"),
      const_cast<char*>("Amazon Braket reservation ARN"), 1,
-     OPTION_RESERVATION_ARN, nullptr},
+     static_cast<int>(OptionValue::ReservationArn), nullptr},
     {const_cast<char*>("qdmi-device-session-parameter-authfile"),
      const_cast<char*>("PATH"), const_cast<char*>("AWS credentials file path"),
-     1, OPTION_AUTHFILE, nullptr},
+     1, static_cast<int>(OptionValue::AuthFile), nullptr},
 };
 
 auto validOptionValue(const char* value) -> bool {
@@ -89,13 +95,15 @@ auto optionCallback(const int value, const char* argument, const int remote)
     -> int {
   (void)remote;
   // Reject empty or multiline values before they are forwarded by Slurm.
-  if (value < OPTION_DEVICE_ARN || value > OPTION_AUTHFILE ||
+  if (value < static_cast<int>(OptionValue::DeviceArn) ||
+      value > static_cast<int>(OptionValue::AuthFile) ||
       !validOptionValue(argument)) {
     return 1;
   }
 
   const std::scoped_lock lock(optionsMutex);
-  optionValues[static_cast<size_t>(value - OPTION_DEVICE_ARN)] = argument;
+  optionValues[static_cast<size_t>(value) -
+               static_cast<size_t>(OptionValue::DeviceArn)] = argument;
   return 0;
 }
 
@@ -110,7 +118,7 @@ auto collectRemoteOptions(spank_t spank) -> std::array<std::string, 4> {
     char* argument = nullptr;
     if (spank_option_getopt(spank, &option, &argument) == ESPANK_SUCCESS &&
         validOptionValue(argument)) {
-      values[static_cast<size_t>(option.val - OPTION_DEVICE_ARN)] = argument;
+      values[optionIndex(static_cast<OptionValue>(option.val))] = argument;
     }
   }
   return values;
@@ -132,9 +140,8 @@ auto logFailure(const char* message) -> void {
 }
 
 auto validateRequiredOptions(const std::array<std::string, 4>& values) -> bool {
-  const bool hasBaseUrl =
-      !values[OPTION_DEVICE_ARN - OPTION_DEVICE_ARN].empty();
-  const bool hasAuthFile = !values[OPTION_AUTHFILE - OPTION_DEVICE_ARN].empty();
+  const bool hasBaseUrl = !values[optionIndex(OptionValue::DeviceArn)].empty();
+  const bool hasAuthFile = !values[optionIndex(OptionValue::AuthFile)].empty();
 
   // Neither option means inactive; providing only one is invalid.
   if (!hasBaseUrl && !hasAuthFile) {
@@ -149,8 +156,8 @@ auto validateRequiredOptions(const std::array<std::string, 4>& values) -> bool {
 }
 
 auto validateDevice(const std::array<std::string, 4>& values) -> bool {
-  if (values[OPTION_DEVICE_ARN - OPTION_DEVICE_ARN].empty() ||
-      values[OPTION_AUTHFILE - OPTION_DEVICE_ARN].empty()) {
+  if (values[optionIndex(OptionValue::DeviceArn)].empty() ||
+      values[optionIndex(OptionValue::AuthFile)].empty()) {
     logFailure("device ARN and credentials file are required");
     return false;
   }
@@ -176,21 +183,21 @@ auto validateDevice(const std::array<std::string, 4>& values) -> bool {
     };
 
     if (!setString(QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
-                   values[OPTION_DEVICE_ARN - OPTION_DEVICE_ARN]) ||
+                   values[optionIndex(OptionValue::DeviceArn)]) ||
         !setString(QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
-                   values[OPTION_AUTHFILE - OPTION_DEVICE_ARN])) {
+                   values[optionIndex(OptionValue::AuthFile)])) {
       logFailure("invalid QDMI session parameters");
       break;
     }
-    if (!values[OPTION_REGION - OPTION_DEVICE_ARN].empty() &&
+    if (!values[optionIndex(OptionValue::Region)].empty() &&
         !setString(QDMI_DEVICE_SESSION_PARAMETER_REGION,
-                   values[OPTION_REGION - OPTION_DEVICE_ARN])) {
+                   values[optionIndex(OptionValue::Region)])) {
       logFailure("invalid AWS region");
       break;
     }
-    if (!values[OPTION_RESERVATION_ARN - OPTION_DEVICE_ARN].empty() &&
+    if (!values[optionIndex(OptionValue::ReservationArn)].empty() &&
         !setString(QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
-                   values[OPTION_RESERVATION_ARN - OPTION_DEVICE_ARN])) {
+                   values[optionIndex(OptionValue::ReservationArn)])) {
       logFailure("invalid reservation ARN");
       break;
     }
@@ -229,19 +236,19 @@ auto injectEnvironment(spank_t spank, const std::array<std::string, 4>& values)
   };
 
   if (!setEnvironment(AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL,
-                      values[OPTION_DEVICE_ARN - OPTION_DEVICE_ARN]) ||
+                      values[optionIndex(OptionValue::DeviceArn)]) ||
       !setEnvironment(AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE,
-                      values[OPTION_AUTHFILE - OPTION_DEVICE_ARN])) {
+                      values[optionIndex(OptionValue::AuthFile)])) {
     return false;
   }
-  if (!values[OPTION_REGION - OPTION_DEVICE_ARN].empty() &&
+  if (!values[optionIndex(OptionValue::Region)].empty() &&
       !setEnvironment(AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION,
-                      values[OPTION_REGION - OPTION_DEVICE_ARN])) {
+                      values[optionIndex(OptionValue::Region)])) {
     return false;
   }
-  if (!values[OPTION_RESERVATION_ARN - OPTION_DEVICE_ARN].empty() &&
+  if (!values[optionIndex(OptionValue::ReservationArn)].empty() &&
       !setEnvironment(AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN,
-                      values[OPTION_RESERVATION_ARN - OPTION_DEVICE_ARN])) {
+                      values[optionIndex(OptionValue::ReservationArn)])) {
     return false;
   }
   return true;
@@ -279,8 +286,8 @@ int slurm_spank_init_post_opt(spank_t spank, int /*ac*/, char* /*argv*/[]) {
     return 0;
   }
 
-  if (values[OPTION_DEVICE_ARN - OPTION_DEVICE_ARN].empty() &&
-      values[OPTION_AUTHFILE - OPTION_DEVICE_ARN].empty()) {
+  if (values[optionIndex(OptionValue::DeviceArn)].empty() &&
+      values[optionIndex(OptionValue::AuthFile)].empty()) {
     const std::scoped_lock lock(validationMutex);
     validationState = {.active = false, .complete = true, .successful = true};
     return 0;

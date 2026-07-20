@@ -41,7 +41,7 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
 
   cpp-spank-tests-ubuntu:
-    name: 🇨‌ SPANK tests 🐧
+    name: 🇨‌ SPANK 🐧
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cpp-tests)
     strategy:
