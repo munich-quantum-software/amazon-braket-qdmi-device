@@ -127,12 +127,11 @@ auto getValidationState() -> ValidationState {
   return validationState;
 }
 
-auto logFailure(spank_t spank, const char* message) -> void {
-  slurm_spank_log(spank, LOG_ERR, "amazon-braket-qdmi: %s", message);
+auto logFailure(const char* message) -> void {
+  slurm_spank_log("amazon-braket-qdmi: %s", message);
 }
 
-auto validateRequiredOptions(spank_t spank,
-                             const std::array<std::string, 4>& values) -> bool {
+auto validateRequiredOptions(const std::array<std::string, 4>& values) -> bool {
   const bool hasBaseUrl =
       !values[OPTION_DEVICE_ARN - OPTION_DEVICE_ARN].empty();
   const bool hasAuthFile = !values[OPTION_AUTHFILE - OPTION_DEVICE_ARN].empty();
@@ -142,23 +141,22 @@ auto validateRequiredOptions(spank_t spank,
     return true;
   }
   if (hasBaseUrl != hasAuthFile) {
-    logFailure(spank, "--qdmi-device-session-parameter-baseurl and "
-                      "--qdmi-device-session-parameter-authfile are required");
+    logFailure("--qdmi-device-session-parameter-baseurl and "
+               "--qdmi-device-session-parameter-authfile are required");
     return false;
   }
   return true;
 }
 
-auto validateDevice(spank_t spank, const std::array<std::string, 4>& values)
-    -> bool {
+auto validateDevice(const std::array<std::string, 4>& values) -> bool {
   if (values[OPTION_DEVICE_ARN - OPTION_DEVICE_ARN].empty() ||
       values[OPTION_AUTHFILE - OPTION_DEVICE_ARN].empty()) {
-    logFailure(spank, "device ARN and credentials file are required");
+    logFailure("device ARN and credentials file are required");
     return false;
   }
 
   if (AMAZON_BRAKET_QDMI_device_initialize() != QDMI_SUCCESS) {
-    logFailure(spank, "failed to initialize QDMI");
+    logFailure("failed to initialize QDMI");
     return false;
   }
 
@@ -166,7 +164,7 @@ auto validateDevice(spank_t spank, const std::array<std::string, 4>& values)
   bool successful = false;
   do {
     if (AMAZON_BRAKET_QDMI_device_session_alloc(&session) != QDMI_SUCCESS) {
-      logFailure(spank, "failed to allocate QDMI session");
+      logFailure("failed to allocate QDMI session");
       break;
     }
 
@@ -181,24 +179,24 @@ auto validateDevice(spank_t spank, const std::array<std::string, 4>& values)
                    values[OPTION_DEVICE_ARN - OPTION_DEVICE_ARN]) ||
         !setString(QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
                    values[OPTION_AUTHFILE - OPTION_DEVICE_ARN])) {
-      logFailure(spank, "invalid QDMI session parameters");
+      logFailure("invalid QDMI session parameters");
       break;
     }
     if (!values[OPTION_REGION - OPTION_DEVICE_ARN].empty() &&
         !setString(QDMI_DEVICE_SESSION_PARAMETER_REGION,
                    values[OPTION_REGION - OPTION_DEVICE_ARN])) {
-      logFailure(spank, "invalid AWS region");
+      logFailure("invalid AWS region");
       break;
     }
     if (!values[OPTION_RESERVATION_ARN - OPTION_DEVICE_ARN].empty() &&
         !setString(QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
                    values[OPTION_RESERVATION_ARN - OPTION_DEVICE_ARN])) {
-      logFailure(spank, "invalid reservation ARN");
+      logFailure("invalid reservation ARN");
       break;
     }
 
     if (AMAZON_BRAKET_QDMI_device_session_init(session) != QDMI_SUCCESS) {
-      logFailure(spank, "could not initialize the Amazon Braket session");
+      logFailure("could not initialize the Amazon Braket session");
       break;
     }
 
@@ -206,13 +204,13 @@ auto validateDevice(spank_t spank, const std::array<std::string, 4>& values)
     if (AMAZON_BRAKET_QDMI_device_session_query_device_property(
             session, QDMI_DEVICE_PROPERTY_STATUS, sizeof(status), &status,
             nullptr) != QDMI_SUCCESS) {
-      logFailure(spank, "could not query Amazon Braket device status");
+      logFailure("could not query Amazon Braket device status");
       break;
     }
 
     if (status != QDMI_DEVICE_STATUS_IDLE &&
         status != QDMI_DEVICE_STATUS_BUSY) {
-      logFailure(spank, "Amazon Braket device is not available");
+      logFailure("Amazon Braket device is not available");
       break;
     }
     successful = true;
@@ -276,7 +274,7 @@ int slurm_spank_init_post_opt(spank_t spank, int /*ac*/, char* /*argv*/[]) {
 
   // Check the opt-in pair before sbatch schedules the job.
   if (spank_context() == S_CTX_ALLOCATOR) {
-    return validateRequiredOptions(spank, values) ? 0 : 1;
+    return validateRequiredOptions(values) ? 0 : 1;
   }
 
   if (!spank_remote(spank)) {
@@ -289,7 +287,7 @@ int slurm_spank_init_post_opt(spank_t spank, int /*ac*/, char* /*argv*/[]) {
     validationState = {.active = false, .complete = true, .successful = true};
     return 0;
   }
-  if (!validateRequiredOptions(spank, values)) {
+  if (!validateRequiredOptions(values)) {
     setValidationState(false);
   }
   return 0;
@@ -308,10 +306,10 @@ int slurm_spank_user_init(spank_t spank, int /*ac*/, char* /*argv*/[]) {
 
   // Read options forwarded to the remote context.
   const auto values = collectRemoteOptions(spank);
-  const bool successful = validateDevice(spank, values);
+  const bool successful = validateDevice(values);
   // spank_setenv propagates values into the task environment.
   if (successful && !injectEnvironment(spank, values)) {
-    logFailure(spank, "failed to inject QDMI environment variables");
+    logFailure("failed to inject QDMI environment variables");
     validationState = {.active = true, .complete = true, .successful = false};
     return 0;
   }
@@ -330,7 +328,7 @@ int slurm_spank_task_init(spank_t spank, int /*ac*/, char* /*argv*/[]) {
     return 0;
   }
   if (!state.complete || !state.successful) {
-    logFailure(spank, "job rejected because QDMI validation failed");
+    logFailure("job rejected because QDMI validation failed");
     return 1;
   }
   return 0;

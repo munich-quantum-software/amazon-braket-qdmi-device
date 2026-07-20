@@ -97,9 +97,8 @@ int spank_setenv(spank_t /*spank*/, const char* name, const char* value,
   return ESPANK_SUCCESS;
 }
 
-int slurm_spank_log(spank_t /*spank*/, int /*level*/, const char* format, ...) {
+void slurm_spank_log(const char* format, ...) {
   spank_test::state().logs.emplace_back(format);
-  return ESPANK_SUCCESS;
 }
 
 int AMAZON_BRAKET_QDMI_device_initialize(void) {

@@ -54,5 +54,5 @@ int spank_option_register(spank_t spank, spank_option* option);
 int spank_option_getopt(spank_t spank, spank_option* option, char** argument);
 int spank_setenv(spank_t spank, const char* name, const char* value,
                  int overwrite);
-int slurm_spank_log(spank_t spank, int level, const char* format, ...);
+void slurm_spank_log(const char* format, ...);
 }
