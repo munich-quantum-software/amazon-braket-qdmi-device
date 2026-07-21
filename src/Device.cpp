@@ -843,8 +843,11 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
   applyEnvironmentFallback(region_, AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION);
   applyEnvironmentFallback(reservationArn_,
                            AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN);
-  applyEnvironmentFallback(credentialsFile_,
-                           AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE);
+  if (credentialsFile_.empty() && accessKeyId_.empty() &&
+      secretAccessKey_.empty()) {
+    applyEnvironmentFallback(credentialsFile_,
+                             AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE);
+  }
 
   // Check that required parameters are set
   if (deviceArn_.empty()) {
