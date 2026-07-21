@@ -5,8 +5,8 @@ step and passes the resulting session configuration to the job.
 
 ## Build and install
 
-Compile against the target cluster's Slurm headers and matching SPANK ABI. The
-plugin requires C++20 and `slurm/spank.h`.
+Compile against Slurm 2.4.0 or later, using the target cluster's headers and
+matching SPANK ABI. The plugin requires C++20 and `slurm/spank.h`.
 
 ```bash
 cmake -S . -B build-spank -DBUILD_AMAZON_BRAKET_SPANK_PLUGIN=ON
