@@ -889,8 +889,6 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
     std::string accessKeyId;
     std::string secretAccessKey;
     std::string sessionToken;
-    // The auth-file parameter intentionally accepts deployment-specific paths;
-    // plugin only reads it after dropping privileges. lgtm [cpp/path-injection]
     if (parseCredentialsFile(credentialsFile_, accessKeyId, secretAccessKey,
                              sessionToken)) {
       accessKeyId_ = accessKeyId;
