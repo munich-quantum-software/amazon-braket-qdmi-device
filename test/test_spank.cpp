@@ -144,7 +144,7 @@ TEST_F(SpankTest, RemoteIncompleteOptInRejectsJob) {
   ASSERT_EQ(baseUrl->cb(baseUrl->val, "device", 0), 0);
   ASSERT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
   ASSERT_EQ(slurm_spank_user_init(spank, 0, nullptr), 0);
-  EXPECT_NE(slurm_spank_task_init(spank, 0, nullptr), 0);
+  EXPECT_LT(slurm_spank_task_init(spank, 0, nullptr), 0);
   EXPECT_EQ(spank_test::state().initializeCalls, 0);
 }
 
@@ -217,7 +217,7 @@ TEST_F(SpankTest, RemoteRejectsUnavailableDevices) {
     spank_test::state().deviceStatus = status;
     ASSERT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
     ASSERT_EQ(slurm_spank_user_init(spank, 0, nullptr), 0);
-    EXPECT_NE(slurm_spank_task_init(spank, 0, nullptr), 0);
+    EXPECT_LT(slurm_spank_task_init(spank, 0, nullptr), 0);
     EXPECT_EQ(spank_test::state().sessionFreeCalls, 1);
     EXPECT_EQ(spank_test::state().finalizeCalls, 1);
   }
@@ -267,7 +267,7 @@ TEST_F(SpankTest, RemoteQdmiFailuresRejectAndCleanUp) {
     *failure.result = failure.value;
     ASSERT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0) << failure.name;
     ASSERT_EQ(slurm_spank_user_init(spank, 0, nullptr), 0) << failure.name;
-    EXPECT_NE(slurm_spank_task_init(spank, 0, nullptr), 0) << failure.name;
+    EXPECT_LT(slurm_spank_task_init(spank, 0, nullptr), 0) << failure.name;
     EXPECT_EQ(spank_test::state().sessionFreeCalls,
               failure.sessionWasAllocated ? 1 : 0)
         << failure.name;
@@ -282,7 +282,7 @@ TEST_F(SpankTest, EnvironmentFailureRejectsJob) {
   spank_test::state().environmentResult = ESPANK_ERROR;
   ASSERT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
   ASSERT_EQ(slurm_spank_user_init(spank, 0, nullptr), 0);
-  EXPECT_NE(slurm_spank_task_init(spank, 0, nullptr), 0);
+  EXPECT_LT(slurm_spank_task_init(spank, 0, nullptr), 0);
   EXPECT_EQ(spank_test::state().finalizeCalls, 1);
 }
 

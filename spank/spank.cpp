@@ -379,7 +379,7 @@ int slurm_spank_task_init(spank_t spank, int /*ac*/, char* /*argv*/[]) {
   }
   if (!state.complete || !state.successful) {
     logFailure("job rejected because QDMI validation failed");
-    return 1;
+    return -1;
   }
   return 0;
 }
