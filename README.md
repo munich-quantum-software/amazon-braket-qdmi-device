@@ -277,6 +277,7 @@ cmake --build build
 | Option                                    | Default | Description                             |
 | ----------------------------------------- | ------- | --------------------------------------- |
 | `BUILD_AMAZON_BRAKET_TESTS`               | `ON`    | Build test suite (requires Google Test) |
+| `BUILD_AMAZON_BRAKET_SPANK_PLUGIN`        | `OFF`   | Build the optional Slurm SPANK plugin   |
 | `USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE` | `OFF`   | Use installed library instead of build  |
 | `CMAKE_PREFIX_PATH`                       | -       | Path to dependencies (AWS SDK, QDMI)    |
 
@@ -550,7 +551,10 @@ ctest --test-dir build --output-on-failure
 **Note:** The offline tests require no AWS credentials. The online tests read
 the variables above and pass explicit credentials through QDMI parameters. In
 normal use, omitting those parameters delegates credential discovery and refresh
-to the AWS SDK default provider chain.
+to the AWS SDK default provider chain. Session initialization also accepts the
+service-specific environment fallbacks documented in the
+[SPANK guide](spank/README.md) when the corresponding API parameters have not
+been set explicitly.
 
 ## Project Structure
 
@@ -606,3 +610,10 @@ For issues related to:
   [QDMI repository](https://github.com/Munich-Quantum-Software-Stack/QDMI)
 - **Amazon Braket**: See
   [Amazon Braket documentation](https://docs.aws.amazon.com/braket/)
+
+## License
+
+The core Amazon Braket QDMI library is licensed under the Apache License 2.0
+with LLVM exceptions; see [LICENSE](LICENSE). The optional Slurm SPANK plugin
+under [spank/](spank/) is licensed separately under GPL-3.0-or-later; see
+[spank/LICENSE.md](spank/LICENSE.md).

@@ -14,6 +14,9 @@ releases may include breaking changes.
 
 - ✨ Use the AWS SDK default credential provider chain when no explicit session
   credentials are configured ([#150]) ([**@burgholzer**])
+- ✨ Add an optional GPL-licensed Slurm SPANK plugin for validating Amazon
+  Braket devices and injecting QDMI session configuration ([#134])
+  ([**@flowerthrower**], [**@burgholzer**])
 
 ### Changed
 
@@ -48,6 +51,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 [#150]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/150
 [#149]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/149
+[#134]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/134
 [#130]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/130
 [#117]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/117
 
