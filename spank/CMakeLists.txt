@@ -1,19 +1,20 @@
 # Copyright (c) 2025 - 2026 Munich Quantum Software Company GmbH
 # All rights reserved.
 #
-# Licensed under the Apache License v2.0 with LLVM Exceptions (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
-# https://llvm.org/LICENSE.txt
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the
+# Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations under
-# the License.
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+# Public License for more details.
 #
-# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+# You should have received a copy of the GNU General Public License along
+# with this program. If not, see <https://www.gnu.org/licenses/>.
 
 if(BUILD_AMAZON_BRAKET_SPANK_PLUGIN)
   find_path(SLURM_SPANK_INCLUDE_DIR slurm/spank.h REQUIRED)
@@ -25,6 +26,58 @@ if(BUILD_AMAZON_BRAKET_SPANK_PLUGIN)
                                                          qdmi::qdmi_project_warnings)
   set_target_properties(amazon-braket-qdmi-spank PROPERTIES PREFIX "")
 
-  install(TARGETS amazon-braket-qdmi-spank LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/slurm
-                                                   COMPONENT ${QDMI_TARGET_NAME}_Runtime)
+  set(AMAZON_BRAKET_QDMI_SPANK_INSTALL_DIR_DEFAULT "${CMAKE_INSTALL_FULL_LIBDIR}/slurm")
+  find_program(AMAZON_BRAKET_QDMI_SCONTROL_EXECUTABLE scontrol)
+  if(AMAZON_BRAKET_QDMI_SCONTROL_EXECUTABLE)
+    execute_process(
+      COMMAND ${AMAZON_BRAKET_QDMI_SCONTROL_EXECUTABLE} show config
+      OUTPUT_VARIABLE AMAZON_BRAKET_QDMI_SLURM_CONFIG
+      RESULT_VARIABLE AMAZON_BRAKET_QDMI_SCONTROL_RESULT
+      OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+
+    if(AMAZON_BRAKET_QDMI_SCONTROL_RESULT EQUAL 0)
+      string(REGEX MATCH "PluginDir[ \t]*=[ \t]*([^ \t\r\n]+)" AMAZON_BRAKET_QDMI_PLUGIN_DIR_MATCH
+                   "${AMAZON_BRAKET_QDMI_SLURM_CONFIG}")
+      if(CMAKE_MATCH_1)
+        set(AMAZON_BRAKET_QDMI_SPANK_INSTALL_DIR_DEFAULT "${CMAKE_MATCH_1}")
+      endif()
+    endif()
+  endif()
+
+  set(AMAZON_BRAKET_QDMI_SPANK_INSTALL_DIR
+      "${AMAZON_BRAKET_QDMI_SPANK_INSTALL_DIR_DEFAULT}"
+      CACHE
+        PATH
+        "Install directory for the Amazon Braket SPANK plugin (override for distro-specific Slurm plugin paths)"
+  )
+
+  mark_as_advanced(AMAZON_BRAKET_QDMI_SCONTROL_EXECUTABLE)
+
+  set(AMAZON_BRAKET_QDMI_SLURM_CONF_DIR_DEFAULT "/etc/slurm")
+  if(AMAZON_BRAKET_QDMI_SCONTROL_EXECUTABLE AND AMAZON_BRAKET_QDMI_SCONTROL_RESULT EQUAL 0)
+    string(REGEX MATCH "PlugStackConfig[ \t]*=[ \t]*([^ \t\r\n]+)"
+                 AMAZON_BRAKET_QDMI_PLUGSTACK_MATCH "${AMAZON_BRAKET_QDMI_SLURM_CONFIG}")
+    if(CMAKE_MATCH_1)
+      get_filename_component(AMAZON_BRAKET_QDMI_SLURM_CONF_DIR_DEFAULT "${CMAKE_MATCH_1}" DIRECTORY)
+    endif()
+  endif()
+
+  set(AMAZON_BRAKET_QDMI_SLURM_CONF_DIR
+      "${AMAZON_BRAKET_QDMI_SLURM_CONF_DIR_DEFAULT}"
+      CACHE PATH "Slurm configuration directory (for plugstack.conf.d drop-in)")
+
+  configure_file(amazon-braket-qdmi.conf.in amazon-braket-qdmi.conf @ONLY)
+
+  set(AMAZON_BRAKET_QDMI_SPANK_COMPONENT amazon-braket-qdmi-spank-plugin)
+  install(TARGETS amazon-braket-qdmi-spank
+          LIBRARY DESTINATION ${AMAZON_BRAKET_QDMI_SPANK_INSTALL_DIR}
+                  COMPONENT ${AMAZON_BRAKET_QDMI_SPANK_COMPONENT})
+  install(
+    FILES ${CMAKE_CURRENT_BINARY_DIR}/amazon-braket-qdmi.conf
+    DESTINATION ${AMAZON_BRAKET_QDMI_SLURM_CONF_DIR}/plugstack.conf.d
+    COMPONENT ${AMAZON_BRAKET_QDMI_SPANK_COMPONENT})
+  install(
+    FILES LICENSE.md
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/amazon-braket-qdmi-spank
+    COMPONENT ${AMAZON_BRAKET_QDMI_SPANK_COMPONENT})
 endif()

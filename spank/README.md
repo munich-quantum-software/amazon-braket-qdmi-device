@@ -1,27 +1,42 @@
 # Amazon Braket QDMI SPANK Plugin
 
+[![SPANK Plugin GPLv3 License](https://img.shields.io/static/v1?logo=gnu&label=License&message=GPLv3&color=informational&style=flat-square)](https://www.gnu.org/licenses/gpl-3.0.en.html)
+
 This plugin validates a user-selected Amazon Braket device once per remote job
 step and passes the resulting session configuration to the job.
 
 ## Build and install
 
-Compile against Slurm 2.4.0 or later, using the target cluster's headers and
+Compile against Slurm 20.02 or later, using the target cluster's headers and
 matching SPANK ABI. The plugin requires C++20 and `slurm/spank.h`.
 
 ```bash
 cmake -S . -B build-spank -DBUILD_AMAZON_BRAKET_SPANK_PLUGIN=ON
 cmake --build build-spank --target amazon-braket-qdmi-spank --parallel
-sudo cmake --install build-spank --component amazon-braket-qdmi-device_Runtime
+sudo cmake --install build-spank --component amazon-braket-qdmi-spank-plugin
 ```
 
-Install `amazon-braket-qdmi-spank.so` on the nodes running Slurm allocation
-commands and on compute nodes, then configure it in the SPANK plugstack:
+The build detects Slurm's `PluginDir` and `PlugStackConfig` through `scontrol`
+when available. Override distro-specific locations with
+`AMAZON_BRAKET_QDMI_SPANK_INSTALL_DIR` and `AMAZON_BRAKET_QDMI_SLURM_CONF_DIR`.
+
+Installation places `amazon-braket-qdmi-spank.so` in the configured plugin
+directory and installs a disabled template in `plugstack.conf.d`. Deploy both on
+the nodes running Slurm allocation commands and on compute nodes, then uncomment
+the generated plugstack directive:
 
 ```text
-required /path/to/install/lib/slurm/amazon-braket-qdmi-spank.so
+required /configured/slurm/plugin/directory/amazon-braket-qdmi-spank.so
 ```
 
 The plugin must be rebuilt when the target Slurm release changes.
+
+## License
+
+Only the SPANK plugin in this directory is licensed under GPL-3.0-or-later
+because it links against Slurm's GPL-licensed interface. The core Amazon Braket
+QDMI library remains licensed under Apache-2.0 with LLVM exceptions. See
+[LICENSE.md](LICENSE.md) for the plugin license text.
 
 ## Minimal job
 
