@@ -94,6 +94,7 @@ sdist.include = ["python/amazon/braket/qdmi/_version.py"]
 sdist.exclude = [
   "**/docs",
   "**/test",
+  "spank/**",
   "sitecustomize.py",
   ".*",
 ]

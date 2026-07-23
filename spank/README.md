@@ -17,7 +17,9 @@ sudo cmake --install build-spank --component amazon-braket-qdmi-spank-plugin
 ```
 
 The build detects Slurm's `PluginDir` and `PlugStackConfig` through `scontrol`
-when available. Override distro-specific locations with
+when available. The install component also installs the linked Amazon Braket
+QDMI runtime into the normal library directory, which the module records as its
+runtime search path. Override distro-specific Slurm locations with
 `AMAZON_BRAKET_QDMI_SPANK_INSTALL_DIR` and `AMAZON_BRAKET_QDMI_SLURM_CONF_DIR`.
 
 Installation places `amazon-braket-qdmi-spank.so` in the configured plugin

@@ -63,14 +63,14 @@ include(cmake/ExternalDependencies.cmake)
 # Set target name
 set(QDMI_TARGET_NAME "amazon-braket-qdmi-device")
 
-option(BUILD_AMAZON_BRAKET_SPANK_PLUGIN "Build the Slurm SPANK integration plugin" OFF)
-if(BUILD_AMAZON_BRAKET_SPANK_PLUGIN)
-  add_subdirectory(spank)
-endif()
-
 # add main library code
 if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
   add_subdirectory(src)
+endif()
+
+option(BUILD_AMAZON_BRAKET_SPANK_PLUGIN "Build the Slurm SPANK integration plugin" OFF)
+if(BUILD_AMAZON_BRAKET_SPANK_PLUGIN)
+  add_subdirectory(spank)
 endif()
 
 # add test code
