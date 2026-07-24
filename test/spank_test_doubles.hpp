@@ -34,7 +34,9 @@ struct State {
   spank_context_t context = S_CTX_LOCAL;
   std::vector<spank_option*> registeredOptions;
   std::unordered_map<std::string, std::string> forwardedOptions;
+  std::unordered_map<std::string, std::string> jobEnvironment;
   std::unordered_map<std::string, std::string> environment;
+  std::unordered_map<std::string, std::string> sessionEnvironmentAtInit;
   std::vector<int> environmentOverwrites;
   std::vector<std::string> logs;
   int environmentResult = ESPANK_SUCCESS;

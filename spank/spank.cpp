@@ -33,7 +33,9 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <mutex>
+#include <optional>
 #include <slurm/slurm.h>
 #include <slurm/slurm_errno.h>
 #include <slurm/spank.h>
@@ -58,6 +60,13 @@ constexpr auto optionIndex(const OptionValue option) -> size_t {
   return static_cast<size_t>(option) -
          static_cast<size_t>(OptionValue::DeviceArn);
 }
+
+constexpr std::array<const char*, 4> SESSION_ENVIRONMENT = {
+    AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL,
+    AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION,
+    AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN,
+    AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE,
+};
 
 struct ValidationState {
   bool active = false;
@@ -144,6 +153,17 @@ auto snapshotOptions() -> std::array<std::string, 4> {
   return state.optionValues;
 }
 
+auto getJobEnvironment(spank_t spank, const char* name)
+    -> std::optional<std::string> {
+  std::array<char, 4096> buffer{};
+  if (spank_getenv(spank, name, buffer.data(),
+                   static_cast<int>(buffer.size())) != ESPANK_SUCCESS ||
+      !validOptionValue(buffer.data())) {
+    return std::nullopt;
+  }
+  return std::string{buffer.data()};
+}
+
 auto collectRemoteOptions(spank_t spank) -> std::array<std::string, 4> {
   auto values = snapshotOptions();
   for (auto& option : pluginState().options) {
@@ -155,8 +175,73 @@ auto collectRemoteOptions(spank_t spank) -> std::array<std::string, 4> {
       values[optionIndex(static_cast<OptionValue>(option.val))] = argument;
     }
   }
+  for (size_t index = 0; index < values.size(); ++index) {
+    if (values[index].empty()) {
+      if (const auto jobValue =
+              getJobEnvironment(spank, SESSION_ENVIRONMENT[index]);
+          jobValue.has_value()) {
+        values[index] = *jobValue;
+      }
+    }
+  }
   return values;
 }
+
+/**
+ * Temporarily mirror the exact SPANK job environment while QDMI initializes.
+ *
+ * The core library supports process-environment fallbacks, while SPANK keeps
+ * job variables in a separate environment. Mirroring both present and absent
+ * values prevents slurmstepd service variables from changing what is validated.
+ */
+class ScopedSessionEnvironment final {
+public:
+  explicit ScopedSessionEnvironment(
+      const std::array<std::string, 4>& jobValues) {
+    for (size_t index = 0; index < SESSION_ENVIRONMENT.size(); ++index) {
+      if (const char* value = std::getenv(SESSION_ENVIRONMENT[index]);
+          value != nullptr) {
+        originalValues[index] = value;
+      }
+      if (setValue(SESSION_ENVIRONMENT[index], jobValues[index]) != 0) {
+        validState = false;
+        break;
+      }
+      ++configuredValues;
+    }
+  }
+
+  ScopedSessionEnvironment(const ScopedSessionEnvironment&) = delete;
+  auto operator=(const ScopedSessionEnvironment&)
+      -> ScopedSessionEnvironment& = delete;
+  ScopedSessionEnvironment(ScopedSessionEnvironment&&) = delete;
+  auto operator=(ScopedSessionEnvironment&&)
+      -> ScopedSessionEnvironment& = delete;
+
+  ~ScopedSessionEnvironment() {
+    for (size_t index = 0; index < configuredValues; ++index) {
+      if (setValue(SESSION_ENVIRONMENT[index],
+                   originalValues[index].value_or("")) != 0) {
+        slurm_spank_log(
+            "amazon-braket-qdmi: failed to restore QDMI process environment");
+      }
+    }
+  }
+
+  [[nodiscard]] auto valid() const -> bool { return validState; }
+
+private:
+  static auto setValue(const char* name, const std::string& value) -> int {
+    if (value.empty()) {
+      return unsetenv(name);
+    }
+    return setenv(name, value.c_str(), 1);
+  }
+
+  std::array<std::optional<std::string>, 4> originalValues;
+  size_t configuredValues = 0;
+  bool validState = true;
+};
 
 auto setValidationState(const bool successful) -> void {
   auto& state = pluginState();
@@ -195,6 +280,12 @@ auto validateDevice(const std::array<std::string, 4>& values) -> bool {
   if (values[optionIndex(OptionValue::DeviceArn)].empty() ||
       values[optionIndex(OptionValue::AuthFile)].empty()) {
     logFailure("device ARN and credentials file are required");
+    return false;
+  }
+
+  const ScopedSessionEnvironment environmentScope{values};
+  if (!environmentScope.valid()) {
+    logFailure("failed to isolate the QDMI job environment");
     return false;
   }
 

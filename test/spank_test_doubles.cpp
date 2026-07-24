@@ -19,9 +19,12 @@
 
 #include "spank_test_doubles.hpp"
 
+#include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
 
 #include <cstddef>
+#include <cstdlib>
+#include <cstring>
 #include <slurm/slurm_errno.h>
 #include <slurm/spank.h>
 #include <string>
@@ -97,6 +100,17 @@ int spank_option_getopt(spank_t /*spank*/, spank_option* option,
   return ESPANK_SUCCESS;
 }
 
+int spank_getenv(spank_t /*spank*/, const char* name, char* buffer,
+                 const int length) {
+  const auto found = spank_test::state().jobEnvironment.find(name);
+  if (found == spank_test::state().jobEnvironment.end() ||
+      length <= static_cast<int>(found->second.size())) {
+    return ESPANK_ERROR;
+  }
+  std::memcpy(buffer, found->second.c_str(), found->second.size() + 1);
+  return ESPANK_SUCCESS;
+}
+
 int spank_setenv(spank_t /*spank*/, const char* name, const char* value,
                  int overwrite) {
   spank_test::state().environmentOverwrites.push_back(overwrite);
@@ -146,6 +160,15 @@ int AMAZON_BRAKET_QDMI_device_session_set_parameter(
 int AMAZON_BRAKET_QDMI_device_session_init(
     AMAZON_BRAKET_QDMI_Device_Session /*session*/) {
   ++spank_test::state().sessionInitCalls;
+  for (const char* name :
+       {AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL,
+        AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION,
+        AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN,
+        AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE}) {
+    if (const char* value = std::getenv(name); value != nullptr) {
+      spank_test::state().sessionEnvironmentAtInit[name] = value;
+    }
+  }
   return spank_test::state().sessionInitResult;
 }
 

@@ -22,7 +22,9 @@
 #include "spank_test_doubles.hpp"
 
 #include <array>
+#include <cstdlib>
 #include <gtest/gtest.h>
+#include <optional>
 #include <slurm/slurm_errno.h>
 #include <slurm/spank.h>
 #include <string>
@@ -41,6 +43,37 @@ namespace {
 
 constexpr auto BASE_URL_OPTION = "qdmi-device-session-parameter-baseurl";
 constexpr auto AUTH_FILE_OPTION = "qdmi-device-session-parameter-authfile";
+
+class ScopedEnvironment final {
+public:
+  ScopedEnvironment(const char* name, const char* value) : variableName(name) {
+    if (const char* original = std::getenv(name); original != nullptr) {
+      originalValue = original;
+    }
+    if (value == nullptr) {
+      (void)unsetenv(name);
+    } else {
+      (void)setenv(name, value, 1);
+    }
+  }
+
+  ScopedEnvironment(const ScopedEnvironment&) = delete;
+  auto operator=(const ScopedEnvironment&) -> ScopedEnvironment& = delete;
+  ScopedEnvironment(ScopedEnvironment&&) = delete;
+  auto operator=(ScopedEnvironment&&) -> ScopedEnvironment& = delete;
+
+  ~ScopedEnvironment() {
+    if (originalValue.has_value()) {
+      (void)setenv(variableName, originalValue->c_str(), 1);
+    } else {
+      (void)unsetenv(variableName);
+    }
+  }
+
+private:
+  const char* variableName;
+  std::optional<std::string> originalValue;
+};
 
 class SpankTest : public ::testing::Test {
 protected:
@@ -160,6 +193,11 @@ TEST_F(SpankTest, RemoteValidationUsesForwardedOptionsAndInjectsEnvironment) {
             0);
   spank_test::state().forwardedOptions[BASE_URL_OPTION] = "forwarded-device";
   spank_test::state().forwardedOptions[AUTH_FILE_OPTION] = "/forwarded/auth";
+  spank_test::state()
+      .jobEnvironment[AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION] = "job-region";
+  spank_test::state()
+      .jobEnvironment[AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN] =
+      "job-reservation";
   ASSERT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
   ASSERT_EQ(slurm_spank_user_init(spank, 0, nullptr), 0);
   EXPECT_EQ(slurm_spank_user_init(spank, 0, nullptr), 0);
@@ -194,6 +232,71 @@ TEST_F(SpankTest, RemoteValidationUsesForwardedOptionsAndInjectsEnvironment) {
     EXPECT_EQ(overwrite, 1);
   }
   EXPECT_EQ(spank_test::state().initializeCalls, 1);
+}
+
+TEST_F(SpankTest, RemoteValidationUsesOptionalJobEnvironment) {
+  auto* const spank = initializeRemote();
+  spank_test::configureOptIn();
+  spank_test::state()
+      .jobEnvironment[AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION] = "eu-north-1";
+  spank_test::state()
+      .jobEnvironment[AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN] =
+      "job-reservation";
+
+  ASSERT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
+  ASSERT_EQ(slurm_spank_user_init(spank, 0, nullptr), 0);
+  EXPECT_EQ(slurm_spank_task_init(spank, 0, nullptr), 0);
+
+  EXPECT_EQ(
+      spank_test::state().parameterValues[QDMI_DEVICE_SESSION_PARAMETER_REGION],
+      "eu-north-1");
+  EXPECT_EQ(spank_test::state()
+                .parameterValues[QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN],
+            "job-reservation");
+  EXPECT_EQ(
+      spank_test::state().environment[AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION],
+      "eu-north-1");
+  EXPECT_EQ(spank_test::state()
+                .environment[AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN],
+            "job-reservation");
+}
+
+TEST_F(SpankTest, RemoteValidationIgnoresDaemonOnlyEnvironment) {
+  const ScopedEnvironment baseUrlEnvironment{
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL, "daemon-device"};
+  const ScopedEnvironment authFileEnvironment{
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE, "/daemon/auth"};
+  const ScopedEnvironment regionEnvironment{
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION, "daemon-region"};
+  const ScopedEnvironment reservationEnvironment{
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN, "daemon-reservation"};
+
+  auto* const spank = initializeRemote();
+  spank_test::configureOptIn();
+  ASSERT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
+  ASSERT_EQ(slurm_spank_user_init(spank, 0, nullptr), 0);
+  EXPECT_EQ(slurm_spank_task_init(spank, 0, nullptr), 0);
+
+  EXPECT_EQ(spank_test::state()
+                .sessionEnvironmentAtInit
+                    [AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL],
+            "arn:aws:braket:::device/quantum-simulator/amazon/sv1");
+  EXPECT_EQ(spank_test::state()
+                .sessionEnvironmentAtInit
+                    [AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE],
+            "/tmp/credentials");
+  EXPECT_EQ(spank_test::state().sessionEnvironmentAtInit.count(
+                AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION),
+            0);
+  EXPECT_EQ(spank_test::state().sessionEnvironmentAtInit.count(
+                AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN),
+            0);
+  EXPECT_EQ(std::string{std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION)},
+            "daemon-region");
+  EXPECT_EQ(
+      std::string{
+          std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN)},
+      "daemon-reservation");
 }
 
 TEST_F(SpankTest, RemoteAcceptsIdleAndBusyDevices) {

@@ -53,6 +53,8 @@ spank_context_t spank_context(void);
 spank_err_t spank_option_register(spank_t spank, spank_option* option);
 spank_err_t spank_option_getopt(spank_t spank, spank_option* option,
                                 char** argument);
+spank_err_t spank_getenv(spank_t spank, const char* name, char* buffer,
+                         int length);
 spank_err_t spank_setenv(spank_t spank, const char* name, const char* value,
                          int overwrite);
 void slurm_spank_log(const char* format, ...);
