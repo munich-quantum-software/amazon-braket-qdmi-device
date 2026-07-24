@@ -50,4 +50,7 @@ jobs:
         run: cmake --build build
       # run only the hermetic SPANK tests; the regular suite includes AWS integration tests
       - name: Test
-        run: ctest --output-on-failure --test-dir build -R '^SpankTest\.' --timeout 600
+        run: >
+          ctest --output-on-failure --test-dir build
+          -R '^(SpankTest\.|amazon-braket-qdmi-device-spank-(symbols|install)$)'
+          --timeout 600
