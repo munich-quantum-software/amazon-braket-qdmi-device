@@ -8,7 +8,8 @@ step and passes the resulting session configuration to the job.
 ## Build and install
 
 Compile against Slurm 20.02 or later, using the target cluster's headers and
-matching SPANK ABI. The plugin requires C++20 and `slurm/spank.h`.
+matching SPANK ABI. The plugin requires C++20 and must be built together with
+the Amazon Braket QDMI source tree.
 
 ```bash
 cmake -S . -B build-spank -DBUILD_AMAZON_BRAKET_SPANK_PLUGIN=ON
@@ -17,9 +18,9 @@ sudo cmake --install build-spank --component amazon-braket-qdmi-spank-plugin
 ```
 
 The build detects Slurm's `PluginDir` and `PlugStackConfig` through `scontrol`
-when available. The install component also installs the linked Amazon Braket
-QDMI runtime into the normal library directory, which the module records as its
-runtime search path. Override distro-specific Slurm locations with
+when available. The Amazon Braket QDMI implementation is compiled directly into
+the plugin, so deployment does not require a separate device shared library or
+runtime loader configuration. Override distro-specific Slurm locations with
 `AMAZON_BRAKET_QDMI_SPANK_INSTALL_DIR` and `AMAZON_BRAKET_QDMI_SLURM_CONF_DIR`.
 
 Installation places `amazon-braket-qdmi-spank.so` in the configured plugin

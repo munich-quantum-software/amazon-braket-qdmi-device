@@ -23,10 +23,11 @@ if(BUILD_AMAZON_BRAKET_SPANK_PLUGIN)
   add_library(amazon-braket-qdmi-spank MODULE spank.cpp)
   target_compile_features(amazon-braket-qdmi-spank PRIVATE cxx_std_20)
   target_include_directories(amazon-braket-qdmi-spank PRIVATE ${SLURM_SPANK_INCLUDE_DIR})
-  target_link_libraries(amazon-braket-qdmi-spank PRIVATE ${QDMI_TARGET_NAME}
-                                                         qdmi::qdmi_project_warnings)
-  set_target_properties(amazon-braket-qdmi-spank
-                        PROPERTIES PREFIX "" INSTALL_RPATH "${CMAKE_INSTALL_FULL_LIBDIR}")
+  target_link_libraries(
+    amazon-braket-qdmi-spank
+    PRIVATE amazon-braket-qdmi-device::internals amazon-braket-qdmi-device::parser-objects
+            qdmi::qdmi_project_warnings)
+  set_target_properties(amazon-braket-qdmi-spank PROPERTIES PREFIX "")
   if(APPLE)
     target_link_options(amazon-braket-qdmi-spank PRIVATE "LINKER:-undefined,dynamic_lookup")
   endif()
@@ -77,13 +78,6 @@ if(BUILD_AMAZON_BRAKET_SPANK_PLUGIN)
   install(TARGETS amazon-braket-qdmi-spank
           LIBRARY DESTINATION ${AMAZON_BRAKET_QDMI_SPANK_INSTALL_DIR}
                   COMPONENT ${AMAZON_BRAKET_QDMI_SPANK_COMPONENT})
-  get_target_property(AMAZON_BRAKET_QDMI_DEVICE_IS_IMPORTED ${QDMI_TARGET_NAME} IMPORTED)
-  if(NOT AMAZON_BRAKET_QDMI_DEVICE_IS_IMPORTED)
-    install(
-      TARGETS ${QDMI_TARGET_NAME}
-      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT ${AMAZON_BRAKET_QDMI_SPANK_COMPONENT}
-      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT ${AMAZON_BRAKET_QDMI_SPANK_COMPONENT})
-  endif()
   install(
     FILES ${CMAKE_CURRENT_BINARY_DIR}/amazon-braket-qdmi.conf
     DESTINATION ${AMAZON_BRAKET_QDMI_SLURM_CONF_DIR}/plugstack.conf.d

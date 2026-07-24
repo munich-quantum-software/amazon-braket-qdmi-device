@@ -19,5 +19,6 @@
 
 #pragma once
 
-#define SLURM_VERSION_NUM(a, b, c) (((a) << 16) + ((b) << 8) + (c))
+#define SLURM_VERSION_NUM(major, minor, micro)                                 \
+  (((major) << 16) | ((minor) << 8) | (micro))
 #define SLURM_VERSION_NUMBER SLURM_VERSION_NUM(20, 2, 0)

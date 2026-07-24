@@ -70,6 +70,12 @@ endif()
 
 option(BUILD_AMAZON_BRAKET_SPANK_PLUGIN "Build the Slurm SPANK integration plugin" OFF)
 if(BUILD_AMAZON_BRAKET_SPANK_PLUGIN)
+  if(USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
+    message(
+      FATAL_ERROR
+        "The SPANK plugin embeds the Amazon Braket QDMI implementation and must be built from source"
+    )
+  endif()
   add_subdirectory(spank)
 endif()
 

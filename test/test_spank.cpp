@@ -26,8 +26,8 @@
 #include <cstdlib>
 #include <gtest/gtest.h>
 #include <optional>
-#include <slurm/slurm.h>
 #include <slurm/slurm_errno.h>
+#include <slurm/slurm_version.h>
 #include <slurm/spank.h>
 #include <string>
 
@@ -292,20 +292,11 @@ TEST_F(SpankTest, RemoteValidationIgnoresDaemonOnlyEnvironment) {
   ASSERT_EQ(slurm_spank_user_init(spank, 0, nullptr), 0);
   EXPECT_EQ(slurm_spank_task_init(spank, 0, nullptr), 0);
 
-  EXPECT_EQ(
-      spank_test::state()
-          .sessionEnvironmentAtInit[AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL],
-      "arn:aws:braket:::device/quantum-simulator/amazon/sv1");
-  EXPECT_EQ(
-      spank_test::state()
-          .sessionEnvironmentAtInit[AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE],
-      "/tmp/credentials");
-  EXPECT_EQ(spank_test::state().sessionEnvironmentAtInit.count(
-                AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION),
-            0);
-  EXPECT_EQ(spank_test::state().sessionEnvironmentAtInit.count(
-                AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN),
-            0);
+  EXPECT_TRUE(spank_test::state().sessionEnvironmentAtInit.empty());
+  EXPECT_EQ(std::string{std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL)},
+            "daemon-device");
+  EXPECT_EQ(std::string{std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE)},
+            "/daemon/auth");
   EXPECT_EQ(std::string{std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION)},
             "daemon-region");
   EXPECT_EQ(

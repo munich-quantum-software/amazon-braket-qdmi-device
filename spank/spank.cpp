@@ -36,8 +36,8 @@
 #include <cstdlib>
 #include <mutex>
 #include <optional>
-#include <slurm/slurm.h>
 #include <slurm/slurm_errno.h>
+#include <slurm/slurm_version.h>
 #include <slurm/spank.h>
 #include <string>
 #include <syslog.h>
@@ -66,12 +66,21 @@ constexpr auto optionIndex(const OptionValue option) -> size_t {
          static_cast<size_t>(OptionValue::DeviceArn);
 }
 
-constexpr std::array<const char*, 4> SESSION_ENVIRONMENT = {
-    AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL,
-    AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION,
-    AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN,
-    AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE,
+struct SessionParameterMapping {
+  const char* environment;
+  QDMI_Device_Session_Parameter parameter;
 };
+
+constexpr std::array<SessionParameterMapping, 4> SESSION_PARAMETERS = {{
+    {.environment = AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL,
+     .parameter = QDMI_DEVICE_SESSION_PARAMETER_BASEURL},
+    {.environment = AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION,
+     .parameter = QDMI_DEVICE_SESSION_PARAMETER_REGION},
+    {.environment = AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN,
+     .parameter = QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN},
+    {.environment = AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE,
+     .parameter = QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE},
+}};
 
 struct ValidationState {
   bool active = false;
@@ -183,7 +192,7 @@ auto collectRemoteOptions(spank_t spank) -> std::array<std::string, 4> {
   for (size_t index = 0; index < values.size(); ++index) {
     if (values[index].empty()) {
       if (const auto jobValue =
-              getJobEnvironment(spank, SESSION_ENVIRONMENT[index]);
+              getJobEnvironment(spank, SESSION_PARAMETERS[index].environment);
           jobValue.has_value()) {
         values[index] = *jobValue;
       }
@@ -193,22 +202,21 @@ auto collectRemoteOptions(spank_t spank) -> std::array<std::string, 4> {
 }
 
 /**
- * Temporarily mirror the exact SPANK job environment while QDMI initializes.
+ * Hide daemon environment defaults while QDMI validates explicit job values.
  *
- * The core library supports process-environment fallbacks, while SPANK keeps
- * job variables in a separate environment. Mirroring both present and absent
- * values prevents slurmstepd service variables from changing what is validated.
+ * The effective SPANK job values are passed directly as QDMI session
+ * parameters. Hiding the corresponding process variables prevents slurmstepd
+ * service defaults from supplying values that are absent from the job.
  */
 class ScopedSessionEnvironment final {
 public:
-  explicit ScopedSessionEnvironment(
-      const std::array<std::string, 4>& jobValues) {
-    for (size_t index = 0; index < SESSION_ENVIRONMENT.size(); ++index) {
-      if (const char* value = std::getenv(SESSION_ENVIRONMENT[index]);
-          value != nullptr) {
+  ScopedSessionEnvironment() {
+    for (size_t index = 0; index < SESSION_PARAMETERS.size(); ++index) {
+      const auto* environment = SESSION_PARAMETERS[index].environment;
+      if (const char* value = std::getenv(environment); value != nullptr) {
         originalValues[index] = value;
       }
-      if (setValue(SESSION_ENVIRONMENT[index], jobValues[index]) != 0) {
+      if (unsetenv(environment) != 0) {
         validState = false;
         break;
       }
@@ -225,8 +233,8 @@ public:
 
   ~ScopedSessionEnvironment() {
     for (size_t index = 0; index < configuredValues; ++index) {
-      if (setValue(SESSION_ENVIRONMENT[index],
-                   originalValues[index].value_or("")) != 0) {
+      if (setValue(SESSION_PARAMETERS[index].environment,
+                   originalValues[index]) != 0) {
         slurm_spank_log(
             "amazon-braket-qdmi: failed to restore QDMI process environment");
       }
@@ -236,11 +244,12 @@ public:
   [[nodiscard]] auto valid() const -> bool { return validState; }
 
 private:
-  static auto setValue(const char* name, const std::string& value) -> int {
-    if (value.empty()) {
-      return unsetenv(name);
+  static auto setValue(const char* name,
+                       const std::optional<std::string>& value) -> int {
+    if (value.has_value()) {
+      return setenv(name, value->c_str(), 1);
     }
-    return setenv(name, value.c_str(), 1);
+    return unsetenv(name);
   }
 
   std::array<std::optional<std::string>, 4> originalValues;
@@ -288,7 +297,7 @@ auto validateDevice(const std::array<std::string, 4>& values) -> bool {
     return false;
   }
 
-  const ScopedSessionEnvironment environmentScope{values};
+  const ScopedSessionEnvironment environmentScope;
   if (!environmentScope.valid()) {
     logFailure("failed to isolate the QDMI job environment");
     return false;
@@ -315,31 +324,16 @@ auto validateDevice(const std::array<std::string, 4>& values) -> bool {
     return false;
   }
 
-  const auto setString = [&](const QDMI_Device_Session_Parameter parameter,
-                             const std::string& value) -> bool {
-    return AMAZON_BRAKET_QDMI_device_session_set_parameter(
-               guard.session, parameter, value.size() + 1, value.c_str()) ==
-           QDMI_SUCCESS;
-  };
-
-  if (!setString(QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
-                 values[optionIndex(OptionValue::DeviceArn)]) ||
-      !setString(QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
-                 values[optionIndex(OptionValue::AuthFile)])) {
-    logFailure("invalid QDMI session parameters");
-    return false;
-  }
-  if (!values[optionIndex(OptionValue::Region)].empty() &&
-      !setString(QDMI_DEVICE_SESSION_PARAMETER_REGION,
-                 values[optionIndex(OptionValue::Region)])) {
-    logFailure("invalid AWS region");
-    return false;
-  }
-  if (!values[optionIndex(OptionValue::ReservationArn)].empty() &&
-      !setString(QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
-                 values[optionIndex(OptionValue::ReservationArn)])) {
-    logFailure("invalid reservation ARN");
-    return false;
+  for (size_t index = 0; index < SESSION_PARAMETERS.size(); ++index) {
+    if (values[index].empty()) {
+      continue;
+    }
+    if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
+            guard.session, SESSION_PARAMETERS[index].parameter,
+            values[index].size() + 1, values[index].c_str()) != QDMI_SUCCESS) {
+      logFailure("invalid QDMI session parameter");
+      return false;
+    }
   }
 
   if (AMAZON_BRAKET_QDMI_device_session_init(guard.session) != QDMI_SUCCESS) {
@@ -369,21 +363,11 @@ auto injectEnvironment(spank_t spank, const std::array<std::string, 4>& values)
     return spank_setenv(spank, name, value.c_str(), 1) == ESPANK_SUCCESS;
   };
 
-  if (!setEnvironment(AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL,
-                      values[optionIndex(OptionValue::DeviceArn)]) ||
-      !setEnvironment(AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE,
-                      values[optionIndex(OptionValue::AuthFile)])) {
-    return false;
-  }
-  if (!values[optionIndex(OptionValue::Region)].empty() &&
-      !setEnvironment(AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION,
-                      values[optionIndex(OptionValue::Region)])) {
-    return false;
-  }
-  if (!values[optionIndex(OptionValue::ReservationArn)].empty() &&
-      !setEnvironment(AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN,
-                      values[optionIndex(OptionValue::ReservationArn)])) {
-    return false;
+  for (size_t index = 0; index < SESSION_PARAMETERS.size(); ++index) {
+    if (!values[index].empty() &&
+        !setEnvironment(SESSION_PARAMETERS[index].environment, values[index])) {
+      return false;
+    }
   }
   return true;
 }

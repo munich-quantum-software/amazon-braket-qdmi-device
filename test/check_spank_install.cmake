@@ -32,6 +32,42 @@ if(NOT INSTALL_RESULT EQUAL 0)
   message(FATAL_ERROR "SPANK component installation failed:\n${INSTALL_OUTPUT}\n${INSTALL_ERROR}")
 endif()
 
+file(GLOB_RECURSE PLUGIN_MODULES "${STAGE_DIR}/*amazon-braket-qdmi-spank*.so")
+list(LENGTH PLUGIN_MODULES PLUGIN_MODULE_COUNT)
+if(NOT PLUGIN_MODULE_COUNT EQUAL 1)
+  message(FATAL_ERROR "Expected one installed SPANK module, found: ${PLUGIN_MODULES}")
+endif()
+
+file(GLOB_RECURSE INSTALLED_DEVICE_LIBRARIES "${STAGE_DIR}/*libamazon-braket-qdmi-device.so*"
+     "${STAGE_DIR}/*libamazon-braket-qdmi-device.dylib"
+     "${STAGE_DIR}/*amazon-braket-qdmi-device.dll")
+if(INSTALLED_DEVICE_LIBRARIES)
+  message(
+    FATAL_ERROR
+      "SPANK component unexpectedly installed the shared device runtime: ${INSTALLED_DEVICE_LIBRARIES}"
+  )
+endif()
+
+list(GET PLUGIN_MODULES 0 PLUGIN_MODULE)
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
+  find_program(DEPENDENCY_INSPECTOR otool REQUIRED)
+  set(DEPENDENCY_INSPECTOR_ARGUMENT "-L")
+else()
+  find_program(DEPENDENCY_INSPECTOR ldd REQUIRED)
+  set(DEPENDENCY_INSPECTOR_ARGUMENT "")
+endif()
+execute_process(
+  COMMAND "${DEPENDENCY_INSPECTOR}" ${DEPENDENCY_INSPECTOR_ARGUMENT} "${PLUGIN_MODULE}"
+  RESULT_VARIABLE DEPENDENCY_RESULT
+  OUTPUT_VARIABLE DEPENDENCY_OUTPUT
+  ERROR_VARIABLE DEPENDENCY_ERROR)
+if(NOT DEPENDENCY_RESULT EQUAL 0)
+  message(FATAL_ERROR "Failed to inspect SPANK module dependencies: ${DEPENDENCY_ERROR}")
+endif()
+if(DEPENDENCY_OUTPUT MATCHES "libamazon-braket-qdmi-device")
+  message(FATAL_ERROR "SPANK module unexpectedly depends on the shared device runtime")
+endif()
+
 set(LICENSE_ROOT "${STAGE_DIR}${INSTALL_PREFIX}/${INSTALL_DATADIR}/licenses")
 set(PLUGIN_LICENSE "${LICENSE_ROOT}/amazon-braket-qdmi-spank/LICENSE.md")
 set(CORE_LICENSE "${LICENSE_ROOT}/amazon-braket-qdmi-device/LICENSE")
