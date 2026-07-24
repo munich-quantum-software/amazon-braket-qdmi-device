@@ -41,18 +41,23 @@ extern "C" {
 #include <slurm/slurm_version.h>
 #include <slurm/spank.h>
 }
+// POSIX setenv/unsetenv are declared by this C compatibility header.
+#include <stdlib.h> // NOLINT(modernize-deprecated-headers)
 #include <string>
 #include <syslog.h>
 
 static_assert(SLURM_VERSION_NUMBER >= SLURM_VERSION_NUM(20, 2, 0),
               "The Amazon Braket SPANK plugin requires Slurm 20.02 or newer");
 
+// These names are fixed by the Slurm plugin ABI.
+// NOLINTBEGIN(readability-identifier-naming)
 extern "C" {
 extern const char plugin_name[] = "amazon_braket_qdmi";
 extern const char plugin_type[] = "spank";
 extern const unsigned int plugin_version = SLURM_VERSION_NUMBER;
 extern const unsigned int spank_plugin_version = 1;
 }
+// NOLINTEND(readability-identifier-naming)
 
 namespace {
 
@@ -237,6 +242,8 @@ public:
     for (size_t index = 0; index < configuredValues; ++index) {
       if (setValue(SESSION_PARAMETERS[index].environment,
                    originalValues[index]) != 0) {
+        // Slurm exposes logging through a variadic C ABI.
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
         slurm_spank_log(
             "amazon-braket-qdmi: failed to restore QDMI process environment");
       }
@@ -376,6 +383,8 @@ auto injectEnvironment(spank_t spank, const std::array<std::string, 4>& values)
 
 auto isPrimaryTask(spank_t spank) -> bool {
   int taskId = 0;
+  // Slurm exposes item queries through a variadic C ABI.
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
   return spank_get_item(spank, S_TASK_ID, &taskId) != ESPANK_SUCCESS ||
          taskId == 0;
 }

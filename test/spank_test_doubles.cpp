@@ -105,14 +105,16 @@ int spank_option_getopt(spank_t /*spank*/, spank_option* option,
 int spank_getenv(spank_t /*spank*/, const char* name, char* buffer,
                  const int length) {
   const auto found = spank_test::state().jobEnvironment.find(name);
-  if (found == spank_test::state().jobEnvironment.end() ||
-      length <= static_cast<int>(found->second.size())) {
+  if (found == spank_test::state().jobEnvironment.end() || length <= 0 ||
+      static_cast<size_t>(length) <= found->second.size()) {
     return ESPANK_ERROR;
   }
   std::memcpy(buffer, found->second.c_str(), found->second.size() + 1);
   return ESPANK_SUCCESS;
 }
 
+// This test double must mirror Slurm's variadic C ABI.
+// NOLINTBEGIN(cppcoreguidelines-pro-type-vararg)
 int spank_get_item(spank_t /*spank*/, const spank_item_t item, ...) {
   if (item != S_TASK_ID) {
     return ESPANK_ERROR;
@@ -127,6 +129,7 @@ int spank_get_item(spank_t /*spank*/, const spank_item_t item, ...) {
   *taskId = spank_test::state().taskId;
   return ESPANK_SUCCESS;
 }
+// NOLINTEND(cppcoreguidelines-pro-type-vararg)
 
 int spank_setenv(spank_t /*spank*/, const char* name, const char* value,
                  int overwrite) {
@@ -138,6 +141,8 @@ int spank_setenv(spank_t /*spank*/, const char* name, const char* value,
   return ESPANK_SUCCESS;
 }
 
+// This test double must mirror Slurm's variadic C ABI.
+// NOLINTBEGIN(cppcoreguidelines-pro-type-vararg)
 void slurm_spank_log(const char* format, ...) {
   std::string message{format};
   va_list arguments;
@@ -149,6 +154,7 @@ void slurm_spank_log(const char* format, ...) {
   va_end(arguments);
   spank_test::state().logs.emplace_back(std::move(message));
 }
+// NOLINTEND(cppcoreguidelines-pro-type-vararg)
 
 int AMAZON_BRAKET_QDMI_device_initialize(void) {
   ++spank_test::state().initializeCalls;

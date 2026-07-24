@@ -29,6 +29,8 @@
 #include <slurm/slurm_errno.h>
 #include <slurm/slurm_version.h>
 #include <slurm/spank.h>
+// POSIX setenv/unsetenv are declared by this C compatibility header.
+#include <stdlib.h> // NOLINT(modernize-deprecated-headers)
 #include <string>
 
 // These declarations mirror the required Slurm SPANK entry-point ABI.
@@ -123,8 +125,8 @@ TEST_F(SpankTest, RegistersAllOptions) {
 }
 
 TEST_F(SpankTest, ExportsSlurmPluginMetadata) {
-  EXPECT_STREQ(plugin_name, "amazon_braket_qdmi");
-  EXPECT_STREQ(plugin_type, "spank");
+  EXPECT_STREQ(&plugin_name[0], "amazon_braket_qdmi");
+  EXPECT_STREQ(&plugin_type[0], "spank");
   EXPECT_EQ(plugin_version, SLURM_VERSION_NUMBER);
   EXPECT_EQ(spank_plugin_version, 1U);
 }
@@ -293,15 +295,22 @@ TEST_F(SpankTest, RemoteValidationIgnoresDaemonOnlyEnvironment) {
   EXPECT_EQ(slurm_spank_task_init(spank, 0, nullptr), 0);
 
   EXPECT_TRUE(spank_test::state().sessionEnvironmentAtInit.empty());
-  EXPECT_EQ(std::string{std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL)},
-            "daemon-device");
-  EXPECT_EQ(std::string{std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE)},
-            "/daemon/auth");
-  EXPECT_EQ(std::string{std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION)},
-            "daemon-region");
-  EXPECT_EQ(
-      std::string{std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN)},
-      "daemon-reservation");
+  const auto* restoredBaseUrl =
+      std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL);
+  const auto* restoredAuthFile =
+      std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE);
+  const auto* restoredRegion =
+      std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION);
+  const auto* restoredReservation =
+      std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN);
+  ASSERT_NE(restoredBaseUrl, nullptr);
+  ASSERT_NE(restoredAuthFile, nullptr);
+  ASSERT_NE(restoredRegion, nullptr);
+  ASSERT_NE(restoredReservation, nullptr);
+  EXPECT_STREQ(restoredBaseUrl, "daemon-device");
+  EXPECT_STREQ(restoredAuthFile, "/daemon/auth");
+  EXPECT_STREQ(restoredRegion, "daemon-region");
+  EXPECT_STREQ(restoredReservation, "daemon-reservation");
 }
 
 TEST_F(SpankTest, RemoteAcceptsIdleAndBusyDevices) {
