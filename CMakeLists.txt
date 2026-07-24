@@ -16,7 +16,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 # set required cmake version
-cmake_minimum_required(VERSION 3.25...4.2)
+cmake_minimum_required(VERSION 3.24...4.2)
 
 project(
   amazon-braket-qdmi-device
