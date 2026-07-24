@@ -26,6 +26,7 @@
 #include <cstdlib>
 #include <gtest/gtest.h>
 #include <optional>
+#include <slurm/slurm.h>
 #include <slurm/slurm_errno.h>
 #include <slurm/spank.h>
 #include <string>
@@ -33,10 +34,16 @@
 // These declarations mirror the required Slurm SPANK entry-point ABI.
 // NOLINTBEGIN(readability-identifier-naming, cppcoreguidelines-avoid-c-arrays,
 //             modernize-avoid-c-arrays)
+extern "C" {
+extern const char plugin_name[];
+extern const char plugin_type[];
+extern const unsigned int plugin_version;
+extern const unsigned int spank_plugin_version;
 int slurm_spank_init(spank_t, int, char*[]);
 int slurm_spank_init_post_opt(spank_t, int, char*[]);
 int slurm_spank_user_init(spank_t, int, char*[]);
 int slurm_spank_task_init(spank_t, int, char*[]);
+}
 // NOLINTEND(readability-identifier-naming, cppcoreguidelines-avoid-c-arrays,
 //           modernize-avoid-c-arrays)
 
@@ -113,6 +120,13 @@ TEST_F(SpankTest, RegistersAllOptions) {
     ASSERT_NE(spank_test::registeredOption(name), nullptr);
   }
   (void)spank;
+}
+
+TEST_F(SpankTest, ExportsSlurmPluginMetadata) {
+  EXPECT_STREQ(plugin_name, "amazon_braket_qdmi");
+  EXPECT_STREQ(plugin_type, "spank");
+  EXPECT_EQ(plugin_version, SLURM_VERSION_NUMBER);
+  EXPECT_EQ(spank_plugin_version, 1U);
 }
 
 TEST_F(SpankTest, RejectsInvalidOptionValues) {
@@ -194,8 +208,8 @@ TEST_F(SpankTest, RemoteValidationUsesForwardedOptionsAndInjectsEnvironment) {
             0);
   spank_test::state().forwardedOptions[BASE_URL_OPTION] = "forwarded-device";
   spank_test::state().forwardedOptions[AUTH_FILE_OPTION] = "/forwarded/auth";
-  spank_test::state()
-      .jobEnvironment[AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION] = "job-region";
+  spank_test::state().jobEnvironment[AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION] =
+      "job-region";
   spank_test::state()
       .jobEnvironment[AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN] =
       "job-reservation";
@@ -238,8 +252,8 @@ TEST_F(SpankTest, RemoteValidationUsesForwardedOptionsAndInjectsEnvironment) {
 TEST_F(SpankTest, RemoteValidationUsesOptionalJobEnvironment) {
   auto* const spank = initializeRemote();
   spank_test::configureOptIn();
-  spank_test::state()
-      .jobEnvironment[AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION] = "eu-north-1";
+  spank_test::state().jobEnvironment[AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION] =
+      "eu-north-1";
   spank_test::state()
       .jobEnvironment[AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN] =
       "job-reservation";
@@ -278,14 +292,14 @@ TEST_F(SpankTest, RemoteValidationIgnoresDaemonOnlyEnvironment) {
   ASSERT_EQ(slurm_spank_user_init(spank, 0, nullptr), 0);
   EXPECT_EQ(slurm_spank_task_init(spank, 0, nullptr), 0);
 
-  EXPECT_EQ(spank_test::state()
-                .sessionEnvironmentAtInit
-                    [AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL],
-            "arn:aws:braket:::device/quantum-simulator/amazon/sv1");
-  EXPECT_EQ(spank_test::state()
-                .sessionEnvironmentAtInit
-                    [AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE],
-            "/tmp/credentials");
+  EXPECT_EQ(
+      spank_test::state()
+          .sessionEnvironmentAtInit[AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL],
+      "arn:aws:braket:::device/quantum-simulator/amazon/sv1");
+  EXPECT_EQ(
+      spank_test::state()
+          .sessionEnvironmentAtInit[AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE],
+      "/tmp/credentials");
   EXPECT_EQ(spank_test::state().sessionEnvironmentAtInit.count(
                 AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION),
             0);
@@ -295,8 +309,7 @@ TEST_F(SpankTest, RemoteValidationIgnoresDaemonOnlyEnvironment) {
   EXPECT_EQ(std::string{std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION)},
             "daemon-region");
   EXPECT_EQ(
-      std::string{
-          std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN)},
+      std::string{std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN)},
       "daemon-reservation");
 }
 

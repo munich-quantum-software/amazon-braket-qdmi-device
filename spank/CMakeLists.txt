@@ -27,6 +27,9 @@ if(BUILD_AMAZON_BRAKET_SPANK_PLUGIN)
                                                          qdmi::qdmi_project_warnings)
   set_target_properties(amazon-braket-qdmi-spank
                         PROPERTIES PREFIX "" INSTALL_RPATH "${CMAKE_INSTALL_FULL_LIBDIR}")
+  if(APPLE)
+    target_link_options(amazon-braket-qdmi-spank PRIVATE "LINKER:-undefined,dynamic_lookup")
+  endif()
 
   set(AMAZON_BRAKET_QDMI_SPANK_INSTALL_DIR_DEFAULT "${CMAKE_INSTALL_FULL_LIBDIR}/slurm")
   find_program(AMAZON_BRAKET_QDMI_SCONTROL_EXECUTABLE scontrol)

@@ -45,7 +45,12 @@
 static_assert(SLURM_VERSION_NUMBER >= SLURM_VERSION_NUM(20, 2, 0),
               "The Amazon Braket SPANK plugin requires Slurm 20.02 or newer");
 
-SPANK_PLUGIN(amazon_braket_qdmi, 1); // NOLINT
+extern "C" {
+extern const char plugin_name[] = "amazon_braket_qdmi";
+extern const char plugin_type[] = "spank";
+extern const unsigned int plugin_version = SLURM_VERSION_NUMBER;
+extern const unsigned int spank_plugin_version = 1;
+}
 
 namespace {
 
@@ -394,6 +399,7 @@ auto isPrimaryTask(spank_t spank) -> bool {
 // These names and signatures are required by the Slurm SPANK ABI.
 // NOLINTBEGIN(misc-use-internal-linkage, readability-identifier-naming,
 //             cppcoreguidelines-avoid-c-arrays)
+extern "C" {
 int slurm_spank_init(spank_t spank, int /*ac*/, char* /*argv*/[]) {
   auto& state = pluginState();
   {
@@ -487,6 +493,7 @@ int slurm_spank_task_init(spank_t spank, int /*ac*/, char* /*argv*/[]) {
   }
   return 0;
 }
+} // extern "C"
 
 // NOLINTEND(misc-use-internal-linkage, readability-identifier-naming,
 //           cppcoreguidelines-avoid-c-arrays)
