@@ -42,8 +42,11 @@
 #include <fstream>
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
+#include <optional>
 #include <random>
 #include <stdexcept>
+// POSIX setenv/unsetenv are declared by this C compatibility header.
+#include <stdlib.h> // NOLINT(modernize-deprecated-headers)
 #include <string>
 #include <system_error>
 
@@ -123,21 +126,48 @@ public:
 
   ~ScopedEnvironment() {
 #ifdef _WIN32
-    _putenv_s(name_.c_str(), previous_.empty() ? "" : previous_.c_str());
+    // The Microsoft CRT defines an empty value as removal, so its observable
+    // environment has no distinct "present but empty" state.
+    _putenv_s(name_.c_str(), previous_.has_value() ? previous_->c_str() : "");
 #else
-    if (previous_.empty()) {
-      unsetenv(name_.c_str());
+    if (previous_.has_value()) {
+      setenv(name_.c_str(), previous_->c_str(), 1);
     } else {
-      setenv(name_.c_str(), previous_.c_str(), 1);
+      unsetenv(name_.c_str());
     }
 #endif
   }
 
 private:
   std::string name_;
-  std::string previous_;
+  std::optional<std::string> previous_;
 };
 // NOLINTEND(misc-include-cleaner)
+
+#ifdef _WIN32
+TEST(ScopedEnvironmentTest, TreatsEmptyValueAsAbsent) {
+  constexpr auto* variable = "AMAZON_BRAKET_QDMI_TEST_EMPTY_ENVIRONMENT";
+  const ScopedEnvironment emptyEnvironment(variable, "");
+  ASSERT_EQ(std::getenv(variable), nullptr);
+  {
+    const ScopedEnvironment temporaryEnvironment(variable, "temporary");
+    ASSERT_STREQ(std::getenv(variable), "temporary");
+  }
+  EXPECT_EQ(std::getenv(variable), nullptr);
+}
+#else
+TEST(ScopedEnvironmentTest, RestoresExistingEmptyValue) {
+  constexpr auto* variable = "AMAZON_BRAKET_QDMI_TEST_EMPTY_ENVIRONMENT";
+  const ScopedEnvironment emptyEnvironment(variable, "");
+  {
+    const ScopedEnvironment temporaryEnvironment(variable, "temporary");
+    ASSERT_STREQ(std::getenv(variable), "temporary");
+  }
+  const auto* restored = std::getenv(variable);
+  ASSERT_NE(restored, nullptr);
+  EXPECT_STREQ(restored, "");
+}
+#endif
 } // namespace
 
 // =============================================================================
