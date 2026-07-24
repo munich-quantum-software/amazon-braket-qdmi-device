@@ -35,9 +35,13 @@
 #include <cstdint>
 #include <mutex>
 #include <slurm/slurm_errno.h>
+#include <slurm/slurm_version.h>
 #include <slurm/spank.h>
 #include <string>
 #include <syslog.h>
+
+static_assert(SLURM_VERSION_NUMBER >= SLURM_VERSION_NUM(20, 2, 0),
+              "The Amazon Braket SPANK plugin requires Slurm 20.02 or newer");
 
 SPANK_PLUGIN(amazon_braket_qdmi, 1); // NOLINT
 
