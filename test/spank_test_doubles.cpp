@@ -22,8 +22,8 @@
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
 
-#include <cstddef>
 #include <cstdarg>
+#include <cstddef>
 #include <cstdlib>
 #include <cstring>
 #include <slurm/slurm_errno.h>
@@ -185,11 +185,10 @@ int AMAZON_BRAKET_QDMI_device_session_set_parameter(
 int AMAZON_BRAKET_QDMI_device_session_init(
     AMAZON_BRAKET_QDMI_Device_Session /*session*/) {
   ++spank_test::state().sessionInitCalls;
-  for (const char* name :
-       {AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL,
-        AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION,
-        AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN,
-        AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE}) {
+  for (const char* name : {AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL,
+                           AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION,
+                           AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN,
+                           AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE}) {
     if (const char* value = std::getenv(name); value != nullptr) {
       spank_test::state().sessionEnvironmentAtInit[name] = value;
     }
