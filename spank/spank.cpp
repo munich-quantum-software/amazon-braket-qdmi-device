@@ -36,9 +36,11 @@
 #include <cstdlib>
 #include <mutex>
 #include <optional>
+extern "C" {
 #include <slurm/slurm_errno.h>
 #include <slurm/slurm_version.h>
 #include <slurm/spank.h>
+}
 #include <string>
 #include <syslog.h>
 
