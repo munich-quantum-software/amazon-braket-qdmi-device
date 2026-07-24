@@ -28,8 +28,52 @@ if(BUILD_AMAZON_BRAKET_SPANK_PLUGIN)
     PRIVATE amazon-braket-qdmi-device::internals amazon-braket-qdmi-device::parser-objects
             qdmi::qdmi_project_warnings)
   set_target_properties(amazon-braket-qdmi-spank PROPERTIES PREFIX "")
+
+  set(AMAZON_BRAKET_QDMI_SPANK_EXPORTS
+      plugin_name
+      plugin_type
+      plugin_version
+      spank_plugin_version
+      slurm_spank_init
+      slurm_spank_init_post_opt
+      slurm_spank_user_init
+      slurm_spank_task_init)
   if(APPLE)
-    target_link_options(amazon-braket-qdmi-spank PRIVATE "LINKER:-undefined,dynamic_lookup")
+    set(AMAZON_BRAKET_QDMI_SPANK_EXPORT_FILE
+        "${CMAKE_CURRENT_BINARY_DIR}/amazon-braket-qdmi-spank.exports")
+    set(AMAZON_BRAKET_QDMI_SPANK_EXPORT_CONTENT "")
+    foreach(EXPORT_SYMBOL IN LISTS AMAZON_BRAKET_QDMI_SPANK_EXPORTS)
+      string(APPEND AMAZON_BRAKET_QDMI_SPANK_EXPORT_CONTENT "_${EXPORT_SYMBOL}\n")
+    endforeach()
+    file(
+      GENERATE
+      OUTPUT "${AMAZON_BRAKET_QDMI_SPANK_EXPORT_FILE}"
+      CONTENT "${AMAZON_BRAKET_QDMI_SPANK_EXPORT_CONTENT}")
+    target_link_options(
+      amazon-braket-qdmi-spank PRIVATE "LINKER:-undefined,dynamic_lookup"
+      "LINKER:SHELL:-exported_symbols_list ${AMAZON_BRAKET_QDMI_SPANK_EXPORT_FILE}")
+    set_property(
+      TARGET amazon-braket-qdmi-spank
+      APPEND
+      PROPERTY LINK_DEPENDS "${AMAZON_BRAKET_QDMI_SPANK_EXPORT_FILE}")
+  elseif(UNIX)
+    set(AMAZON_BRAKET_QDMI_SPANK_VERSION_SCRIPT
+        "${CMAKE_CURRENT_BINARY_DIR}/amazon-braket-qdmi-spank.map")
+    set(AMAZON_BRAKET_QDMI_SPANK_EXPORT_CONTENT "{\n  global:\n")
+    foreach(EXPORT_SYMBOL IN LISTS AMAZON_BRAKET_QDMI_SPANK_EXPORTS)
+      string(APPEND AMAZON_BRAKET_QDMI_SPANK_EXPORT_CONTENT "    ${EXPORT_SYMBOL};\n")
+    endforeach()
+    string(APPEND AMAZON_BRAKET_QDMI_SPANK_EXPORT_CONTENT "  local:\n    *;\n};\n")
+    file(
+      GENERATE
+      OUTPUT "${AMAZON_BRAKET_QDMI_SPANK_VERSION_SCRIPT}"
+      CONTENT "${AMAZON_BRAKET_QDMI_SPANK_EXPORT_CONTENT}")
+    target_link_options(amazon-braket-qdmi-spank PRIVATE
+                        "LINKER:--version-script=${AMAZON_BRAKET_QDMI_SPANK_VERSION_SCRIPT}")
+    set_property(
+      TARGET amazon-braket-qdmi-spank
+      APPEND
+      PROPERTY LINK_DEPENDS "${AMAZON_BRAKET_QDMI_SPANK_VERSION_SCRIPT}")
   endif()
 
   set(AMAZON_BRAKET_QDMI_SPANK_INSTALL_DIR_DEFAULT "${CMAKE_INSTALL_FULL_LIBDIR}/slurm")
