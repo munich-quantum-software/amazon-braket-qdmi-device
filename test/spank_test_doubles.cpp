@@ -23,11 +23,13 @@
 #include "amazon_braket_qdmi/device.h"
 
 #include <cstddef>
+#include <cstdarg>
 #include <cstdlib>
 #include <cstring>
 #include <slurm/slurm_errno.h>
 #include <slurm/spank.h>
 #include <string>
+#include <utility>
 
 namespace {
 auto sessionStorage() -> char* {
@@ -111,6 +113,21 @@ int spank_getenv(spank_t /*spank*/, const char* name, char* buffer,
   return ESPANK_SUCCESS;
 }
 
+int spank_get_item(spank_t /*spank*/, const spank_item_t item, ...) {
+  if (item != S_TASK_ID) {
+    return ESPANK_ERROR;
+  }
+  va_list arguments;
+  va_start(arguments, item);
+  auto* taskId = va_arg(arguments, int*);
+  va_end(arguments);
+  if (taskId == nullptr) {
+    return ESPANK_ERROR;
+  }
+  *taskId = spank_test::state().taskId;
+  return ESPANK_SUCCESS;
+}
+
 int spank_setenv(spank_t /*spank*/, const char* name, const char* value,
                  int overwrite) {
   spank_test::state().environmentOverwrites.push_back(overwrite);
@@ -122,7 +139,15 @@ int spank_setenv(spank_t /*spank*/, const char* name, const char* value,
 }
 
 void slurm_spank_log(const char* format, ...) {
-  spank_test::state().logs.emplace_back(format);
+  std::string message{format};
+  va_list arguments;
+  va_start(arguments, format);
+  if (message == "amazon-braket-qdmi: %s") {
+    message = "amazon-braket-qdmi: ";
+    message += va_arg(arguments, const char*);
+  }
+  va_end(arguments);
+  spank_test::state().logs.emplace_back(std::move(message));
 }
 
 int AMAZON_BRAKET_QDMI_device_initialize(void) {

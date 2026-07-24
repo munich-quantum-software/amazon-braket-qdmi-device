@@ -40,6 +40,7 @@ struct State {
   std::vector<int> environmentOverwrites;
   std::vector<std::string> logs;
   int environmentResult = ESPANK_SUCCESS;
+  int taskId = 0;
 
   int deviceInitializeResult = QDMI_SUCCESS;
   int sessionAllocResult = QDMI_SUCCESS;

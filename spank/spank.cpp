@@ -383,6 +383,12 @@ auto injectEnvironment(spank_t spank, const std::array<std::string, 4>& values)
   return true;
 }
 
+auto isPrimaryTask(spank_t spank) -> bool {
+  int taskId = 0;
+  return spank_get_item(spank, S_TASK_ID, &taskId) != ESPANK_SUCCESS ||
+         taskId == 0;
+}
+
 } // namespace
 
 // These names and signatures are required by the Slurm SPANK ABI.
@@ -474,7 +480,9 @@ int slurm_spank_task_init(spank_t spank, int /*ac*/, char* /*argv*/[]) {
     return 0;
   }
   if (!state.complete || !state.successful) {
-    logFailure("job rejected because QDMI validation failed");
+    if (isPrimaryTask(spank)) {
+      logFailure("job rejected because QDMI validation failed");
+    }
     return -1;
   }
   return 0;

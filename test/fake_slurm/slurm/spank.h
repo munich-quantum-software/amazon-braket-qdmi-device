@@ -34,6 +34,9 @@ enum spank_context {
 };
 using spank_context_t = enum spank_context;
 
+using spank_item_t = int;
+inline constexpr spank_item_t S_TASK_ID = 0;
+
 using spank_opt_cb_f = int (*)(int, const char*, int);
 
 struct spank_option {
@@ -55,6 +58,7 @@ spank_err_t spank_option_getopt(spank_t spank, spank_option* option,
                                 char** argument);
 spank_err_t spank_getenv(spank_t spank, const char* name, char* buffer,
                          int length);
+spank_err_t spank_get_item(spank_t spank, spank_item_t item, ...);
 spank_err_t spank_setenv(spank_t spank, const char* name, const char* value,
                          int overwrite);
 void slurm_spank_log(const char* format, ...);

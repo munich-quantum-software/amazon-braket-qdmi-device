@@ -21,6 +21,7 @@
 #include "amazon_braket_qdmi/device.h"
 #include "spank_test_doubles.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstdlib>
 #include <gtest/gtest.h>
@@ -324,6 +325,25 @@ TEST_F(SpankTest, RemoteRejectsUnavailableDevices) {
     EXPECT_EQ(spank_test::state().sessionFreeCalls, 1);
     EXPECT_EQ(spank_test::state().finalizeCalls, 1);
   }
+}
+
+TEST_F(SpankTest, RemoteValidationFailureLogsOnceAcrossTasks) {
+  auto* const spank = initializeRemote();
+  spank_test::configureOptIn();
+  spank_test::state().sessionInitResult = QDMI_ERROR_PERMISSIONDENIED;
+  ASSERT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
+  ASSERT_EQ(slurm_spank_user_init(spank, 0, nullptr), 0);
+
+  spank_test::state().taskId = 0;
+  EXPECT_LT(slurm_spank_task_init(spank, 0, nullptr), 0);
+  spank_test::state().taskId = 1;
+  EXPECT_LT(slurm_spank_task_init(spank, 0, nullptr), 0);
+
+  EXPECT_EQ(std::ranges::count(
+                spank_test::state().logs,
+                "amazon-braket-qdmi: job rejected because QDMI validation "
+                "failed"),
+            1);
 }
 
 TEST_F(SpankTest, RemoteQdmiFailuresRejectAndCleanUp) {
