@@ -15,7 +15,8 @@ releases may include breaking changes.
 - ✨ Use the AWS SDK default credential provider chain when no explicit session
   credentials are configured ([#150]) ([**@burgholzer**])
 - ✨ Add an optional GPL-licensed Slurm SPANK plugin for validating Amazon
-  Braket devices and injecting QDMI session configuration ([#134])
+  Braket devices and injecting QDMI session configuration, including the
+  distinct plugin and core library license texts ([#134])
   ([**@flowerthrower**], [**@burgholzer**])
 
 ### Changed

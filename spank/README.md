@@ -37,7 +37,10 @@ The plugin must be rebuilt when the target Slurm release changes.
 
 Only the SPANK plugin in this directory is licensed under GPL-3.0-or-later
 because it links against Slurm's GPL-licensed interface. The core Amazon Braket
-QDMI library remains licensed under Apache-2.0 with LLVM exceptions. See
+QDMI library remains licensed under Apache-2.0 with LLVM exceptions. The install
+component places the plugin license at
+`share/licenses/amazon-braket-qdmi-spank/LICENSE.md` and the core library
+license at `share/licenses/amazon-braket-qdmi-device/LICENSE`. See
 [LICENSE.md](LICENSE.md) for the plugin license text.
 
 ## Minimal job
