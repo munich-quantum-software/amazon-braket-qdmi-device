@@ -316,6 +316,31 @@ TEST_F(AmazonBraketQDMIOfflineTest,
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
+// Explicit API credentials must take precedence over an AUTHFILE fallback.
+TEST_F(AmazonBraketQDMIOfflineTest,
+       SessionInitDirectCredentialsIgnoreEnvironmentAuthFile) {
+  const ScopedEnvironment authFile(AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE,
+                                   "/nonexistent/environment/credentials.ini");
+  const char* deviceArn =
+      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                strlen(deviceArn) + 1, deviceArn),
+            QDMI_SUCCESS);
+  const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
+                strlen(accessKey) + 1, accessKey),
+            QDMI_SUCCESS);
+  const char* secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
+                strlen(secretKey) + 1, secretKey),
+            QDMI_SUCCESS);
+
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
+}
+
 // init() with a credentials file that does not exist must fail.
 TEST_F(AmazonBraketQDMIOfflineTest, SessionInitNonexistentCredentialsFile) {
   const char* deviceArn =
