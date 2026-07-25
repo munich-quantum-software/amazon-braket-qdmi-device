@@ -113,8 +113,10 @@ int spank_getenv(spank_t /*spank*/, const char* name, char* buffer,
   return ESPANK_SUCCESS;
 }
 
-// This test double must mirror Slurm's variadic C ABI.
-// NOLINTBEGIN(cppcoreguidelines-pro-type-vararg)
+// This test double must mirror Slurm's variadic C ABI. On some platforms,
+// va_list is an array type that the standard va_* macros necessarily decay.
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+//             cppcoreguidelines-pro-type-vararg)
 int spank_get_item(spank_t /*spank*/, const spank_item_t item, ...) {
   if (item != S_TASK_ID) {
     return ESPANK_ERROR;
@@ -129,7 +131,8 @@ int spank_get_item(spank_t /*spank*/, const spank_item_t item, ...) {
   *taskId = spank_test::state().taskId;
   return ESPANK_SUCCESS;
 }
-// NOLINTEND(cppcoreguidelines-pro-type-vararg)
+// NOLINTEND(cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+//           cppcoreguidelines-pro-type-vararg)
 
 int spank_setenv(spank_t /*spank*/, const char* name, const char* value,
                  int overwrite) {
@@ -141,8 +144,10 @@ int spank_setenv(spank_t /*spank*/, const char* name, const char* value,
   return ESPANK_SUCCESS;
 }
 
-// This test double must mirror Slurm's variadic C ABI.
-// NOLINTBEGIN(cppcoreguidelines-pro-type-vararg)
+// This test double must mirror Slurm's variadic C ABI. On some platforms,
+// va_list is an array type that the standard va_* macros necessarily decay.
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+//             cppcoreguidelines-pro-type-vararg)
 void slurm_spank_log(const char* format, ...) {
   std::string message{format};
   va_list arguments;
@@ -154,7 +159,8 @@ void slurm_spank_log(const char* format, ...) {
   va_end(arguments);
   spank_test::state().logs.emplace_back(std::move(message));
 }
-// NOLINTEND(cppcoreguidelines-pro-type-vararg)
+// NOLINTEND(cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+//           cppcoreguidelines-pro-type-vararg)
 
 int AMAZON_BRAKET_QDMI_device_initialize(void) {
   ++spank_test::state().initializeCalls;
