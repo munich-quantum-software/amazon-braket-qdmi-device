@@ -45,8 +45,7 @@
 #include <optional>
 #include <random>
 #include <stdexcept>
-// POSIX setenv/unsetenv are declared by this C compatibility header.
-#include <stdlib.h> // NOLINT(modernize-deprecated-headers)
+#include <stdlib.h> // NOLINT(modernize-deprecated-headers): POSIX setenv/unsetenv
 #include <string>
 #include <system_error>
 
@@ -197,8 +196,8 @@ protected:
 };
 
 TEST_F(AmazonBraketQDMIOfflineTest, SessionInitUsesEnvironmentFallbacks) {
-  const auto credentialsFile =
-      std::filesystem::temp_directory_path() / "qdmi_test_env_credentials.ini";
+  const ScopedTemporaryDirectory temporaryDirectory;
+  const auto credentialsFile = temporaryDirectory.path() / "credentials.ini";
   {
     std::ofstream file(credentialsFile);
     ASSERT_TRUE(file.is_open());
@@ -216,7 +215,6 @@ TEST_F(AmazonBraketQDMIOfflineTest, SessionInitUsesEnvironmentFallbacks) {
                                  "us-east-1");
 
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
-  std::filesystem::remove(credentialsFile);
 }
 
 // =============================================================================
