@@ -27,9 +27,14 @@ target_link_libraries(
   amazon-braket-qdmi-spank
   PRIVATE amazon-braket-qdmi-device::internals amazon-braket-qdmi-device::parser-objects
           qdmi::qdmi_project_warnings)
-target_link_options(
-  amazon-braket-qdmi-spank PRIVATE
-  "LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/amazon-braket-qdmi-spank.map")
+set(AMAZON_BRAKET_QDMI_SPANK_VERSION_SCRIPT
+    "${CMAKE_CURRENT_SOURCE_DIR}/amazon-braket-qdmi-spank.map")
+target_link_options(amazon-braket-qdmi-spank PRIVATE
+                    "LINKER:--version-script=${AMAZON_BRAKET_QDMI_SPANK_VERSION_SCRIPT}")
+set_property(
+  TARGET amazon-braket-qdmi-spank
+  APPEND
+  PROPERTY LINK_DEPENDS "${AMAZON_BRAKET_QDMI_SPANK_VERSION_SCRIPT}")
 set_target_properties(amazon-braket-qdmi-spank PROPERTIES PREFIX "")
 
 set(AMAZON_BRAKET_QDMI_SPANK_INSTALL_DIR
