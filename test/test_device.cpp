@@ -183,7 +183,8 @@ protected:
     const char* deviceArn =
         "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                  session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                  session,
+                  AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
                   strlen(deviceArn) + 1, deviceArn),
               QDMI_SUCCESS)
         << "Failed to set device ARN";
@@ -255,7 +256,8 @@ protected:
     const char* deviceArn =
         "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
     if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
-            sharedSession, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+            sharedSession,
+            AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
             strlen(deviceArn) + 1, deviceArn) != QDMI_SUCCESS) {
       GTEST_FAIL() << "Failed to set device ARN in SetUpTestSuite";
       return;
@@ -291,7 +293,7 @@ protected:
       return;
     }
     AMAZON_BRAKET_QDMI_device_job_set_parameter(
-        sharedJob, QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
+        sharedJob, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
         strlen(s3BucketEnv) + 1, s3BucketEnv);
 
     if (const auto submitStatus =
@@ -913,7 +915,7 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
   const char* deviceArn =
       "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
                 strlen(deviceArn) + 1, deviceArn),
             QDMI_SUCCESS);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
@@ -939,7 +941,7 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
             QDMI_SUCCESS);
 
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                job, QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
+                job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
                 strlen(s3BucketEnv) + 1, s3BucketEnv),
             QDMI_SUCCESS);
 
@@ -1004,7 +1006,8 @@ protected:
       GTEST_SKIP() << "Credentials not available: " << e.what();
     }
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                  session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                  session,
+                  AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
                   strlen(deviceArn) + 1, deviceArn),
               QDMI_SUCCESS);
     if (AMAZON_BRAKET_QDMI_device_session_init(session) != QDMI_SUCCESS) {
@@ -1319,7 +1322,8 @@ TEST(AmazonBraketQDMIWaitTimeoutTest, JobWaitTimeout) {
   const char* deviceArn =
       "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                guard.session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                guard.session,
+                AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
                 strlen(deviceArn) + 1, deviceArn),
             QDMI_SUCCESS);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_init(guard.session),
@@ -1344,7 +1348,8 @@ TEST(AmazonBraketQDMIWaitTimeoutTest, JobWaitTimeout) {
           guard.job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(shots), &shots),
       QDMI_SUCCESS);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                guard.job, QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
+                guard.job,
+                AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
                 strlen(s3BucketEnv) + 1, s3BucketEnv),
             QDMI_SUCCESS);
 
