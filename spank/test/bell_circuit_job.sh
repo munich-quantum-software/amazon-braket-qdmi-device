@@ -38,4 +38,4 @@ c = measure q;'
 grep -Fq "h q[0];" <<<"${bell_program}"
 grep -Fq "cnot q[0], q[1];" <<<"${bell_program}"
 grep -Fq "c = measure q;" <<<"${bell_program}"
-echo "Bell circuit validated in Slurm batch job"
+echo "Bell circuit prepared in Slurm batch job"

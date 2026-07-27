@@ -56,13 +56,13 @@ fi
 
 /workspace/spank/test/test_spank.sh
 
-echo "=== Submitting a Bell circuit through sbatch ==="
+echo "=== Running a Bell-circuit batch script through sbatch ==="
 bell_output=$(mktemp)
 timeout 60s sbatch \
   --wait \
   --output="${bell_output}" \
   /workspace/spank/test/bell_circuit_job.sh
-grep -Fxq "Bell circuit validated in Slurm batch job" "${bell_output}"
+grep -Fxq "Bell circuit prepared in Slurm batch job" "${bell_output}"
 
 request_count=$(
   curl --fail --silent http://127.0.0.1:18080/request-count |
