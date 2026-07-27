@@ -34,6 +34,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <exception>
 #include <mutex>
 #include <optional>
 extern "C" {
@@ -196,7 +197,8 @@ auto collectRemoteOptions(spank_t spank) -> std::array<std::string, 4> {
       values[optionIndex(static_cast<OptionValue>(option.val))] = argument;
     }
   }
-  for (size_t index = 0; index < values.size(); ++index) {
+  for (const auto option : {OptionValue::Region, OptionValue::ReservationArn}) {
+    const auto index = optionIndex(option);
     if (values[index].empty()) {
       if (const auto jobValue =
               getJobEnvironment(spank, SESSION_PARAMETERS[index].environment);
@@ -299,7 +301,7 @@ auto validateRequiredOptions(const std::array<std::string, 4>& values) -> bool {
   return true;
 }
 
-auto validateDevice(const std::array<std::string, 4>& values) -> bool {
+auto validateDeviceImpl(const std::array<std::string, 4>& values) -> bool {
   if (values[optionIndex(OptionValue::DeviceArn)].empty() ||
       values[optionIndex(OptionValue::AuthFile)].empty()) {
     logFailure("device ARN and credentials file are required");
@@ -312,21 +314,26 @@ auto validateDevice(const std::array<std::string, 4>& values) -> bool {
     return false;
   }
 
-  if (AMAZON_BRAKET_QDMI_device_initialize() != QDMI_SUCCESS) {
-    logFailure("failed to initialize QDMI");
-    return false;
-  }
-
   struct QdmiGuard {
     AMAZON_BRAKET_QDMI_Device_Session session = nullptr;
+    bool finalizeDevice = false;
 
     ~QdmiGuard() {
       if (session != nullptr) {
         AMAZON_BRAKET_QDMI_device_session_free(session);
       }
-      AMAZON_BRAKET_QDMI_device_finalize();
+      if (finalizeDevice) {
+        AMAZON_BRAKET_QDMI_device_finalize();
+      }
     }
   } guard;
+
+  guard.finalizeDevice = true;
+  if (AMAZON_BRAKET_QDMI_device_initialize() != QDMI_SUCCESS) {
+    guard.finalizeDevice = false;
+    logFailure("failed to initialize QDMI");
+    return false;
+  }
 
   if (AMAZON_BRAKET_QDMI_device_session_alloc(&guard.session) != QDMI_SUCCESS) {
     logFailure("failed to allocate QDMI session");
@@ -363,6 +370,21 @@ auto validateDevice(const std::array<std::string, 4>& values) -> bool {
     return false;
   }
   return true;
+}
+
+auto validateDevice(const std::array<std::string, 4>& values) noexcept -> bool {
+  try {
+    return validateDeviceImpl(values);
+  } catch (const std::exception& error) {
+    // Slurm exposes logging through a variadic C ABI.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+    slurm_spank_log(
+        "amazon-braket-qdmi: QDMI validation raised an exception: %s",
+        error.what());
+  } catch (...) {
+    logFailure("QDMI validation raised an unknown exception");
+  }
+  return false;
 }
 
 auto injectEnvironment(spank_t spank, const std::array<std::string, 4>& values)

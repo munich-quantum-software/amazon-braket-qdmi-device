@@ -28,6 +28,7 @@
 #include <cstring>
 #include <slurm/slurm_errno.h>
 #include <slurm/spank.h>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -155,6 +156,10 @@ void slurm_spank_log(const char* format, ...) {
   if (message == "amazon-braket-qdmi: %s") {
     message = "amazon-braket-qdmi: ";
     message += va_arg(arguments, const char*);
+  } else if (message ==
+             "amazon-braket-qdmi: QDMI validation raised an exception: %s") {
+    message = "amazon-braket-qdmi: QDMI validation raised an exception: ";
+    message += va_arg(arguments, const char*);
   }
   va_end(arguments);
   spank_test::state().logs.emplace_back(std::move(message));
@@ -164,6 +169,9 @@ void slurm_spank_log(const char* format, ...) {
 
 int AMAZON_BRAKET_QDMI_device_initialize(void) {
   ++spank_test::state().initializeCalls;
+  if (spank_test::state().deviceInitializeThrows) {
+    throw std::runtime_error{"simulated QDMI device initialization failure"};
+  }
   return spank_test::state().deviceInitializeResult;
 }
 
@@ -197,6 +205,14 @@ int AMAZON_BRAKET_QDMI_device_session_set_parameter(
 int AMAZON_BRAKET_QDMI_device_session_init(
     AMAZON_BRAKET_QDMI_Device_Session /*session*/) {
   ++spank_test::state().sessionInitCalls;
+  if (spank_test::state().sessionInitThrows) {
+    throw std::runtime_error{"simulated QDMI session initialization failure"};
+  }
+  if (spank_test::state().sessionInitThrowsUnknown) {
+    // Exercise the plugin's catch-all barrier with a foreign exception type.
+    // NOLINTNEXTLINE(hicpp-exception-baseclass)
+    throw 0;
+  }
   for (const char* name : {AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL,
                            AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION,
                            AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN,

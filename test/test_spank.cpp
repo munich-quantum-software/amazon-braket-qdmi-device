@@ -188,6 +188,35 @@ TEST_F(SpankTest, RemoteWithoutOptInSkipsValidation) {
   EXPECT_EQ(spank_test::state().initializeCalls, 0);
 }
 
+TEST_F(SpankTest, RemoteRequiredJobEnvironmentDoesNotOptIn) {
+  auto* const spank = initializeRemote();
+  spank_test::state().jobEnvironment[AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL] =
+      "job-device";
+  spank_test::state().jobEnvironment[AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE] =
+      "/job/auth";
+
+  ASSERT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
+  ASSERT_EQ(slurm_spank_user_init(spank, 0, nullptr), 0);
+  EXPECT_EQ(slurm_spank_task_init(spank, 0, nullptr), 0);
+  EXPECT_EQ(spank_test::state().initializeCalls, 0);
+  EXPECT_TRUE(spank_test::state().environment.empty());
+}
+
+TEST_F(SpankTest, RemoteCollectionIgnoresRequiredJobEnvironment) {
+  auto* const spank = initializeRemote();
+  spank_test::state().jobEnvironment[AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL] =
+      "job-device";
+  spank_test::state().jobEnvironment[AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE] =
+      "/job/auth";
+
+  // Isolate user_init's collection path before init_post_opt marks an
+  // option-less plugin inactive.
+  ASSERT_EQ(slurm_spank_user_init(spank, 0, nullptr), 0);
+  EXPECT_LT(slurm_spank_task_init(spank, 0, nullptr), 0);
+  EXPECT_EQ(spank_test::state().initializeCalls, 0);
+  EXPECT_TRUE(spank_test::state().environment.empty());
+}
+
 TEST_F(SpankTest, RemoteIncompleteOptInRejectsJob) {
   auto* const spank = initializeRemote();
   auto* baseUrl = spank_test::registeredOption(BASE_URL_OPTION);
@@ -410,6 +439,63 @@ TEST_F(SpankTest, RemoteQdmiFailuresRejectAndCleanUp) {
     EXPECT_EQ(spank_test::state().finalizeCalls, failure.shouldFinalize ? 1 : 0)
         << failure.name;
   }
+}
+
+TEST_F(SpankTest, RemoteQdmiExceptionRejectsAndCleansUp) {
+  auto* const spank = initializeRemote();
+  spank_test::configureOptIn();
+  spank_test::state().sessionInitThrows = true;
+
+  ASSERT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
+  int userInitResult = -1;
+  EXPECT_NO_THROW(userInitResult = slurm_spank_user_init(spank, 0, nullptr));
+  EXPECT_EQ(userInitResult, 0);
+  EXPECT_LT(slurm_spank_task_init(spank, 0, nullptr), 0);
+  EXPECT_EQ(spank_test::state().sessionFreeCalls, 1);
+  EXPECT_EQ(spank_test::state().finalizeCalls, 1);
+  EXPECT_NE(std::ranges::find(
+                spank_test::state().logs,
+                "amazon-braket-qdmi: QDMI validation raised an exception: "
+                "simulated QDMI session initialization failure"),
+            spank_test::state().logs.end());
+}
+
+TEST_F(SpankTest, RemoteQdmiInitializeExceptionRejectsAndFinalizes) {
+  auto* const spank = initializeRemote();
+  spank_test::configureOptIn();
+  spank_test::state().deviceInitializeThrows = true;
+
+  ASSERT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
+  int userInitResult = -1;
+  EXPECT_NO_THROW(userInitResult = slurm_spank_user_init(spank, 0, nullptr));
+  EXPECT_EQ(userInitResult, 0);
+  EXPECT_LT(slurm_spank_task_init(spank, 0, nullptr), 0);
+  EXPECT_EQ(spank_test::state().sessionAllocCalls, 0);
+  EXPECT_EQ(spank_test::state().finalizeCalls, 1);
+  EXPECT_NE(std::ranges::find(
+                spank_test::state().logs,
+                "amazon-braket-qdmi: QDMI validation raised an exception: "
+                "simulated QDMI device initialization failure"),
+            spank_test::state().logs.end());
+}
+
+TEST_F(SpankTest, RemoteUnknownQdmiExceptionRejectsAndCleansUp) {
+  auto* const spank = initializeRemote();
+  spank_test::configureOptIn();
+  spank_test::state().sessionInitThrowsUnknown = true;
+
+  ASSERT_EQ(slurm_spank_init_post_opt(spank, 0, nullptr), 0);
+  int userInitResult = -1;
+  EXPECT_NO_THROW(userInitResult = slurm_spank_user_init(spank, 0, nullptr));
+  EXPECT_EQ(userInitResult, 0);
+  EXPECT_LT(slurm_spank_task_init(spank, 0, nullptr), 0);
+  EXPECT_EQ(spank_test::state().sessionFreeCalls, 1);
+  EXPECT_EQ(spank_test::state().finalizeCalls, 1);
+  EXPECT_NE(
+      std::ranges::find(spank_test::state().logs,
+                        "amazon-braket-qdmi: QDMI validation raised an unknown "
+                        "exception"),
+      spank_test::state().logs.end());
 }
 
 TEST_F(SpankTest, EnvironmentFailureRejectsJob) {

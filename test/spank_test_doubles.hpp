@@ -43,9 +43,12 @@ struct State {
   int taskId = 0;
 
   int deviceInitializeResult = QDMI_SUCCESS;
+  bool deviceInitializeThrows = false;
   int sessionAllocResult = QDMI_SUCCESS;
   int setParameterResult = QDMI_SUCCESS;
   int sessionInitResult = QDMI_SUCCESS;
+  bool sessionInitThrows = false;
+  bool sessionInitThrowsUnknown = false;
   int queryStatusResult = QDMI_SUCCESS;
   int deviceStatus = QDMI_DEVICE_STATUS_IDLE;
   int initializeCalls = 0;
