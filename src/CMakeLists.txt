@@ -109,6 +109,7 @@ target_link_libraries(${QDMI_TARGET_NAME} PRIVATE qdmi::qdmi_project_warnings
 option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
 if(ENABLE_COVERAGE)
   target_link_libraries(${QDMI_DEVICE_OBJECTS} PUBLIC qdmi::qdmi_coverage_flags)
+  target_link_libraries(${QDMI_PARSER_OBJECTS} PUBLIC qdmi::qdmi_coverage_flags)
 endif()
 
 set(${QDMI_PREFIX}_QDMI_CONFIG_INSTALL_DIR
