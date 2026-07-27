@@ -32,7 +32,7 @@ def test_register_device_if_absent() -> None:
     """Register the packaged device without loading it or contacting AWS."""
     definition = DeviceDefinition(
         AMAZON_BRAKET_QDMI_DEVICE_ID,
-        str(AMAZON_BRAKET_QDMI_LIBRARY_PATH),
+        AMAZON_BRAKET_QDMI_LIBRARY_PATH,
         AMAZON_BRAKET_QDMI_PREFIX,
     )
 

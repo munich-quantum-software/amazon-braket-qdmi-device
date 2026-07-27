@@ -23,6 +23,11 @@ releases may include breaking changes.
 - ⬆️ Update QDMI to version 1.3.3 ([#130], [#147]) ([**@denialhaag**],
   [**@burgholzer**])
 
+### Fixed
+
+- 🐛 Isolate scikit-build output from the direct CMake build tree ([#147])
+  ([**@burgholzer**])
+
 ## [1.0.1] - 2026-06-26
 
 ### Fixed

@@ -273,6 +273,11 @@ target_link_libraries(my_app PRIVATE MQT::CoreFoMaC)
 mqt_copy_qdmi_runtime(my_app amazon-braket-qdmi-device)
 ```
 
+This placement is discovered automatically when the MQT Core Driver is linked
+statically into the executable. A dynamically linked Driver searches beside its
+own shared library instead; in that case, place the generated manifest there or
+register the definition explicitly as shown below.
+
 Python consumers can use the same metadata to preserve any existing
 `amazon.braket.default` configuration and apply credentials or a device ARN to
 each fresh session:
@@ -290,7 +295,7 @@ from mqt.core.fomac import DeviceDefinition, open_device, register_device_if_abs
 register_device_if_absent(
     DeviceDefinition(
         AMAZON_BRAKET_QDMI_DEVICE_ID,
-        str(AMAZON_BRAKET_QDMI_LIBRARY_PATH),
+        AMAZON_BRAKET_QDMI_LIBRARY_PATH,
         AMAZON_BRAKET_QDMI_PREFIX,
     )
 )
@@ -298,7 +303,7 @@ device = open_device(
     AMAZON_BRAKET_QDMI_DEVICE_ID,
     base_url="arn:aws:braket:::device/quantum-simulator/amazon/sv1",
     auth_file=Path("/path/to/credentials"),
-    custom2="us-east-1",  # QDMI_DEVICE_SESSION_PARAMETER_REGION
+    custom2="us-east-1",  # AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION
 )
 ```
 

@@ -35,7 +35,7 @@ test = [
 [package.metadata.requires-dev]
 build = [{ name = "scikit-build-core", specifier = ">=0.11.6" }]
 dev = [
-    { name = "mqt-core", git = "https://github.com/munich-quantum-toolkit/core.git?rev=b92e17b3f6322f3c1e9520237d0fa8bd9b601a35" },
+    { name = "mqt-core", git = "https://github.com/munich-quantum-toolkit/core.git?rev=7769bdde0a710b340c5f3a291a509562131f505b" },
     { name = "nox", specifier = ">=2026.2.9" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-console-scripts", specifier = ">=1.4.1" },
@@ -45,7 +45,7 @@ dev = [
     { name = "scikit-build-core", specifier = ">=0.11.6" },
 ]
 test = [
-    { name = "mqt-core", git = "https://github.com/munich-quantum-toolkit/core.git?rev=b92e17b3f6322f3c1e9520237d0fa8bd9b601a35" },
+    { name = "mqt-core", git = "https://github.com/munich-quantum-toolkit/core.git?rev=7769bdde0a710b340c5f3a291a509562131f505b" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-console-scripts", specifier = ">=1.4.1" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
@@ -268,7 +268,7 @@ wheels = [
 [[package]]
 name = "mqt-core"
 version = "3.8.0"
-source = { git = "https://github.com/munich-quantum-toolkit/core.git?rev=b92e17b3f6322f3c1e9520237d0fa8bd9b601a35#b92e17b3f6322f3c1e9520237d0fa8bd9b601a35" }
+source = { git = "https://github.com/munich-quantum-toolkit/core.git?rev=7769bdde0a710b340c5f3a291a509562131f505b#7769bdde0a710b340c5f3a291a509562131f505b" }
 
 [[package]]
 name = "nox"
