@@ -51,6 +51,19 @@ constexpr const char* BELL_STATE_PROGRAM = "OPENQASM 3.0;\n"
                                            "cnot q[0], q[1];\n"
                                            "c[0] = measure q[0];\n"
                                            "c[1] = measure q[1];\n";
+
+static_assert(AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN ==
+              QDMI_DEVICE_SESSION_PARAMETER_BASEURL);
+static_assert(AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION ==
+              QDMI_DEVICE_SESSION_PARAMETER_CUSTOM2);
+static_assert(AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN ==
+              QDMI_DEVICE_SESSION_PARAMETER_CUSTOM3);
+static_assert(AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET ==
+              QDMI_DEVICE_JOB_PARAMETER_CUSTOM1);
+static_assert(AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX ==
+              QDMI_DEVICE_JOB_PARAMETER_CUSTOM2);
+static_assert(AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN ==
+              QDMI_DEVICE_JOB_PARAMETER_CUSTOM3);
 } // namespace
 
 // =============================================================================
@@ -114,7 +127,8 @@ protected:
     const char* deviceArn =
         "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                  session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                  session,
+                  AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
                   strlen(deviceArn) + 1, deviceArn),
               QDMI_SUCCESS);
 
@@ -145,7 +159,7 @@ TEST_F(AmazonBraketQDMIOfflineTest, SessionInitNoCredentials) {
   const char* deviceArn =
       "arn:aws:braket:us-east-1::device/qpu/test/FakeDevice";
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
                 strlen(deviceArn) + 1, deviceArn),
             QDMI_SUCCESS);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
@@ -157,7 +171,7 @@ TEST_F(AmazonBraketQDMIOfflineTest, SessionInitNonexistentCredentialsFile) {
   const char* deviceArn =
       "arn:aws:braket:us-east-1::device/qpu/test/FakeDevice";
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
                 strlen(deviceArn) + 1, deviceArn),
             QDMI_SUCCESS);
   const char* badFile = "/nonexistent/path/to/credentials.ini";
@@ -246,7 +260,7 @@ TEST_F(AmazonBraketQDMIOfflineTest,
        SessionSetParameterDeviceArnNotNullTerminated) {
   const std::array<char, 7> notTerminated = {'a', 'r', 'n', ':', 'a', 'w', 's'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
                 notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
 }
@@ -255,7 +269,7 @@ TEST_F(AmazonBraketQDMIOfflineTest,
        SessionSetParameterRegionNotNullTerminated) {
   const std::array<char, 7> notTerminated = {'u', 's', '-', 'e', 'a', 's', 't'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_REGION,
+                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION,
                 notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
 }
@@ -300,7 +314,8 @@ TEST_F(AmazonBraketQDMIOfflineTest,
        SessionSetParameterReservationArnNotNullTerminated) {
   const std::array<char, 7> notTerminated = {'a', 'r', 'n', ':', 'a', 'w', 's'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
+                session,
+                AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
                 notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
 }
@@ -309,7 +324,7 @@ TEST_F(AmazonBraketQDMIOfflineTest,
 TEST_F(AmazonBraketQDMIOfflineTest, SessionSetParameterRegionValid) {
   const char* region = "eu-north-1";
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_REGION,
+                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION,
                 strlen(region) + 1, region),
             QDMI_SUCCESS);
 }
@@ -319,7 +334,8 @@ TEST_F(AmazonBraketQDMIOfflineTest, SessionSetParameterReservationArnValid) {
       "arn:aws:braket:us-east-1:123456789012:reservation/"
       "a1b2c3d4-5678-90ab-cdef-1234567890ab";
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
+                session,
+                AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
                 strlen(reservationArn) + 1, reservationArn),
             QDMI_SUCCESS);
 }
@@ -341,19 +357,21 @@ TEST_F(AmazonBraketQDMILocalJobTest, SessionSetParameter) {
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&uninitializedSession),
             QDMI_SUCCESS);
   EXPECT_THAT(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                  uninitializedSession, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
-                  20, "https://example.com"),
+                  uninitializedSession,
+                  AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN, 20,
+                  "https://example.com"),
               testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED,
                              QDMI_ERROR_INVALIDARGUMENT));
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL, 20,
-                "https://example.com"),
+                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+                20, "https://example.com"),
             QDMI_ERROR_BADSTATE);
   const char* reservationArn =
       "arn:aws:braket:us-east-1:123456789012:reservation/"
       "a1b2c3d4-5678-90ab-cdef-1234567890ab";
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
+                session,
+                AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
                 strlen(reservationArn) + 1, reservationArn),
             QDMI_ERROR_BADSTATE);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
@@ -378,7 +396,8 @@ TEST_F(AmazonBraketQDMILocalJobTest, SessionCredentialsFile) {
   const char* deviceArn =
       "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                credsSession, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                credsSession,
+                AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
                 strlen(deviceArn) + 1, deviceArn),
             QDMI_SUCCESS);
 
@@ -406,7 +425,7 @@ TEST_F(AmazonBraketQDMIOfflineTest,
   const char* deviceArn =
       "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
                 strlen(deviceArn) + 1, deviceArn),
             QDMI_SUCCESS);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
@@ -511,7 +530,8 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterS3Bucket) {
       QDMI_SUCCESS);
   const char* s3Bucket = "test-job-specific-results-bucket";
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob, QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
+                freshJob,
+                AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
                 strlen(s3Bucket) + 1, s3Bucket),
             QDMI_SUCCESS);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
@@ -524,7 +544,8 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterS3Prefix) {
       QDMI_SUCCESS);
   const char* s3Prefix = "my-experiment/run-42/";
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob, QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX,
+                freshJob,
+                AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX,
                 strlen(s3Prefix) + 1, s3Prefix),
             QDMI_SUCCESS);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
@@ -539,7 +560,8 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterReservationArn) {
       "arn:aws:braket:us-east-1:123456789012:reservation/"
       "a1b2c3d4-5678-90ab-cdef-1234567890ab";
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob, QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN,
+                freshJob,
+                AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN,
                 strlen(reservationArn) + 1, reservationArn),
             QDMI_SUCCESS);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
@@ -551,10 +573,11 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
       QDMI_SUCCESS);
-  EXPECT_EQ(
-      AMAZON_BRAKET_QDMI_device_job_set_parameter(
-          freshJob, QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN, 0, nullptr),
-      QDMI_ERROR_INVALIDARGUMENT);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                freshJob,
+                AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN, 0,
+                nullptr),
+            QDMI_ERROR_INVALIDARGUMENT);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
@@ -564,7 +587,9 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterS3InvalidArgument) {
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
       QDMI_SUCCESS);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob, QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET, 0, nullptr),
+                freshJob,
+                AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET, 0,
+                nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
@@ -633,7 +658,8 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterS3BucketNotNullTerminated) {
       QDMI_SUCCESS);
   const std::array<char, 6> notTerminated = {'b', 'u', 'c', 'k', 'e', 't'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob, QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
+                freshJob,
+                AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
                 notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
@@ -646,7 +672,8 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterS3PrefixNotNullTerminated) {
       QDMI_SUCCESS);
   const std::array<char, 6> notTerminated = {'p', 'r', 'e', 'f', 'i', 'x'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob, QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX,
+                freshJob,
+                AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX,
                 notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
@@ -660,7 +687,8 @@ TEST_F(AmazonBraketQDMILocalJobTest,
       QDMI_SUCCESS);
   const std::array<char, 7> notTerminated = {'a', 'r', 'n', ':', 'a', 'w', 's'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob, QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN,
+                freshJob,
+                AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN,
                 notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
@@ -888,14 +916,16 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   const char* deviceArn =
       "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                reservedSession,
+                AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
                 strlen(deviceArn) + 1, deviceArn),
             QDMI_SUCCESS);
   const char* reservationArn =
       "arn:aws:braket:us-east-1:123456789012:reservation/"
       "a1b2c3d4-5678-90ab-cdef-1234567890ab";
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
+                reservedSession,
+                AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
                 strlen(reservationArn) + 1, reservationArn),
             QDMI_SUCCESS);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_init(reservedSession),
@@ -941,14 +971,16 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   const char* deviceArn =
       "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                reservedSession,
+                AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
                 strlen(deviceArn) + 1, deviceArn),
             QDMI_SUCCESS);
   const char* sessionReservationArn =
       "arn:aws:braket:us-east-1:123456789012:reservation/"
       "a1b2c3d4-5678-90ab-cdef-1234567890ab";
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
+                reservedSession,
+                AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
                 strlen(sessionReservationArn) + 1, sessionReservationArn),
             QDMI_SUCCESS);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_init(reservedSession),
@@ -966,7 +998,8 @@ TEST_F(AmazonBraketQDMILocalJobTest,
       "arn:aws:braket:us-east-1:123456789012:reservation/"
       "b2c3d4e5-6789-0abc-def1-234567890abc";
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob, QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN,
+                freshJob,
+                AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN,
                 strlen(jobReservationArn) + 1, jobReservationArn),
             QDMI_SUCCESS);
 

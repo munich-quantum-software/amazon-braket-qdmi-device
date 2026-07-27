@@ -88,7 +88,7 @@ AMAZON_BRAKET_QDMI_device_session_set_parameter(
 // Configure device and initialize
 const char* deviceArn = "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
 AMAZON_BRAKET_QDMI_device_session_set_parameter(
-    session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+    session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
     strlen(deviceArn) + 1, deviceArn);
 
 AMAZON_BRAKET_QDMI_device_session_init(session);
@@ -152,17 +152,17 @@ Configure the device using QDMI session parameters:
 // Configure session parameters before initialization
 const char* deviceArn = "arn:aws:braket:eu-north-1::device/qpu/iqm/Garnet";
 AMAZON_BRAKET_QDMI_device_session_set_parameter(
-    session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+    session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
     strlen(deviceArn) + 1, deviceArn);
 ```
 
 **Configuration Parameters:**
 
-| Parameter                                       | Type    | Required | Description                                                                                         |
-| ----------------------------------------------- | ------- | -------- | --------------------------------------------------------------------------------------------------- |
-| `QDMI_DEVICE_SESSION_PARAMETER_BASEURL`         | `char*` | Yes      | Amazon Braket device ARN                                                                            |
-| `QDMI_DEVICE_SESSION_PARAMETER_REGION`          | `char*` | No       | AWS region override (extracted from ARN by default)                                                 |
-| `QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN` | `char*` | No       | Braket reservation ARN used for status reporting and inherited by jobs unless a job override is set |
+| Parameter                                                     | Type    | Required | Description                                                                                         |
+| ------------------------------------------------------------- | ------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN`       | `char*` | Yes      | Amazon Braket device ARN                                                                            |
+| `AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION`          | `char*` | No       | AWS region override (extracted from ARN by default)                                                 |
+| `AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN` | `char*` | No       | Braket reservation ARN used for status reporting and inherited by jobs unless a job override is set |
 
 **Note**: AWS authentication is handled via:
 
@@ -187,26 +187,26 @@ AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job);
 // Set S3 bucket (required)
 const char* s3Bucket = "my-braket-results";
 AMAZON_BRAKET_QDMI_device_job_set_parameter(
-    job, QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
+    job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
     strlen(s3Bucket) + 1, s3Bucket);
 
 // Set S3 prefix (optional - auto-generates timestamp-based prefix if not set)
 const char* s3Prefix = "my-experiment/run-42/";
 AMAZON_BRAKET_QDMI_device_job_set_parameter(
-    job, QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX,
+    job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX,
     strlen(s3Prefix) + 1, s3Prefix);
 ```
 
 ## Job Parameters
 
-| Parameter                                   | Type                  | Required | Description                            |
-| ------------------------------------------- | --------------------- | -------- | -------------------------------------- |
-| `QDMI_DEVICE_JOB_PARAMETER_PROGRAM`         | `char*`               | Yes      | OpenQASM circuit source                |
-| `QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT`   | `QDMI_Program_Format` | No       | QASM2 or QASM3; default QASM3          |
-| `QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM`        | `size_t`              | No       | Number of shots; defaults to 100       |
-| `QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET`  | `char*`               | Yes      | S3 bucket for quantum task results     |
-| `QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX`  | `char*`               | No       | S3 prefix for results                  |
-| `QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN` | `char*`               | No       | Braket reservation ARN for time window |
+| Parameter                                                 | Type                  | Required | Description                            |
+| --------------------------------------------------------- | --------------------- | -------- | -------------------------------------- |
+| `QDMI_DEVICE_JOB_PARAMETER_PROGRAM`                       | `char*`               | Yes      | OpenQASM circuit source                |
+| `QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT`                 | `QDMI_Program_Format` | No       | QASM2 or QASM3; default QASM3          |
+| `QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM`                      | `size_t`              | No       | Number of shots; defaults to 100       |
+| `AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET`  | `char*`               | Yes      | S3 bucket for quantum task results     |
+| `AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX`  | `char*`               | No       | S3 prefix for results                  |
+| `AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN` | `char*`               | No       | Braket reservation ARN for time window |
 
 ### Installation
 
@@ -293,7 +293,7 @@ int main() {
     // Configure device ARN (required)
     const char* deviceArn = "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
     AMAZON_BRAKET_QDMI_device_session_set_parameter(
-        session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+        session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
         strlen(deviceArn) + 1, deviceArn);
 
     // Initialize session (connects to Amazon Braket)
@@ -313,7 +313,7 @@ int main() {
     // Configure S3 bucket for results (required)
     const char* s3Bucket = "my-amazon-braket-bucket";
     AMAZON_BRAKET_QDMI_device_job_set_parameter(
-        job, QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
+        job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
         strlen(s3Bucket) + 1, s3Bucket);
 
     // Configure job parameters
@@ -387,8 +387,9 @@ int main() {
 
 The library maps Amazon Braket device states to QDMI status values. The current
 UTC time must be inside a window for the device to be reported as idle. If the
-session has `QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN` set, public
-execution windows are ignored because the session targets a reserved window.
+session has `AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN` set,
+public execution windows are ignored because the session targets a reserved
+window.
 
 | Amazon Braket Status                   | QDMI Status                      | Description                                                                                                                        |
 | -------------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -532,7 +533,8 @@ ctest --test-dir build --output-on-failure
     secrets
 
 - **S3 Bucket**: Read from `AWS_S3_BUCKET` environment variable
-  - Passed to `QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET` in job tests
+  - Passed to `AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET` in job
+    tests
 
 **Note:** The library itself does **not** read environment variables directly.
 Tests read env vars for sensitive data (credentials, S3 bucket) and call QDMI

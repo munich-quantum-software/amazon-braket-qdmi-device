@@ -801,15 +801,16 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
  * 3. Transitioning the session to INITIALIZED state
  *
  * Configuration:
- * QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN
+ * AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN
  * - Credentials: Must be set via one of:
  *   - QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE (credentials file path)
  *   - QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY +
  * QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN (optional)
- *  - QDMI_DEVICE_SESSION_PARAMETER_REGION (defaults to value from ARN or
- * us-east-1)
- *  - QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN (optional session default;
- *    skips public execution-window status checks and is inherited by jobs)
+ *  - AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION (defaults to the value
+ *    from the ARN or us-east-1)
+ *  - AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN (optional
+ *    session default; skips public execution-window status checks and is
+ *    inherited by jobs)
  *
  *
  * @return QDMI_SUCCESS on successful initialization
@@ -825,7 +826,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
   if (deviceArn_.empty()) {
     std::cerr << "ERROR: Device ARN not configured. Set via:\n";
     std::cerr << "  AMAZON_BRAKET_QDMI_device_session_set_parameter() with "
-                 "QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN\n";
+                 "AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN\n";
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
@@ -910,8 +911,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
   // defined custom params (REGION, RESERVATION_ARN)
   const bool isStandardParam = param < QDMI_DEVICE_SESSION_PARAMETER_MAX;
   const bool isDefinedCustomParam =
-      (param == QDMI_DEVICE_SESSION_PARAMETER_REGION ||
-       param == QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN);
+      (param == AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION ||
+       param == AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN);
 
   if (!isStandardParam && !isDefinedCustomParam) {
     return QDMI_ERROR_INVALIDARGUMENT;
@@ -924,11 +925,11 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
 
   // Handle Amazon Braket parameters
   switch (param) {
-  case QDMI_DEVICE_SESSION_PARAMETER_BASEURL: // Device ARN
+  case AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN: // Device ARN
     SET_STRING(size, value, deviceArn_)
-  case QDMI_DEVICE_SESSION_PARAMETER_REGION: // AWS Region (optional)
+  case AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION: // AWS Region
     SET_STRING(size, value, region_)
-  case QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN: // Reserved window
+  case AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN:
     SET_STRING(size, value, reservationArn_)
   // Method 1: AWS Credentials File (AUTHFILE)
   // Supports standard AWS credentials file format with profiles
@@ -1071,9 +1072,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
   // defined custom params (OUTPUTS3BUCKET, OUTPUTS3PREFIX, RESERVATION_ARN)
   const bool isStandardParam = param < QDMI_DEVICE_JOB_PARAMETER_MAX;
   const bool isDefinedCustomParam =
-      (param == QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET ||
-       param == QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX ||
-       param == QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN);
+      (param == AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET ||
+       param == AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX ||
+       param == AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN);
 
   if ((value != nullptr && size == 0) ||
       (!isStandardParam && !isDefinedCustomParam)) {
@@ -1108,14 +1109,14 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
   }
 
   // Per-job S3 bucket configuration (required)
-  SET_STRING_IF(QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET, param, size, value,
-                jobS3Bucket_)
+  SET_STRING_IF(AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET, param,
+                size, value, jobS3Bucket_)
   // Per-job S3 prefix configuration (optional, defaults to timestamp)
-  SET_STRING_IF(QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX, param, size, value,
-                jobS3Prefix_)
+  SET_STRING_IF(AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX, param,
+                size, value, jobS3Prefix_)
   // Braket reservation ARN (optional, routes the task into a reserved window)
-  SET_STRING_IF(QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN, param, size, value,
-                reservationArn_)
+  SET_STRING_IF(AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN, param,
+                size, value, reservationArn_)
 
   return QDMI_ERROR_NOTSUPPORTED;
 }
@@ -1804,7 +1805,8 @@ void AMAZON_BRAKET_QDMI_device_session_free(
  * must be set BEFORE calling AMAZON_BRAKET_QDMI_device_session_init().
  *
  * Required Parameters:
- * - QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN: Device ARN (string) **REQUIRED**
+ * - AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN: Device ARN (string)
+ *   **REQUIRED**
  *   Format: arn:aws:braket:<region>::device/<type>/<provider>/<device-name>
  *   Example: "arn:aws:braket:::device/quantum-simulator/amazon/<sim-name>"
  *            "arn:aws:braket:eu-north-1::device/qpu/<vendor>/<device-name>"
@@ -1822,15 +1824,13 @@ void AMAZON_BRAKET_QDMI_device_session_free(
  * optional) For temporary credentials from STS or SSO
  *
  * Optional Parameters:
- * - QDMI_DEVICE_SESSION_PARAMETER_REGION: AWS region override (string)
+ * - AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION: AWS region override
+ *   (string)
  *   If not set, region is extracted from ARN. Example: "us-east-1",
  * "eu-north-1"
  *
  * Unsupported QDMI Authentication Parameters:
- * The following standard QDMI authentication parameters return
- * QDMI_ERROR_NOTSUPPORTED:
- * - USERNAME, PASSWORD, TOKEN, AUTHURL, BASEURL
- * Use the AWS-specific parameters above instead.
+ * - QDMI_DEVICE_SESSION_PARAMETER_AUTHURL
  *
  * @param session The session handle
  * @param param The parameter to set
@@ -1928,13 +1928,15 @@ void AMAZON_BRAKET_QDMI_device_job_free(AMAZON_BRAKET_QDMI_Device_Job job) {
  * Required parameters:
  * - QDMI_DEVICE_JOB_PARAMETER_PROGRAM: OpenQASM circuit string
  * - QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT: Format (QASM2 or QASM3)
- * - QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET: S3 bucket for results (string)
+ * - AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET: S3 bucket for
+ *   results (string)
  *   Example: "amazon-braket-my-bucket"
  *
  * Optional parameters:
  * - QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM: Number of measurement shots (default:
  * 100)
- * - QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX: S3 prefix for results (string)
+ * - AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX: S3 prefix for
+ *   results (string)
  *   Optional. If not set, uses timestamp (epoch milliseconds): "1234567890123"
  *   Example: "my-experiment/1234567890123/"
  *

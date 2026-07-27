@@ -12,6 +12,9 @@ releases may include breaking changes.
 
 ### Changed
 
+- 💥 Prefix Amazon Braket-specific QDMI parameter aliases with the
+  `AMAZON_BRAKET_` vendor namespace and add a semantic device-ARN alias that
+  retains the existing `BASEURL` mapping ([#149]) ([**@burgholzer**])
 - ⬆️ Update QDMI to version 1.3.2 ([#130]) ([**@denialhaag**])
 
 ## [1.0.1] - 2026-06-26
@@ -38,6 +41,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#149]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/149
 [#130]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/130
 [#117]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/117
 

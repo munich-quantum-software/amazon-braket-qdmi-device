@@ -31,11 +31,20 @@
  */
 
 /**
+ * @brief `char*` (string) Amazon Braket device ARN.
+ * @details Required parameter. This service-specific name aliases the standard
+ * QDMI base URL parameter, which carries the device ARN for this
+ * implementation.
+ */
+#define AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN                  \
+  QDMI_DEVICE_SESSION_PARAMETER_BASEURL
+
+/**
  * @brief `char*` (string) AWS Region.
  * @details Optional parameter. If not set, the region is extracted from the
  * device ARN or uses us-east-1 as a default.
  */
-#define QDMI_DEVICE_SESSION_PARAMETER_REGION                                   \
+#define AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION                     \
   QDMI_DEVICE_SESSION_PARAMETER_CUSTOM2
 
 /**
@@ -45,7 +54,7 @@
  * reserved time window. Jobs created from the session inherit this reservation
  * ARN unless a job-level reservation ARN is set.
  */
-#define QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN                          \
+#define AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN            \
   QDMI_DEVICE_SESSION_PARAMETER_CUSTOM3
 
 /**
@@ -61,7 +70,7 @@
  * The bucket must be in the same region as the device and accessible with
  * the configured AWS credentials.
  */
-#define QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET                               \
+#define AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET                 \
   QDMI_DEVICE_JOB_PARAMETER_CUSTOM1
 
 /**
@@ -69,7 +78,7 @@
  * @details Optional parameter. If not set, a timestamp is used as the prefix
  * (milliseconds since epoch). The prefix organizes results within the bucket.
  */
-#define QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX                               \
+#define AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX                 \
   QDMI_DEVICE_JOB_PARAMETER_CUSTOM2
 
 /**
@@ -78,5 +87,5 @@
  * the specified reserved time window instead of the public on-demand queue.
  * The reservation must be in the same region as the device.
  */
-#define QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN                              \
+#define AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN                \
   QDMI_DEVICE_JOB_PARAMETER_CUSTOM3
