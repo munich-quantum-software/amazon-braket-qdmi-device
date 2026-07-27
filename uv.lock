@@ -12,6 +12,7 @@ build = [
     { name = "scikit-build-core" },
 ]
 dev = [
+    { name = "mqt-core" },
     { name = "nox" },
     { name = "pytest" },
     { name = "pytest-console-scripts" },
@@ -21,6 +22,7 @@ dev = [
     { name = "scikit-build-core" },
 ]
 test = [
+    { name = "mqt-core" },
     { name = "pytest" },
     { name = "pytest-console-scripts" },
     { name = "pytest-cov" },
@@ -33,6 +35,7 @@ test = [
 [package.metadata.requires-dev]
 build = [{ name = "scikit-build-core", specifier = ">=0.11.6" }]
 dev = [
+    { name = "mqt-core", git = "https://github.com/munich-quantum-toolkit/core.git?rev=b92e17b3f6322f3c1e9520237d0fa8bd9b601a35" },
     { name = "nox", specifier = ">=2026.2.9" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-console-scripts", specifier = ">=1.4.1" },
@@ -42,6 +45,7 @@ dev = [
     { name = "scikit-build-core", specifier = ">=0.11.6" },
 ]
 test = [
+    { name = "mqt-core", git = "https://github.com/munich-quantum-toolkit/core.git?rev=b92e17b3f6322f3c1e9520237d0fa8bd9b601a35" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-console-scripts", specifier = ">=1.4.1" },
     { name = "pytest-cov", specifier = ">=7.0.0" },
@@ -260,6 +264,11 @@ sdist = { url = "https://files.pythonhosted.org/packages/72/34/14ca021ce8e5dfedc
 wheels = [
     { url = "https://files.pythonhosted.org/packages/cb/b1/3846dd7f199d53cb17f49cba7e651e9ce294d8497c8c150530ed11865bb8/iniconfig-2.3.0-py3-none-any.whl", hash = "sha256:f631c04d2c48c52b84d0d0549c99ff3859c98df65b3101406327ecc7d53fbf12", size = 7484, upload-time = "2025-10-18T21:55:41.639Z" },
 ]
+
+[[package]]
+name = "mqt-core"
+version = "3.8.0"
+source = { git = "https://github.com/munich-quantum-toolkit/core.git?rev=b92e17b3f6322f3c1e9520237d0fa8bd9b601a35#b92e17b3f6322f3c1e9520237d0fa8bd9b601a35" }
 
 [[package]]
 name = "nox"

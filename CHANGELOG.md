@@ -10,12 +10,18 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- ✨ Export the stable Amazon Braket device ID and symbol prefix for MQT Core
+  configuration and runtime packaging ([**@burgholzer**])
+
 ### Changed
 
 - 💥 Prefix Amazon Braket-specific QDMI parameter aliases with the
   `AMAZON_BRAKET_` vendor namespace and add a semantic device-ARN alias that
   retains the existing `BASEURL` mapping ([#149]) ([**@burgholzer**])
-- ⬆️ Update QDMI to version 1.3.2 ([#130]) ([**@denialhaag**])
+- ⬆️ Update QDMI to version 1.3.3 ([#130]) ([**@denialhaag**],
+  [**@burgholzer**])
 
 ## [1.0.1] - 2026-06-26
 

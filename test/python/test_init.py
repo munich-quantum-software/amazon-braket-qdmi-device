@@ -23,8 +23,10 @@ from pathlib import Path
 
 from amazon.braket.qdmi import (
     AMAZON_BRAKET_QDMI_CMAKE_DIR,
+    AMAZON_BRAKET_QDMI_DEVICE_ID,
     AMAZON_BRAKET_QDMI_INCLUDE_DIR,
     AMAZON_BRAKET_QDMI_LIBRARY_PATH,
+    AMAZON_BRAKET_QDMI_PREFIX,
     __version__,
 )
 
@@ -34,6 +36,12 @@ def test_version_exists() -> None:
     assert __version__
     assert isinstance(__version__, str)
     assert len(__version__) > 0
+
+
+def test_qdmi_device_metadata() -> None:
+    """Test that the stable device metadata matches the native library."""
+    assert AMAZON_BRAKET_QDMI_DEVICE_ID == "amazon.braket.default"
+    assert AMAZON_BRAKET_QDMI_PREFIX == "AMAZON_BRAKET"
 
 
 def test_include_dir_exists() -> None:
