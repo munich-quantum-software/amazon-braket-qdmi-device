@@ -36,6 +36,7 @@
  * - Credentials file (AUTHFILE parameter with INI format)
  * - Direct parameters (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
  * AWS_SESSION_TOKEN)
+ * - AWS SDK default credential provider chain
  *
  * Device (Singleton - ONE per Amazon Braket QMDI Device)
  *   ├─ Initializes AWS SDK once via QDMI device_initialize()
@@ -78,7 +79,7 @@
 #include <atomic>
 #include <aws/braket/BraketClient.h>
 #include <aws/braket/model/DeviceType.h>
-#include <aws/core/auth/AWSCredentials.h>
+#include <aws/core/auth/AWSCredentialsProvider.h>
 #include <cstddef>
 #include <future>
 #include <limits>
@@ -236,6 +237,9 @@ private:
       jobs_;
   mutable std::mutex jobsMutex_;
 
+  // Keep one provider per session so refreshable credentials are shared by
+  // every AWS client used for that session.
+  std::shared_ptr<Aws::Auth::AWSCredentialsProvider> credentialsProvider_;
   std::unique_ptr<Aws::Braket::BraketClient> client_;
 
 public:
@@ -268,9 +272,9 @@ private:
   [[nodiscard]] auto getReservationArn() const -> const std::string& {
     return reservationArn_;
   }
-  [[nodiscard]] auto getCredentials() const -> Aws::Auth::AWSCredentials {
-    return Aws::Auth::AWSCredentials(accessKeyId_, secretAccessKey_,
-                                     sessionToken_);
+  [[nodiscard]] auto getCredentialsProvider() const
+      -> const std::shared_ptr<Aws::Auth::AWSCredentialsProvider>& {
+    return credentialsProvider_;
   }
 
   // Allow Job to access session internals
