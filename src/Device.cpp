@@ -84,6 +84,7 @@
 #include <aws/core/client/ClientConfiguration.h>
 #include <aws/core/utils/Array.h>
 #include <aws/core/utils/json/JsonSerializer.h>
+#include <aws/core/utils/memory/stl/AWSAllocator.h>
 #include <aws/core/utils/memory/stl/AWSString.h>
 #include <aws/s3/S3Client.h>
 #include <aws/s3/S3ClientConfiguration.h>
