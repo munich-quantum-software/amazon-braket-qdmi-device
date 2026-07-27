@@ -35,13 +35,15 @@
 
 #include <array>
 #include <cstddef>
-#include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
+#include <random>
+#include <stdexcept>
 #include <string>
-#include <tuple>
+#include <system_error>
 
 namespace {
 constexpr const char* BELL_STATE_PROGRAM = "OPENQASM 3.0;\n"
@@ -64,6 +66,44 @@ static_assert(AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX ==
               QDMI_DEVICE_JOB_PARAMETER_CUSTOM2);
 static_assert(AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN ==
               QDMI_DEVICE_JOB_PARAMETER_CUSTOM3);
+
+class ScopedTemporaryDirectory {
+public:
+  ScopedTemporaryDirectory() {
+    const auto parent = std::filesystem::temp_directory_path();
+    std::random_device random;
+    for (size_t attempt = 0; attempt < 100; ++attempt) {
+      path_ = parent / ("amazon-braket-qdmi-" + std::to_string(random()) + "-" +
+                        std::to_string(attempt));
+      std::error_code error;
+      if (std::filesystem::create_directory(path_, error)) {
+        return;
+      }
+      if (error && error != std::errc::file_exists) {
+        throw std::filesystem::filesystem_error(
+            "Failed to create temporary test directory", path_, error);
+      }
+    }
+    throw std::runtime_error(
+        "Failed to create a unique temporary test directory");
+  }
+
+  ScopedTemporaryDirectory(const ScopedTemporaryDirectory&) = delete;
+  auto operator=(const ScopedTemporaryDirectory&)
+      -> ScopedTemporaryDirectory& = delete;
+
+  ~ScopedTemporaryDirectory() {
+    std::error_code error;
+    std::filesystem::remove_all(path_, error);
+  }
+
+  [[nodiscard]] auto path() const -> const std::filesystem::path& {
+    return path_;
+  }
+
+private:
+  std::filesystem::path path_;
+};
 } // namespace
 
 // =============================================================================
@@ -154,13 +194,66 @@ TEST_F(AmazonBraketQDMIOfflineTest, SessionInitNoDeviceArn) {
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
-// init() with a device ARN but no credentials must fail.
-TEST_F(AmazonBraketQDMIOfflineTest, SessionInitNoCredentials) {
+// init() without explicit credentials constructs the AWS SDK default credential
+// provider chain. Client construction is offline and must not require the chain
+// to resolve credentials eagerly.
+TEST_F(AmazonBraketQDMIOfflineTest,
+       SessionInitUsesDefaultCredentialProviderChain) {
   const char* deviceArn =
       "arn:aws:braket:us-east-1::device/qpu/test/FakeDevice";
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
                 strlen(deviceArn) + 1, deviceArn),
+            QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
+}
+
+TEST_F(AmazonBraketQDMIOfflineTest,
+       SessionInitRejectsAccessKeyWithoutSecretKey) {
+  const char* deviceArn =
+      "arn:aws:braket:us-east-1::device/qpu/test/FakeDevice";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+                strlen(deviceArn) + 1, deviceArn),
+            QDMI_SUCCESS);
+  const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
+                strlen(accessKey) + 1, accessKey),
+            QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
+            QDMI_ERROR_INVALIDARGUMENT);
+}
+
+TEST_F(AmazonBraketQDMIOfflineTest,
+       SessionInitRejectsSecretKeyWithoutAccessKey) {
+  const char* deviceArn =
+      "arn:aws:braket:us-east-1::device/qpu/test/FakeDevice";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+                strlen(deviceArn) + 1, deviceArn),
+            QDMI_SUCCESS);
+  const char* secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
+                strlen(secretKey) + 1, secretKey),
+            QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
+            QDMI_ERROR_INVALIDARGUMENT);
+}
+
+TEST_F(AmazonBraketQDMIOfflineTest,
+       SessionInitRejectsTokenWithoutAccessAndSecretKeys) {
+  const char* deviceArn =
+      "arn:aws:braket:us-east-1::device/qpu/test/FakeDevice";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+                strlen(deviceArn) + 1, deviceArn),
+            QDMI_SUCCESS);
+  const char* sessionToken = "FakeSessionToken123";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_TOKEN,
+                strlen(sessionToken) + 1, sessionToken),
             QDMI_SUCCESS);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
             QDMI_ERROR_INVALIDARGUMENT);
@@ -178,6 +271,33 @@ TEST_F(AmazonBraketQDMIOfflineTest, SessionInitNonexistentCredentialsFile) {
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 session, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
                 strlen(badFile) + 1, badFile),
+            QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
+            QDMI_ERROR_INVALIDARGUMENT);
+}
+
+// An explicitly configured credentials file remains authoritative and malformed
+// files must not fall back to the default credential provider chain.
+TEST_F(AmazonBraketQDMIOfflineTest, SessionInitMalformedCredentialsFile) {
+  const ScopedTemporaryDirectory temporaryDirectory;
+  const auto credentialsFile =
+      temporaryDirectory.path() / "malformed-credentials.ini";
+  {
+    std::ofstream file(credentialsFile);
+    file << "[default]\n"
+         << "aws_access_key_id=AKIAIOSFODNN7EXAMPLE\n";
+  }
+  const auto credentialsPath = credentialsFile.string();
+
+  const char* deviceArn =
+      "arn:aws:braket:us-east-1::device/qpu/test/FakeDevice";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+                strlen(deviceArn) + 1, deviceArn),
+            QDMI_SUCCESS);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
+                credentialsPath.size() + 1, credentialsPath.c_str()),
             QDMI_SUCCESS);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
             QDMI_ERROR_INVALIDARGUMENT);
@@ -380,30 +500,40 @@ TEST_F(AmazonBraketQDMILocalJobTest, SessionSetParameter) {
   AMAZON_BRAKET_QDMI_device_session_free(uninitializedSession);
 }
 
-// Verify that the AUTHFILE parameter is stored; init with a local credentials
-// file does not assert on success since creds may be absent in CI.
-TEST_F(AmazonBraketQDMILocalJobTest, SessionCredentialsFile) {
-  AMAZON_BRAKET_QDMI_Device_Session credsSession = nullptr;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&credsSession),
-            QDMI_SUCCESS);
+// A valid AUTHFILE takes precedence over direct parameters, including an
+// otherwise incomplete direct credential configuration.
+TEST_F(AmazonBraketQDMIOfflineTest,
+       SessionCredentialsFileTakesPrecedenceOverDirectCredentials) {
+  const ScopedTemporaryDirectory temporaryDirectory;
+  const auto credentialsFile =
+      temporaryDirectory.path() / "precedence-credentials.ini";
+  {
+    std::ofstream file(credentialsFile);
+    file << "[default]\n"
+         << "aws_access_key_id=AKIAIOSFODNN7EXAMPLE\n"
+         << "aws_secret_access_key="
+            "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n";
+  }
+  const auto credentialsPath = credentialsFile.string();
 
-  const char* credsFile = ".aws/credentials";
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                credsSession, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
-                strlen(credsFile) + 1, credsFile),
+  const char* incompleteAccessKey = "INCOMPLETE_DIRECT_ACCESS_KEY";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
+                strlen(incompleteAccessKey) + 1, incompleteAccessKey),
+            QDMI_SUCCESS);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
+                credentialsPath.size() + 1, credentialsPath.c_str()),
             QDMI_SUCCESS);
 
   const char* deviceArn =
       "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                credsSession,
-                AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
                 strlen(deviceArn) + 1, deviceArn),
             QDMI_SUCCESS);
 
-  // Result is not asserted — credentials may or may not be present.
-  std::ignore = AMAZON_BRAKET_QDMI_device_session_init(credsSession);
-  AMAZON_BRAKET_QDMI_device_session_free(credsSession);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
 }
 
 // A credentials file that contains more than one profile section triggers a
@@ -411,9 +541,11 @@ TEST_F(AmazonBraketQDMILocalJobTest, SessionCredentialsFile) {
 // This covers the multi-profile warning branch in parseCredentialsFile().
 TEST_F(AmazonBraketQDMIOfflineTest,
        SessionInitMultipleProfilesCredentialsFile) {
-  const std::string tmpFile = "/tmp/qdmi_test_multi_profile_creds.ini";
+  const ScopedTemporaryDirectory temporaryDirectory;
+  const auto credentialsFile =
+      temporaryDirectory.path() / "multiple-profile-credentials.ini";
   {
-    std::ofstream f(tmpFile);
+    std::ofstream f(credentialsFile);
     f << "[default]\n"
       << "aws_access_key_id=AKIAIOSFODNN7EXAMPLE\n"
       << "aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n"
@@ -421,6 +553,7 @@ TEST_F(AmazonBraketQDMIOfflineTest,
       << "aws_access_key_id=AKIAI44QH8DHBEXAMPLE\n"
       << "aws_secret_access_key=je7MtGbClwBF/2Zp9Utk/h3yCo8nvbEXAMPLEKEY\n";
   }
+  const auto credentialsPath = credentialsFile.string();
 
   const char* deviceArn =
       "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
@@ -430,42 +563,43 @@ TEST_F(AmazonBraketQDMIOfflineTest,
             QDMI_SUCCESS);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 session, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
-                tmpFile.size() + 1, tmpFile.c_str()),
+                credentialsPath.size() + 1, credentialsPath.c_str()),
             QDMI_SUCCESS);
 
   // init() parses the two-profile file (triggering the warning), then builds
-  // a BraketClient with the first profile's (fake) credentials.  The AWS
-  // connection itself will fail, but we only care that the parsing path ran.
-  std::ignore = AMAZON_BRAKET_QDMI_device_session_init(session);
-
-  std::remove(tmpFile.c_str());
+  // a BraketClient with the first profile's fake credentials. Client
+  // construction does not issue an AWS request.
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
 }
 
-// Verify that direct AWS credential parameters are accepted without error.
-TEST_F(AmazonBraketQDMILocalJobTest, SessionDirectCredentials) {
-  AMAZON_BRAKET_QDMI_Device_Session credsSession = nullptr;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&credsSession),
-            QDMI_SUCCESS);
-
+// Verify that a complete direct credential set constructs the client offline.
+TEST_F(AmazonBraketQDMIOfflineTest, SessionInitWithDirectCredentials) {
   const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                credsSession, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
                 strlen(accessKey) + 1, accessKey),
             QDMI_SUCCESS);
 
   const char* secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                credsSession, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
                 strlen(secretKey) + 1, secretKey),
             QDMI_SUCCESS);
 
   const char* sessionToken = "FakeSessionToken123";
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                credsSession, QDMI_DEVICE_SESSION_PARAMETER_TOKEN,
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_TOKEN,
                 strlen(sessionToken) + 1, sessionToken),
             QDMI_SUCCESS);
 
-  AMAZON_BRAKET_QDMI_device_session_free(credsSession);
+  const char* deviceArn =
+      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+                strlen(deviceArn) + 1, deviceArn),
+            QDMI_SUCCESS);
+
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
 }
 
 // =============================================================================
