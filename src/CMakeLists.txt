@@ -31,14 +31,13 @@ file(GLOB_RECURSE PUBLIC_HEADER_FILES "${CMAKE_CURRENT_BINARY_DIR}/include/*.h")
 list(APPEND PUBLIC_HEADER_FILES
      "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/constants.hpp")
 
-add_library(${QDMI_TARGET_NAME} SHARED)
-target_compile_features(${QDMI_TARGET_NAME} PRIVATE cxx_std_20)
 get_target_property(qdmi_library_VERSION qdmi::qdmi VERSION)
 
 # Internal object library for DeviceParser. Both the shared library and the unit-test target consume
 # it, so private parser classes need not be exported from the shared library ABI.
 set(QDMI_PARSER_OBJECTS "${QDMI_TARGET_NAME}-parser-objects")
 add_library(${QDMI_PARSER_OBJECTS} OBJECT "${CMAKE_CURRENT_SOURCE_DIR}/DeviceParser.cpp")
+add_library(amazon-braket-qdmi-device::parser-objects ALIAS ${QDMI_PARSER_OBJECTS})
 target_compile_features(${QDMI_PARSER_OBJECTS} PRIVATE cxx_std_20)
 set_target_properties(${QDMI_PARSER_OBJECTS} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_compile_definitions(
@@ -51,11 +50,31 @@ target_include_directories(${QDMI_PARSER_OBJECTS} PUBLIC ${PROJECT_SOURCE_DIR}/i
 target_link_libraries(${QDMI_PARSER_OBJECTS} PRIVATE AWS::aws-cpp-sdk-core
                                                      qdmi::qdmi_project_warnings)
 
+# Compile the device implementation once for the shared library and other build-tree consumers.
+set(QDMI_DEVICE_OBJECTS "${QDMI_TARGET_NAME}-internals")
+add_library(${QDMI_DEVICE_OBJECTS} OBJECT ${DEVICE_SRC})
+add_library(amazon-braket-qdmi-device::internals ALIAS ${QDMI_DEVICE_OBJECTS})
+target_compile_features(${QDMI_DEVICE_OBJECTS} PRIVATE cxx_std_20)
+set_target_properties(
+  ${QDMI_DEVICE_OBJECTS}
+  PROPERTIES POSITION_INDEPENDENT_CODE ON
+             C_VISIBILITY_PRESET hidden
+             CXX_VISIBILITY_PRESET hidden
+             VISIBILITY_INLINES_HIDDEN 1)
 target_compile_definitions(
-  ${QDMI_TARGET_NAME}
+  ${QDMI_DEVICE_OBJECTS}
   PRIVATE QDMI_VERSION="${qdmi_library_VERSION}"
           ${QDMI_PREFIX}_QDMI_DEVICE_VERSION="${PROJECT_VERSION}"
           ${QDMI_PREFIX}_QDMI_device_EXPORTS)
+target_include_directories(${QDMI_DEVICE_OBJECTS} PUBLIC ${PROJECT_SOURCE_DIR}/include
+                                                         ${CMAKE_CURRENT_BINARY_DIR}/include)
+target_link_libraries(
+  ${QDMI_DEVICE_OBJECTS}
+  PUBLIC AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket
+  PRIVATE qdmi::qdmi_project_warnings)
+
+add_library(${QDMI_TARGET_NAME} SHARED)
+target_compile_features(${QDMI_TARGET_NAME} PRIVATE cxx_std_20)
 set_target_properties(
   ${QDMI_TARGET_NAME}
   PROPERTIES VERSION ${PROJECT_VERSION}
@@ -63,7 +82,6 @@ set_target_properties(
              C_VISIBILITY_PRESET hidden
              CXX_VISIBILITY_PRESET hidden
              VISIBILITY_INLINES_HIDDEN 1)
-target_sources(${QDMI_TARGET_NAME} PRIVATE ${DEVICE_SRC})
 
 target_sources(
   ${QDMI_TARGET_NAME}
@@ -85,13 +103,13 @@ target_sources(
          FILES
          ${PUBLIC_HEADER_FILES})
 
-target_link_libraries(
-  ${QDMI_TARGET_NAME} PRIVATE AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-braket
-                              qdmi::qdmi_project_warnings ${QDMI_PARSER_OBJECTS})
+target_link_libraries(${QDMI_TARGET_NAME} PRIVATE qdmi::qdmi_project_warnings
+                                                  ${QDMI_DEVICE_OBJECTS} ${QDMI_PARSER_OBJECTS})
 
 option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
 if(ENABLE_COVERAGE)
-  target_link_libraries(${QDMI_TARGET_NAME} PRIVATE qdmi::qdmi_coverage_flags)
+  target_link_libraries(${QDMI_DEVICE_OBJECTS} PUBLIC qdmi::qdmi_coverage_flags)
+  target_link_libraries(${QDMI_PARSER_OBJECTS} PUBLIC qdmi::qdmi_coverage_flags)
 endif()
 
 set(${QDMI_PREFIX}_QDMI_CONFIG_INSTALL_DIR
