@@ -18,6 +18,10 @@ jobs:
   change-detection:
     name: 🔍 Change
     uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-change-detection.yml@e7f84f39ce2d3b6c5d1d04526b8f94f98e455143 # v2.2.0
+    with:
+      additional-cpp-files: |
+        spank/**
+        .github/workflows/cpp-spank-tests-ubuntu.yml
 
   cpp-tests-ubuntu:
     name: 🇨‌ Test 🐧
@@ -44,18 +48,7 @@ jobs:
     name: 🇨‌ SPANK 🐧
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cpp-tests)
-    strategy:
-      fail-fast: false
-      matrix:
-        runs-on: [ubuntu-24.04, ubuntu-24.04-arm]
-        config: [Release]
-        include:
-          - runs-on: ubuntu-24.04
-            config: Debug
     uses: ./.github/workflows/cpp-spank-tests-ubuntu.yml
-    with:
-      runs-on: ${{ matrix.runs-on }}
-      config: ${{ matrix.config }}
 
   cpp-tests-macos:
     name: 🇨‌ Test 🍎

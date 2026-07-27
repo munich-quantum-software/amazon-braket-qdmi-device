@@ -16,8 +16,8 @@ releases may include breaking changes.
   credentials are configured ([#150]) ([**@burgholzer**])
 - ✨ Add an optional GPL-licensed Slurm SPANK plugin for validating Amazon
   Braket devices and injecting QDMI session configuration, including the
-  distinct plugin and core library license texts ([#134])
-  ([**@flowerthrower**], [**@burgholzer**])
+  distinct plugin and core library license texts ([#134]) ([**@flowerthrower**],
+  [**@burgholzer**])
 
 ### Changed
 

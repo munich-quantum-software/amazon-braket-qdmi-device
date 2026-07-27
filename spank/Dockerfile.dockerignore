@@ -1,0 +1,12 @@
+# Copyright (c) 2025 - 2026 Munich Quantum Software Company GmbH
+# All rights reserved.
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+.git
+build
+cmake-build-*
+.cache
+.ccache
+.venv*
+__pycache__

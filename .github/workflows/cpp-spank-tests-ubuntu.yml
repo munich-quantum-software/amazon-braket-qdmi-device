@@ -1,56 +1,17 @@
 name: 🇨 • SPANK • ubuntu
 on:
   workflow_call:
-    inputs:
-      runs-on:
-        description: >
-          The ubuntu runner image to use. Defaults to 'ubuntu-latest'.
-          This can be any valid ubuntu runner image, such as 'ubuntu-22.04', 'ubuntu-24.04', or their ARM variants 'ubuntu-22.04-arm', 'ubuntu-24.04-arm'.
-        default: "ubuntu-latest"
-        type: string
-      config:
-        description: >
-          The build type to use. Defaults to 'Release'.
-          This can be any valid CMake build type, such as 'Debug' or 'Release'.
-        default: "Release"
-        type: string
 
 jobs:
   cpp-spank-tests-ubuntu:
-    name: 🐧 ${{ inputs.runs-on }} ${{ inputs.config }}
-    runs-on: ${{ inputs.runs-on }}
-    env:
-      CMAKE_BUILD_PARALLEL_LEVEL: 4
-      CTEST_PARALLEL_LEVEL: 4
-      FORCE_COLOR: 3
+    name: 🐧 ubuntu-24.04
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-      # check out the repository
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-      # Install build dependencies
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libcurl4-openssl-dev libslurm-dev
-      # Set up ccache for faster C++ builds
-      - name: Setup ccache
-        uses: Chocobo1/setup-ccache-action@802ec72ba1d54bbf75c52f45367253d6abec30f5 # v1.5.8
-        with:
-          prepend_symlinks_to_path: false
-          override_cache_key: c++-spank-tests-${{ inputs.runs-on }}-${{ inputs.config }}
-      # Configure CMake in the specified mode, optionally with additional arguments
-      - name: Configure CMake
-        env:
-          CONFIG: ${{ inputs.config }}
-        run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE="$CONFIG" \
-            -DBUILD_AMAZON_BRAKET_TESTS=ON \
-            -DBUILD_AMAZON_BRAKET_SPANK_PLUGIN=ON
-      # build the project in the specified mode
-      - name: Build
-        run: cmake --build build
-      # run only the hermetic SPANK tests; the regular suite includes AWS integration tests
-      - name: Test
-        run: >
-          ctest --output-on-failure --test-dir build
-          -R '^(SpankTest\.|amazon-braket-qdmi-device-spank-(symbols|install)$)'
-          --timeout 600
+
+      - name: Build real-Slurm test image
+        run: docker build --tag amazon-braket-qdmi-spank-tests --file spank/Dockerfile .
+
+      - name: Run real-Slurm SPANK tests
+        run: docker run --rm amazon-braket-qdmi-spank-tests

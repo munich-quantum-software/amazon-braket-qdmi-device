@@ -839,7 +839,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
       }
     }
   };
-  applyEnvironmentFallback(deviceArn_, AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL);
+  applyEnvironmentFallback(deviceArn_,
+                           AMAZON_BRAKET_QDMI_DEVICE_ENV_DEVICE_ARN);
   applyEnvironmentFallback(region_, AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION);
   applyEnvironmentFallback(reservationArn_,
                            AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN);

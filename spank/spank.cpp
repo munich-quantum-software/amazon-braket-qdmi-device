@@ -22,9 +22,14 @@
  * @file spank.cpp
  * @brief Slurm SPANK integration for Amazon Braket QDMI.
  *
- * The plugin validates one requested device per remote job step. Incomplete
- * opt-in fails in the allocator; AWS/device failures are enforced at task
- * launch so they fail the job without draining the node.
+ * Configuration precedence is:
+ * 1. `srun`/`sbatch` options,
+ * 2. the submitted job environment,
+ * 3. administrator defaults in `plugstack.conf`.
+ *
+ * A device ARN opts a job into validation. Explicit credentials are optional;
+ * when no credentials file is configured, the Amazon Braket QDMI device uses
+ * the AWS SDK default credential provider chain.
  */
 
 #include "amazon-braket-qdmi-device/constants.hpp"
@@ -32,20 +37,20 @@
 
 #include <array>
 #include <cstddef>
-#include <cstdint>
 #include <cstdlib>
 #include <exception>
-#include <mutex>
 #include <optional>
+#include <string>
+#include <string_view>
+
 extern "C" {
 #include <slurm/slurm_errno.h>
 #include <slurm/slurm_version.h>
 #include <slurm/spank.h>
 }
-// POSIX setenv/unsetenv are declared by this C compatibility header.
+
+// POSIX setenv and unsetenv are declared by stdlib.h.
 #include <stdlib.h> // NOLINT(modernize-deprecated-headers)
-#include <string>
-#include <syslog.h>
 
 static_assert(SLURM_VERSION_NUMBER >= SLURM_VERSION_NUM(20, 2, 0),
               "The Amazon Braket SPANK plugin requires Slurm 20.02 or newer");
@@ -62,32 +67,54 @@ extern const unsigned int spank_plugin_version = 1;
 
 namespace {
 
-enum class OptionValue : std::uint8_t {
-  DeviceArn = 1,
-  Region,
-  ReservationArn,
-  AuthFile,
+struct ConfigMapping {
+  std::string_view plugstackKey;
+  const char* environment;
+  const char* optionName;
+  const char* argumentName;
+  const char* usage;
+  QDMI_Device_Session_Parameter parameter;
 };
-
-constexpr auto optionIndex(const OptionValue option) -> size_t {
-  return static_cast<size_t>(option) -
-         static_cast<size_t>(OptionValue::DeviceArn);
-}
 
 struct SessionParameterMapping {
   const char* environment;
   QDMI_Device_Session_Parameter parameter;
 };
 
-constexpr std::array<SessionParameterMapping, 4> SESSION_PARAMETERS = {{
-    {.environment = AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL,
-     .parameter = QDMI_DEVICE_SESSION_PARAMETER_BASEURL},
-    {.environment = AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION,
-     .parameter = QDMI_DEVICE_SESSION_PARAMETER_REGION},
-    {.environment = AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN,
-     .parameter = QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN},
-    {.environment = AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE,
+constexpr std::array<ConfigMapping, 4> CONFIG_MAPPINGS = {{
+    {.plugstackKey = "amazon_braket_device_arn",
+     .environment = AMAZON_BRAKET_QDMI_DEVICE_ENV_DEVICE_ARN,
+     .optionName = "amazon-braket-device-arn",
+     .argumentName = "ARN",
+     .usage = "Amazon Braket device ARN",
+     .parameter = AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN},
+    {.plugstackKey = "amazon_braket_region",
+     .environment = AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION,
+     .optionName = "amazon-braket-region",
+     .argumentName = "REGION",
+     .usage = "AWS region",
+     .parameter = AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION},
+    {.plugstackKey = "amazon_braket_reservation_arn",
+     .environment = AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN,
+     .optionName = "amazon-braket-reservation-arn",
+     .argumentName = "ARN",
+     .usage = "Amazon Braket reservation ARN",
+     .parameter = AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN},
+    {.plugstackKey = "amazon_braket_credentials_file",
+     .environment = AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE,
+     .optionName = "amazon-braket-credentials-file",
+     .argumentName = "PATH",
+     .usage = "AWS shared credentials file",
      .parameter = QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE},
+}};
+
+constexpr std::array<SessionParameterMapping, 3> AWS_CREDENTIAL_MAPPINGS = {{
+    {.environment = "AWS_ACCESS_KEY_ID",
+     .parameter = QDMI_DEVICE_SESSION_PARAMETER_USERNAME},
+    {.environment = "AWS_SECRET_ACCESS_KEY",
+     .parameter = QDMI_DEVICE_SESSION_PARAMETER_PASSWORD},
+    {.environment = "AWS_SESSION_TOKEN",
+     .parameter = QDMI_DEVICE_SESSION_PARAMETER_TOKEN},
 }};
 
 struct ValidationState {
@@ -96,51 +123,13 @@ struct ValidationState {
   bool successful = false;
 };
 
-auto slurmText(const char* text) -> char* {
-  // Slurm's option structure requires mutable pointers for static text.
+auto mutableText(const char* text) -> char* {
+  // Slurm's option structure predates const-correct string fields.
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
   return const_cast<char*>(text);
 }
 
-struct PluginState {
-  std::mutex optionsMutex;
-  std::array<std::string, 4> optionValues;
-  std::mutex validationMutex;
-  ValidationState validationState;
-  std::array<spank_option, 4> options = {{
-      {.name = slurmText("qdmi-device-session-parameter-baseurl"),
-       .arginfo = slurmText("ARN"),
-       .usage = slurmText("Amazon Braket device ARN"),
-       .has_arg = 1,
-       .val = static_cast<int>(OptionValue::DeviceArn),
-       .cb = nullptr},
-      {.name = slurmText("qdmi-device-session-parameter-region"),
-       .arginfo = slurmText("REGION"),
-       .usage = slurmText("AWS region"),
-       .has_arg = 1,
-       .val = static_cast<int>(OptionValue::Region),
-       .cb = nullptr},
-      {.name = slurmText("qdmi-device-session-parameter-reservation-arn"),
-       .arginfo = slurmText("ARN"),
-       .usage = slurmText("Amazon Braket reservation ARN"),
-       .has_arg = 1,
-       .val = static_cast<int>(OptionValue::ReservationArn),
-       .cb = nullptr},
-      {.name = slurmText("qdmi-device-session-parameter-authfile"),
-       .arginfo = slurmText("PATH"),
-       .usage = slurmText("AWS credentials file path"),
-       .has_arg = 1,
-       .val = static_cast<int>(OptionValue::AuthFile),
-       .cb = nullptr},
-  }};
-};
-
-auto pluginState() -> PluginState& {
-  static PluginState state;
-  return state;
-}
-
-auto validOptionValue(const char* value) -> bool {
+auto validValue(const char* value) -> bool {
   if (value == nullptr || value[0] == '\0') {
     return false;
   }
@@ -152,84 +141,49 @@ auto validOptionValue(const char* value) -> bool {
   return true;
 }
 
-auto optionCallback(const int value, const char* argument, const int remote)
-    -> int {
-  (void)remote;
-  // Reject empty or multiline values before they are forwarded by Slurm.
-  if (value < static_cast<int>(OptionValue::DeviceArn) ||
-      value > static_cast<int>(OptionValue::AuthFile) ||
-      !validOptionValue(argument)) {
-    return 1;
-  }
-
-  auto& state = pluginState();
-  const std::scoped_lock lock(state.optionsMutex);
-  state.optionValues[static_cast<size_t>(value) -
-                     static_cast<size_t>(OptionValue::DeviceArn)] = argument;
-  return 0;
-}
-
-auto snapshotOptions() -> std::array<std::string, 4> {
-  auto& state = pluginState();
-  const std::scoped_lock lock(state.optionsMutex);
-  return state.optionValues;
-}
-
 auto getJobEnvironment(spank_t spank, const char* name)
     -> std::optional<std::string> {
   std::array<char, 4096> buffer{};
   if (spank_getenv(spank, name, buffer.data(),
                    static_cast<int>(buffer.size())) != ESPANK_SUCCESS ||
-      !validOptionValue(buffer.data())) {
+      !validValue(buffer.data())) {
     return std::nullopt;
   }
   return std::string{buffer.data()};
 }
 
-auto collectRemoteOptions(spank_t spank) -> std::array<std::string, 4> {
-  auto values = snapshotOptions();
-  for (auto& option : pluginState().options) {
-    // Slurm's getopt API writes the argument pointer through char**.
-    // NOLINTNEXTLINE(misc-const-correctness)
-    char* argument = nullptr;
-    if (spank_option_getopt(spank, &option, &argument) == ESPANK_SUCCESS &&
-        validOptionValue(argument)) {
-      values[optionIndex(static_cast<OptionValue>(option.val))] = argument;
-    }
-  }
-  for (const auto option : {OptionValue::Region, OptionValue::ReservationArn}) {
-    const auto index = optionIndex(option);
-    if (values[index].empty()) {
-      if (const auto jobValue =
-              getJobEnvironment(spank, SESSION_PARAMETERS[index].environment);
-          jobValue.has_value()) {
-        values[index] = *jobValue;
-      }
-    }
-  }
-  return values;
+auto logFailure(const char* message) -> void {
+  // Slurm exposes logging through a variadic C ABI.
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+  slurm_spank_log("amazon-braket-qdmi: %s", message);
+}
+
+auto logHook(const char* hook) -> void {
+  // Slurm exposes logging through a variadic C ABI.
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+  slurm_spank_log("amazon-braket-qdmi: hook=%s", hook);
 }
 
 /**
- * Hide daemon environment defaults while QDMI validates explicit job values.
+ * Hide daemon configuration while validating the explicit job environment.
  *
- * The effective SPANK job values are passed directly as QDMI session
- * parameters. Hiding the corresponding process variables prevents slurmstepd
- * service defaults from supplying values that are absent from the job.
+ * The effective job values are passed directly to the QDMI session. Hiding the
+ * corresponding process values prevents slurmstepd service defaults from
+ * silently supplying a value that the submitted job did not receive.
  */
 class ScopedSessionEnvironment final {
 public:
   ScopedSessionEnvironment() {
-    for (size_t index = 0; index < SESSION_PARAMETERS.size(); ++index) {
-      const auto* environment = SESSION_PARAMETERS[index].environment;
-      if (const char* value = std::getenv(environment); value != nullptr) {
-        originalValues[index] = value;
+    for (size_t index = 0; index < CONFIG_MAPPINGS.size(); ++index) {
+      const auto* name = CONFIG_MAPPINGS[index].environment;
+      if (const char* value = std::getenv(name); value != nullptr) {
+        originalValues_[index] = value;
       }
-      if (unsetenv(environment) != 0) {
-        validState = false;
+      if (unsetenv(name) != 0) {
+        valid_ = false;
         break;
       }
-      ++configuredValues;
+      ++hiddenValues_;
     }
   }
 
@@ -241,166 +195,263 @@ public:
       -> ScopedSessionEnvironment& = delete;
 
   ~ScopedSessionEnvironment() {
-    for (size_t index = 0; index < configuredValues; ++index) {
-      if (setValue(SESSION_PARAMETERS[index].environment,
-                   originalValues[index]) != 0) {
-        // Slurm exposes logging through a variadic C ABI.
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-        slurm_spank_log(
-            "amazon-braket-qdmi: failed to restore QDMI process environment");
+    for (size_t index = 0; index < hiddenValues_; ++index) {
+      if (restore(CONFIG_MAPPINGS[index].environment, originalValues_[index]) !=
+          0) {
+        logFailure("failed to restore the process environment");
       }
     }
   }
 
-  [[nodiscard]] auto valid() const -> bool { return validState; }
+  [[nodiscard]] auto valid() const -> bool { return valid_; }
 
 private:
-  static auto setValue(const char* name,
-                       const std::optional<std::string>& value) -> int {
+  static auto restore(const char* name, const std::optional<std::string>& value)
+      -> int {
     if (value.has_value()) {
       return setenv(name, value->c_str(), 1);
     }
     return unsetenv(name);
   }
 
-  std::array<std::optional<std::string>, 4> originalValues;
-  size_t configuredValues = 0;
-  bool validState = true;
+  std::array<std::optional<std::string>, CONFIG_MAPPINGS.size()>
+      originalValues_{};
+  size_t hiddenValues_ = 0;
+  bool valid_ = true;
 };
 
-auto setValidationState(const bool successful) -> void {
-  auto& state = pluginState();
-  const std::scoped_lock lock(state.validationMutex);
-  state.validationState = {
-      .active = true, .complete = true, .successful = successful};
-}
+struct QdmiGuard {
+  AMAZON_BRAKET_QDMI_Device_Session session = nullptr;
+  bool finalizeDevice = false;
 
-auto getValidationState() -> ValidationState {
-  auto& state = pluginState();
-  const std::scoped_lock lock(state.validationMutex);
-  return state.validationState;
-}
+  QdmiGuard() = default;
+  QdmiGuard(const QdmiGuard&) = delete;
+  auto operator=(const QdmiGuard&) -> QdmiGuard& = delete;
+  QdmiGuard(QdmiGuard&&) = delete;
+  auto operator=(QdmiGuard&&) -> QdmiGuard& = delete;
 
-auto logFailure(const char* message) -> void {
-  slurm_spank_log("amazon-braket-qdmi: %s", message); // NOLINT
-}
+  ~QdmiGuard() {
+    if (session != nullptr) {
+      AMAZON_BRAKET_QDMI_device_session_free(session);
+    }
+    if (finalizeDevice) {
+      AMAZON_BRAKET_QDMI_device_finalize();
+    }
+  }
+};
 
-auto validateRequiredOptions(const std::array<std::string, 4>& values) -> bool {
-  const bool hasBaseUrl = !values[optionIndex(OptionValue::DeviceArn)].empty();
-  const bool hasAuthFile = !values[optionIndex(OptionValue::AuthFile)].empty();
+class BraketSpankConfig final {
+public:
+  void parsePlugstackArguments(const int count, char** arguments) {
+    plugstackValues_ = {};
+    optionValues_ = {};
+    for (int index = 0; index < count; ++index) {
+      if (arguments[index] == nullptr) {
+        continue;
+      }
+      if (!validValue(arguments[index])) {
+        logMalformedArgument(arguments[index]);
+        continue;
+      }
+      const std::string_view argument{arguments[index]};
+      const auto separator = argument.find('=');
+      if (separator == std::string_view::npos || separator == 0 ||
+          separator + 1 >= argument.size()) {
+        logMalformedArgument(arguments[index]);
+        continue;
+      }
 
-  // Neither option means inactive; providing only one is invalid.
-  if (!hasBaseUrl && !hasAuthFile) {
+      const auto key = argument.substr(0, separator);
+      const auto value = argument.substr(separator + 1);
+      bool matched = false;
+      for (size_t mappingIndex = 0; mappingIndex < CONFIG_MAPPINGS.size();
+           ++mappingIndex) {
+        if (key == CONFIG_MAPPINGS[mappingIndex].plugstackKey) {
+          plugstackValues_[mappingIndex] = std::string{value};
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        // Slurm exposes logging through a variadic C ABI.
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+        slurm_spank_log(
+            "amazon-braket-qdmi: ignoring unknown plugstack argument '%.*s'",
+            static_cast<int>(key.size()), key.data());
+      }
+    }
+  }
+
+  auto registerOptions(spank_t spank) -> int {
+    for (size_t index = 0; index < CONFIG_MAPPINGS.size(); ++index) {
+      const auto& mapping = CONFIG_MAPPINGS[index];
+      optionDefinitions_[index] = {
+          .name = mutableText(mapping.optionName),
+          .arginfo = mutableText(mapping.argumentName),
+          .usage = mutableText(mapping.usage),
+          .has_arg = 1,
+          .val = static_cast<int>(index),
+          .cb = optionCallback,
+      };
+      if (spank_option_register(spank, &optionDefinitions_[index]) !=
+          ESPANK_SUCCESS) {
+        logFailure("failed to register an Amazon Braket option");
+        return ESPANK_ERROR;
+      }
+    }
+    return ESPANK_SUCCESS;
+  }
+
+  auto injectEnvironment(spank_t spank) const -> bool {
+    for (size_t index = 0; index < CONFIG_MAPPINGS.size(); ++index) {
+      const std::string* value = nullptr;
+      int overwrite = 0;
+      if (optionValues_[index].has_value()) {
+        value = &optionValues_[index].value();
+        overwrite = 1;
+      } else if (plugstackValues_[index].has_value()) {
+        value = &plugstackValues_[index].value();
+      }
+      if (value == nullptr) {
+        continue;
+      }
+
+      const auto result = spank_setenv(
+          spank, CONFIG_MAPPINGS[index].environment, value->c_str(), overwrite);
+      if (result != ESPANK_SUCCESS && result != ESPANK_ENV_EXISTS) {
+        logFailure("failed to inject the Amazon Braket job environment");
+        return false;
+      }
+    }
     return true;
   }
-  if (hasBaseUrl != hasAuthFile) {
-    logFailure("--qdmi-device-session-parameter-baseurl and "
-               "--qdmi-device-session-parameter-authfile are required");
-    return false;
-  }
-  return true;
-}
 
-auto validateDeviceImpl(const std::array<std::string, 4>& values) -> bool {
-  if (values[optionIndex(OptionValue::DeviceArn)].empty() ||
-      values[optionIndex(OptionValue::AuthFile)].empty()) {
-    logFailure("device ARN and credentials file are required");
-    return false;
+  [[nodiscard]] auto isActive(spank_t spank) const -> bool {
+    return getJobEnvironment(spank, CONFIG_MAPPINGS.front().environment)
+        .has_value();
   }
 
-  const ScopedSessionEnvironment environmentScope;
-  if (!environmentScope.valid()) {
-    logFailure("failed to isolate the QDMI job environment");
-    return false;
-  }
-
-  struct QdmiGuard {
-    AMAZON_BRAKET_QDMI_Device_Session session = nullptr;
-    bool finalizeDevice = false;
-
-    ~QdmiGuard() {
-      if (session != nullptr) {
-        AMAZON_BRAKET_QDMI_device_session_free(session);
+  [[nodiscard]] auto validateBackend(spank_t spank) const noexcept -> bool {
+    try {
+      const ScopedSessionEnvironment environmentScope;
+      if (!environmentScope.valid()) {
+        logFailure("failed to isolate the QDMI job environment");
+        return false;
       }
-      if (finalizeDevice) {
-        AMAZON_BRAKET_QDMI_device_finalize();
+
+      QdmiGuard guard;
+      guard.finalizeDevice = true;
+      if (AMAZON_BRAKET_QDMI_device_initialize() != QDMI_SUCCESS) {
+        guard.finalizeDevice = false;
+        logFailure("failed to initialize the Amazon Braket QDMI device");
+        return false;
       }
-    }
-  } guard;
 
-  guard.finalizeDevice = true;
-  if (AMAZON_BRAKET_QDMI_device_initialize() != QDMI_SUCCESS) {
-    guard.finalizeDevice = false;
-    logFailure("failed to initialize QDMI");
-    return false;
-  }
+      if (AMAZON_BRAKET_QDMI_device_session_alloc(&guard.session) !=
+          QDMI_SUCCESS) {
+        logFailure("failed to allocate an Amazon Braket QDMI session");
+        return false;
+      }
 
-  if (AMAZON_BRAKET_QDMI_device_session_alloc(&guard.session) != QDMI_SUCCESS) {
-    logFailure("failed to allocate QDMI session");
-    return false;
-  }
+      for (const auto& mapping : CONFIG_MAPPINGS) {
+        const auto value = getJobEnvironment(spank, mapping.environment);
+        if (!value.has_value()) {
+          continue;
+        }
+        if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                guard.session, mapping.parameter, value->size() + 1,
+                value->c_str()) != QDMI_SUCCESS) {
+          logFailure("invalid Amazon Braket session parameter");
+          return false;
+        }
+      }
+      for (const auto& mapping : AWS_CREDENTIAL_MAPPINGS) {
+        const auto value = getJobEnvironment(spank, mapping.environment);
+        if (!value.has_value()) {
+          continue;
+        }
+        if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                guard.session, mapping.parameter, value->size() + 1,
+                value->c_str()) != QDMI_SUCCESS) {
+          logFailure("invalid AWS credential environment");
+          return false;
+        }
+      }
 
-  for (size_t index = 0; index < SESSION_PARAMETERS.size(); ++index) {
-    if (values[index].empty()) {
-      continue;
-    }
-    if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
-            guard.session, SESSION_PARAMETERS[index].parameter,
-            values[index].size() + 1, values[index].c_str()) != QDMI_SUCCESS) {
-      logFailure("invalid QDMI session parameter");
+      if (AMAZON_BRAKET_QDMI_device_session_init(guard.session) !=
+          QDMI_SUCCESS) {
+        logFailure("Amazon Braket session validation failed");
+        return false;
+      }
+
+      QDMI_Device_Status status = QDMI_DEVICE_STATUS_OFFLINE;
+      if (AMAZON_BRAKET_QDMI_device_session_query_device_property(
+              guard.session, QDMI_DEVICE_PROPERTY_STATUS, sizeof(status),
+              &status, nullptr) != QDMI_SUCCESS ||
+          (status != QDMI_DEVICE_STATUS_IDLE &&
+           status != QDMI_DEVICE_STATUS_BUSY)) {
+        logFailure("Amazon Braket device is not available");
+        return false;
+      }
+    } catch (const std::exception& error) {
+      // Slurm exposes logging through a variadic C ABI.
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+      slurm_spank_log("amazon-braket-qdmi: validation raised an exception: %s",
+                      error.what());
+      return false;
+    } catch (...) {
+      logFailure("validation raised an unknown exception");
       return false;
     }
+    return true;
   }
 
-  if (AMAZON_BRAKET_QDMI_device_session_init(guard.session) != QDMI_SUCCESS) {
-    logFailure("could not initialize the Amazon Braket session");
-    return false;
+  void resetValidation() { validation_ = {}; }
+
+  void skipValidation() {
+    validation_ = {.active = false, .complete = true, .successful = true};
   }
 
-  QDMI_Device_Status status = QDMI_DEVICE_STATUS_OFFLINE;
-  if (AMAZON_BRAKET_QDMI_device_session_query_device_property(
-          guard.session, QDMI_DEVICE_PROPERTY_STATUS, sizeof(status), &status,
-          nullptr) != QDMI_SUCCESS) {
-    logFailure("could not query Amazon Braket device status");
-    return false;
+  void finishValidation(const bool successful) {
+    validation_ = {.active = true, .complete = true, .successful = successful};
   }
 
-  if (status != QDMI_DEVICE_STATUS_IDLE && status != QDMI_DEVICE_STATUS_BUSY) {
-    logFailure("Amazon Braket device is not available");
-    return false;
+  [[nodiscard]] auto validation() const -> ValidationState {
+    return validation_;
   }
-  return true;
-}
 
-auto validateDevice(const std::array<std::string, 4>& values) noexcept -> bool {
-  try {
-    return validateDeviceImpl(values);
-  } catch (const std::exception& error) {
+private:
+  static auto optionCallback(int value, const char* argument, int remote)
+      -> int;
+
+  static void logMalformedArgument(const char* argument) {
     // Slurm exposes logging through a variadic C ABI.
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
     slurm_spank_log(
-        "amazon-braket-qdmi: QDMI validation raised an exception: %s",
-        error.what());
-  } catch (...) {
-    logFailure("QDMI validation raised an unknown exception");
+        "amazon-braket-qdmi: ignoring malformed plugstack argument '%s'",
+        argument);
   }
-  return false;
-}
 
-auto injectEnvironment(spank_t spank, const std::array<std::string, 4>& values)
-    -> bool {
-  const auto setEnvironment = [&](const char* name,
-                                  const std::string& value) -> bool {
-    return spank_setenv(spank, name, value.c_str(), 1) == ESPANK_SUCCESS;
-  };
+  std::array<std::optional<std::string>, CONFIG_MAPPINGS.size()>
+      plugstackValues_{};
+  std::array<std::optional<std::string>, CONFIG_MAPPINGS.size()>
+      optionValues_{};
+  std::array<spank_option, CONFIG_MAPPINGS.size()> optionDefinitions_{};
+  ValidationState validation_{};
+};
 
-  for (size_t index = 0; index < SESSION_PARAMETERS.size(); ++index) {
-    if (!values[index].empty() &&
-        !setEnvironment(SESSION_PARAMETERS[index].environment, values[index])) {
-      return false;
-    }
+BraketSpankConfig
+    config; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+auto BraketSpankConfig::optionCallback(const int value, const char* argument,
+                                       const int /*remote*/) -> int {
+  if (value < 0 || static_cast<size_t>(value) >= CONFIG_MAPPINGS.size() ||
+      !validValue(argument)) {
+    logFailure("invalid Amazon Braket option value");
+    return -1;
   }
-  return true;
+  config.optionValues_[static_cast<size_t>(value)] = argument;
+  return 0;
 }
 
 auto isPrimaryTask(spank_t spank) -> bool {
@@ -417,98 +468,56 @@ auto isPrimaryTask(spank_t spank) -> bool {
 // NOLINTBEGIN(misc-use-internal-linkage, readability-identifier-naming,
 //             cppcoreguidelines-avoid-c-arrays)
 extern "C" {
-int slurm_spank_init(spank_t spank, int /*ac*/, char* /*argv*/[]) {
-  auto& state = pluginState();
-  {
-    const std::scoped_lock lock(state.optionsMutex);
-    state.optionValues = {};
-  }
-  for (auto& option : state.options) {
-    option.cb = optionCallback;
-    if (spank_option_register(spank, &option) != ESPANK_SUCCESS) {
-      return 1;
-    }
-  }
+int slurm_spank_init(spank_t spank, const int count, char* arguments[]) {
+  logHook("slurm_spank_init");
+  config.parsePlugstackArguments(count, arguments);
   if (spank_remote(spank) == 1) {
-    const std::scoped_lock lock(state.validationMutex);
-    state.validationState = {};
+    config.resetValidation();
   }
-  return 0;
+  return config.registerOptions(spank);
 }
 
-int slurm_spank_init_post_opt(spank_t spank, int /*ac*/, char* /*argv*/[]) {
-  const auto values = snapshotOptions();
-
-  // Check the opt-in pair before sbatch schedules the job.
-  if (spank_context() == S_CTX_ALLOCATOR) {
-    return validateRequiredOptions(values) ? 0 : 1;
-  }
-
-  if (spank_remote(spank) != 1) {
-    return 0;
-  }
-
-  if (values[optionIndex(OptionValue::DeviceArn)].empty() &&
-      values[optionIndex(OptionValue::AuthFile)].empty()) {
-    auto& state = pluginState();
-    const std::scoped_lock lock(state.validationMutex);
-    state.validationState = {
-        .active = false, .complete = true, .successful = true};
-    return 0;
-  }
-  if (!validateRequiredOptions(values)) {
-    setValidationState(false);
-  }
-  return 0;
+int slurm_spank_init_post_opt(spank_t /*spank*/, int /*count*/,
+                              char* /*arguments*/[]) {
+  logHook("slurm_spank_init_post_opt");
+  return ESPANK_SUCCESS;
 }
 
-int slurm_spank_user_init(spank_t spank, int /*ac*/, char* /*argv*/[]) {
-  if (spank_remote(spank) != 1) {
-    return 0;
+int slurm_spank_user_init(spank_t spank, int /*count*/, char* /*arguments*/[]) {
+  logHook("slurm_spank_user_init");
+  if (spank_remote(spank) != 1 || config.validation().complete) {
+    return ESPANK_SUCCESS;
   }
 
-  // Run AWS/device checks once, after privileges are dropped.
-  auto& state = pluginState();
-  {
-    const std::scoped_lock validationLock(state.validationMutex);
-    if (state.validationState.complete) {
-      return 0;
-    }
+  if (!config.injectEnvironment(spank)) {
+    config.finishValidation(false);
+    return ESPANK_SUCCESS;
+  }
+  if (!config.isActive(spank)) {
+    config.skipValidation();
+    return ESPANK_SUCCESS;
   }
 
-  // Read options forwarded to the remote context.
-  const auto values = collectRemoteOptions(spank);
-  const bool successful = validateDevice(values);
-  // spank_setenv propagates values into the task environment.
-  if (successful && !injectEnvironment(spank, values)) {
-    logFailure("failed to inject QDMI environment variables");
-    const std::scoped_lock validationLock(state.validationMutex);
-    state.validationState = {
-        .active = true, .complete = true, .successful = false};
-    return 0;
-  }
-  const std::scoped_lock validationLock(state.validationMutex);
-  state.validationState = {
-      .active = true, .complete = true, .successful = successful};
-  return 0;
+  config.finishValidation(config.validateBackend(spank));
+  return ESPANK_SUCCESS;
 }
 
-int slurm_spank_task_init(spank_t spank, int /*ac*/, char* /*argv*/[]) {
+int slurm_spank_task_init(spank_t spank, int /*count*/, char* /*arguments*/[]) {
   if (spank_remote(spank) != 1) {
-    return 0;
+    return ESPANK_SUCCESS;
   }
-  // Enforce remote failures just before execve(); fail the job, not the node.
-  const auto state = getValidationState();
+  const auto state = config.validation();
   if (!state.active) {
-    return 0;
+    return ESPANK_SUCCESS;
   }
   if (!state.complete || !state.successful) {
     if (isPrimaryTask(spank)) {
-      logFailure("job rejected because QDMI validation failed");
+      logFailure("job rejected because Amazon Braket validation failed");
     }
+    // slurmstepd treats only a negative task-init result as fatal.
     return -1;
   }
-  return 0;
+  return ESPANK_SUCCESS;
 }
 } // extern "C"
 

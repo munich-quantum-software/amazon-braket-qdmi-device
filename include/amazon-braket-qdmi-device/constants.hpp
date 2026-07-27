@@ -26,14 +26,11 @@
 #include "amazon_braket_qdmi/device.h"
 
 /** Environment variables used as fallback session parameters. */
-#define AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL                                  \
-  "QDMI_DEVICE_SESSION_PARAMETER_BASEURL"
-#define AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE                                 \
-  "QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE"
-#define AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION                                   \
-  "QDMI_DEVICE_SESSION_PARAMETER_REGION"
+#define AMAZON_BRAKET_QDMI_DEVICE_ENV_DEVICE_ARN "AMAZON_BRAKET_DEVICE_ARN"
+#define AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE "AWS_SHARED_CREDENTIALS_FILE"
+#define AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION "AWS_REGION"
 #define AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN                          \
-  "QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN"
+  "AMAZON_BRAKET_RESERVATION_ARN"
 
 /**
  * @brief Amazon Braket-specific device session parameters.

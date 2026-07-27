@@ -70,6 +70,9 @@ endif()
 
 option(BUILD_AMAZON_BRAKET_SPANK_PLUGIN "Build the Slurm SPANK integration plugin" OFF)
 if(BUILD_AMAZON_BRAKET_SPANK_PLUGIN)
+  if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    message(FATAL_ERROR "The Amazon Braket SPANK plugin is supported only on Linux")
+  endif()
   if(USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
     message(
       FATAL_ERROR

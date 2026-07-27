@@ -80,31 +80,3 @@ else()
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}" DISCOVERY_TIMEOUT 60)
 endif()
-
-if(BUILD_AMAZON_BRAKET_SPANK_PLUGIN AND NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
-  set(SPANK_TEST_TARGET_NAME "${QDMI_TARGET_NAME}-spank-test")
-  add_executable(${SPANK_TEST_TARGET_NAME} ${PROJECT_SOURCE_DIR}/spank/spank.cpp
-                                           spank_test_doubles.cpp test_spank.cpp)
-  target_compile_features(${SPANK_TEST_TARGET_NAME} PRIVATE cxx_std_20)
-  target_include_directories(
-    ${SPANK_TEST_TARGET_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/test/fake_slurm
-                                      ${PROJECT_SOURCE_DIR}/include ${CMAKE_BINARY_DIR}/src/include)
-  target_link_libraries(${SPANK_TEST_TARGET_NAME} PRIVATE GTest::gtest_main
-                                                          qdmi::qdmi_project_warnings)
-  gtest_discover_tests(
-    ${SPANK_TEST_TARGET_NAME}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}" DISCOVERY_TIMEOUT 60)
-
-  add_test(
-    NAME ${QDMI_TARGET_NAME}-spank-symbols
-    COMMAND ${CMAKE_COMMAND} -DNM=${CMAKE_NM} -DMODULE=$<TARGET_FILE:amazon-braket-qdmi-spank> -P
-            ${CMAKE_CURRENT_SOURCE_DIR}/check_spank_symbols.cmake)
-  add_test(
-    NAME ${QDMI_TARGET_NAME}-spank-install
-    COMMAND
-      ${CMAKE_COMMAND} -DBUILD_DIR=${CMAKE_BINARY_DIR}
-      -DSTAGE_DIR=${CMAKE_CURRENT_BINARY_DIR}/spank-install-root
-      -DINSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} -DINSTALL_DATADIR=${CMAKE_INSTALL_DATADIR} -P
-      ${CMAKE_CURRENT_SOURCE_DIR}/check_spank_install.cmake)
-endif()

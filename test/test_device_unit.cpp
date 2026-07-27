@@ -207,7 +207,7 @@ TEST_F(AmazonBraketQDMIOfflineTest, SessionInitUsesEnvironmentFallbacks) {
   }
 
   const ScopedEnvironment baseUrl(
-      AMAZON_BRAKET_QDMI_DEVICE_ENV_BASEURL,
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_DEVICE_ARN,
       "arn:aws:braket:::device/quantum-simulator/amazon/sv1");
   const ScopedEnvironment authFile(AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE,
                                    credentialsFile.string().c_str());
