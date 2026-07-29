@@ -79,9 +79,12 @@
 #include <aws/braket/model/QuantumTaskStatus.h>
 #include <aws/core/Aws.h>
 #include <aws/core/auth/AWSCredentials.h>
+#include <aws/core/auth/AWSCredentialsProvider.h>
+#include <aws/core/auth/AWSCredentialsProviderChain.h>
 #include <aws/core/client/ClientConfiguration.h>
 #include <aws/core/utils/Array.h>
 #include <aws/core/utils/json/JsonSerializer.h>
+#include <aws/core/utils/memory/stl/AWSAllocator.h>
 #include <aws/core/utils/memory/stl/AWSString.h>
 #include <aws/s3/S3Client.h>
 #include <aws/s3/S3ClientConfiguration.h>
@@ -644,12 +647,10 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
     if (!outcome.IsSuccess()) {
       std::cerr << "Failed to get device: " << outcome.GetError().GetMessage()
                 << "\n";
-      std::cerr << "Please ensure credentials are supplied via QDMI session "
-                   "parameters before calling session_init().\n";
-      std::cerr << "Use QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE (credentials "
-                   "file) or QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID "
-                   "+ QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY + "
-                   "optional QDMI_DEVICE_SESSION_PARAMETER_AWS_REGION\n";
+      std::cerr
+          << "Ensure AWS credentials are available through the SDK default "
+             "provider chain or supplied explicitly via AUTHFILE or complete "
+             "USERNAME/PASSWORD parameters (with optional TOKEN).\n";
       return QDMI_ERROR_NOTSUPPORTED;
     }
     const auto& device = outcome.GetResult();
@@ -680,12 +681,10 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
   if (!outcome.IsSuccess()) {
     std::cerr << "Failed to get device: " << outcome.GetError().GetMessage()
               << "\n";
-    std::cerr << "Please ensure credentials are supplied via QDMI session "
-                 "parameters before calling session_init().\n";
-    std::cerr << "Use QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE (credentials "
-                 "file) or QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID "
-                 "+ QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY + "
-                 "optional QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN\n";
+    std::cerr << "Ensure AWS credentials are available through the SDK default "
+                 "provider chain or supplied explicitly via AUTHFILE or "
+                 "complete USERNAME/PASSWORD parameters (with optional "
+                 "TOKEN).\n";
     return QDMI_ERROR_NOTSUPPORTED;
   }
 
@@ -796,16 +795,17 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
  * Initialize a device session.
  *
  * Session initialization involves:
- * 1. Validating required parameters (device ARN and credentials)
+ * 1. Validating the required device ARN and any explicit credentials
  * 2. Setting up the AWS SDK client with proper region configuration
  * 3. Transitioning the session to INITIALIZED state
  *
  * Configuration:
  * AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN
- * - Credentials: Must be set via one of:
+ * - Credentials: Optional. Explicit credentials can be set via one of:
  *   - QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE (credentials file path)
  *   - QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY +
- * QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN (optional)
+ * QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN (optional). Without explicit
+ * credentials, the AWS SDK default credential provider chain is used.
  *  - AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION (defaults to the value
  *    from the ARN or us-east-1)
  *  - AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN (optional
@@ -874,26 +874,37 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
     }
   }
 
-  // Create BraketClient with explicit credentials
-  // Credentials MUST be provided via one of these methods:
-  // 1. QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE (credentials file)
-  // 2. QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY
-  if (!accessKeyId_.empty() && !secretAccessKey_.empty()) {
-    // Explicit credentials provided via setParameter() or credentials file
+  const bool hasAccessKey = !accessKeyId_.empty();
+  const bool hasSecretKey = !secretAccessKey_.empty();
+  const bool hasSessionToken = !sessionToken_.empty();
+  if (credentialsFile_.empty() &&
+      (hasAccessKey != hasSecretKey ||
+       (hasSessionToken && !(hasAccessKey && hasSecretKey)))) {
+    std::cerr << "ERROR: Incomplete direct AWS credentials.\n";
+    std::cerr << "Provide both QDMI_DEVICE_SESSION_PARAMETER_USERNAME and "
+                 "QDMI_DEVICE_SESSION_PARAMETER_PASSWORD; "
+                 "QDMI_DEVICE_SESSION_PARAMETER_TOKEN is only valid with a "
+                 "complete access/secret key pair.\n";
+    std::cerr << "To use the AWS SDK default credential provider chain, do not "
+                 "set any direct credential parameters.\n";
+    return QDMI_ERROR_INVALIDARGUMENT;
+  }
+
+  if (hasAccessKey && hasSecretKey) {
     const Aws::Auth::AWSCredentials credentials(
         accessKeyId_, secretAccessKey_,
         sessionToken_.empty() ? "" : sessionToken_);
-    client_ = std::make_unique<Aws::Braket::BraketClient>(credentials, config);
+    credentialsProvider_ =
+        Aws::MakeShared<Aws::Auth::SimpleAWSCredentialsProvider>(
+            "AmazonBraketQDMICredentialsProvider", credentials);
   } else {
-    // No credentials provided - return error
-    std::cerr << "ERROR: AWS credentials required but not provided.\n";
-    std::cerr << "Please provide credentials via one of these methods:\n";
-    std::cerr << "  1. QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE (path to "
-                 "credentials file)\n";
-    std::cerr << "  2. QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID + "
-                 "AWS_SECRET_ACCESS_KEY\n";
-    return QDMI_ERROR_INVALIDARGUMENT;
+    credentialsProvider_ =
+        Aws::MakeShared<Aws::Auth::DefaultAWSCredentialsProviderChain>(
+            "AmazonBraketQDMICredentialsProvider",
+            config.ResolveCredentialProviderConfig());
   }
+  client_ =
+      std::make_unique<Aws::Braket::BraketClient>(credentialsProvider_, config);
 
   initialized_ = true;
   return QDMI_SUCCESS;
@@ -1515,12 +1526,11 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal() const
     return QDMI_ERROR_FATAL;
   }
 
-  // Create S3 client with the same credentials and region as the Braket client.
-  // Uses Aws::S3::S3ClientConfiguration (new SDK API) and passes explicit
-  // credentials so the client works regardless of env-var credential setup.
+  // Create the S3 client with the same refreshable credentials provider and
+  // region as the Braket client.
   Aws::S3::S3ClientConfiguration s3Config;
   s3Config.region = session_->getRegion();
-  Aws::S3::S3Client const s3Client(session_->getCredentials(), nullptr,
+  Aws::S3::S3Client const s3Client(session_->getCredentialsProvider(), nullptr,
                                    s3Config);
 
   // Download results.json from S3
@@ -1811,7 +1821,7 @@ void AMAZON_BRAKET_QDMI_device_session_free(
  *   Example: "arn:aws:braket:::device/quantum-simulator/amazon/<sim-name>"
  *            "arn:aws:braket:eu-north-1::device/qpu/<vendor>/<device-name>"
  *
- * AWS Authentication (one method required):
+ * AWS Authentication (optional explicit configuration):
  * - QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE: Path to credentials file (INI
  * format) Example: "/path/to/credentials"
  *
@@ -1822,6 +1832,9 @@ void AMAZON_BRAKET_QDMI_device_session_free(
  * (string)
  * - QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN: AWS Session Token (string,
  * optional) For temporary credentials from STS or SSO
+ *
+ * If no explicit credential parameters are set, the AWS SDK default credential
+ * provider chain is used.
  *
  * Optional Parameters:
  * - AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION: AWS region override

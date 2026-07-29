@@ -58,7 +58,7 @@ gate-based Amazon Braket devices. Additionally, support for querying properties
 
 - **C++20** compatible compiler
 - **CMake** 3.24 or later
-- **AWS Credentials** configured (see Configuration section below)
+- **AWS credentials** available to the AWS SDK (see Configuration below)
 
 **Note**: Dependencies (AWS SDK for C++, QDMI) are automatically downloaded and
 built by CMake during the configuration step.
@@ -67,7 +67,14 @@ built by CMake during the configuration step.
 
 **AWS Credentials:**
 
-This library supports two methods for providing AWS credentials:
+Explicit QDMI credential parameters are optional. If none are set, the session
+uses the AWS SDK default credential provider chain. Depending on the runtime,
+the chain can load credentials from environment variables, shared AWS profile
+files, web identity, container credentials, or an EC2 instance role. The same
+refreshable provider is used for Amazon Braket requests and S3 result retrieval.
+
+Alternatively, this library supports two methods for providing explicit
+session-specific credentials:
 
 **Method 1: Credentials File (Recommended for Multi-User Scenarios):**
 
@@ -133,6 +140,10 @@ AMAZON_BRAKET_QDMI_device_session_set_parameter(
     strlen(sessionToken) + 1, sessionToken);
 ```
 
+The access key and secret key must be provided together. A session token is only
+valid with a complete access/secret key pair. `AUTHFILE` takes precedence over
+direct parameters when both are set.
+
 **Available Credential Parameters:**
 
 | Parameter                                | Type    | Required | Description                                   |
@@ -166,6 +177,8 @@ AMAZON_BRAKET_QDMI_device_session_set_parameter(
 
 **Note**: AWS authentication is handled via:
 
+- The AWS SDK default credential provider chain when no explicit credential
+  parameters are set
 - `QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE` for credentials files (see AWS
   Credentials section)
 - `QDMI_DEVICE_SESSION_PARAMETER_USERNAME`,
@@ -338,11 +351,8 @@ int main() {
     AMAZON_BRAKET_QDMI_Device_Session session;
     AMAZON_BRAKET_QDMI_device_session_alloc(&session);
 
-    // Configure credentials (required)
-    const char* credsFile = "/path/to/credentials";
-    AMAZON_BRAKET_QDMI_device_session_set_parameter(
-        session, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
-        strlen(credsFile) + 1, credsFile);
+    // No credential parameters are needed when the AWS SDK default credential
+    // provider chain is configured.
 
     // Configure device ARN (required)
     const char* deviceArn = "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
@@ -553,7 +563,7 @@ To run the test suite:
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 
-# Set required environment variables for credentials and S3 bucket
+# Configure credentials and S3 storage for online/device tests
 export AWS_S3_BUCKET="my-braket-results-bucket"
 
 # Set credentials - choose one method:
@@ -590,10 +600,10 @@ ctest --test-dir build --output-on-failure
   - Passed to `AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET` in job
     tests
 
-**Note:** The library itself does **not** read environment variables directly.
-Tests read env vars for sensitive data (credentials, S3 bucket) and call QDMI
-set parameter functions, which is the same pattern your production code should
-use.
+**Note:** The offline tests require no AWS credentials. The online tests read
+the variables above and pass explicit credentials through QDMI parameters. In
+normal use, omitting those parameters delegates credential discovery and refresh
+to the AWS SDK default provider chain.
 
 ## Project Structure
 

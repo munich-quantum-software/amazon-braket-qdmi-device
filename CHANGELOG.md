@@ -12,6 +12,8 @@ releases may include breaking changes.
 
 ### Added
 
+- ✨ Use the AWS SDK default credential provider chain when no explicit session
+  credentials are configured ([#150]) ([**@burgholzer**])
 - ✨ Export the stable Amazon Braket device ID and symbol prefix for MQT Core
   configuration and runtime packaging ([#147]) ([**@burgholzer**])
 
@@ -52,6 +54,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#150]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/150
 [#149]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/149
 [#147]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/147
 [#130]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/130
