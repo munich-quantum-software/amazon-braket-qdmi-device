@@ -22,16 +22,17 @@ from __future__ import annotations
 from mqt.core.fomac import DeviceDefinition, register_device_if_absent
 
 from amazon.braket.qdmi import (
-    AMAZON_BRAKET_QDMI_DEVICE_ID,
     AMAZON_BRAKET_QDMI_LIBRARY_PATH,
     AMAZON_BRAKET_QDMI_PREFIX,
 )
+
+TEST_DEVICE_ID = "test.amazon.braket.packaged"
 
 
 def test_register_device_if_absent() -> None:
     """Register the packaged device without loading it or contacting AWS."""
     definition = DeviceDefinition(
-        AMAZON_BRAKET_QDMI_DEVICE_ID,
+        TEST_DEVICE_ID,
         AMAZON_BRAKET_QDMI_LIBRARY_PATH,
         AMAZON_BRAKET_QDMI_PREFIX,
     )
