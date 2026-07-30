@@ -12,12 +12,14 @@ releases may include breaking changes.
 
 ### Added
 
-- ✨ Use the AWS SDK default credential provider chain when no explicit session
-  credentials are configured ([#150]) ([**@burgholzer**])
 - ✨ Add an optional GPL-licensed Slurm SPANK plugin for validating Amazon
   Braket devices and injecting QDMI session configuration, including the
   distinct plugin and core library license texts ([#134]) ([**@flowerthrower**],
   [**@burgholzer**])
+- ✨ Export the stable Amazon Braket device ID and symbol prefix for MQT Core
+  configuration and runtime packaging ([#147]) ([**@burgholzer**])
+- ✨ Use the AWS SDK default credential provider chain when no explicit session
+  credentials are configured ([#150]) ([**@burgholzer**])
 
 ### Changed
 
@@ -25,6 +27,11 @@ releases may include breaking changes.
   `AMAZON_BRAKET_` vendor namespace and add a semantic device-ARN alias that
   retains the existing `BASEURL` mapping ([#149]) ([**@burgholzer**])
 - ⬆️ Update QDMI to version 1.3.2 ([#130]) ([**@denialhaag**])
+
+### Fixed
+
+- 🐛 Isolate scikit-build output from the direct CMake build tree ([#147])
+  ([**@burgholzer**])
 
 ## [1.0.1] - 2026-06-26
 
@@ -50,9 +57,10 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#134]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/134
+[#147]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/147
 [#150]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/150
 [#149]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/149
-[#134]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/134
 [#130]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/130
 [#117]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/117
 

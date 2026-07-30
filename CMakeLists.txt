@@ -84,6 +84,15 @@ endif()
 
 # add test code
 if(BUILD_AMAZON_BRAKET_TESTS)
+  get_target_property(AMAZON_BRAKET_QDMI_DEVICE_ID ${QDMI_TARGET_NAME} QDMI_DEVICE_ID)
+  get_target_property(AMAZON_BRAKET_QDMI_DEVICE_PREFIX ${QDMI_TARGET_NAME} QDMI_DEVICE_PREFIX)
+  if(NOT AMAZON_BRAKET_QDMI_DEVICE_ID STREQUAL "amazon.braket.default")
+    message(FATAL_ERROR "The Amazon Braket QDMI target does not export its stable device ID")
+  endif()
+  if(NOT AMAZON_BRAKET_QDMI_DEVICE_PREFIX STREQUAL "${QDMI_PREFIX}")
+    message(FATAL_ERROR "The Amazon Braket QDMI target does not export its symbol prefix")
+  endif()
+
   enable_testing()
   include(GoogleTest)
   add_subdirectory(test)
