@@ -1,0 +1,19 @@
+{
+  "author": {
+    "name": "Munich Quantum Software Company GmbH",
+    "years": [2025, 2026]
+  },
+  "force_author": true,
+  "license": "GPL-3.0-or-later",
+  "force_license": true,
+  "title": false,
+  "include": ["**/*"],
+  "style_override_for_suffix": {
+    ".in": "POUND_STYLE",
+    ".yaml": "POUND_STYLE",
+    ".toml": "POUND_STYLE",
+    ".ts": "C_STYLE",
+    "Dockerfile": "POUND_STYLE"
+  },
+  "exclude": ["^\\.[^/]+", "/\\.[^/]+", ".*\\.md", ".*\\.json", ".*build.*"]
+}

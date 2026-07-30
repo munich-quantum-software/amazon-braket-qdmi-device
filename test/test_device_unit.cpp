@@ -35,13 +35,17 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
+#include <optional>
 #include <random>
 #include <stdexcept>
+#include <stdlib.h> // NOLINT(modernize-deprecated-headers): POSIX setenv/unsetenv
 #include <string>
 #include <system_error>
 
@@ -104,6 +108,65 @@ public:
 private:
   std::filesystem::path path_;
 };
+
+// NOLINTBEGIN(misc-include-cleaner)
+class ScopedEnvironment {
+public:
+  ScopedEnvironment(const char* name, const char* value) : name_(name) {
+    if (const char* previous = std::getenv(name); previous != nullptr) {
+      previous_ = previous;
+    }
+#ifdef _WIN32
+    _putenv_s(name, value);
+#else
+    setenv(name, value, 1);
+#endif
+  }
+
+  ~ScopedEnvironment() {
+#ifdef _WIN32
+    // The Microsoft CRT defines an empty value as removal, so its observable
+    // environment has no distinct "present but empty" state.
+    _putenv_s(name_.c_str(), previous_.has_value() ? previous_->c_str() : "");
+#else
+    if (previous_.has_value()) {
+      setenv(name_.c_str(), previous_->c_str(), 1);
+    } else {
+      unsetenv(name_.c_str());
+    }
+#endif
+  }
+
+private:
+  std::string name_;
+  std::optional<std::string> previous_;
+};
+// NOLINTEND(misc-include-cleaner)
+
+#ifdef _WIN32
+TEST(ScopedEnvironmentTest, TreatsEmptyValueAsAbsent) {
+  constexpr auto* variable = "AMAZON_BRAKET_QDMI_TEST_EMPTY_ENVIRONMENT";
+  const ScopedEnvironment emptyEnvironment(variable, "");
+  ASSERT_EQ(std::getenv(variable), nullptr);
+  {
+    const ScopedEnvironment temporaryEnvironment(variable, "temporary");
+    ASSERT_STREQ(std::getenv(variable), "temporary");
+  }
+  EXPECT_EQ(std::getenv(variable), nullptr);
+}
+#else
+TEST(ScopedEnvironmentTest, RestoresExistingEmptyValue) {
+  constexpr auto* variable = "AMAZON_BRAKET_QDMI_TEST_EMPTY_ENVIRONMENT";
+  const ScopedEnvironment emptyEnvironment(variable, "");
+  {
+    const ScopedEnvironment temporaryEnvironment(variable, "temporary");
+    ASSERT_STREQ(std::getenv(variable), "temporary");
+  }
+  const auto* restored = std::getenv(variable);
+  ASSERT_NE(restored, nullptr);
+  EXPECT_STREQ(restored, "");
+}
+#endif
 } // namespace
 
 // =============================================================================
@@ -131,6 +194,28 @@ protected:
     AMAZON_BRAKET_QDMI_device_finalize();
   }
 };
+
+TEST_F(AmazonBraketQDMIOfflineTest, SessionInitUsesEnvironmentFallbacks) {
+  const ScopedTemporaryDirectory temporaryDirectory;
+  const auto credentialsFile = temporaryDirectory.path() / "credentials.ini";
+  {
+    std::ofstream file(credentialsFile);
+    ASSERT_TRUE(file.is_open());
+    file << "[default]\n"
+         << "aws_access_key_id=AKIAIOSFODNN7EXAMPLE\n"
+         << "aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n";
+  }
+
+  const ScopedEnvironment baseUrl(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_DEVICE_ARN,
+      "arn:aws:braket:::device/quantum-simulator/amazon/sv1");
+  const ScopedEnvironment authFile(AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE,
+                                   credentialsFile.string().c_str());
+  const ScopedEnvironment region(AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION,
+                                 "us-east-1");
+
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
+}
 
 // =============================================================================
 // Fixture: initialised with fake credentials (no network calls in tests)
@@ -255,6 +340,65 @@ TEST_F(AmazonBraketQDMIOfflineTest,
                 session, QDMI_DEVICE_SESSION_PARAMETER_TOKEN,
                 strlen(sessionToken) + 1, sessionToken),
             QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
+            QDMI_ERROR_INVALIDARGUMENT);
+}
+
+// Explicit API credentials must take precedence over an AUTHFILE fallback.
+TEST_F(AmazonBraketQDMIOfflineTest,
+       SessionInitDirectCredentialsIgnoreEnvironmentAuthFile) {
+  const ScopedEnvironment authFile(AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE,
+                                   "/nonexistent/environment/credentials.ini");
+  const char* deviceArn =
+      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                strlen(deviceArn) + 1, deviceArn),
+            QDMI_SUCCESS);
+  const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
+                strlen(accessKey) + 1, accessKey),
+            QDMI_SUCCESS);
+  const char* secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
+                strlen(secretKey) + 1, secretKey),
+            QDMI_SUCCESS);
+
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
+}
+
+// Any explicit direct-credential parameter must suppress an AUTHFILE fallback,
+// including a token that is invalid without its access and secret keys.
+TEST_F(AmazonBraketQDMIOfflineTest,
+       SessionInitTokenOnlyIgnoresEnvironmentAuthFile) {
+  const ScopedTemporaryDirectory temporaryDirectory;
+  const auto credentialsFile = temporaryDirectory.path() / "credentials.ini";
+  {
+    std::ofstream file(credentialsFile);
+    ASSERT_TRUE(file.is_open());
+    file << "[default]\n"
+         << "aws_access_key_id=AKIAIOSFODNN7EXAMPLE\n"
+         << "aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/"
+            "bPxRfiCYEXAMPLEKEY\n";
+  }
+  const auto credentialsPath = credentialsFile.string();
+  const ScopedEnvironment authFile(AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE,
+                                   credentialsPath.c_str());
+
+  const char* deviceArn =
+      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                strlen(deviceArn) + 1, deviceArn),
+            QDMI_SUCCESS);
+  const char* sessionToken = "FakeSessionToken123";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_TOKEN,
+                strlen(sessionToken) + 1, sessionToken),
+            QDMI_SUCCESS);
+
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
             QDMI_ERROR_INVALIDARGUMENT);
 }

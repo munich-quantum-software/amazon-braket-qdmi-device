@@ -424,6 +424,27 @@ TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceProperty) {
   AMAZON_BRAKET_QDMI_device_session_free(uninitializedSession);
 }
 
+TEST_F(AmazonBraketQDMISpecificationTest, QuerySupportedProgramFormats) {
+  size_t size = 0;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session,
+                static_cast<QDMI_Device_Property>(
+                    QDMI_DEVICE_PROPERTY_SUPPORTEDPROGRAMFORMATS),
+                0, nullptr, &size),
+            QDMI_SUCCESS);
+  ASSERT_EQ(size, 2 * sizeof(QDMI_Program_Format));
+
+  std::vector<QDMI_Program_Format> formats(2);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session,
+                static_cast<QDMI_Device_Property>(
+                    QDMI_DEVICE_PROPERTY_SUPPORTEDPROGRAMFORMATS),
+                size, formats.data(), nullptr),
+            QDMI_SUCCESS);
+  EXPECT_EQ(formats[0], QDMI_PROGRAM_FORMAT_QASM2);
+  EXPECT_EQ(formats[1], QDMI_PROGRAM_FORMAT_QASM3);
+}
+
 TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteProperty) {
   AMAZON_BRAKET_QDMI_Site site = querySites(session).front();
   EXPECT_EQ(

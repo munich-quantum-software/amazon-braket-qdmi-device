@@ -59,11 +59,13 @@ gate-based Amazon Braket devices. Additionally, support for querying properties
 - **C++20** compatible compiler
 - **CMake** 3.24 or later
 - **AWS credentials** available to the AWS SDK (see Configuration below)
+- **Slurm** 20.02 or later (only for optional SPANK plugin)
 
 **Note**: Dependencies (AWS SDK for C++, QDMI) are automatically downloaded and
-built by CMake during the configuration step.
+built by CMake during the configuration step. Further information on the SPANK
+plugin is available in the [SPANK README](spank/README.md).
 
-### Configuration
+### Session Configuration
 
 **AWS Credentials:**
 
@@ -80,7 +82,7 @@ session-specific credentials:
 
 Use the QDMI `AUTHFILE` parameter to specify a credentials file path:
 
-```c
+```cpp
 #include <amazon-braket-qdmi-device/constants.hpp>
 
 AMAZON_BRAKET_QDMI_Device_Session session;
@@ -119,7 +121,7 @@ use different credentials within the same process.
 
 Use QDMI session parameters to specify credentials programmatically:
 
-```c
+```cpp
 #include <amazon-braket-qdmi-device/constants.hpp>
 
 // Set credentials directly via QDMI parameters
@@ -194,7 +196,7 @@ configuration for results. Configure using job-level parameters:
 #include <amazon-braket-qdmi-device/constants.hpp>
 
 // Create and configure a job
-AMAZON_BRAKET_QDMI_Device_Job job;
+AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
 AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job);
 
 // Set S3 bucket (required)
@@ -329,6 +331,7 @@ arguments to `open_device` override only that newly opened session.
 | Option                                    | Default | Description                             |
 | ----------------------------------------- | ------- | --------------------------------------- |
 | `BUILD_AMAZON_BRAKET_TESTS`               | `ON`    | Build test suite (requires Google Test) |
+| `BUILD_AMAZON_BRAKET_SPANK_PLUGIN`        | `OFF`   | Build the optional Slurm SPANK plugin   |
 | `USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE` | `OFF`   | Use installed library instead of build  |
 | `CMAKE_PREFIX_PATH`                       | -       | Path to dependencies (AWS SDK, QDMI)    |
 
@@ -337,8 +340,8 @@ arguments to `open_device` override only that newly opened session.
 ### Example Program
 
 ```cpp
-#include <amazon_braket_qdmi/device.h>
 #include <amazon-braket-qdmi-device/constants.hpp>
+#include <amazon_braket_qdmi/device.h>
 #include <cstring>
 #include <iostream>
 #include <vector>
@@ -347,8 +350,7 @@ int main() {
     // Initialize the library
     AMAZON_BRAKET_QDMI_device_initialize();
 
-    // Create session
-    AMAZON_BRAKET_QDMI_Device_Session session;
+    AMAZON_BRAKET_QDMI_Device_Session session = nullptr;
     AMAZON_BRAKET_QDMI_device_session_alloc(&session);
 
     // No credential parameters are needed when the AWS SDK default credential
@@ -364,14 +366,14 @@ int main() {
     AMAZON_BRAKET_QDMI_device_session_init(session);
 
     // Query device properties
-    size_t qubits;
+    size_t qubits = 0;
     AMAZON_BRAKET_QDMI_device_session_query_device_property(
-        session, QDMI_DEVICE_PROPERTY_QUBITSNUM,
-        sizeof(qubits), &qubits, nullptr);
+        session, QDMI_DEVICE_PROPERTY_QUBITSNUM, sizeof(qubits), &qubits,
+        nullptr);
     std::cout << "Device has " << qubits << " qubits\n";
 
     // Create a quantum job
-    AMAZON_BRAKET_QDMI_Device_Job job;
+    AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
     AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job);
 
     // Configure S3 bucket for results (required)
@@ -603,7 +605,10 @@ ctest --test-dir build --output-on-failure
 **Note:** The offline tests require no AWS credentials. The online tests read
 the variables above and pass explicit credentials through QDMI parameters. In
 normal use, omitting those parameters delegates credential discovery and refresh
-to the AWS SDK default provider chain.
+to the AWS SDK default provider chain. Session initialization also accepts the
+service-specific environment fallbacks documented in the
+[SPANK guide](spank/README.md) when the corresponding API parameters have not
+been set explicitly.
 
 ## Project Structure
 
@@ -659,3 +664,10 @@ For issues related to:
   [QDMI repository](https://github.com/Munich-Quantum-Software-Stack/QDMI)
 - **Amazon Braket**: See
   [Amazon Braket documentation](https://docs.aws.amazon.com/braket/)
+
+## License
+
+The core Amazon Braket QDMI library is licensed under the Apache License 2.0
+with LLVM exceptions; see [LICENSE](LICENSE). The optional Slurm SPANK plugin
+under [spank/](spank/) is licensed separately under GPL-3.0-or-later; see
+[spank/LICENSE.md](spank/LICENSE.md).

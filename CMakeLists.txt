@@ -16,7 +16,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 # set required cmake version
-cmake_minimum_required(VERSION 3.25...4.2)
+cmake_minimum_required(VERSION 3.24...4.2)
 
 project(
   amazon-braket-qdmi-device
@@ -66,6 +66,20 @@ set(QDMI_TARGET_NAME "amazon-braket-qdmi-device")
 # add main library code
 if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
   add_subdirectory(src)
+endif()
+
+option(BUILD_AMAZON_BRAKET_SPANK_PLUGIN "Build the Slurm SPANK integration plugin" OFF)
+if(BUILD_AMAZON_BRAKET_SPANK_PLUGIN)
+  if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    message(FATAL_ERROR "The Amazon Braket SPANK plugin is supported only on Linux")
+  endif()
+  if(USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
+    message(
+      FATAL_ERROR
+        "The SPANK plugin embeds the Amazon Braket QDMI implementation and must be built from source"
+    )
+  endif()
+  add_subdirectory(spank)
 endif()
 
 # add test code

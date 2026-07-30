@@ -123,7 +123,7 @@
       }                                                                        \
       return QDMI_SUCCESS;                                                     \
     }                                                                          \
-  } // NOLINT(bugprone-macro-parentheses)
+  }
 
 #define ADD_STRING_PROPERTY(prop_name, prop_value, prop, size, value,          \
                             size_ret)                                          \
@@ -182,6 +182,10 @@
 // NOLINTEND(bugprone-macro-parentheses)
 
 namespace {
+
+constexpr std::array<QDMI_Program_Format, 2> SUPPORTED_PROGRAM_FORMATS = {
+    QDMI_PROGRAM_FORMAT_QASM2, QDMI_PROGRAM_FORMAT_QASM3};
+
 /**
  * @brief Parse AWS credentials from an INI-format credentials file.
  *
@@ -822,6 +826,30 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
     return QDMI_ERROR_BADSTATE;
   }
 
+  // Slurm/SPANK can provide session metadata through the environment. These
+  // fallbacks are deliberately applied only when the application did not set
+  // the corresponding API parameter, so explicit application configuration
+  // takes precedence.
+  const auto applyEnvironmentFallback = [](std::string& destination,
+                                           const char* variable) {
+    if (destination.empty()) {
+      if (const char* value = std::getenv(variable);
+          value != nullptr && value[0] != '\0') {
+        destination = value;
+      }
+    }
+  };
+  applyEnvironmentFallback(deviceArn_,
+                           AMAZON_BRAKET_QDMI_DEVICE_ENV_DEVICE_ARN);
+  applyEnvironmentFallback(region_, AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION);
+  applyEnvironmentFallback(reservationArn_,
+                           AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN);
+  if (credentialsFile_.empty() && accessKeyId_.empty() &&
+      secretAccessKey_.empty() && sessionToken_.empty()) {
+    applyEnvironmentFallback(credentialsFile_,
+                             AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE);
+  }
+
   // Check that required parameters are set
   if (deviceArn_.empty()) {
     std::cerr << "ERROR: Device ARN not configured. Set via:\n";
@@ -1020,6 +1048,9 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_STATUS, QDMI_Device_Status,
                             braketDeviceStatus_.load(), prop, size, value,
                             sizeRet)
+  ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_SUPPORTEDPROGRAMFORMATS,
+                    QDMI_Program_Format, SUPPORTED_PROGRAM_FORMATS, prop, size,
+                    value, sizeRet)
 
   // Delegate to Braket device singleton for library-level properties only
   // (LIBRARYVERSION, NEEDSCALIBRATION)
