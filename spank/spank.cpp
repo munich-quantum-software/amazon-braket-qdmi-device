@@ -326,12 +326,12 @@ public:
     return true;
   }
 
-  [[nodiscard]] auto isActive(spank_t spank) const -> bool {
+  [[nodiscard]] static auto isActive(spank_t spank) -> bool {
     return getJobEnvironment(spank, CONFIG_MAPPINGS.front().environment)
         .has_value();
   }
 
-  [[nodiscard]] auto validateBackend(spank_t spank) const noexcept -> bool {
+  [[nodiscard]] static auto validateBackend(spank_t spank) noexcept -> bool {
     try {
       const ScopedSessionEnvironment environmentScope;
       if (!environmentScope.valid()) {
