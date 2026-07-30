@@ -119,7 +119,9 @@ Values use the following precedence: job option, submitted environment, then the
 The device ARN is the only required value. Region defaults to the ARN region or
 `us-east-1`. Reservation and credentials file are optional. Standard AWS
 credential sources such as `AWS_ACCESS_KEY_ID`, web identity, container
-credentials, and instance roles remain available through the SDK provider chain.
+credentials, profiles, and instance roles remain available through the SDK
+provider chain. During validation, the plugin mirrors these settings from the
+submitted job environment instead of inheriting the Slurm daemon environment.
 
 ## Validation and failure behavior
 

@@ -117,6 +117,47 @@ constexpr std::array<SessionParameterMapping, 3> AWS_CREDENTIAL_MAPPINGS = {{
      .parameter = QDMI_DEVICE_SESSION_PARAMETER_TOKEN},
 }};
 
+/**
+ * Process-environment inputs consumed by the AWS SDK credential and endpoint
+ * provider chains.
+ *
+ * A remote SPANK hook runs in slurmstepd, whose process environment is not the
+ * submitted job environment exposed by spank_getenv(). Mirror these values
+ * while validating so the SDK sees the job's configuration and never inherits
+ * credentials from the daemon.
+ */
+constexpr std::array<const char*, 29> AWS_PROVIDER_ENVIRONMENT = {{
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_SESSION_TOKEN",
+    "AWS_ACCOUNT_ID",
+    "AWS_PROFILE",
+    "AWS_DEFAULT_PROFILE",
+    "AWS_CONFIG_FILE",
+    "AWS_DEFAULT_REGION",
+    "AWS_ROLE_ARN",
+    "AWS_IAM_ROLE_ARN",
+    "AWS_ROLE_SESSION_NAME",
+    "AWS_IAM_ROLE_SESSION_NAME",
+    "AWS_WEB_IDENTITY_TOKEN_FILE",
+    "AWS_LOGIN_CACHE_DIRECTORY",
+    "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
+    "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+    "AWS_CONTAINER_AUTHORIZATION_TOKEN",
+    "AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE",
+    "AWS_EC2_METADATA_DISABLED",
+    "AWS_EC2_METADATA_V1_DISABLED",
+    "AWS_EC2_METADATA_SERVICE_ENDPOINT",
+    "AWS_EC2_METADATA_SERVICE_ENDPOINT_MODE",
+    "AWS_METADATA_SERVICE_TIMEOUT",
+    "AWS_METADATA_SERVICE_NUM_ATTEMPTS",
+    "AWS_DEFAULTS_MODE",
+    "AWS_ENDPOINT_URL",
+    "AWS_ENDPOINT_URL_BRAKET",
+    "AWS_IGNORE_CONFIGURED_ENDPOINT_URLS",
+    "HOME",
+}};
+
 struct ValidationState {
   bool active = false;
   bool complete = false;
@@ -165,25 +206,33 @@ auto logHook(const char* hook) -> void {
 }
 
 /**
- * Hide daemon configuration while validating the explicit job environment.
+ * Isolate the daemon environment while validating the submitted job.
  *
- * The effective job values are passed directly to the QDMI session. Hiding the
- * corresponding process values prevents slurmstepd service defaults from
- * silently supplying a value that the submitted job did not receive.
+ * Effective plugin configuration is passed directly to the QDMI session.
+ * Those fallback variables are hidden, while AWS SDK provider inputs mirror
+ * the values exposed by spank_getenv(). This prevents slurmstepd service
+ * credentials from leaking into a job and preserves job-scoped provider-chain
+ * sources such as web identity and container credentials.
  */
 class ScopedSessionEnvironment final {
 public:
-  ScopedSessionEnvironment() {
-    for (size_t index = 0; index < CONFIG_MAPPINGS.size(); ++index) {
-      const auto* name = CONFIG_MAPPINGS[index].environment;
-      if (const char* value = std::getenv(name); value != nullptr) {
-        originalValues_[index] = value;
+  explicit ScopedSessionEnvironment(spank_t spank) {
+    try {
+      for (const auto& mapping : CONFIG_MAPPINGS) {
+        if (!replace(mapping.environment, std::nullopt)) {
+          valid_ = false;
+          return;
+        }
       }
-      if (unsetenv(name) != 0) {
-        valid_ = false;
-        break;
+      for (const auto* name : AWS_PROVIDER_ENVIRONMENT) {
+        if (!replace(name, getJobEnvironment(spank, name))) {
+          valid_ = false;
+          return;
+        }
       }
-      ++hiddenValues_;
+    } catch (...) {
+      restoreChanges();
+      throw;
     }
   }
 
@@ -194,18 +243,26 @@ public:
   auto operator=(ScopedSessionEnvironment&&)
       -> ScopedSessionEnvironment& = delete;
 
-  ~ScopedSessionEnvironment() {
-    for (size_t index = 0; index < hiddenValues_; ++index) {
-      if (restore(CONFIG_MAPPINGS[index].environment, originalValues_[index]) !=
-          0) {
+  ~ScopedSessionEnvironment() { restoreChanges(); }
+
+  [[nodiscard]] auto valid() const -> bool { return valid_; }
+
+private:
+  void restoreChanges() noexcept {
+    while (changedValues_ > 0) {
+      --changedValues_;
+      const auto& change = changes_[changedValues_];
+      if (restore(change.name, change.originalValue) != 0) {
         logFailure("failed to restore the process environment");
       }
     }
   }
 
-  [[nodiscard]] auto valid() const -> bool { return valid_; }
+  struct EnvironmentChange {
+    const char* name = nullptr;
+    std::optional<std::string> originalValue;
+  };
 
-private:
   static auto restore(const char* name, const std::optional<std::string>& value)
       -> int {
     if (value.has_value()) {
@@ -214,9 +271,24 @@ private:
     return unsetenv(name);
   }
 
-  std::array<std::optional<std::string>, CONFIG_MAPPINGS.size()>
-      originalValues_{};
-  size_t hiddenValues_ = 0;
+  auto replace(const char* name, const std::optional<std::string>& replacement)
+      -> bool {
+    auto& change = changes_[changedValues_];
+    change.name = name;
+    if (const char* value = std::getenv(name); value != nullptr) {
+      change.originalValue = value;
+    }
+    if (restore(name, replacement) != 0) {
+      return false;
+    }
+    ++changedValues_;
+    return true;
+  }
+
+  std::array<EnvironmentChange,
+             CONFIG_MAPPINGS.size() + AWS_PROVIDER_ENVIRONMENT.size()>
+      changes_{};
+  size_t changedValues_ = 0;
   bool valid_ = true;
 };
 
@@ -333,7 +405,7 @@ public:
 
   [[nodiscard]] static auto validateBackend(spank_t spank) noexcept -> bool {
     try {
-      const ScopedSessionEnvironment environmentScope;
+      const ScopedSessionEnvironment environmentScope{spank};
       if (!environmentScope.valid()) {
         logFailure("failed to isolate the QDMI job environment");
         return false;
@@ -450,7 +522,19 @@ auto BraketSpankConfig::optionCallback(const int value, const char* argument,
     logFailure("invalid Amazon Braket option value");
     return -1;
   }
-  config.optionValues_[static_cast<size_t>(value)] = argument;
+  try {
+    config.optionValues_[static_cast<size_t>(value)] = argument;
+  } catch (const std::exception& error) {
+    // Slurm exposes logging through a variadic C ABI.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+    slurm_spank_log(
+        "amazon-braket-qdmi: option processing raised an exception: %s",
+        error.what());
+    return -1;
+  } catch (...) {
+    logFailure("option processing raised an unknown exception");
+    return -1;
+  }
   return 0;
 }
 
@@ -470,11 +554,22 @@ auto isPrimaryTask(spank_t spank) -> bool {
 extern "C" {
 int slurm_spank_init(spank_t spank, const int count, char* arguments[]) {
   logHook("slurm_spank_init");
-  config.parsePlugstackArguments(count, arguments);
-  if (spank_remote(spank) == 1) {
-    config.resetValidation();
+  try {
+    config.parsePlugstackArguments(count, arguments);
+    if (spank_remote(spank) == 1) {
+      config.resetValidation();
+    }
+    return config.registerOptions(spank);
+  } catch (const std::exception& error) {
+    // Slurm exposes logging through a variadic C ABI.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+    slurm_spank_log(
+        "amazon-braket-qdmi: initialization raised an exception: %s",
+        error.what());
+  } catch (...) {
+    logFailure("initialization raised an unknown exception");
   }
-  return config.registerOptions(spank);
+  return ESPANK_ERROR;
 }
 
 int slurm_spank_init_post_opt(spank_t /*spank*/, int /*count*/,
@@ -489,16 +584,28 @@ int slurm_spank_user_init(spank_t spank, int /*count*/, char* /*arguments*/[]) {
     return ESPANK_SUCCESS;
   }
 
-  if (!config.injectEnvironment(spank)) {
-    config.finishValidation(false);
-    return ESPANK_SUCCESS;
-  }
-  if (!config.isActive(spank)) {
-    config.skipValidation();
-    return ESPANK_SUCCESS;
-  }
+  try {
+    if (!config.injectEnvironment(spank)) {
+      config.finishValidation(false);
+      return ESPANK_SUCCESS;
+    }
+    if (!config.isActive(spank)) {
+      config.skipValidation();
+      return ESPANK_SUCCESS;
+    }
 
-  config.finishValidation(config.validateBackend(spank));
+    config.finishValidation(config.validateBackend(spank));
+  } catch (const std::exception& error) {
+    config.finishValidation(false);
+    // Slurm exposes logging through a variadic C ABI.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+    slurm_spank_log(
+        "amazon-braket-qdmi: user initialization raised an exception: %s",
+        error.what());
+  } catch (...) {
+    config.finishValidation(false);
+    logFailure("user initialization raised an unknown exception");
+  }
   return ESPANK_SUCCESS;
 }
 

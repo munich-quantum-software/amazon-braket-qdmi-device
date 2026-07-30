@@ -72,6 +72,18 @@ job_environment=$(
 grep -Fxq "AMAZON_BRAKET_DEVICE_ARN=${device_arn}" <<<"${job_environment}"
 grep -Fxq "AWS_REGION=us-west-2" <<<"${job_environment}"
 
+echo "=== Verifying submitted container credentials reach the provider chain ==="
+env \
+  -u AWS_ACCESS_KEY_ID \
+  -u AWS_SECRET_ACCESS_KEY \
+  -u AWS_SESSION_TOKEN \
+  AWS_CONTAINER_CREDENTIALS_FULL_URI=http://127.0.0.1:18080/credentials \
+  srun \
+  --partition=debug \
+  --immediate=5 \
+  --amazon-braket-device-arn="${device_arn}" \
+  /bin/true
+
 echo "=== Verifying an unavailable device rejects the job ==="
 if srun \
   --partition=debug \

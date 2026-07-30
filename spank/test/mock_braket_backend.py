@@ -58,6 +58,14 @@ class BraketRequestHandler(BaseHTTPRequestHandler):
         if self.path == "/request-count":
             self._send_json({"count": self.request_count})
             return
+        if self.path == "/credentials":
+            self._send_json({
+                "AccessKeyId": "container-test-access-key",
+                "SecretAccessKey": "container-test-secret-key",
+                "Token": "container-test-token",
+                "Expiration": "2030-01-01T00:00:00Z",
+            })
+            return
 
         decoded_path = unquote(self.path)
         if not decoded_path.startswith("/device/"):

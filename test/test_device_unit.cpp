@@ -369,6 +369,40 @@ TEST_F(AmazonBraketQDMIOfflineTest,
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
 }
 
+// Any explicit direct-credential parameter must suppress an AUTHFILE fallback,
+// including a token that is invalid without its access and secret keys.
+TEST_F(AmazonBraketQDMIOfflineTest,
+       SessionInitTokenOnlyIgnoresEnvironmentAuthFile) {
+  const ScopedTemporaryDirectory temporaryDirectory;
+  const auto credentialsFile = temporaryDirectory.path() / "credentials.ini";
+  {
+    std::ofstream file(credentialsFile);
+    ASSERT_TRUE(file.is_open());
+    file << "[default]\n"
+         << "aws_access_key_id=AKIAIOSFODNN7EXAMPLE\n"
+         << "aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/"
+            "bPxRfiCYEXAMPLEKEY\n";
+  }
+  const auto credentialsPath = credentialsFile.string();
+  const ScopedEnvironment authFile(AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE,
+                                   credentialsPath.c_str());
+
+  const char* deviceArn =
+      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
+                strlen(deviceArn) + 1, deviceArn),
+            QDMI_SUCCESS);
+  const char* sessionToken = "FakeSessionToken123";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_TOKEN,
+                strlen(sessionToken) + 1, sessionToken),
+            QDMI_SUCCESS);
+
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
+            QDMI_ERROR_INVALIDARGUMENT);
+}
+
 // init() with a credentials file that does not exist must fail.
 TEST_F(AmazonBraketQDMIOfflineTest, SessionInitNonexistentCredentialsFile) {
   const char* deviceArn =

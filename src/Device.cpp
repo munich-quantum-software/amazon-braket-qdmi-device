@@ -845,7 +845,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
   applyEnvironmentFallback(reservationArn_,
                            AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN);
   if (credentialsFile_.empty() && accessKeyId_.empty() &&
-      secretAccessKey_.empty()) {
+      secretAccessKey_.empty() && sessionToken_.empty()) {
     applyEnvironmentFallback(credentialsFile_,
                              AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE);
   }
