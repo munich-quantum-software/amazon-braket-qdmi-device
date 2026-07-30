@@ -108,8 +108,12 @@ target_link_libraries(${QDMI_TARGET_NAME} PRIVATE qdmi::qdmi_project_warnings
 
 # Publish the stable metadata needed by QDMI driver integrations to package this separately built
 # device implementation.
-configure_qdmi_device_target(TARGET ${QDMI_TARGET_NAME} ID amazon.braket.default PREFIX
-                             ${QDMI_PREFIX})
+set_target_properties(${QDMI_TARGET_NAME} PROPERTIES QDMI_DEVICE_ID amazon.braket.default
+                                                     QDMI_DEVICE_PREFIX ${QDMI_PREFIX})
+set_property(
+  TARGET ${QDMI_TARGET_NAME}
+  APPEND
+  PROPERTY EXPORT_PROPERTIES QDMI_DEVICE_ID QDMI_DEVICE_PREFIX)
 
 option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
 if(ENABLE_COVERAGE)

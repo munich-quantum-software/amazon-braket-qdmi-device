@@ -22,8 +22,7 @@ releases may include breaking changes.
 - 💥 Prefix Amazon Braket-specific QDMI parameter aliases with the
   `AMAZON_BRAKET_` vendor namespace and add a semantic device-ARN alias that
   retains the existing `BASEURL` mapping ([#149]) ([**@burgholzer**])
-- ⬆️ Update QDMI to version 1.3.3 ([#130], [#147]) ([**@denialhaag**],
-  [**@burgholzer**])
+- ⬆️ Update QDMI to version 1.3.2 ([#130]) ([**@denialhaag**])
 
 ### Fixed
 
