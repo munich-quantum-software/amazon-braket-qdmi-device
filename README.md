@@ -270,6 +270,60 @@ cmake -S . -B build -DCMAKE_PREFIX_PATH=/path/to/install
 cmake --build build
 ```
 
+### Using the Device with MQT Core
+
+The installed CMake target exports the stable device ID `amazon.braket.default`
+and the `AMAZON_BRAKET` symbol prefix. An application using MQT Core 3.8 or
+newer can copy the device library and a relocatable manifest beside its
+executable:
+
+```cmake
+find_package(mqt-core 3.8 CONFIG REQUIRED)
+find_package(amazon-braket-qdmi-device CONFIG REQUIRED)
+
+add_executable(my_app main.cpp)
+target_link_libraries(my_app PRIVATE MQT::CoreFoMaC)
+mqt_copy_qdmi_runtime(my_app amazon-braket-qdmi-device)
+```
+
+This placement is discovered automatically when the MQT Core Driver is linked
+statically into the executable. A dynamically linked Driver searches beside its
+own shared library instead; in that case, place the generated manifest there or
+register the definition explicitly as shown below.
+
+Python consumers can use the same metadata to preserve any existing
+`amazon.braket.default` configuration and apply credentials or a device ARN to
+each fresh session:
+
+```python
+from pathlib import Path
+
+from amazon.braket.qdmi import (
+    AMAZON_BRAKET_QDMI_DEVICE_ID,
+    AMAZON_BRAKET_QDMI_LIBRARY_PATH,
+    AMAZON_BRAKET_QDMI_PREFIX,
+)
+from mqt.core.fomac import DeviceDefinition, open_device, register_device_if_absent
+
+register_device_if_absent(
+    DeviceDefinition(
+        AMAZON_BRAKET_QDMI_DEVICE_ID,
+        AMAZON_BRAKET_QDMI_LIBRARY_PATH,
+        AMAZON_BRAKET_QDMI_PREFIX,
+    )
+)
+device = open_device(
+    AMAZON_BRAKET_QDMI_DEVICE_ID,
+    base_url="arn:aws:braket:::device/quantum-simulator/amazon/sv1",
+    auth_file=Path("/path/to/credentials"),
+    custom2="us-east-1",  # AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION
+)
+```
+
+`register_device_if_absent` does not replace definitions from `qdmi.json`,
+`[tool.qdmi]`, or another higher-precedence configuration source. The explicit
+arguments to `open_device` override only that newly opened session.
+
 ### CMake Options
 
 | Option                                    | Default | Description                             |
