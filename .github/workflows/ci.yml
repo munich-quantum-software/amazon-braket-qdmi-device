@@ -24,7 +24,7 @@ jobs:
         .github/workflows/cpp-spank-tests-ubuntu.yml
 
   cpp-tests-ubuntu:
-    name: 🇨‌ Test 🐧
+    name: 🇨 Test 🐧
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cpp-tests)
     strategy:
@@ -45,13 +45,13 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
 
   cpp-spank-tests-ubuntu:
-    name: 🇨‌ SPANK 🐧
+    name: 🇨 SPANK 🐧
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cpp-tests)
     uses: ./.github/workflows/cpp-spank-tests-ubuntu.yml
 
   cpp-tests-macos:
-    name: 🇨‌ Test 🍎
+    name: 🇨 Test 🍎
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cpp-tests)
     strategy:
@@ -72,7 +72,7 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
 
   cpp-tests-windows:
-    name: 🇨‌ Test 🏁
+    name: 🇨 Test 🏁
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cpp-tests)
     strategy:
@@ -109,7 +109,7 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
 
   cpp-coverage:
-    name: 🇨‌ Coverage
+    name: 🇨 Coverage
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cpp-tests)
     uses: ./.github/workflows/cpp-coverage.yml
@@ -122,7 +122,7 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
 
   cpp-linter:
-    name: 🇨‌ Lint
+    name: 🇨 Lint
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cpp-linter)
     uses: ./.github/workflows/cpp-linter.yml

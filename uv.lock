@@ -39,7 +39,7 @@ dev = [
     { name = "nox", specifier = ">=2026.2.9" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-console-scripts", specifier = ">=1.4.1" },
-    { name = "pytest-cov", specifier = ">=7.0.0" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-sugar", specifier = ">=1.1.1" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
     { name = "scikit-build-core", specifier = ">=0.11.6" },
@@ -48,7 +48,7 @@ test = [
     { name = "mqt-core", specifier = "~=3.8.0" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-console-scripts", specifier = ">=1.4.1" },
-    { name = "pytest-cov", specifier = ">=7.0.0" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-sugar", specifier = ">=1.1.1" },
     { name = "pytest-xdist", specifier = ">=3.8.0" },
 ]

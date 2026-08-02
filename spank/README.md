@@ -109,12 +109,12 @@ c = measure q;
 Values use the following precedence: job option, submitted environment, then the
 `plugstack.conf` administrator default.
 
-| Job option | Plugstack key | Job environment | QDMI session parameter |
-| --- | --- | --- | --- |
-| `--amazon-braket-device-arn` | `amazon_braket_device_arn` | `AMAZON_BRAKET_DEVICE_ARN` | `AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN` |
-| `--amazon-braket-region` | `amazon_braket_region` | `AWS_REGION` | `AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION` |
-| `--amazon-braket-reservation-arn` | `amazon_braket_reservation_arn` | `AMAZON_BRAKET_RESERVATION_ARN` | `AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN` |
-| `--amazon-braket-credentials-file` | `amazon_braket_credentials_file` | `AWS_SHARED_CREDENTIALS_FILE` | `QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE` |
+| Job option                         | Plugstack key                    | Job environment                 | QDMI session parameter                                        |
+| ---------------------------------- | -------------------------------- | ------------------------------- | ------------------------------------------------------------- |
+| `--amazon-braket-device-arn`       | `amazon_braket_device_arn`       | `AMAZON_BRAKET_DEVICE_ARN`      | `AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN`       |
+| `--amazon-braket-region`           | `amazon_braket_region`           | `AWS_REGION`                    | `AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION`          |
+| `--amazon-braket-reservation-arn`  | `amazon_braket_reservation_arn`  | `AMAZON_BRAKET_RESERVATION_ARN` | `AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN` |
+| `--amazon-braket-credentials-file` | `amazon_braket_credentials_file` | `AWS_SHARED_CREDENTIALS_FILE`   | `QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE`                      |
 
 The device ARN is the only required value. Region defaults to the ARN region or
 `us-east-1`. Reservation and credentials file are optional. Standard AWS

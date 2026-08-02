@@ -480,47 +480,47 @@ Other standard QDMI values return `QDMI_ERROR_NOTSUPPORTED`.
 
 ## Device Properties
 
-| Property | Notes |
-| -------- | ----- |
-| `QDMI_DEVICE_PROPERTY_NAME` | Braket device name |
-| `QDMI_DEVICE_PROPERTY_VERSION` | Library device version |
-| `QDMI_DEVICE_PROPERTY_STATUS` | Current Braket device status |
-| `QDMI_DEVICE_PROPERTY_LIBRARYVERSION` | QDMI version |
-| `QDMI_DEVICE_PROPERTY_QUBITSNUM` | Number of qubits |
-| `QDMI_DEVICE_PROPERTY_SITES` | Qubit handles |
-| `QDMI_DEVICE_PROPERTY_OPERATIONS` | Gate handles |
-| `QDMI_DEVICE_PROPERTY_COUPLINGMAP` | Flat source/target site pairs |
+| Property                              | Notes                         |
+| ------------------------------------- | ----------------------------- |
+| `QDMI_DEVICE_PROPERTY_NAME`           | Braket device name            |
+| `QDMI_DEVICE_PROPERTY_VERSION`        | Library device version        |
+| `QDMI_DEVICE_PROPERTY_STATUS`         | Current Braket device status  |
+| `QDMI_DEVICE_PROPERTY_LIBRARYVERSION` | QDMI version                  |
+| `QDMI_DEVICE_PROPERTY_QUBITSNUM`      | Number of qubits              |
+| `QDMI_DEVICE_PROPERTY_SITES`          | Qubit handles                 |
+| `QDMI_DEVICE_PROPERTY_OPERATIONS`     | Gate handles                  |
+| `QDMI_DEVICE_PROPERTY_COUPLINGMAP`    | Flat source/target site pairs |
 
 ## Site Properties
 
-| Property | Notes |
-| -------- | ----- |
-| `QDMI_SITE_PROPERTY_INDEX` | Site id |
-| `QDMI_SITE_PROPERTY_NAME` | Site name |
-| `QDMI_SITE_PROPERTY_T1` | When Braket reports it |
-| `QDMI_SITE_PROPERTY_T2` | When Braket reports it |
+| Property                   | Notes                  |
+| -------------------------- | ---------------------- |
+| `QDMI_SITE_PROPERTY_INDEX` | Site id                |
+| `QDMI_SITE_PROPERTY_NAME`  | Site name              |
+| `QDMI_SITE_PROPERTY_T1`    | When Braket reports it |
+| `QDMI_SITE_PROPERTY_T2`    | When Braket reports it |
 
 ## Operation Properties
 
-| Property | Notes |
-| -------- | ----- |
-| `QDMI_OPERATION_PROPERTY_NAME` | Gate name |
+| Property                            | Notes      |
+| ----------------------------------- | ---------- |
+| `QDMI_OPERATION_PROPERTY_NAME`      | Gate name  |
 | `QDMI_OPERATION_PROPERTY_QUBITSNUM` | Gate arity |
 
 ## Job Properties
 
-| Property | Notes |
-| -------- | ----- |
+| Property                                 | Notes                  |
+| ---------------------------------------- | ---------------------- |
 | `QDMI_DEVICE_JOB_PROPERTY_PROGRAMFORMAT` | Current program format |
-| `QDMI_DEVICE_JOB_PROPERTY_PROGRAM` | Current program source |
-| `QDMI_DEVICE_JOB_PROPERTY_SHOTSNUM` | Current shot count |
+| `QDMI_DEVICE_JOB_PROPERTY_PROGRAM`       | Current program source |
+| `QDMI_DEVICE_JOB_PROPERTY_SHOTSNUM`      | Current shot count     |
 
 ## Job Results
 
-| Result | Notes |
-| ------ | ----- |
-| `QDMI_JOB_RESULT_SHOTS` | Comma-separated shot bitstrings |
-| `QDMI_JOB_RESULT_HIST_KEYS` | Null-separated histogram keys |
+| Result                        | Notes                                   |
+| ----------------------------- | --------------------------------------- |
+| `QDMI_JOB_RESULT_SHOTS`       | Comma-separated shot bitstrings         |
+| `QDMI_JOB_RESULT_HIST_KEYS`   | Null-separated histogram keys           |
 | `QDMI_JOB_RESULT_HIST_VALUES` | `size_t` counts matching histogram keys |
 
 ### Lifecycle Functions
