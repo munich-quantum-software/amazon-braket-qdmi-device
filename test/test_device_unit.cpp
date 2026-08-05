@@ -1940,14 +1940,16 @@ TEST(DeviceParserOfflineTest, SimulatorReportsExactOperationSignatures) {
   ParsedDeviceProperties properties;
   ASSERT_EQ(
       parser.ParseProperties(
-          R"({"paradigm":{"qubitCount":3},"action":{"braket.ir.openqasm.program":{"supportedOperations":["cc_prx","measure_ff","ms","prx","unitary","cv","U"]}}})",
+          R"({"paradigm":{"qubitCount":3},"action":{"braket.ir.openqasm.program":{"supportedOperations":["cc_prx","measure_ff","ms","prx","unitary","kraus","two_qubit_pauli_channel","cv","U","gphase","bit_flip","phase_flip","pauli_channel","depolarizing","two_qubit_depolarizing","two_qubit_dephasing","amplitude_damping","generalized_amplitude_damping","phase_damping"]}}})",
           properties),
       QDMI_SUCCESS);
 
-  ASSERT_EQ(properties.operationsMap.size(), 4U);
+  ASSERT_EQ(properties.operationsMap.size(), 14U);
   EXPECT_FALSE(properties.operationsMap.contains("unitary"));
   EXPECT_FALSE(properties.operationsMap.contains("cc_prx"));
   EXPECT_FALSE(properties.operationsMap.contains("measure_ff"));
+  EXPECT_FALSE(properties.operationsMap.contains("kraus"));
+  EXPECT_FALSE(properties.operationsMap.contains("two_qubit_pauli_channel"));
 
   const auto* ms = properties.operationsMap.at("ms");
   EXPECT_EQ(ms->numQubits_, 2U);
@@ -1964,6 +1966,28 @@ TEST(DeviceParserOfflineTest, SimulatorReportsExactOperationSignatures) {
   const auto* u = properties.operationsMap.at("U");
   EXPECT_EQ(u->numQubits_, 1U);
   EXPECT_EQ(u->numParams_, 3U);
+
+  const std::array expectedNoiseSignatures{
+      std::pair{"bit_flip", std::pair{1U, 1U}},
+      std::pair{"phase_flip", std::pair{1U, 1U}},
+      std::pair{"pauli_channel", std::pair{1U, 3U}},
+      std::pair{"depolarizing", std::pair{1U, 1U}},
+      std::pair{"two_qubit_depolarizing", std::pair{2U, 1U}},
+      std::pair{"two_qubit_dephasing", std::pair{2U, 1U}},
+      std::pair{"amplitude_damping", std::pair{1U, 1U}},
+      std::pair{"generalized_amplitude_damping", std::pair{1U, 2U}},
+      std::pair{"phase_damping", std::pair{1U, 1U}},
+  };
+  for (const auto& [name, signature] : expectedNoiseSignatures) {
+    const auto* operation = properties.operationsMap.at(name);
+    EXPECT_EQ(operation->numQubits_, signature.first) << name;
+    EXPECT_EQ(operation->numParams_, signature.second) << name;
+  }
+
+  const auto* gphase = properties.operationsMap.at("gphase");
+  EXPECT_EQ(gphase->numQubits_, 0U);
+  EXPECT_EQ(gphase->numParams_, 1U);
+  EXPECT_TRUE(gphase->applicableSites_.empty());
 }
 
 TEST(DeviceParserOfflineTest, IQMReportsNativeSitesAndGateFidelity) {

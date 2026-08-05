@@ -506,13 +506,16 @@ Other standard QDMI values return `QDMI_ERROR_NOTSUPPORTED`.
 
 ## Operation Properties
 
-| Property                                | Notes                                                         |
-| --------------------------------------- | ------------------------------------------------------------- |
-| `QDMI_OPERATION_PROPERTY_NAME`          | Native gate name for QPUs; supported gate name for simulators |
-| `QDMI_OPERATION_PROPERTY_QUBITSNUM`     | Exact fixed gate arity                                        |
-| `QDMI_OPERATION_PROPERTY_PARAMETERSNUM` | Number of scalar OpenQASM gate arguments                      |
-| `QDMI_OPERATION_PROPERTY_SITES`         | Applicable physical site tuples                               |
-| `QDMI_OPERATION_PROPERTY_FIDELITY`      | Site-dependent gate fidelity when Braket reports one          |
+| Property                                | Notes                                                          |
+| --------------------------------------- | -------------------------------------------------------------- |
+| `QDMI_OPERATION_PROPERTY_NAME`          | Native gate name for QPUs; supported gate name for simulators  |
+| `QDMI_OPERATION_PROPERTY_QUBITSNUM`     | Exact fixed gate arity                                         |
+| `QDMI_OPERATION_PROPERTY_PARAMETERSNUM` | Number of scalar OpenQASM gate arguments                       |
+| `QDMI_OPERATION_PROPERTY_SITES`         | Applicable physical site tuples for operations acting on sites |
+| `QDMI_OPERATION_PROPERTY_FIDELITY`      | Site-dependent gate fidelity when Braket reports one           |
+
+The zero-qubit `gphase` operation is reported with one floating-point parameter.
+Its `SITES` property is unsupported because the operation has no site operands.
 
 ## Job Properties
 
