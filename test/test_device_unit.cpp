@@ -76,7 +76,9 @@ struct WaitState {
 
 auto makeWaitFunctions(WaitState& state)
     -> amazon::braket::qdmi::detail::JobWaitFunctions {
-  return {&state,
+  return {
+      .context = &state,
+      .checkStatus =
           [](void* context, QDMI_Job_Status* status) {
             auto* waitState = static_cast<WaitState*>(context);
             const auto statusIndex = waitState->checkCalls == 0U ? 0U : 1U;
@@ -84,6 +86,7 @@ auto makeWaitFunctions(WaitState& state)
             *status = waitState->checkedStatuses[statusIndex];
             return waitState->checkResult;
           },
+      .now =
           [](void* context) {
             auto* waitState = static_cast<WaitState*>(context);
             ++waitState->nowCalls;
@@ -92,6 +95,7 @@ auto makeWaitFunctions(WaitState& state)
                         ? amazon::braket::qdmi::detail::WaitClock::duration{}
                         : waitState->elapsed);
           },
+      .sleepFor =
           [](void* context, std::chrono::steady_clock::duration) {
             auto* waitState = static_cast<WaitState*>(context);
             ++waitState->sleepCalls;

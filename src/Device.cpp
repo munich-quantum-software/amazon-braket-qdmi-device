@@ -1491,15 +1491,18 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
     const AMAZON_BRAKET_QDMI_Device_Job_impl_d* job;
   } context{this};
   const amazon::braket::qdmi::detail::JobWaitFunctions functions{
-      &context,
-      [](void* rawContext, QDMI_Job_Status* status) {
-        const auto* waitContext = static_cast<const WaitContext*>(rawContext);
-        return waitContext->job->check(status);
-      },
-      [](void*) { return std::chrono::steady_clock::now(); },
-      [](void*, const std::chrono::steady_clock::duration duration) {
-        std::this_thread::sleep_for(duration);
-      }};
+      .context = &context,
+      .checkStatus =
+          [](void* rawContext, QDMI_Job_Status* status) {
+            const auto* waitContext =
+                static_cast<const WaitContext*>(rawContext);
+            return waitContext->job->check(status);
+          },
+      .now = [](void*) { return std::chrono::steady_clock::now(); },
+      .sleepFor =
+          [](void*, const std::chrono::steady_clock::duration duration) {
+            std::this_thread::sleep_for(duration);
+          }};
   return wait(timeout, functions);
 }
 
