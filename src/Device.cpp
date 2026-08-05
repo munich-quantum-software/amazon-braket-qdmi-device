@@ -107,6 +107,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <ranges>
 #include <span>
 #include <sstream>
 #include <string>
@@ -1205,7 +1206,6 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryOperationProperty(
       prop == QDMI_OPERATION_PROPERTY_MAX) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
-
   std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture> architecture;
   {
     const std::scoped_lock lock(cachedArchitectureMutex_);
@@ -1229,8 +1229,21 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryOperationProperty(
                             operation->numQubits_, prop, size, value, sizeRet)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_OPERATION_PROPERTY_PARAMETERSNUM, size_t,
                             operation->numParams_, prop, size, value, sizeRet)
-  ADD_SINGLE_VALUE_PROPERTY(QDMI_OPERATION_PROPERTY_FIDELITY, double,
-                            operation->fidelity_, prop, size, value, sizeRet)
+  ADD_LIST_PROPERTY(QDMI_OPERATION_PROPERTY_SITES, AMAZON_BRAKET_QDMI_Site,
+                    operation->applicableSites_, prop, size, value, sizeRet)
+
+  if (prop == QDMI_OPERATION_PROPERTY_FIDELITY && sites != nullptr) {
+    const auto fidelity = std::ranges::find_if(
+        operation->siteFidelities_, [numSites, sites](const auto& candidate) {
+          return candidate.sites.size() == numSites &&
+                 std::ranges::equal(candidate.sites,
+                                    std::span(sites, numSites));
+        });
+    if (fidelity != operation->siteFidelities_.end()) {
+      ADD_SINGLE_VALUE_PROPERTY(QDMI_OPERATION_PROPERTY_FIDELITY, double,
+                                fidelity->value, prop, size, value, sizeRet)
+    }
+  }
 
   return QDMI_ERROR_NOTSUPPORTED;
 }

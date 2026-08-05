@@ -506,10 +506,13 @@ Other standard QDMI values return `QDMI_ERROR_NOTSUPPORTED`.
 
 ## Operation Properties
 
-| Property                            | Notes      |
-| ----------------------------------- | ---------- |
-| `QDMI_OPERATION_PROPERTY_NAME`      | Gate name  |
-| `QDMI_OPERATION_PROPERTY_QUBITSNUM` | Gate arity |
+| Property                                | Notes                                                         |
+| --------------------------------------- | ------------------------------------------------------------- |
+| `QDMI_OPERATION_PROPERTY_NAME`          | Native gate name for QPUs; supported gate name for simulators |
+| `QDMI_OPERATION_PROPERTY_QUBITSNUM`     | Exact fixed gate arity                                        |
+| `QDMI_OPERATION_PROPERTY_PARAMETERSNUM` | Number of scalar OpenQASM gate arguments                      |
+| `QDMI_OPERATION_PROPERTY_SITES`         | Applicable physical site tuples                               |
+| `QDMI_OPERATION_PROPERTY_FIDELITY`      | Site-dependent gate fidelity when Braket reports one          |
 
 ## Job Properties
 

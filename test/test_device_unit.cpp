@@ -1935,6 +1935,80 @@ TEST(DeviceParserOfflineTest,
       QDMI_ERROR_FATAL);
 }
 
+TEST(DeviceParserOfflineTest, SimulatorReportsExactOperationSignatures) {
+  const SimulatorPropertiesParser parser;
+  ParsedDeviceProperties properties;
+  ASSERT_EQ(
+      parser.ParseProperties(
+          R"({"paradigm":{"qubitCount":3},"action":{"braket.ir.openqasm.program":{"supportedOperations":["cc_prx","measure_ff","ms","prx","unitary"]}}})",
+          properties),
+      QDMI_SUCCESS);
+
+  ASSERT_EQ(properties.operationsMap.size(), 4U);
+  EXPECT_FALSE(properties.operationsMap.contains("unitary"));
+
+  const auto* ccPrx = properties.operationsMap.at("cc_prx");
+  EXPECT_EQ(ccPrx->numQubits_, 1U);
+  EXPECT_EQ(ccPrx->numParams_, 3U);
+
+  const auto* measureFf = properties.operationsMap.at("measure_ff");
+  EXPECT_EQ(measureFf->numQubits_, 1U);
+  EXPECT_EQ(measureFf->numParams_, 1U);
+
+  const auto* ms = properties.operationsMap.at("ms");
+  EXPECT_EQ(ms->numQubits_, 2U);
+  EXPECT_EQ(ms->numParams_, 3U);
+
+  const auto* prx = properties.operationsMap.at("prx");
+  EXPECT_EQ(prx->numQubits_, 1U);
+  EXPECT_EQ(prx->numParams_, 2U);
+}
+
+TEST(DeviceParserOfflineTest, IQMReportsNativeSitesAndGateFidelity) {
+  const IQMDeviceParser parser;
+  ParsedDeviceProperties properties;
+  ASSERT_EQ(parser.ParseProperties(
+                R"({
+            "paradigm":{
+              "qubitCount":2,
+              "nativeGateSet":["cz","prx"],
+              "connectivity":{"connectivityGraph":{"1":["2"],"2":["1"]}}
+            },
+            "action":{"braket.ir.openqasm.program":{
+              "supportedOperations":["h","cz","prx"]
+            }},
+            "standardized":{"twoQubitProperties":{
+              "1-2":{"twoQubitGateFidelity":[{
+                "gateName":"cz",
+                "fidelity":0.987,
+                "fidelityType":{"name":"INTERLEAVED_RANDOMIZED_BENCHMARKING"}
+              }]}
+            }}
+          })",
+                properties),
+            QDMI_SUCCESS);
+
+  ASSERT_EQ(properties.operationsMap.size(), 2U);
+  EXPECT_FALSE(properties.operationsMap.contains("h"));
+
+  const auto* prx = properties.operationsMap.at("prx");
+  EXPECT_EQ(prx->numQubits_, 1U);
+  EXPECT_EQ(prx->numParams_, 2U);
+  EXPECT_EQ(prx->applicableSites_.size(), 2U);
+
+  const auto* cz = properties.operationsMap.at("cz");
+  EXPECT_EQ(cz->numQubits_, 2U);
+  EXPECT_EQ(cz->numParams_, 0U);
+  EXPECT_EQ(cz->applicableSites_.size(), 4U);
+  ASSERT_EQ(cz->siteFidelities_.size(), 2U);
+  EXPECT_EQ(cz->siteFidelities_[0].sites[0]->name_, "1");
+  EXPECT_EQ(cz->siteFidelities_[0].sites[1]->name_, "2");
+  EXPECT_DOUBLE_EQ(cz->siteFidelities_[0].value, 0.987);
+  EXPECT_EQ(cz->siteFidelities_[1].sites[0]->name_, "2");
+  EXPECT_EQ(cz->siteFidelities_[1].sites[1]->name_, "1");
+  EXPECT_DOUBLE_EQ(cz->siteFidelities_[1].value, 0.987);
+}
+
 TEST(DeviceParserOfflineTest, IQMMissingConnectivity) {
   const IQMDeviceParser parser;
   ParsedDeviceProperties props;

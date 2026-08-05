@@ -33,39 +33,81 @@
 
 #include "amazon_braket_qdmi/device.h"
 
+#include <algorithm>
+#include <array>
 #include <aws/core/utils/json/JsonSerializer.h>
+#include <cctype>
 #include <cstddef>
 #include <iostream>
 #include <memory>
+#include <optional>
+#include <ranges>
 #include <set>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 // ============================================================================
 // Helper Functions (Common to All Parsers)
 // ============================================================================
 
-auto IDeviceParser::GetGateQubitCount(const std::string& gateName) -> size_t {
-  // Three-qubit gates
-  if (gateName == "ccnot" || gateName == "cswap" || gateName == "cc_prx") {
-    return 3;
-  }
+auto IDeviceParser::GetOperationSignature(const std::string& operationName)
+    -> std::optional<std::pair<size_t, size_t>> {
+  using namespace std::string_view_literals;
+  using Signature = std::pair<size_t, size_t>;
+  static constexpr std::array signatures{
+      std::pair{"ccnot"sv, Signature{3, 0}},
+      std::pair{"cnot"sv, Signature{2, 0}},
+      std::pair{"cphaseshift"sv, Signature{2, 1}},
+      std::pair{"cphaseshift00"sv, Signature{2, 1}},
+      std::pair{"cphaseshift01"sv, Signature{2, 1}},
+      std::pair{"cphaseshift10"sv, Signature{2, 1}},
+      std::pair{"cswap"sv, Signature{3, 0}},
+      std::pair{"cy"sv, Signature{2, 0}},
+      std::pair{"cz"sv, Signature{2, 0}},
+      std::pair{"ecr"sv, Signature{2, 0}},
+      std::pair{"gpi"sv, Signature{1, 1}},
+      std::pair{"gpi2"sv, Signature{1, 1}},
+      std::pair{"h"sv, Signature{1, 0}},
+      std::pair{"i"sv, Signature{1, 0}},
+      std::pair{"iswap"sv, Signature{2, 0}},
+      std::pair{"ms"sv, Signature{2, 3}},
+      std::pair{"phaseshift"sv, Signature{1, 1}},
+      std::pair{"prx"sv, Signature{1, 2}},
+      std::pair{"pswap"sv, Signature{2, 1}},
+      std::pair{"rx"sv, Signature{1, 1}},
+      std::pair{"ry"sv, Signature{1, 1}},
+      std::pair{"rz"sv, Signature{1, 1}},
+      std::pair{"s"sv, Signature{1, 0}},
+      std::pair{"si"sv, Signature{1, 0}},
+      std::pair{"swap"sv, Signature{2, 0}},
+      std::pair{"t"sv, Signature{1, 0}},
+      std::pair{"ti"sv, Signature{1, 0}},
+      std::pair{"v"sv, Signature{1, 0}},
+      std::pair{"vi"sv, Signature{1, 0}},
+      std::pair{"x"sv, Signature{1, 0}},
+      std::pair{"xx"sv, Signature{2, 1}},
+      std::pair{"xy"sv, Signature{2, 1}},
+      std::pair{"y"sv, Signature{1, 0}},
+      std::pair{"yy"sv, Signature{2, 1}},
+      std::pair{"z"sv, Signature{1, 0}},
+      std::pair{"zz"sv, Signature{2, 1}},
+      // IQM's experimental feed-forward operations have one quantum operand.
+      // Their feedback keys are scalar program arguments and are counted here
+      // because QDMI does not distinguish scalar parameter types.
+      std::pair{"cc_prx"sv, Signature{1, 3}},
+      std::pair{"measure_ff"sv, Signature{1, 1}},
+  };
 
-  // Two-qubit gates
-  if (gateName == "cnot" || gateName == "cz" || gateName == "swap" ||
-      gateName == "xx" || gateName == "yy" || gateName == "zz" ||
-      gateName == "xy" || gateName == "cphaseshift" ||
-      gateName == "cphaseshift00" || gateName == "cphaseshift01" ||
-      gateName == "cphaseshift10" || gateName == "iswap" ||
-      gateName == "pswap" || gateName == "ecr" || gateName == "cy" ||
-      gateName == "ms") {
-    return 2;
+  const auto signature =
+      std::ranges::find_if(signatures, [&operationName](const auto& entry) {
+        return entry.first == operationName;
+      });
+  if (signature == signatures.end()) {
+    return std::nullopt;
   }
-
-  // Default: single-qubit gates
-  // (x, y, z, h, rx, ry, rz, s, si, t, ti, v, vi, i, phaseshift, gpi,
-  // gpi2, unitary, prx, measure_ff)
-  return 1;
+  return signature->second;
 }
 
 auto IDeviceParser::ParseQubitCount(
@@ -137,29 +179,157 @@ auto IDeviceParser::ParseOperationsFromOpenQASM(
     return QDMI_ERROR_FATAL;
   }
 
-  auto gateSet = openqasm.GetArray("supportedOperations");
+  std::vector<std::string> operationNames;
+  if (propertiesJson.ValueExists("paradigm")) {
+    const auto paradigm = propertiesJson.GetObject("paradigm");
+    if (paradigm.ValueExists("nativeGateSet")) {
+      const auto nativeGateSet = paradigm.GetArray("nativeGateSet");
+      operationNames.reserve(nativeGateSet.GetLength());
+      for (size_t i = 0; i < nativeGateSet.GetLength(); ++i) {
+        operationNames.emplace_back(nativeGateSet[i].AsString());
+      }
+    }
+  }
+  if (operationNames.empty()) {
+    const auto supportedOperations = openqasm.GetArray("supportedOperations");
+    operationNames.reserve(supportedOperations.GetLength());
+    for (size_t i = 0; i < supportedOperations.GetLength(); ++i) {
+      operationNames.emplace_back(supportedOperations[i].AsString());
+    }
+  }
+
   properties.operations.clear();
   properties.operationsPtr.clear();
   properties.operationsMap.clear();
-  properties.operations.reserve(gateSet.GetLength());
-  properties.operationsPtr.reserve(gateSet.GetLength());
+  properties.operations.reserve(operationNames.size());
+  properties.operationsPtr.reserve(operationNames.size());
 
-  for (size_t i = 0; i < gateSet.GetLength(); ++i) {
-    const std::string gateName = gateSet[i].AsString();
+  for (const auto& operationName : operationNames) {
+    const auto signature = GetOperationSignature(operationName);
+    if (!signature.has_value()) {
+      std::cerr << "Skipping Braket operation with no fixed QDMI signature: "
+                << operationName << "\n";
+      continue;
+    }
 
     auto op = std::make_unique<AMAZON_BRAKET_QDMI_Operation_impl_d>();
-    op->name_ = gateName;
-    op->numQubits_ = GetGateQubitCount(gateName);
-
-    // Assume perfect fidelity for now (will be overridden for QPUs if needed)
-    op->fidelity_ = 1.0;
+    op->name_ = operationName;
+    op->numQubits_ = signature->first;
+    op->numParams_ = signature->second;
 
     properties.operationsPtr.push_back(op.get());
-    properties.operationsMap[gateName] = op.get();
+    properties.operationsMap[operationName] = op.get();
     properties.operations.push_back(std::move(op));
   }
 
+  PopulateOperationSites(properties);
+  ParseOperationFidelities(propertiesJson, properties);
   return QDMI_SUCCESS;
+}
+
+auto IDeviceParser::PopulateOperationSites(ParsedDeviceProperties& properties)
+    -> void {
+  for (auto& operation : properties.operations) {
+    auto& sites = operation->applicableSites_;
+    if (operation->numQubits_ == 1) {
+      sites = properties.sitesPtr;
+      continue;
+    }
+    if (operation->numQubits_ == 2) {
+      sites = properties.connectivity;
+      continue;
+    }
+    const auto numSites = properties.sitesPtr.size();
+    const auto completeConnectivitySize =
+        numSites < 2 ? 0 : 2 * numSites * (numSites - 1);
+    if (operation->numQubits_ == 3 && numSites >= 3 &&
+        properties.connectivity.size() == completeConnectivitySize) {
+      for (auto* first : properties.sitesPtr) {
+        for (auto* second : properties.sitesPtr) {
+          if (second == first) {
+            continue;
+          }
+          for (auto* third : properties.sitesPtr) {
+            if (third == first || third == second) {
+              continue;
+            }
+            sites.insert(sites.end(), {first, second, third});
+          }
+        }
+      }
+    }
+  }
+}
+
+auto IDeviceParser::ParseOperationFidelities(
+    const Aws::Utils::Json::JsonView& propertiesJson,
+    ParsedDeviceProperties& properties) -> void {
+  if (!propertiesJson.ValueExists("standardized")) {
+    return;
+  }
+  const auto standardized = propertiesJson.GetObject("standardized");
+  if (!standardized.ValueExists("twoQubitProperties")) {
+    return;
+  }
+
+  const auto twoQubitProperties = standardized.GetObject("twoQubitProperties");
+  for (const auto& [sitePair, siteData] : twoQubitProperties.GetAllObjects()) {
+    if (!siteData.ValueExists("twoQubitGateFidelity")) {
+      continue;
+    }
+    const std::string sitePairString = sitePair.c_str();
+    const auto separator = sitePairString.find('-');
+    if (separator == std::string::npos) {
+      continue;
+    }
+    const auto defaultFirst = sitePairString.substr(0, separator);
+    const auto defaultSecond = sitePairString.substr(separator + 1);
+    const auto fidelities = siteData.GetArray("twoQubitGateFidelity");
+    for (size_t i = 0; i < fidelities.GetLength(); ++i) {
+      const auto fidelity = fidelities[i].AsObject();
+      if (!fidelity.ValueExists("gateName") ||
+          !fidelity.ValueExists("fidelity")) {
+        continue;
+      }
+      std::string gateName = fidelity.GetString("gateName").c_str();
+      std::ranges::transform(gateName, gateName.begin(), [](const char value) {
+        return static_cast<char>(
+            std::tolower(static_cast<unsigned char>(value)));
+      });
+      const auto operation = properties.operationsMap.find(gateName);
+      if (operation == properties.operationsMap.end()) {
+        continue;
+      }
+
+      auto first = defaultFirst;
+      auto second = defaultSecond;
+      const bool directed = fidelity.ValueExists("direction");
+      if (directed) {
+        const auto direction = fidelity.GetObject("direction");
+        if (!direction.ValueExists("control") ||
+            !direction.ValueExists("target")) {
+          continue;
+        }
+        first = std::to_string(direction.GetInteger("control"));
+        second = std::to_string(direction.GetInteger("target"));
+      }
+
+      const auto firstSite = properties.sitesMap.find(first);
+      const auto secondSite = properties.sitesMap.find(second);
+      if (firstSite == properties.sitesMap.end() ||
+          secondSite == properties.sitesMap.end()) {
+        continue;
+      }
+
+      const auto value = fidelity.GetDouble("fidelity");
+      operation->second->siteFidelities_.push_back(
+          {{firstSite->second, secondSite->second}, value});
+      if (!directed && firstSite->second != secondSite->second) {
+        operation->second->siteFidelities_.push_back(
+            {{secondSite->second, firstSite->second}, value});
+      }
+    }
+  }
 }
 
 // ============================================================================
