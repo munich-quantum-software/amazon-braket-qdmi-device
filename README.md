@@ -344,6 +344,8 @@ arguments to `open_device` override only that newly opened session.
 #include <amazon_braket_qdmi/device.h>
 #include <cstring>
 #include <iostream>
+#include <sstream>
+#include <string>
 #include <vector>
 
 int main() {
@@ -430,10 +432,11 @@ int main() {
             job, QDMI_JOB_RESULT_HIST_VALUES, valuesSize, counts.data(), nullptr);
 
         std::cout << "Shot counts: {";
-        const char* key = keys.data();
+        std::stringstream keyStream(keys.data());
+        std::string key;
         for (size_t i = 0; i < counts.size(); ++i) {
+            std::getline(keyStream, key, ',');
             std::cout << (i == 0 ? "" : ", ") << '"' << key << "\": " << counts[i];
-            key += std::strlen(key) + 1;
         }
         std::cout << "}\n";
     }
@@ -520,7 +523,7 @@ Other standard QDMI values return `QDMI_ERROR_NOTSUPPORTED`.
 | Result                        | Notes                                   |
 | ----------------------------- | --------------------------------------- |
 | `QDMI_JOB_RESULT_SHOTS`       | Comma-separated shot bitstrings         |
-| `QDMI_JOB_RESULT_HIST_KEYS`   | Null-separated histogram keys           |
+| `QDMI_JOB_RESULT_HIST_KEYS`   | Comma-separated histogram keys          |
 | `QDMI_JOB_RESULT_HIST_VALUES` | `size_t` counts matching histogram keys |
 
 ### Lifecycle Functions

@@ -51,8 +51,12 @@
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
 #include <iostream>
+#include <ranges>
+#include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -337,11 +341,13 @@ protected:
           if (AMAZON_BRAKET_QDMI_device_job_get_results(
                   sharedJob, QDMI_JOB_RESULT_HIST_KEYS, keysSize,
                   keysData.data(), nullptr) == QDMI_SUCCESS) {
-            const char* ptr = keysData.data();
-            const char* end = ptr + keysSize;
-            while (ptr < end && *ptr != '\0') {
-              histKeys.emplace_back(ptr);
-              ptr += strlen(ptr) + 1;
+            if (keysData.back() != '\0') {
+              return;
+            }
+            std::stringstream keyStream(keysData.data());
+            std::string key;
+            while (std::getline(keyStream, key, ',')) {
+              histKeys.emplace_back(std::move(key));
             }
           }
         }
@@ -990,14 +996,24 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
             QDMI_SUCCESS);
   ASSERT_GT(histKeysSize, 0U);
 
-  std::string histKeysData(histKeysSize - 1, '\0');
+  std::vector<char> histKeysData(histKeysSize);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
                 job, QDMI_JOB_RESULT_HIST_KEYS, histKeysSize,
                 histKeysData.data(), nullptr),
             QDMI_SUCCESS);
-  EXPECT_TRUE(histKeysData.find("00") != std::string::npos &&
-              histKeysData.find("11") != std::string::npos)
+  ASSERT_EQ(histKeysData.back(), '\0');
+  const std::string_view histogramKeys(histKeysData.data(),
+                                       histKeysData.size() - 1);
+  EXPECT_TRUE(histogramKeys.find("00") != std::string_view::npos &&
+              histogramKeys.find("11") != std::string_view::npos)
       << "Bell state should produce 00 and 11 outcomes";
+  size_t histValuesSize = 0;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
+                job, QDMI_JOB_RESULT_HIST_VALUES, 0, nullptr, &histValuesSize),
+            QDMI_SUCCESS);
+  const auto keyCount =
+      static_cast<size_t>(std::ranges::count(histogramKeys, ',')) + 1;
+  EXPECT_EQ(keyCount * sizeof(size_t), histValuesSize);
 }
 
 // =============================================================================
