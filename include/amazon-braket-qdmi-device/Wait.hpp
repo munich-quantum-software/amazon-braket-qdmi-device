@@ -19,11 +19,26 @@
 
 #pragma once
 
+#include "amazon_braket_qdmi/device.h"
+
 #include <chrono>
 #include <cstddef>
 
 namespace amazon::braket::qdmi::detail {
 using WaitClock = std::chrono::steady_clock;
+
+// Small dependency table for exercising the wait loop offline without AWS calls
+// or wall-clock delays. This header is private and is not installed.
+struct JobWaitFunctions {
+  using CheckStatus = auto (*)(void*, QDMI_Job_Status*) -> QDMI_STATUS;
+  using Now = auto (*)(void*) -> WaitClock::time_point;
+  using SleepFor = auto (*)(void*, WaitClock::duration) -> void;
+
+  void* context;
+  CheckStatus checkStatus;
+  Now now;
+  SleepFor sleepFor;
+};
 
 [[nodiscard]] inline auto waitTimedOut(const WaitClock::time_point start,
                                        const WaitClock::time_point now,

@@ -1487,39 +1487,20 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
     -> QDMI_STATUS {
-  const auto currentStatus = status_.load();
-  if (currentStatus == QDMI_JOB_STATUS_CREATED) {
-    return QDMI_ERROR_INVALIDARGUMENT;
-  }
-
-  if (currentStatus == QDMI_JOB_STATUS_DONE ||
-      currentStatus == QDMI_JOB_STATUS_FAILED ||
-      currentStatus == QDMI_JOB_STATUS_CANCELED) {
-    return QDMI_SUCCESS;
-  }
-
-  const auto startTime = std::chrono::steady_clock::now();
-  QDMI_Job_Status checkedStatus = QDMI_JOB_STATUS_CREATED;
-
-  while (true) {
-    const QDMI_STATUS result = check(&checkedStatus);
-    if (result != QDMI_SUCCESS) {
-      return result;
-    }
-
-    if (checkedStatus == QDMI_JOB_STATUS_DONE ||
-        checkedStatus == QDMI_JOB_STATUS_FAILED ||
-        checkedStatus == QDMI_JOB_STATUS_CANCELED) {
-      return QDMI_SUCCESS;
-    }
-
-    if (amazon::braket::qdmi::detail::waitTimedOut(
-            startTime, std::chrono::steady_clock::now(), timeout)) {
-      return QDMI_ERROR_TIMEOUT;
-    }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  }
+  struct WaitContext {
+    const AMAZON_BRAKET_QDMI_Device_Job_impl_d* job;
+  } context{this};
+  const amazon::braket::qdmi::detail::JobWaitFunctions functions{
+      &context,
+      [](void* rawContext, QDMI_Job_Status* status) {
+        const auto* waitContext = static_cast<const WaitContext*>(rawContext);
+        return waitContext->job->check(status);
+      },
+      [](void*) { return std::chrono::steady_clock::now(); },
+      [](void*, const std::chrono::steady_clock::duration duration) {
+        std::this_thread::sleep_for(duration);
+      }};
+  return wait(timeout, functions);
 }
 
 /**

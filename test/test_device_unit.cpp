@@ -29,6 +29,7 @@
  *  - AmazonBraketQDMILocalJobTest  : session initialised with fake credentials
  */
 
+#include "amazon-braket-qdmi-device/Device.hpp"
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
 #include "amazon-braket-qdmi-device/Wait.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
@@ -52,18 +53,61 @@
 #include <string>
 #include <system_error>
 
+struct AMAZON_BRAKET_QDMI_Device_Job_TestAccess {
+  static auto
+  wait(AMAZON_BRAKET_QDMI_Device_Job job, const size_t timeout,
+       const amazon::braket::qdmi::detail::JobWaitFunctions& functions)
+      -> QDMI_STATUS {
+    job->status_.store(QDMI_JOB_STATUS_RUNNING);
+    return job->wait(timeout, functions);
+  }
+};
+
 namespace {
+struct WaitState {
+  QDMI_STATUS checkResult = QDMI_SUCCESS;
+  std::array<QDMI_Job_Status, 2> checkedStatuses{QDMI_JOB_STATUS_RUNNING,
+                                                 QDMI_JOB_STATUS_RUNNING};
+  amazon::braket::qdmi::detail::WaitClock::duration elapsed{};
+  size_t checkCalls = 0;
+  size_t nowCalls = 0;
+  size_t sleepCalls = 0;
+};
+
+auto makeWaitFunctions(WaitState& state)
+    -> amazon::braket::qdmi::detail::JobWaitFunctions {
+  return {&state,
+          [](void* context, QDMI_Job_Status* status) {
+            auto* waitState = static_cast<WaitState*>(context);
+            const auto statusIndex = waitState->checkCalls == 0U ? 0U : 1U;
+            ++waitState->checkCalls;
+            *status = waitState->checkedStatuses[statusIndex];
+            return waitState->checkResult;
+          },
+          [](void* context) {
+            auto* waitState = static_cast<WaitState*>(context);
+            ++waitState->nowCalls;
+            return amazon::braket::qdmi::detail::WaitClock::time_point{} +
+                   (waitState->nowCalls == 1U
+                        ? amazon::braket::qdmi::detail::WaitClock::duration{}
+                        : waitState->elapsed);
+          },
+          [](void* context, std::chrono::steady_clock::duration) {
+            auto* waitState = static_cast<WaitState*>(context);
+            ++waitState->sleepCalls;
+          }};
+}
+
 TEST(AmazonBraketQDMIWaitTimeoutTest, TimeoutUsesSecondsWithoutNarrowing) {
-  using namespace std::chrono_literals;
   using amazon::braket::qdmi::detail::WaitClock;
   using amazon::braket::qdmi::detail::waitTimedOut;
 
   constexpr WaitClock::time_point start{};
-  EXPECT_FALSE(waitTimedOut(start, start + 999ms, 1U));
-  EXPECT_TRUE(waitTimedOut(start, start + 1s, 1U));
-  EXPECT_FALSE(waitTimedOut(start, start + 1s, 0U));
-  EXPECT_FALSE(
-      waitTimedOut(start, start + 1s, std::numeric_limits<size_t>::max()));
+  EXPECT_FALSE(waitTimedOut(start, start + std::chrono::milliseconds{999}, 1U));
+  EXPECT_TRUE(waitTimedOut(start, start + std::chrono::seconds{1}, 1U));
+  EXPECT_FALSE(waitTimedOut(start, start + std::chrono::seconds{1}, 0U));
+  EXPECT_FALSE(waitTimedOut(start, start + std::chrono::seconds{1},
+                            std::numeric_limits<size_t>::max()));
 }
 
 constexpr const char* BELL_STATE_PROGRAM = "OPENQASM 3.0;\n"
@@ -1151,6 +1195,63 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobWaitOnFailedJob) {
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(freshJob),
             QDMI_ERROR_INVALIDARGUMENT);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(freshJob, 1), QDMI_SUCCESS);
+  AMAZON_BRAKET_QDMI_device_job_free(freshJob);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, JobWaitTimesOutDeterministically) {
+  AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
+  ASSERT_EQ(
+      AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
+      QDMI_SUCCESS);
+
+  WaitState state;
+  state.elapsed = std::chrono::seconds{1};
+  const auto functions = makeWaitFunctions(state);
+
+  EXPECT_EQ(
+      AMAZON_BRAKET_QDMI_Device_Job_TestAccess::wait(freshJob, 1U, functions),
+      QDMI_ERROR_TIMEOUT);
+  EXPECT_EQ(state.checkCalls, 1U);
+  EXPECT_EQ(state.nowCalls, 2U);
+  EXPECT_EQ(state.sleepCalls, 0U);
+  AMAZON_BRAKET_QDMI_device_job_free(freshJob);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, JobWaitCompletesAfterPolling) {
+  AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
+  ASSERT_EQ(
+      AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
+      QDMI_SUCCESS);
+
+  WaitState state;
+  state.checkedStatuses[1] = QDMI_JOB_STATUS_DONE;
+  const auto functions = makeWaitFunctions(state);
+
+  EXPECT_EQ(
+      AMAZON_BRAKET_QDMI_Device_Job_TestAccess::wait(freshJob, 1U, functions),
+      QDMI_SUCCESS);
+  EXPECT_EQ(state.checkCalls, 2U);
+  EXPECT_EQ(state.nowCalls, 2U);
+  EXPECT_EQ(state.sleepCalls, 1U);
+  AMAZON_BRAKET_QDMI_device_job_free(freshJob);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, JobWaitPropagatesCheckFailure) {
+  AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
+  ASSERT_EQ(
+      AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
+      QDMI_SUCCESS);
+
+  WaitState state;
+  state.checkResult = QDMI_ERROR_NOTSUPPORTED;
+  const auto functions = makeWaitFunctions(state);
+
+  EXPECT_EQ(
+      AMAZON_BRAKET_QDMI_Device_Job_TestAccess::wait(freshJob, 1U, functions),
+      QDMI_ERROR_NOTSUPPORTED);
+  EXPECT_EQ(state.checkCalls, 1U);
+  EXPECT_EQ(state.nowCalls, 1U);
+  EXPECT_EQ(state.sleepCalls, 0U);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
