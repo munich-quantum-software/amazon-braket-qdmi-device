@@ -30,10 +30,12 @@
  */
 
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
+#include "amazon-braket-qdmi-device/Wait.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
 
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -42,6 +44,7 @@
 #include <fstream>
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
+#include <limits>
 #include <optional>
 #include <random>
 #include <stdexcept>
@@ -50,6 +53,19 @@
 #include <system_error>
 
 namespace {
+TEST(AmazonBraketQDMIWaitTimeoutTest, TimeoutUsesSecondsWithoutNarrowing) {
+  using namespace std::chrono_literals;
+  using amazon::braket::qdmi::detail::WaitClock;
+  using amazon::braket::qdmi::detail::waitTimedOut;
+
+  constexpr WaitClock::time_point start{};
+  EXPECT_FALSE(waitTimedOut(start, start + 999ms, 1U));
+  EXPECT_TRUE(waitTimedOut(start, start + 1s, 1U));
+  EXPECT_FALSE(waitTimedOut(start, start + 1s, 0U));
+  EXPECT_FALSE(
+      waitTimedOut(start, start + 1s, std::numeric_limits<size_t>::max()));
+}
+
 constexpr const char* BELL_STATE_PROGRAM = "OPENQASM 3.0;\n"
                                            "qubit[2] q;\n"
                                            "bit[2] c;\n"

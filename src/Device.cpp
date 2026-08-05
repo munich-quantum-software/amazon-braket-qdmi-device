@@ -62,6 +62,7 @@
 #include "amazon-braket-qdmi-device/Device.hpp"
 
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
+#include "amazon-braket-qdmi-device/Wait.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
 
@@ -1512,13 +1513,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
       return QDMI_SUCCESS;
     }
 
-    if (timeout > 0U) {
-      using UnsignedSeconds = std::chrono::duration<size_t>;
-      const auto elapsed = std::chrono::duration_cast<UnsignedSeconds>(
-          std::chrono::steady_clock::now() - startTime);
-      if (elapsed.count() >= timeout) {
-        return QDMI_ERROR_TIMEOUT;
-      }
+    if (amazon::braket::qdmi::detail::waitTimedOut(
+            startTime, std::chrono::steady_clock::now(), timeout)) {
+      return QDMI_ERROR_TIMEOUT;
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
