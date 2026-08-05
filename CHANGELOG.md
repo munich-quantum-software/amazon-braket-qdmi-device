@@ -30,6 +30,7 @@ releases may include breaking changes.
 
 ### Fixed
 
+- 🐛 Interpret QDMI job wait timeouts in seconds ([#156]) ([**@burgholzer**])
 - 🐛 Isolate scikit-build output from the direct CMake build tree ([#147])
   ([**@burgholzer**])
 
@@ -57,6 +58,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#156]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/156
 [#150]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/150
 [#149]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/149
 [#147]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/147
