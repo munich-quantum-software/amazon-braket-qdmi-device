@@ -509,11 +509,12 @@ Other standard QDMI values return `QDMI_ERROR_NOTSUPPORTED`.
 
 ## Job Properties
 
-| Property                                 | Notes                  |
-| ---------------------------------------- | ---------------------- |
-| `QDMI_DEVICE_JOB_PROPERTY_PROGRAMFORMAT` | Current program format |
-| `QDMI_DEVICE_JOB_PROPERTY_PROGRAM`       | Current program source |
-| `QDMI_DEVICE_JOB_PROPERTY_SHOTSNUM`      | Current shot count     |
+| Property                                 | Notes                                |
+| ---------------------------------------- | ------------------------------------ |
+| `QDMI_DEVICE_JOB_PROPERTY_ID`            | AWS QuantumTask ARN after submission |
+| `QDMI_DEVICE_JOB_PROPERTY_PROGRAMFORMAT` | Current program format               |
+| `QDMI_DEVICE_JOB_PROPERTY_PROGRAM`       | Current program source               |
+| `QDMI_DEVICE_JOB_PROPERTY_SHOTSNUM`      | Current shot count                   |
 
 ## Job Results
 
