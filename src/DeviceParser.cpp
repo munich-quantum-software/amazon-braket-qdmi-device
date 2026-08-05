@@ -52,59 +52,56 @@
 // Helper Functions (Common to All Parsers)
 // ============================================================================
 
-auto IDeviceParser::GetOperationSignature(const std::string& operationName)
-    -> std::optional<std::pair<size_t, size_t>> {
+namespace {
+using OperationSignature =
+    std::pair<std::optional<size_t>, std::optional<size_t>>;
+
+auto getOperationSignature(const std::string& operationName)
+    -> OperationSignature {
   using namespace std::string_view_literals;
-  using Signature = std::pair<size_t, size_t>;
   static constexpr std::array SIGNATURES{
-      std::pair{"amplitude_damping"sv, Signature{1, 1}},
-      std::pair{"bit_flip"sv, Signature{1, 1}},
-      std::pair{"ccnot"sv, Signature{3, 0}},
-      std::pair{"cnot"sv, Signature{2, 0}},
-      std::pair{"cphaseshift"sv, Signature{2, 1}},
-      std::pair{"cphaseshift00"sv, Signature{2, 1}},
-      std::pair{"cphaseshift01"sv, Signature{2, 1}},
-      std::pair{"cphaseshift10"sv, Signature{2, 1}},
-      std::pair{"cswap"sv, Signature{3, 0}},
-      std::pair{"cv"sv, Signature{2, 0}},
-      std::pair{"cy"sv, Signature{2, 0}},
-      std::pair{"cz"sv, Signature{2, 0}},
-      std::pair{"depolarizing"sv, Signature{1, 1}},
-      std::pair{"ecr"sv, Signature{2, 0}},
-      std::pair{"generalized_amplitude_damping"sv, Signature{1, 2}},
-      std::pair{"gphase"sv, Signature{0, 1}},
-      std::pair{"gpi"sv, Signature{1, 1}},
-      std::pair{"gpi2"sv, Signature{1, 1}},
-      std::pair{"h"sv, Signature{1, 0}},
-      std::pair{"i"sv, Signature{1, 0}},
-      std::pair{"iswap"sv, Signature{2, 0}},
-      std::pair{"ms"sv, Signature{2, 3}},
-      std::pair{"pauli_channel"sv, Signature{1, 3}},
-      std::pair{"phase_damping"sv, Signature{1, 1}},
-      std::pair{"phase_flip"sv, Signature{1, 1}},
-      std::pair{"phaseshift"sv, Signature{1, 1}},
-      std::pair{"prx"sv, Signature{1, 2}},
-      std::pair{"pswap"sv, Signature{2, 1}},
-      std::pair{"rx"sv, Signature{1, 1}},
-      std::pair{"ry"sv, Signature{1, 1}},
-      std::pair{"rz"sv, Signature{1, 1}},
-      std::pair{"s"sv, Signature{1, 0}},
-      std::pair{"si"sv, Signature{1, 0}},
-      std::pair{"swap"sv, Signature{2, 0}},
-      std::pair{"t"sv, Signature{1, 0}},
-      std::pair{"ti"sv, Signature{1, 0}},
-      std::pair{"two_qubit_dephasing"sv, Signature{2, 1}},
-      std::pair{"two_qubit_depolarizing"sv, Signature{2, 1}},
-      std::pair{"U"sv, Signature{1, 3}},
-      std::pair{"v"sv, Signature{1, 0}},
-      std::pair{"vi"sv, Signature{1, 0}},
-      std::pair{"x"sv, Signature{1, 0}},
-      std::pair{"xx"sv, Signature{2, 1}},
-      std::pair{"xy"sv, Signature{2, 1}},
-      std::pair{"y"sv, Signature{1, 0}},
-      std::pair{"yy"sv, Signature{2, 1}},
-      std::pair{"z"sv, Signature{1, 0}},
-      std::pair{"zz"sv, Signature{2, 1}},
+      std::pair{"cc_prx"sv, OperationSignature{1, std::nullopt}},
+      std::pair{"ccnot"sv, OperationSignature{3, 0}},
+      std::pair{"cnot"sv, OperationSignature{2, 0}},
+      std::pair{"cphaseshift"sv, OperationSignature{2, 1}},
+      std::pair{"cphaseshift00"sv, OperationSignature{2, 1}},
+      std::pair{"cphaseshift01"sv, OperationSignature{2, 1}},
+      std::pair{"cphaseshift10"sv, OperationSignature{2, 1}},
+      std::pair{"cswap"sv, OperationSignature{3, 0}},
+      std::pair{"cv"sv, OperationSignature{2, 0}},
+      std::pair{"cy"sv, OperationSignature{2, 0}},
+      std::pair{"cz"sv, OperationSignature{2, 0}},
+      std::pair{"ecr"sv, OperationSignature{2, 0}},
+      std::pair{"gphase"sv, OperationSignature{0, 1}},
+      std::pair{"gpi"sv, OperationSignature{1, 1}},
+      std::pair{"gpi2"sv, OperationSignature{1, 1}},
+      std::pair{"h"sv, OperationSignature{1, 0}},
+      std::pair{"i"sv, OperationSignature{1, 0}},
+      std::pair{"iswap"sv, OperationSignature{2, 0}},
+      std::pair{"measure_ff"sv, OperationSignature{1, std::nullopt}},
+      std::pair{"ms"sv, OperationSignature{2, 3}},
+      std::pair{"phaseshift"sv, OperationSignature{1, 1}},
+      std::pair{"prx"sv, OperationSignature{1, 2}},
+      std::pair{"pswap"sv, OperationSignature{2, 1}},
+      std::pair{"rx"sv, OperationSignature{1, 1}},
+      std::pair{"ry"sv, OperationSignature{1, 1}},
+      std::pair{"rz"sv, OperationSignature{1, 1}},
+      std::pair{"s"sv, OperationSignature{1, 0}},
+      std::pair{"si"sv, OperationSignature{1, 0}},
+      std::pair{"swap"sv, OperationSignature{2, 0}},
+      std::pair{"t"sv, OperationSignature{1, 0}},
+      std::pair{"ti"sv, OperationSignature{1, 0}},
+      std::pair{"U"sv, OperationSignature{1, 3}},
+      std::pair{"unitary"sv, OperationSignature{std::nullopt, std::nullopt}},
+      std::pair{"v"sv, OperationSignature{1, 0}},
+      std::pair{"vi"sv, OperationSignature{1, 0}},
+      std::pair{"x"sv, OperationSignature{1, 0}},
+      std::pair{"xx"sv, OperationSignature{2, 1}},
+      std::pair{"xy"sv, OperationSignature{2, 1}},
+      std::pair{"y"sv, OperationSignature{1, 0}},
+      std::pair{"yy"sv, OperationSignature{2, 1}},
+      std::pair{"z"sv, OperationSignature{1, 0}},
+      std::pair{"zz"sv, OperationSignature{2, 1}},
   };
 
   const auto* const signature =
@@ -113,10 +110,11 @@ auto IDeviceParser::GetOperationSignature(const std::string& operationName)
                      return entry.first == operationName;
                    });
   if (signature == SIGNATURES.data() + SIGNATURES.size()) {
-    return std::nullopt;
+    return {};
   }
   return signature->second;
 }
+} // namespace
 
 auto IDeviceParser::ParseQubitCount(
     const Aws::Utils::Json::JsonView& propertiesJson, size_t& qubitCount)
@@ -213,17 +211,11 @@ auto IDeviceParser::ParseOperationsFromOpenQASM(
   properties.operationsPtr.reserve(operationNames.size());
 
   for (const auto& operationName : operationNames) {
-    const auto signature = GetOperationSignature(operationName);
-    if (!signature.has_value()) {
-      std::cerr << "Skipping Braket operation with no fixed QDMI signature: "
-                << operationName << "\n";
-      continue;
-    }
-
     auto op = std::make_unique<AMAZON_BRAKET_QDMI_Operation_impl_d>();
     op->name_ = operationName;
-    op->numQubits_ = signature->first;
-    op->numParams_ = signature->second;
+    const auto [numQubits, numParams] = getOperationSignature(operationName);
+    op->numQubits_ = numQubits;
+    op->numParams_ = numParams;
 
     properties.operationsPtr.push_back(op.get());
     properties.operationsMap[operationName] = op.get();
@@ -247,11 +239,7 @@ auto IDeviceParser::PopulateOperationSites(ParsedDeviceProperties& properties)
       sites = properties.connectivity;
       continue;
     }
-    const auto numSites = properties.sitesPtr.size();
-    const auto completeConnectivitySize =
-        numSites < 2 ? 0 : 2 * numSites * (numSites - 1);
-    if (operation->numQubits_ == 3 && numSites >= 3 &&
-        properties.connectivity.size() == completeConnectivitySize) {
+    if (operation->numQubits_ == 3) {
       for (auto* first : properties.sitesPtr) {
         for (auto* second : properties.sitesPtr) {
           if (second == first) {
@@ -331,10 +319,10 @@ auto IDeviceParser::ParseOperationFidelities(
 
       const auto value = fidelity.GetDouble("fidelity");
       operation->second->siteFidelities_.push_back(
-          {{firstSite->second, secondSite->second}, value});
+          {.sites = {firstSite->second, secondSite->second}, .value = value});
       if (!directed && firstSite->second != secondSite->second) {
         operation->second->siteFidelities_.push_back(
-            {{secondSite->second, firstSite->second}, value});
+            {.sites = {secondSite->second, firstSite->second}, .value = value});
       }
     }
   }

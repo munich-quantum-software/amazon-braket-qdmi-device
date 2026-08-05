@@ -34,7 +34,6 @@ class JsonView;
 #include <optional>
 #include <string>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 /**
@@ -57,8 +56,8 @@ struct AMAZON_BRAKET_QDMI_Operation_impl_d {
   };
 
   std::string name_;
-  size_t numQubits_ = 0;
-  size_t numParams_ = 0;
+  std::optional<size_t> numQubits_;
+  std::optional<size_t> numParams_;
   std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*> applicableSites_;
   std::vector<SiteFidelity> siteFidelities_;
 };
@@ -140,15 +139,6 @@ protected:
    * Use when paradigm.connectivity.fullyConnected == true.
    */
   static auto BuildFullConnectivity(ParsedDeviceProperties& properties) -> int;
-
-  /**
-   * @brief Return the fixed QDMI signature of a Braket OpenQASM operation.
-   *
-   * Operations without a fixed qubit or floating-point parameter count cannot
-   * be represented by QDMI's operation properties and return `std::nullopt`.
-   */
-  static auto GetOperationSignature(const std::string& operationName)
-      -> std::optional<std::pair<size_t, size_t>>;
 
   static auto PopulateOperationSites(ParsedDeviceProperties& properties)
       -> void;

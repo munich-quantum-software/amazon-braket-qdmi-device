@@ -1224,11 +1224,18 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryOperationProperty(
 
   ADD_STRING_PROPERTY(QDMI_OPERATION_PROPERTY_NAME, operation->name_.c_str(),
                       prop, size, value, sizeRet)
-  ADD_SINGLE_VALUE_PROPERTY(QDMI_OPERATION_PROPERTY_QUBITSNUM, size_t,
-                            operation->numQubits_, prop, size, value, sizeRet)
-  ADD_SINGLE_VALUE_PROPERTY(QDMI_OPERATION_PROPERTY_PARAMETERSNUM, size_t,
-                            operation->numParams_, prop, size, value, sizeRet)
-  if (operation->numQubits_ > 0 && !operation->applicableSites_.empty()) {
+  if (operation->numQubits_.has_value()) {
+    ADD_SINGLE_VALUE_PROPERTY(QDMI_OPERATION_PROPERTY_QUBITSNUM, size_t,
+                              *operation->numQubits_, prop, size, value,
+                              sizeRet)
+  }
+  if (operation->numParams_.has_value()) {
+    ADD_SINGLE_VALUE_PROPERTY(QDMI_OPERATION_PROPERTY_PARAMETERSNUM, size_t,
+                              *operation->numParams_, prop, size, value,
+                              sizeRet)
+  }
+  if (operation->numQubits_.value_or(0) > 0 &&
+      !operation->applicableSites_.empty()) {
     ADD_LIST_PROPERTY(QDMI_OPERATION_PROPERTY_SITES, AMAZON_BRAKET_QDMI_Site,
                       operation->applicableSites_, prop, size, value, sizeRet)
   }

@@ -506,22 +506,18 @@ Other standard QDMI values return `QDMI_ERROR_NOTSUPPORTED`.
 
 ## Operation Properties
 
-| Property                                | Notes                                                                        |
-| --------------------------------------- | ---------------------------------------------------------------------------- |
-| `QDMI_OPERATION_PROPERTY_NAME`          | Native gate name for QPUs; supported gate name for simulators                |
-| `QDMI_OPERATION_PROPERTY_QUBITSNUM`     | Exact fixed gate arity                                                       |
-| `QDMI_OPERATION_PROPERTY_PARAMETERSNUM` | Number of scalar OpenQASM gate arguments                                     |
-| `QDMI_OPERATION_PROPERTY_SITES`         | Applicable physical site tuples when Braket metadata permits an exact answer |
-| `QDMI_OPERATION_PROPERTY_FIDELITY`      | Site-dependent gate fidelity when Braket reports one                         |
+| Property                                | Notes                                                         |
+| --------------------------------------- | ------------------------------------------------------------- |
+| `QDMI_OPERATION_PROPERTY_NAME`          | Native gate name for QPUs; supported name for simulators      |
+| `QDMI_OPERATION_PROPERTY_QUBITSNUM`     | Fixed gate arity, when known                                  |
+| `QDMI_OPERATION_PROPERTY_PARAMETERSNUM` | Number of scalar OpenQASM gate arguments, when representable  |
+| `QDMI_OPERATION_PROPERTY_SITES`         | All sites, connectivity edges, or global three-site tuples    |
+| `QDMI_OPERATION_PROPERTY_FIDELITY`      | Site-dependent gate fidelity when Braket reports one          |
 
-The zero-qubit `gphase` operation is reported with one floating-point parameter.
-Its `SITES` property is unsupported because the operation has no site operands.
-For operations acting on sites, the property is reported only when exact
-applicability can be inferred: all sites for one-qubit operations, connectivity
-edges for two-qubit operations, and ordered triples for fully connected
-three-qubit devices. If Braket advertises a nonzero-arity operation but its
-metadata is insufficient to infer exact tuples, `SITES` returns
-`QDMI_ERROR_NOTSUPPORTED` rather than an empty successful result.
+Individual properties return `QDMI_ERROR_NOTSUPPORTED` when Braket advertises an
+operation with a variable or otherwise unrepresentable signature. The zero-qubit
+`gphase` operation has no site tuples. Fixed three-qubit gates are global; their
+tuples are independent of two-qubit connectivity.
 
 ## Job Properties
 

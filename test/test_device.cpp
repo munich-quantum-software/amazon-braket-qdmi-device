@@ -631,22 +631,25 @@ TEST_F(AmazonBraketQDMISpecificationTest, QueryOperationData) {
     result = AMAZON_BRAKET_QDMI_device_session_query_operation_property(
         session, operation, 0, nullptr, 0, nullptr,
         QDMI_OPERATION_PROPERTY_QUBITSNUM, sizeof(size_t), &numQubits, nullptr);
-    EXPECT_EQ(result, QDMI_SUCCESS);
+    const auto qubitCountResult = result;
+    EXPECT_THAT(result, testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
 
     size_t numParameters = 0;
     result = AMAZON_BRAKET_QDMI_device_session_query_operation_property(
         session, operation, 0, nullptr, 0, nullptr,
         QDMI_OPERATION_PROPERTY_PARAMETERSNUM, sizeof(size_t), &numParameters,
         nullptr);
-    EXPECT_EQ(result, QDMI_SUCCESS);
+    EXPECT_THAT(result, testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
 
     size_t sitesSize = 0;
     result = AMAZON_BRAKET_QDMI_device_session_query_operation_property(
         session, operation, 0, nullptr, 0, nullptr,
         QDMI_OPERATION_PROPERTY_SITES, 0, nullptr, &sitesSize);
+    if (qubitCountResult == QDMI_ERROR_NOTSUPPORTED) {
+      EXPECT_EQ(result, QDMI_ERROR_NOTSUPPORTED);
+      continue;
+    }
     if (numQubits == 0) {
-      EXPECT_EQ(numParameters, 1U)
-          << "Braket's zero-qubit gphase has one parameter";
       EXPECT_EQ(result, QDMI_ERROR_NOTSUPPORTED)
           << "Zero-qubit operations have no site tuples";
       continue;
