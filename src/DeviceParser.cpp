@@ -107,12 +107,12 @@ auto IDeviceParser::GetOperationSignature(const std::string& operationName)
       std::pair{"zz"sv, Signature{2, 1}},
   };
 
-  using SignatureIterator = std::ranges::iterator_t<decltype(SIGNATURES)>;
-  const SignatureIterator signature =
-      std::ranges::find_if(SIGNATURES, [&operationName](const auto& entry) {
-        return entry.first == operationName;
-      });
-  if (signature == SIGNATURES.end()) {
+  const auto* const signature =
+      std::find_if(SIGNATURES.data(), SIGNATURES.data() + SIGNATURES.size(),
+                   [&operationName](const auto& entry) {
+                     return entry.first == operationName;
+                   });
+  if (signature == SIGNATURES.data() + SIGNATURES.size()) {
     return std::nullopt;
   }
   return signature->second;
