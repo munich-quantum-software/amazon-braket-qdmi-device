@@ -1171,6 +1171,10 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
   }
 
   const std::scoped_lock<std::mutex> lock(jobMutex_);
+  if (!taskArn_.empty()) {
+    ADD_STRING_PROPERTY(QDMI_DEVICE_JOB_PROPERTY_ID, taskArn_.c_str(), prop,
+                        size, value, sizeRet)
+  }
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_JOB_PROPERTY_PROGRAMFORMAT,
                             QDMI_Program_Format, format_, prop, size, value,
                             sizeRet)

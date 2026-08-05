@@ -974,6 +974,25 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_SUCCESS)
       << "Job submission should succeed with S3 configuration";
 
+  size_t idSize = 0;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                job, QDMI_DEVICE_JOB_PROPERTY_ID, 0, nullptr, &idSize),
+            QDMI_SUCCESS);
+  ASSERT_GT(idSize, 1U);
+
+  std::vector<char> idBuffer(idSize);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                job, QDMI_DEVICE_JOB_PROPERTY_ID, idSize - 1, idBuffer.data(),
+                nullptr),
+            QDMI_ERROR_INVALIDARGUMENT);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                job, QDMI_DEVICE_JOB_PROPERTY_ID, idBuffer.size(),
+                idBuffer.data(), nullptr),
+            QDMI_SUCCESS);
+  const std::string taskArn(idBuffer.data());
+  EXPECT_TRUE(taskArn.starts_with("arn:aws:braket:"))
+      << "The QDMI job ID must be the AWS QuantumTask ARN";
+
   const int waitStatus = AMAZON_BRAKET_QDMI_device_job_wait(job, 60000);
   EXPECT_EQ(waitStatus, QDMI_SUCCESS) << "Job should complete successfully";
 
@@ -982,6 +1001,14 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
             QDMI_SUCCESS);
   EXPECT_EQ(finalStatus, QDMI_JOB_STATUS_DONE)
       << "Job should reach DONE status";
+
+  std::vector<char> completedIdBuffer(idSize);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                job, QDMI_DEVICE_JOB_PROPERTY_ID, completedIdBuffer.size(),
+                completedIdBuffer.data(), nullptr),
+            QDMI_SUCCESS);
+  EXPECT_EQ(completedIdBuffer, idBuffer)
+      << "The AWS QuantumTask ARN must remain stable after completion";
 
   size_t shotsSize = 0;
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
