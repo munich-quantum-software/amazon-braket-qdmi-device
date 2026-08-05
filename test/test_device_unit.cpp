@@ -1940,20 +1940,14 @@ TEST(DeviceParserOfflineTest, SimulatorReportsExactOperationSignatures) {
   ParsedDeviceProperties properties;
   ASSERT_EQ(
       parser.ParseProperties(
-          R"({"paradigm":{"qubitCount":3},"action":{"braket.ir.openqasm.program":{"supportedOperations":["cc_prx","measure_ff","ms","prx","unitary"]}}})",
+          R"({"paradigm":{"qubitCount":3},"action":{"braket.ir.openqasm.program":{"supportedOperations":["cc_prx","measure_ff","ms","prx","unitary","cv","U"]}}})",
           properties),
       QDMI_SUCCESS);
 
   ASSERT_EQ(properties.operationsMap.size(), 4U);
   EXPECT_FALSE(properties.operationsMap.contains("unitary"));
-
-  const auto* ccPrx = properties.operationsMap.at("cc_prx");
-  EXPECT_EQ(ccPrx->numQubits_, 1U);
-  EXPECT_EQ(ccPrx->numParams_, 3U);
-
-  const auto* measureFf = properties.operationsMap.at("measure_ff");
-  EXPECT_EQ(measureFf->numQubits_, 1U);
-  EXPECT_EQ(measureFf->numParams_, 1U);
+  EXPECT_FALSE(properties.operationsMap.contains("cc_prx"));
+  EXPECT_FALSE(properties.operationsMap.contains("measure_ff"));
 
   const auto* ms = properties.operationsMap.at("ms");
   EXPECT_EQ(ms->numQubits_, 2U);
@@ -1962,6 +1956,14 @@ TEST(DeviceParserOfflineTest, SimulatorReportsExactOperationSignatures) {
   const auto* prx = properties.operationsMap.at("prx");
   EXPECT_EQ(prx->numQubits_, 1U);
   EXPECT_EQ(prx->numParams_, 2U);
+
+  const auto* cv = properties.operationsMap.at("cv");
+  EXPECT_EQ(cv->numQubits_, 2U);
+  EXPECT_EQ(cv->numParams_, 0U);
+
+  const auto* u = properties.operationsMap.at("U");
+  EXPECT_EQ(u->numQubits_, 1U);
+  EXPECT_EQ(u->numParams_, 3U);
 }
 
 TEST(DeviceParserOfflineTest, IQMReportsNativeSitesAndGateFidelity) {

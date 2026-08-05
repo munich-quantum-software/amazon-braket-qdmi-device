@@ -64,6 +64,7 @@ auto IDeviceParser::GetOperationSignature(const std::string& operationName)
       std::pair{"cphaseshift01"sv, Signature{2, 1}},
       std::pair{"cphaseshift10"sv, Signature{2, 1}},
       std::pair{"cswap"sv, Signature{3, 0}},
+      std::pair{"cv"sv, Signature{2, 0}},
       std::pair{"cy"sv, Signature{2, 0}},
       std::pair{"cz"sv, Signature{2, 0}},
       std::pair{"ecr"sv, Signature{2, 0}},
@@ -84,6 +85,7 @@ auto IDeviceParser::GetOperationSignature(const std::string& operationName)
       std::pair{"swap"sv, Signature{2, 0}},
       std::pair{"t"sv, Signature{1, 0}},
       std::pair{"ti"sv, Signature{1, 0}},
+      std::pair{"U"sv, Signature{1, 3}},
       std::pair{"v"sv, Signature{1, 0}},
       std::pair{"vi"sv, Signature{1, 0}},
       std::pair{"x"sv, Signature{1, 0}},
@@ -93,11 +95,6 @@ auto IDeviceParser::GetOperationSignature(const std::string& operationName)
       std::pair{"yy"sv, Signature{2, 1}},
       std::pair{"z"sv, Signature{1, 0}},
       std::pair{"zz"sv, Signature{2, 1}},
-      // IQM's experimental feed-forward operations have one quantum operand.
-      // Their feedback keys are scalar program arguments and are counted here
-      // because QDMI does not distinguish scalar parameter types.
-      std::pair{"cc_prx"sv, Signature{1, 3}},
-      std::pair{"measure_ff"sv, Signature{1, 1}},
   };
 
   const auto signature =
