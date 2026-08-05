@@ -337,7 +337,7 @@ private:
        const amazon::braket::qdmi::detail::JobWaitFunctions& functions) const
       -> QDMI_STATUS {
     const auto currentStatus = status_.load();
-    if (currentStatus == QDMI_JOB_STATUS_CREATED && !opened_) {
+    if (currentStatus == QDMI_JOB_STATUS_CREATED) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
 

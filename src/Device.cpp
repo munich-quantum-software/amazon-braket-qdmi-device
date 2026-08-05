@@ -1078,7 +1078,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::openDeviceJob(
   uniqueJob->opened_ = true;
   uniqueJob->taskArn_ = jobId;
   uniqueJob->shots_ = static_cast<size_t>(task.GetShots());
-  QDMI_Job_Status status = QDMI_JOB_STATUS_CREATED;
+  uniqueJob->status_.store(QDMI_JOB_STATUS_SUBMITTED);
+  QDMI_Job_Status status = QDMI_JOB_STATUS_SUBMITTED;
   if (const auto result = uniqueJob->updateFromTask(task, &status);
       result != QDMI_SUCCESS) {
     return QDMI_ERROR_FATAL;
@@ -1467,14 +1468,14 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
   const auto currentStatus = status_.load();
 
-  if (currentStatus == QDMI_JOB_STATUS_CREATED && !opened_) {
+  if (currentStatus == QDMI_JOB_STATUS_CREATED) {
     status_.store(QDMI_JOB_STATUS_CANCELED);
     return QDMI_SUCCESS;
   }
 
-  if (currentStatus != QDMI_JOB_STATUS_QUEUED &&
-      currentStatus != QDMI_JOB_STATUS_RUNNING &&
-      !(opened_ && currentStatus == QDMI_JOB_STATUS_CREATED)) {
+  if (currentStatus != QDMI_JOB_STATUS_SUBMITTED &&
+      currentStatus != QDMI_JOB_STATUS_QUEUED &&
+      currentStatus != QDMI_JOB_STATUS_RUNNING) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
@@ -1536,7 +1537,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::updateFromTask(
   queuePosition_.reset();
   switch (task.GetStatus()) {
   case Aws::Braket::Model::QuantumTaskStatus::CREATED:
-    *status = QDMI_JOB_STATUS_CREATED;
+    *status = QDMI_JOB_STATUS_SUBMITTED;
     break;
   case Aws::Braket::Model::QuantumTaskStatus::QUEUED:
     *status = QDMI_JOB_STATUS_QUEUED;
