@@ -70,6 +70,7 @@
 #include <algorithm>
 #include <array>
 #include <aws/braket/BraketClient.h>
+#include <aws/braket/BraketErrors.h>
 #include <aws/braket/model/Association.h>
 #include <aws/braket/model/AssociationType.h>
 #include <aws/braket/model/CancelQuantumTaskRequest.h>
@@ -80,6 +81,7 @@
 #include <aws/braket/model/GetDeviceResult.h>
 #include <aws/braket/model/GetQuantumTaskRequest.h>
 #include <aws/braket/model/QuantumTaskAdditionalAttributeName.h>
+#include <aws/braket/model/GetQuantumTaskResult.h>
 #include <aws/braket/model/QuantumTaskStatus.h>
 #include <aws/core/Aws.h>
 #include <aws/core/auth/AWSCredentials.h>
@@ -509,6 +511,21 @@ auto computeQDMIStatusFromDevice(
   return getQDMIStatusForBraketDevice(
       device.GetDeviceStatus(), executionWindowAvailability,
       queueLength.value_or(QUEUE_BUSY_THRESHOLD));
+}
+
+auto isPermissionError(const Aws::Braket::BraketErrors error) -> bool {
+  switch (error) {
+  case Aws::Braket::BraketErrors::ACCESS_DENIED:
+  case Aws::Braket::BraketErrors::INVALID_ACCESS_KEY_ID:
+  case Aws::Braket::BraketErrors::INVALID_CLIENT_TOKEN_ID:
+  case Aws::Braket::BraketErrors::INVALID_SIGNATURE:
+  case Aws::Braket::BraketErrors::MISSING_AUTHENTICATION_TOKEN:
+  case Aws::Braket::BraketErrors::SIGNATURE_DOES_NOT_MATCH:
+  case Aws::Braket::BraketErrors::UNRECOGNIZED_CLIENT:
+    return true;
+  default:
+    return false;
+  }
 }
 } // anonymous namespace
 
@@ -1021,6 +1038,57 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::createDeviceJob(
   return QDMI_SUCCESS;
 }
 
+auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::openDeviceJob(
+    const char* jobId, AMAZON_BRAKET_QDMI_Device_Job* job) -> QDMI_STATUS {
+  if (jobId == nullptr || *jobId == '\0' || job == nullptr) {
+    return QDMI_ERROR_INVALIDARGUMENT;
+  }
+  if (!initialized_) {
+    return QDMI_ERROR_BADSTATE;
+  }
+
+  Aws::Braket::Model::GetQuantumTaskRequest request;
+  request.SetQuantumTaskArn(jobId);
+  const auto outcome = client_->GetQuantumTask(request);
+  if (!outcome.IsSuccess()) {
+    const auto error = outcome.GetError().GetErrorType();
+    switch (error) {
+    case Aws::Braket::BraketErrors::RESOURCE_NOT_FOUND:
+    case Aws::Braket::BraketErrors::VALIDATION:
+      return QDMI_ERROR_NOTFOUND;
+    default:
+      if (isPermissionError(error)) {
+        return QDMI_ERROR_PERMISSIONDENIED;
+      }
+      std::cerr << "Failed to open task: " << outcome.GetError().GetMessage()
+                << "\n";
+      return QDMI_ERROR_FATAL;
+    }
+  }
+
+  const auto& task = outcome.GetResult();
+  if (task.GetDeviceArn() != deviceArn_) {
+    return QDMI_ERROR_NOTFOUND;
+  }
+  if (!std::in_range<size_t>(task.GetShots())) {
+    return QDMI_ERROR_FATAL;
+  }
+
+  auto uniqueJob = std::make_unique<AMAZON_BRAKET_QDMI_Device_Job_impl_d>(this);
+  uniqueJob->opened_ = true;
+  uniqueJob->taskArn_ = jobId;
+  uniqueJob->shots_ = static_cast<size_t>(task.GetShots());
+  QDMI_Job_Status status = QDMI_JOB_STATUS_CREATED;
+  if (const auto result = uniqueJob->updateFromTask(task, &status);
+      result != QDMI_SUCCESS) {
+    return QDMI_ERROR_FATAL;
+  }
+
+  const std::scoped_lock<std::mutex> lock(jobsMutex_);
+  *job = jobs_.emplace(uniqueJob.get(), std::move(uniqueJob)).first->first;
+  return QDMI_SUCCESS;
+}
+
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::freeDeviceJob(
     AMAZON_BRAKET_QDMI_Device_Job job) -> void {
   if (job != nullptr) {
@@ -1184,6 +1252,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
   }
 
   const std::scoped_lock<std::mutex> lock(jobMutex_);
+  if (opened_) {
+    return QDMI_ERROR_BADSTATE;
+  }
   if (status_.load() != QDMI_JOB_STATUS_CREATED) {
     return QDMI_ERROR_BADSTATE;
   }
@@ -1256,6 +1327,11 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
     ADD_STRING_PROPERTY(QDMI_DEVICE_JOB_PROPERTY_ID, taskArn_.c_str(), prop,
                         size, value, sizeRet)
   }
+  if (opened_) {
+    ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_JOB_PROPERTY_SHOTSNUM, size_t, shots_,
+                              prop, size, value, sizeRet)
+    return QDMI_ERROR_NOTSUPPORTED;
+  }
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_JOB_PROPERTY_PROGRAMFORMAT,
                             QDMI_Program_Format, format_, prop, size, value,
                             sizeRet)
@@ -1301,6 +1377,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
   size_t localShots = 0;
   {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
+    if (opened_) {
+      return QDMI_ERROR_BADSTATE;
+    }
     if (status_.load() != QDMI_JOB_STATUS_CREATED) {
       return QDMI_ERROR_BADSTATE;
     }
@@ -1388,13 +1467,14 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
   const auto currentStatus = status_.load();
 
-  if (currentStatus == QDMI_JOB_STATUS_CREATED) {
+  if (currentStatus == QDMI_JOB_STATUS_CREATED && !opened_) {
     status_.store(QDMI_JOB_STATUS_CANCELED);
     return QDMI_SUCCESS;
   }
 
   if (currentStatus != QDMI_JOB_STATUS_QUEUED &&
-      currentStatus != QDMI_JOB_STATUS_RUNNING) {
+      currentStatus != QDMI_JOB_STATUS_RUNNING &&
+      !(opened_ && currentStatus == QDMI_JOB_STATUS_CREATED)) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
@@ -1437,13 +1517,57 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
   if (!outcome.IsSuccess()) {
     std::cerr << "Failed to cancel task: " << outcome.GetError().GetMessage()
               << "\n";
-    return QDMI_ERROR_NOTSUPPORTED;
+    return isPermissionError(outcome.GetError().GetErrorType())
+               ? QDMI_ERROR_PERMISSIONDENIED
+               : QDMI_ERROR_FATAL;
   }
 
   // Cancellation request succeeded - task is now in CANCELLING state.
   // Do NOT set status to CANCELED here; check() will report the last known
   // status while CANCELLING and update to the terminal state once resolved.
 
+  return QDMI_SUCCESS;
+}
+
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::updateFromTask(
+    const Aws::Braket::Model::GetQuantumTaskResult& task,
+    QDMI_Job_Status* status) const -> QDMI_STATUS {
+  const std::scoped_lock<std::mutex> lock(jobMutex_);
+  queuePosition_.reset();
+  switch (task.GetStatus()) {
+  case Aws::Braket::Model::QuantumTaskStatus::CREATED:
+    *status = QDMI_JOB_STATUS_CREATED;
+    break;
+  case Aws::Braket::Model::QuantumTaskStatus::QUEUED:
+    *status = QDMI_JOB_STATUS_QUEUED;
+    if (const auto& queueInfo = task.GetQueueInfo();
+        queueInfo.PositionHasBeenSet()) {
+      queuePosition_ =
+          amazon::braket::qdmi::detail::parseQueueValue(queueInfo.GetPosition());
+    }
+    break;
+  case Aws::Braket::Model::QuantumTaskStatus::RUNNING:
+    *status = QDMI_JOB_STATUS_RUNNING;
+    break;
+  case Aws::Braket::Model::QuantumTaskStatus::COMPLETED:
+    *status = QDMI_JOB_STATUS_DONE;
+    outputS3Bucket_ = task.GetOutputS3Bucket();
+    outputS3Directory_ = task.GetOutputS3Directory();
+    break;
+  case Aws::Braket::Model::QuantumTaskStatus::FAILED:
+    *status = QDMI_JOB_STATUS_FAILED;
+    break;
+  case Aws::Braket::Model::QuantumTaskStatus::CANCELLED:
+    *status = QDMI_JOB_STATUS_CANCELED;
+    break;
+  case Aws::Braket::Model::QuantumTaskStatus::CANCELLING:
+    *status = status_.load();
+    return QDMI_SUCCESS;
+  case Aws::Braket::Model::QuantumTaskStatus::NOT_SET:
+  default:
+    return QDMI_ERROR_FATAL;
+  }
+  status_.store(*status);
   return QDMI_SUCCESS;
 }
 
@@ -1515,67 +1639,12 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
   if (!outcome.IsSuccess()) {
     std::cerr << "Failed to check task: " << outcome.GetError().GetMessage()
               << "\n";
-    return QDMI_ERROR_NOTSUPPORTED;
+    return isPermissionError(outcome.GetError().GetErrorType())
+               ? QDMI_ERROR_PERMISSIONDENIED
+               : QDMI_ERROR_FATAL;
   }
 
-  const auto& result = outcome.GetResult();
-  const auto& taskStatus = result.GetStatus();
-
-  QDMI_Job_Status newStatus = QDMI_JOB_STATUS_CREATED;
-  {
-    const std::scoped_lock<std::mutex> lock(jobMutex_);
-    queuePosition_.reset();
-    switch (taskStatus) {
-    case Aws::Braket::Model::QuantumTaskStatus::CREATED:
-      newStatus = QDMI_JOB_STATUS_CREATED;
-      break;
-
-    case Aws::Braket::Model::QuantumTaskStatus::QUEUED:
-      newStatus = QDMI_JOB_STATUS_QUEUED;
-      if (const auto& queueInfo = result.GetQueueInfo();
-          queueInfo.PositionHasBeenSet()) {
-        queuePosition_ = amazon::braket::qdmi::detail::parseQueueValue(
-            queueInfo.GetPosition());
-      }
-      break;
-
-    case Aws::Braket::Model::QuantumTaskStatus::RUNNING:
-      newStatus = QDMI_JOB_STATUS_RUNNING;
-      break;
-
-    case Aws::Braket::Model::QuantumTaskStatus::COMPLETED:
-      newStatus = QDMI_JOB_STATUS_DONE;
-      // Store S3 location for result retrieval
-      outputS3Bucket_ = result.GetOutputS3Bucket();
-      outputS3Directory_ = result.GetOutputS3Directory();
-      break;
-
-    case Aws::Braket::Model::QuantumTaskStatus::FAILED:
-      newStatus = QDMI_JOB_STATUS_FAILED;
-      break;
-
-    case Aws::Braket::Model::QuantumTaskStatus::CANCELLED:
-      newStatus = QDMI_JOB_STATUS_CANCELED;
-      break;
-
-    case Aws::Braket::Model::QuantumTaskStatus::CANCELLING:
-      // Transitional state: keep reporting the last known status until
-      // the task reaches a terminal state on the next check() call.
-      *status = status_.load();
-      return QDMI_SUCCESS;
-
-    case Aws::Braket::Model::QuantumTaskStatus::NOT_SET:
-    default:
-      std::cerr << "ERROR: Unknown task status (enum value: "
-                << static_cast<int>(taskStatus) << ")\n";
-      return QDMI_ERROR_NOTSUPPORTED;
-    }
-
-    status_.store(newStatus);
-  }
-
-  *status = newStatus;
-  return QDMI_SUCCESS;
+  return updateFromTask(outcome.GetResult(), status);
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
@@ -2019,6 +2088,15 @@ int AMAZON_BRAKET_QDMI_device_session_create_device_job(
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   return session->createDeviceJob(job);
+}
+
+int AMAZON_BRAKET_QDMI_device_session_open_device_job(
+    AMAZON_BRAKET_QDMI_Device_Session session, const char* jobId,
+    AMAZON_BRAKET_QDMI_Device_Job* job) {
+  if (session == nullptr) {
+    return QDMI_ERROR_INVALIDARGUMENT;
+  }
+  return session->openDeviceJob(jobId, job);
 }
 
 /**

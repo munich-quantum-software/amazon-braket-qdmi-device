@@ -252,6 +252,8 @@ public:
   auto setParameter(QDMI_Device_Session_Parameter param, size_t size,
                     const void* value) -> QDMI_STATUS;
   auto createDeviceJob(AMAZON_BRAKET_QDMI_Device_Job* job) -> QDMI_STATUS;
+  auto openDeviceJob(const char* jobId, AMAZON_BRAKET_QDMI_Device_Job* job)
+      -> QDMI_STATUS;
   auto freeDeviceJob(AMAZON_BRAKET_QDMI_Device_Job job) -> void;
   auto queryDeviceProperty(QDMI_Device_Property prop, size_t size, void* value,
                            size_t* sizeRet) const -> QDMI_STATUS;
@@ -309,6 +311,7 @@ private:
   std::string program_;
   size_t shots_ = 100;
   std::string taskArn_;
+  bool opened_ = false;
 
   // Per-job S3 configuration (required)
   std::string jobS3Bucket_;    // Required - S3 bucket for results
@@ -327,12 +330,14 @@ private:
   // Helpers to fetch and parse results from S3
   auto fetchResults() const -> QDMI_STATUS;         // Locks and calls internal
   auto fetchResultsInternal() const -> QDMI_STATUS; // Assumes jobMutex_ is held
+  auto updateFromTask(const Aws::Braket::Model::GetQuantumTaskResult& task,
+                      QDMI_Job_Status* status) const -> QDMI_STATUS;
   auto
   wait(size_t timeout,
        const amazon::braket::qdmi::detail::JobWaitFunctions& functions) const
       -> QDMI_STATUS {
     const auto currentStatus = status_.load();
-    if (currentStatus == QDMI_JOB_STATUS_CREATED) {
+    if (currentStatus == QDMI_JOB_STATUS_CREATED && !opened_) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
 
@@ -368,6 +373,7 @@ private:
   }
 
   friend struct AMAZON_BRAKET_QDMI_Device_Job_TestAccess;
+  friend struct AMAZON_BRAKET_QDMI_Device_Session_impl_d;
 
 public:
   explicit AMAZON_BRAKET_QDMI_Device_Job_impl_d(

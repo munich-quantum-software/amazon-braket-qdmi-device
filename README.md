@@ -526,6 +526,10 @@ Querying `QDMI_DEVICE_JOB_PROPERTY_QUEUEPOSITION` performs a fresh
 returns `QDMI_ERROR_BADSTATE` unless the refreshed task status is `QUEUED`, and
 `QDMI_ERROR_NOTSUPPORTED` if AWS does not provide a trustworthy position.
 
+An existing QuantumTask can be opened from its ARN. The opened handle exposes
+the ARN and shot count, can be checked, waited for, canceled, and used to
+retrieve results, but cannot be reconfigured or submitted again.
+
 ## Job Results
 
 | Result                        | Notes                                   |
@@ -558,6 +562,7 @@ returns `QDMI_ERROR_BADSTATE` unless the refreshed task status is `QUEUED`, and
 | Function                                                | AWS SDK Counterpart       | Description                                 |
 | ------------------------------------------------------- | ------------------------- | ------------------------------------------- |
 | `AMAZON_BRAKET_QDMI_device_session_create_device_job()` | (internal allocation)     | Create a new QDMI job                       |
+| `AMAZON_BRAKET_QDMI_device_session_open_device_job()`   | `GetQuantumTask()`        | Open an existing task by ARN                |
 | `AMAZON_BRAKET_QDMI_device_job_set_parameter()`         | (store job config)        | Set job parameters (circuit, shots, format) |
 | `AMAZON_BRAKET_QDMI_device_job_query_property()`        | (return stored values)    | Query job format, program, and shots        |
 | `AMAZON_BRAKET_QDMI_device_job_submit()`                | `CreateQuantumTask()`     | Submit QDMI job as AWS QuantumTask          |
