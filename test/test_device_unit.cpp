@@ -1105,7 +1105,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobWaitOnCreatedJob) {
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
       QDMI_SUCCESS);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(freshJob, 1000),
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(freshJob, 1),
             QDMI_ERROR_INVALIDARGUMENT);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
@@ -1117,7 +1117,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobWaitOnCanceledJob) {
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
       QDMI_SUCCESS);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_cancel(freshJob), QDMI_SUCCESS);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(freshJob, 1000), QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(freshJob, 1), QDMI_SUCCESS);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
@@ -1134,7 +1134,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobWaitOnFailedJob) {
   // No S3 bucket → submit() transitions status to FAILED.
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(freshJob),
             QDMI_ERROR_INVALIDARGUMENT);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(freshJob, 1000), QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(freshJob, 1), QDMI_SUCCESS);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 

@@ -308,7 +308,7 @@ protected:
     }
     submittedOk = true;
 
-    waitResult = AMAZON_BRAKET_QDMI_device_job_wait(sharedJob, 120000);
+    waitResult = AMAZON_BRAKET_QDMI_device_job_wait(sharedJob, 120);
 
     if (waitResult == QDMI_SUCCESS) {
       QDMI_Job_Status finalStatus = QDMI_JOB_STATUS_CREATED;
@@ -761,7 +761,7 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest, JobWaitOnDoneJob) {
   if (!submittedOk || waitResult != QDMI_SUCCESS) {
     GTEST_SKIP() << "Shared job did not complete; skipping done-wait test";
   }
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(sharedJob, 1000), QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(sharedJob, 1), QDMI_SUCCESS);
 }
 
 TEST_F(AmazonBraketQDMIJobSpecificationTest, JobSubmitAlreadySubmitted) {
@@ -969,7 +969,7 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_SUCCESS)
       << "Job submission should succeed with S3 configuration";
 
-  const int waitStatus = AMAZON_BRAKET_QDMI_device_job_wait(job, 60000);
+  const int waitStatus = AMAZON_BRAKET_QDMI_device_job_wait(job, 60);
   EXPECT_EQ(waitStatus, QDMI_SUCCESS) << "Job should complete successfully";
 
   QDMI_Job_Status finalStatus = QDMI_JOB_STATUS_CREATED;
@@ -1305,10 +1305,9 @@ TEST_F(DeviceParsingTestFixture, IQMDeviceStatus) {
 // Integration test: wait() timeout path
 // =============================================================================
 
-// Submits a Bell-state job to SV1 and immediately waits with a very short
-// timeout (10 ms). The GetQuantumTask API roundtrip itself takes ~100-300 ms,
-// so the timeout check triggers before the first status poll returns, reliably
-// exercising the QDMI_ERROR_TIMEOUT return in wait().
+// Submits a Bell-state job to SV1 and immediately waits with a one-second
+// timeout, exercising the QDMI_ERROR_TIMEOUT return in wait() unless the task
+// finishes unusually quickly.
 // The test accepts QDMI_SUCCESS too, in case SV1 is unusually fast on the day.
 TEST(AmazonBraketQDMIWaitTimeoutTest, JobWaitTimeout) {
   const char* s3BucketEnv = std::getenv("AWS_S3_BUCKET");
@@ -1377,10 +1376,10 @@ TEST(AmazonBraketQDMIWaitTimeoutTest, JobWaitTimeout) {
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(guard.job), QDMI_SUCCESS)
       << "Job submission must succeed before testing wait timeout";
 
-  // 10 ms is far shorter than any SV1 API roundtrip; TIMEOUT is expected.
-  // QDMI_SUCCESS is accepted too in case the simulator was unusually instant.
-  const int waitResult = AMAZON_BRAKET_QDMI_device_job_wait(guard.job, 10);
+  // QDMI_SUCCESS is accepted too in case the simulator was unusually fast.
+  const int waitResult = AMAZON_BRAKET_QDMI_device_job_wait(guard.job, 1);
   EXPECT_THAT(waitResult, testing::AnyOf(QDMI_ERROR_TIMEOUT, QDMI_SUCCESS))
-      << "wait() with 10 ms timeout should either time out or find the job "
+      << "wait() with a one-second timeout should either time out or find the "
+         "job "
          "already done";
 }

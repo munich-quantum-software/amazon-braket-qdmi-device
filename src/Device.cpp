@@ -1512,14 +1512,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
       return QDMI_SUCCESS;
     }
 
-    if (timeout > 0U) {
-      const auto elapsed =
-          std::chrono::duration_cast<std::chrono::milliseconds>(
-              std::chrono::steady_clock::now() - startTime)
-              .count();
-      if (std::cmp_greater_equal(elapsed, timeout)) {
-        return QDMI_ERROR_TIMEOUT;
-      }
+    if (timeout > 0U && std::chrono::steady_clock::now() - startTime >=
+                            std::chrono::seconds(timeout)) {
+      return QDMI_ERROR_TIMEOUT;
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -2080,7 +2075,7 @@ int AMAZON_BRAKET_QDMI_device_job_check(AMAZON_BRAKET_QDMI_Device_Job job,
  * Polls the quantum task status periodically using exponential backoff.
  *
  * @param job The QDMI job handle
- * @param timeout Maximum time to wait in milliseconds (0 = infinite)
+ * @param timeout Maximum time to wait in seconds (0 = infinite)
  * @return QDMI_SUCCESS when quantum task completes, QDMI_ERROR_TIMEOUT on
  * timeout
  */
