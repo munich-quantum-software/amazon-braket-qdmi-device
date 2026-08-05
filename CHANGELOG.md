@@ -31,6 +31,8 @@ releases may include breaking changes.
 
 ### Fixed
 
+- 🐛 Normalize histogram keys as a comma-separated QDMI string ([#159])
+  ([**@burgholzer**])
 - 🐛 Isolate scikit-build output from the direct CMake build tree ([#147])
   ([**@burgholzer**])
 
@@ -58,6 +60,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#159]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/159
 [#157]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/157
 [#150]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/150
 [#149]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/149
