@@ -1617,7 +1617,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal() const
  *
  * Result Types:
  * - SHOTS: Comma-separated bitstrings "00,11,00,11,..."
- * - HIST_KEYS: Null-terminated unique outcomes "00\011\0"
+ * - HIST_KEYS: Comma-separated unique outcomes "00,11"
  * - HIST_VALUES: Count for each outcome [52, 48]
  * - STATEVECTOR/PROBABILITIES: Only from simulators (not supported yet)
  */
@@ -1659,21 +1659,25 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::getResults(
   }
 
   if (result == QDMI_JOB_RESULT_HIST_KEYS) {
-    // Return concatenated null-terminated bitstrings: "00\011\0"
+    // Return a null-terminated, comma-separated list matching QDMI's string
+    // representation and the order of HIST_VALUES.
     std::string keysStr;
     for (const auto& [key, count] : counts_) {
+      if (!keysStr.empty()) {
+        keysStr += ',';
+      }
       keysStr += key;
-      keysStr += '\0';
     }
+    const size_t totalSize = keysStr.size() + 1;
 
     if (data != nullptr) {
-      if (size < keysStr.size()) {
+      if (size < totalSize) {
         return QDMI_ERROR_INVALIDARGUMENT;
       }
-      memcpy(data, keysStr.data(), keysStr.size());
+      memcpy(data, keysStr.c_str(), totalSize);
     }
     if (sizeRet != nullptr) {
-      *sizeRet = keysStr.size();
+      *sizeRet = totalSize;
     }
     return QDMI_SUCCESS;
   }
