@@ -56,7 +56,7 @@ auto IDeviceParser::GetOperationSignature(const std::string& operationName)
     -> std::optional<std::pair<size_t, size_t>> {
   using namespace std::string_view_literals;
   using Signature = std::pair<size_t, size_t>;
-  static constexpr std::array signatures{
+  static constexpr std::array SIGNATURES{
       std::pair{"amplitude_damping"sv, Signature{1, 1}},
       std::pair{"bit_flip"sv, Signature{1, 1}},
       std::pair{"ccnot"sv, Signature{3, 0}},
@@ -107,11 +107,11 @@ auto IDeviceParser::GetOperationSignature(const std::string& operationName)
       std::pair{"zz"sv, Signature{2, 1}},
   };
 
-  const auto signature =
-      std::ranges::find_if(signatures, [&operationName](const auto& entry) {
+  const auto* const signature =
+      std::ranges::find_if(SIGNATURES, [&operationName](const auto& entry) {
         return entry.first == operationName;
       });
-  if (signature == signatures.end()) {
+  if (signature == SIGNATURES.end()) {
     return std::nullopt;
   }
   return signature->second;
@@ -284,7 +284,7 @@ auto IDeviceParser::ParseOperationFidelities(
     if (!siteData.ValueExists("twoQubitGateFidelity")) {
       continue;
     }
-    const std::string sitePairString = sitePair.c_str();
+    const std::string sitePairString = sitePair;
     const auto separator = sitePairString.find('-');
     if (separator == std::string::npos) {
       continue;
@@ -298,7 +298,7 @@ auto IDeviceParser::ParseOperationFidelities(
           !fidelity.ValueExists("fidelity")) {
         continue;
       }
-      std::string gateName = fidelity.GetString("gateName").c_str();
+      std::string gateName = fidelity.GetString("gateName");
       std::ranges::transform(gateName, gateName.begin(), [](const char value) {
         return static_cast<char>(
             std::tolower(static_cast<unsigned char>(value)));

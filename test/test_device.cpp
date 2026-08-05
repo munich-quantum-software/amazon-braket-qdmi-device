@@ -646,7 +646,7 @@ TEST_F(AmazonBraketQDMISpecificationTest, QueryOperationData) {
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
                   session, operation, 0, nullptr, 0, nullptr,
                   QDMI_OPERATION_PROPERTY_SITES, sitesSize,
-                  applicableSites.data(), nullptr),
+                  static_cast<void*>(applicableSites.data()), nullptr),
               QDMI_SUCCESS);
 
     size_t numParameters = 0;
