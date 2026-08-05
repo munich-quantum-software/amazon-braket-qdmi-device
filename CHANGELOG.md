@@ -12,6 +12,7 @@ releases may include breaking changes.
 
 ### Added
 
+- ✨ Expose AWS QuantumTask ARNs as QDMI job IDs ([#157]) ([**@burgholzer**])
 - ✨ Add an optional GPL-licensed Slurm SPANK plugin for validating Amazon
   Braket devices and injecting QDMI session configuration, including the
   distinct plugin and core library license texts ([#134]) ([**@flowerthrower**],
@@ -57,6 +58,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#157]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/157
 [#150]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/150
 [#149]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/149
 [#147]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/147
