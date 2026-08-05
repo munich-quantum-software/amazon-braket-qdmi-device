@@ -39,6 +39,8 @@ releases may include breaking changes.
 - 🐛 Validate that QDMI site and operation query handles belong to an
   initialized device session before dereferencing them ([#166])
   ([**@burgholzer**])
+- 🐛 Report exact Braket operation signatures, sites, and available fidelities
+  through QDMI ([#158]) ([**@burgholzer**])
 - 🐛 Interpret QDMI job wait timeouts in seconds ([#156]) ([**@burgholzer**])
 - 🐛 Normalize histogram keys as a comma-separated QDMI string ([#159])
   ([**@burgholzer**])
@@ -73,6 +75,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 [#166]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/166
 [#160]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/160
 [#159]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/159
+[#158]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/158
 [#157]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/157
 [#156]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/156
 [#150]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/150
