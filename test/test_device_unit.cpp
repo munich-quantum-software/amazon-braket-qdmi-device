@@ -2016,7 +2016,7 @@ TEST_F(AmazonBraketQDMIOfflineTest,
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest,
-       IQMPublicQueriesReportNativeMetadataAndGlobalThreeQubitSites) {
+       IQMPublicQueriesReportSupportedOperationsAndThreeQubitSites) {
   const IQMDeviceParser parser;
   ParsedDeviceProperties properties;
   ASSERT_EQ(parser.ParseProperties(
@@ -2041,8 +2041,8 @@ TEST_F(AmazonBraketQDMIOfflineTest,
           })",
                 properties),
             QDMI_SUCCESS);
-  ASSERT_EQ(properties.operationsMap.size(), 2U);
-  EXPECT_FALSE(properties.operationsMap.contains("h"));
+  ASSERT_EQ(properties.operationsMap.size(), 3U);
+  EXPECT_TRUE(properties.operationsMap.contains("h"));
 
   auto* const cz = properties.operationsMap.at("cz");
   const std::array<AMAZON_BRAKET_QDMI_Site, 2> forwardSites{

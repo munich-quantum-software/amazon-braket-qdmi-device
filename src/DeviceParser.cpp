@@ -185,23 +185,11 @@ auto IDeviceParser::ParseOperationsFromOpenQASM(
     return QDMI_ERROR_FATAL;
   }
 
+  const auto supportedOperations = openqasm.GetArray("supportedOperations");
   std::vector<std::string> operationNames;
-  if (propertiesJson.ValueExists("paradigm")) {
-    const auto paradigm = propertiesJson.GetObject("paradigm");
-    if (paradigm.ValueExists("nativeGateSet")) {
-      const auto nativeGateSet = paradigm.GetArray("nativeGateSet");
-      operationNames.reserve(nativeGateSet.GetLength());
-      for (size_t i = 0; i < nativeGateSet.GetLength(); ++i) {
-        operationNames.emplace_back(nativeGateSet[i].AsString());
-      }
-    }
-  }
-  if (operationNames.empty()) {
-    const auto supportedOperations = openqasm.GetArray("supportedOperations");
-    operationNames.reserve(supportedOperations.GetLength());
-    for (size_t i = 0; i < supportedOperations.GetLength(); ++i) {
-      operationNames.emplace_back(supportedOperations[i].AsString());
-    }
+  operationNames.reserve(supportedOperations.GetLength());
+  for (size_t i = 0; i < supportedOperations.GetLength(); ++i) {
+    operationNames.emplace_back(supportedOperations[i].AsString());
   }
 
   properties.operations.clear();
