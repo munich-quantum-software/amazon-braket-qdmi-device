@@ -12,6 +12,8 @@ releases may include breaking changes.
 
 ### Added
 
+- ✨ Reopen existing Amazon Braket QuantumTasks by their QDMI job IDs ([#160])
+  ([**@burgholzer**])
 - ✨ Expose current device queue length and queued job position through QDMI,
   refreshing Amazon Braket task status for every position query ([#167])
   ([**@burgholzer**])
@@ -69,6 +71,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 [#167]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/167
 [#166]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/166
+[#160]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/160
 [#159]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/159
 [#157]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/157
 [#156]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/156
