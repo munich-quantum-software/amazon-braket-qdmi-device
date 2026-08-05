@@ -1602,15 +1602,15 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
   // - NOT_SET: Uninitialized/unknown state, should not occur with IsSuccess()
   //
   // Status Mapping to QDMI:
-  // AWS CREATED    → QDMI_JOB_STATUS_CREATED
+  // AWS CREATED    → QDMI_JOB_STATUS_SUBMITTED
   // AWS QUEUED     → QDMI_JOB_STATUS_QUEUED
   // AWS RUNNING    → QDMI_JOB_STATUS_RUNNING
   // AWS COMPLETED  → QDMI_JOB_STATUS_DONE
   // AWS FAILED     → QDMI_JOB_STATUS_FAILED
   // AWS CANCELLING → last known status
   // AWS CANCELLED  → QDMI_JOB_STATUS_CANCELED
-  // AWS NOT_SET    → QDMI_ERROR_NOTSUPPORTED
-  // AWS unknown    → QDMI_ERROR_NOTSUPPORTED
+  // AWS NOT_SET    → QDMI_ERROR_FATAL
+  // AWS unknown    → QDMI_ERROR_FATAL
   //
   std::string localTaskArn;
   {

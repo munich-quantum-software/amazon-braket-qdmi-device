@@ -298,9 +298,10 @@ private:
   int id_ = 0;
 
   /// Quantum task execution status (lifecycle tracking)
-  /// CREATED → QUEUED → RUNNING → DONE/CANCELED/FAILED
-  /// - CREATED: Job object created, not yet submitted
-  /// - QUEUED: Submitted to AWS, waiting to execute
+  /// CREATED → SUBMITTED → QUEUED → RUNNING → DONE/CANCELED/FAILED
+  /// - CREATED: Local job object is still configurable
+  /// - SUBMITTED: AWS accepted the task, but has not yet queued it
+  /// - QUEUED: Task is waiting in the AWS device queue
   /// - RUNNING: Currently executing on quantum hardware
   /// - DONE: Execution completed successfully, results available
   /// - CANCELED: User canceled before completion

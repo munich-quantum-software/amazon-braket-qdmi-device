@@ -107,8 +107,7 @@ public:
       : Aws::Braket::BraketClient(
             Aws::Auth::AWSCredentials{"access-key", "secret-key"},
             clientConfiguration()),
-        result_(std::move(result)), error_(error), requestedArn_{},
-        canceledArn_{} {}
+        result_(std::move(result)), error_(error) {}
 
   auto
   GetQuantumTask(const Aws::Braket::Model::GetQuantumTaskRequest& request) const
