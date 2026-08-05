@@ -409,7 +409,7 @@ int main() {
         strlen(circuit) + 1, circuit);
 
     AMAZON_BRAKET_QDMI_device_job_submit(job);
-    AMAZON_BRAKET_QDMI_device_job_wait(job, 60000);  // 60s timeout
+    AMAZON_BRAKET_QDMI_device_job_wait(job, 60);  // 60s timeout
 
     // Check results
     QDMI_Job_Status status;

@@ -62,6 +62,7 @@
 #include "amazon-braket-qdmi-device/Device.hpp"
 
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
+#include "amazon-braket-qdmi-device/Wait.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
 
@@ -1490,44 +1491,23 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
     -> QDMI_STATUS {
-  const auto currentStatus = status_.load();
-  if (currentStatus == QDMI_JOB_STATUS_CREATED) {
-    return QDMI_ERROR_INVALIDARGUMENT;
-  }
-
-  if (currentStatus == QDMI_JOB_STATUS_DONE ||
-      currentStatus == QDMI_JOB_STATUS_FAILED ||
-      currentStatus == QDMI_JOB_STATUS_CANCELED) {
-    return QDMI_SUCCESS;
-  }
-
-  const auto startTime = std::chrono::steady_clock::now();
-  QDMI_Job_Status checkedStatus = QDMI_JOB_STATUS_CREATED;
-
-  while (true) {
-    const QDMI_STATUS result = check(&checkedStatus);
-    if (result != QDMI_SUCCESS) {
-      return result;
-    }
-
-    if (checkedStatus == QDMI_JOB_STATUS_DONE ||
-        checkedStatus == QDMI_JOB_STATUS_FAILED ||
-        checkedStatus == QDMI_JOB_STATUS_CANCELED) {
-      return QDMI_SUCCESS;
-    }
-
-    if (timeout > 0U) {
-      const auto elapsed =
-          std::chrono::duration_cast<std::chrono::milliseconds>(
-              std::chrono::steady_clock::now() - startTime)
-              .count();
-      if (std::cmp_greater_equal(elapsed, timeout)) {
-        return QDMI_ERROR_TIMEOUT;
-      }
-    }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  }
+  struct WaitContext {
+    const AMAZON_BRAKET_QDMI_Device_Job_impl_d* job;
+  } context{this};
+  const amazon::braket::qdmi::detail::JobWaitFunctions functions{
+      .context = &context,
+      .checkStatus =
+          [](void* rawContext, QDMI_Job_Status* status) {
+            const auto* waitContext =
+                static_cast<const WaitContext*>(rawContext);
+            return waitContext->job->check(status);
+          },
+      .now = [](void*) { return std::chrono::steady_clock::now(); },
+      .sleepFor =
+          [](void*, const std::chrono::steady_clock::duration duration) {
+            std::this_thread::sleep_for(duration);
+          }};
+  return wait(timeout, functions);
 }
 
 /**
@@ -2088,7 +2068,7 @@ int AMAZON_BRAKET_QDMI_device_job_check(AMAZON_BRAKET_QDMI_Device_Job job,
  * Polls the quantum task status periodically using exponential backoff.
  *
  * @param job The QDMI job handle
- * @param timeout Maximum time to wait in milliseconds (0 = infinite)
+ * @param timeout Maximum time to wait in seconds (0 = infinite)
  * @return QDMI_SUCCESS when quantum task completes, QDMI_ERROR_TIMEOUT on
  * timeout
  */

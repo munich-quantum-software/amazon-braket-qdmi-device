@@ -74,6 +74,7 @@
 #pragma once
 
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
+#include "amazon-braket-qdmi-device/Wait.hpp"
 #include "amazon_braket_qdmi/device.h"
 
 #include <atomic>
@@ -94,6 +95,7 @@
 
 // Forward declarations
 struct AMAZON_BRAKET_QDMI_Device_Job_impl_d;
+struct AMAZON_BRAKET_QDMI_Device_Job_TestAccess;
 
 namespace amazon::braket::qdmi {
 
@@ -320,6 +322,47 @@ private:
   // Helpers to fetch and parse results from S3
   auto fetchResults() const -> QDMI_STATUS;         // Locks and calls internal
   auto fetchResultsInternal() const -> QDMI_STATUS; // Assumes jobMutex_ is held
+  auto
+  wait(size_t timeout,
+       const amazon::braket::qdmi::detail::JobWaitFunctions& functions) const
+      -> QDMI_STATUS {
+    const auto currentStatus = status_.load();
+    if (currentStatus == QDMI_JOB_STATUS_CREATED) {
+      return QDMI_ERROR_INVALIDARGUMENT;
+    }
+
+    if (currentStatus == QDMI_JOB_STATUS_DONE ||
+        currentStatus == QDMI_JOB_STATUS_FAILED ||
+        currentStatus == QDMI_JOB_STATUS_CANCELED) {
+      return QDMI_SUCCESS;
+    }
+
+    const auto startTime = functions.now(functions.context);
+    QDMI_Job_Status checkedStatus = QDMI_JOB_STATUS_CREATED;
+
+    while (true) {
+      const QDMI_STATUS result =
+          functions.checkStatus(functions.context, &checkedStatus);
+      if (result != QDMI_SUCCESS) {
+        return result;
+      }
+
+      if (checkedStatus == QDMI_JOB_STATUS_DONE ||
+          checkedStatus == QDMI_JOB_STATUS_FAILED ||
+          checkedStatus == QDMI_JOB_STATUS_CANCELED) {
+        return QDMI_SUCCESS;
+      }
+
+      if (amazon::braket::qdmi::detail::waitTimedOut(
+              startTime, functions.now(functions.context), timeout)) {
+        return QDMI_ERROR_TIMEOUT;
+      }
+
+      functions.sleepFor(functions.context, std::chrono::milliseconds{100});
+    }
+  }
+
+  friend struct AMAZON_BRAKET_QDMI_Device_Job_TestAccess;
 
 public:
   explicit AMAZON_BRAKET_QDMI_Device_Job_impl_d(
