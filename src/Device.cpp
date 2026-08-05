@@ -1512,9 +1512,13 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
       return QDMI_SUCCESS;
     }
 
-    if (timeout > 0U && std::chrono::steady_clock::now() - startTime >=
-                            std::chrono::seconds(timeout)) {
-      return QDMI_ERROR_TIMEOUT;
+    if (timeout > 0U) {
+      using UnsignedSeconds = std::chrono::duration<size_t>;
+      const auto elapsed = std::chrono::duration_cast<UnsignedSeconds>(
+          std::chrono::steady_clock::now() - startTime);
+      if (elapsed.count() >= timeout) {
+        return QDMI_ERROR_TIMEOUT;
+      }
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
