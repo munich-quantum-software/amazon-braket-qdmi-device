@@ -8,6 +8,12 @@
  *
  * https://llvm.org/LICENSE.txt
  *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ *
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
@@ -26,8 +32,7 @@ using WaitClock = std::chrono::steady_clock;
     return false;
   }
   using UnsignedSeconds = std::chrono::duration<size_t>;
-  const auto elapsed =
-      std::chrono::duration_cast<UnsignedSeconds>(now - start);
+  const auto elapsed = std::chrono::duration_cast<UnsignedSeconds>(now - start);
   return elapsed.count() >= timeout;
 }
 } // namespace amazon::braket::qdmi::detail
