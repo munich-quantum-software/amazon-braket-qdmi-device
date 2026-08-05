@@ -1461,7 +1461,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
     taskArn_ = outcome.GetResult().GetQuantumTaskArn();
   }
-  status_.store(QDMI_JOB_STATUS_RUNNING);
+  status_.store(QDMI_JOB_STATUS_SUBMITTED);
   return QDMI_SUCCESS;
 }
 
@@ -1489,7 +1489,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
   // 4. Task eventually reaches terminal state: CANCELLED, COMPLETED, or FAILED
   //
   // Important Notes:
-  // - Can only cancel tasks in CREATED, QUEUED, or RUNNING state
+  // - AWS accepts cancellation while a task is CREATED, QUEUED, or RUNNING
+  // - Remote AWS CREATED maps to QDMI SUBMITTED because the task is no longer
+  //   locally configurable
   // - Cannot cancel COMPLETED or FAILED tasks
   // - After successful cancel request, task enters CANCELLING state
   // - Final outcome depends on race conditions:
