@@ -479,7 +479,7 @@ TEST_F(AmazonBraketQDMISpecificationTest, QueryOperationProperty) {
             QDMI_ERROR_INVALIDARGUMENT);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
                 session, operation, 0, nullptr, 0, nullptr,
-                QDMI_OPERATION_PROPERTY_QUBITSNUM, 0, nullptr, nullptr),
+                QDMI_OPERATION_PROPERTY_NAME, 0, nullptr, nullptr),
             QDMI_SUCCESS);
 }
 
