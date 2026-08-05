@@ -1040,6 +1040,20 @@ TEST_F(AmazonBraketQDMILocalJobTest,
 // AmazonBraketQDMILocalJobTest — job queryProperty()
 // =============================================================================
 
+// The durable job ID is the AWS QuantumTask ARN and therefore only becomes
+// available after successful submission.
+TEST_F(AmazonBraketQDMILocalJobTest, JobIdUnavailableBeforeSubmission) {
+  AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
+  ASSERT_EQ(
+      AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
+      QDMI_SUCCESS);
+  size_t idSize = 0;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                freshJob, QDMI_DEVICE_JOB_PROPERTY_ID, 0, nullptr, &idSize),
+            QDMI_ERROR_NOTSUPPORTED);
+  AMAZON_BRAKET_QDMI_device_job_free(freshJob);
+}
+
 // Two-step (size then value) query of the PROGRAM property.
 TEST_F(AmazonBraketQDMILocalJobTest, JobQueryPropertyProgram) {
   AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
