@@ -51,7 +51,6 @@
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
 #include <iostream>
-#include <ranges>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -1011,8 +1010,9 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
                 job, QDMI_JOB_RESULT_HIST_VALUES, 0, nullptr, &histValuesSize),
             QDMI_SUCCESS);
-  const auto keyCount =
-      static_cast<size_t>(std::ranges::count(histogramKeys, ',')) + 1;
+  const auto keyCount = static_cast<size_t>(std::count(
+                            histogramKeys.begin(), histogramKeys.end(), ',')) +
+                        1;
   EXPECT_EQ(keyCount * sizeof(size_t), histValuesSize);
 }
 
