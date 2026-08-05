@@ -632,13 +632,29 @@ TEST_F(AmazonBraketQDMISpecificationTest, QueryOperationData) {
         session, operation, 0, nullptr, 0, nullptr,
         QDMI_OPERATION_PROPERTY_QUBITSNUM, sizeof(size_t), &numQubits, nullptr);
     EXPECT_EQ(result, QDMI_SUCCESS);
-    EXPECT_GT(numQubits, 0);
+
+    size_t numParameters = 0;
+    result = AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+        session, operation, 0, nullptr, 0, nullptr,
+        QDMI_OPERATION_PROPERTY_PARAMETERSNUM, sizeof(size_t), &numParameters,
+        nullptr);
+    EXPECT_EQ(result, QDMI_SUCCESS);
 
     size_t sitesSize = 0;
-    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
-                  session, operation, 0, nullptr, 0, nullptr,
-                  QDMI_OPERATION_PROPERTY_SITES, 0, nullptr, &sitesSize),
-              QDMI_SUCCESS);
+    result = AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+        session, operation, 0, nullptr, 0, nullptr,
+        QDMI_OPERATION_PROPERTY_SITES, 0, nullptr, &sitesSize);
+    if (numQubits == 0) {
+      EXPECT_EQ(numParameters, 1U)
+          << "Braket's zero-qubit gphase has one parameter";
+      EXPECT_EQ(result, QDMI_ERROR_NOTSUPPORTED)
+          << "Zero-qubit operations have no site tuples";
+      continue;
+    }
+    if (result == QDMI_ERROR_NOTSUPPORTED) {
+      continue;
+    }
+    ASSERT_EQ(result, QDMI_SUCCESS);
     ASSERT_GT(sitesSize, 0U);
     ASSERT_EQ(sitesSize % (numQubits * sizeof(AMAZON_BRAKET_QDMI_Site)), 0U);
     std::vector<AMAZON_BRAKET_QDMI_Site> applicableSites(
@@ -648,13 +664,6 @@ TEST_F(AmazonBraketQDMISpecificationTest, QueryOperationData) {
                   QDMI_OPERATION_PROPERTY_SITES, sitesSize,
                   static_cast<void*>(applicableSites.data()), nullptr),
               QDMI_SUCCESS);
-
-    size_t numParameters = 0;
-    result = AMAZON_BRAKET_QDMI_device_session_query_operation_property(
-        session, operation, 0, nullptr, 0, nullptr,
-        QDMI_OPERATION_PROPERTY_PARAMETERSNUM, sizeof(size_t), &numParameters,
-        nullptr);
-    EXPECT_EQ(result, QDMI_SUCCESS);
 
     result = AMAZON_BRAKET_QDMI_device_session_query_operation_property(
         session, operation, numQubits, applicableSites.data(), 0, nullptr,

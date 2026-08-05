@@ -1228,7 +1228,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryOperationProperty(
                             operation->numQubits_, prop, size, value, sizeRet)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_OPERATION_PROPERTY_PARAMETERSNUM, size_t,
                             operation->numParams_, prop, size, value, sizeRet)
-  if (operation->numQubits_ > 0) {
+  if (operation->numQubits_ > 0 && !operation->applicableSites_.empty()) {
     ADD_LIST_PROPERTY(QDMI_OPERATION_PROPERTY_SITES, AMAZON_BRAKET_QDMI_Site,
                       operation->applicableSites_, prop, size, value, sizeRet)
   }
