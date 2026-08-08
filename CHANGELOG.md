@@ -12,7 +12,7 @@ releases may include breaking changes.
 
 ### Added
 
-- ✨ Reopen existing Amazon Braket QuantumTasks by their QDMI job IDs ([#160])
+- ✨ Retrieve existing Amazon Braket QuantumTasks by their QDMI job IDs ([#160])
   ([**@burgholzer**])
 - ✨ Expose current device queue length and queued job position through QDMI,
   refreshing Amazon Braket task status for every position query ([#167])

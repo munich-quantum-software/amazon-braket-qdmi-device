@@ -1005,31 +1005,31 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobCreate) {
   AMAZON_BRAKET_QDMI_device_session_free(uninitializedSession);
 }
 
-TEST_F(AmazonBraketQDMILocalJobTest, JobOpenValidation) {
+TEST_F(AmazonBraketQDMILocalJobTest, JobRetrieveValidation) {
   AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_open_device_job(nullptr,
-                                                              "task-arn", &job),
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                nullptr, "task-arn", &job),
             QDMI_ERROR_INVALIDARGUMENT);
-  EXPECT_EQ(
-      AMAZON_BRAKET_QDMI_device_session_open_device_job(session, nullptr, &job),
-      QDMI_ERROR_INVALIDARGUMENT);
-  EXPECT_EQ(
-      AMAZON_BRAKET_QDMI_device_session_open_device_job(session, "", &job),
-      QDMI_ERROR_INVALIDARGUMENT);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_open_device_job(
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                session, nullptr, &job),
+            QDMI_ERROR_INVALIDARGUMENT);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                session, "", &job),
+            QDMI_ERROR_INVALIDARGUMENT);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
                 session, "task-arn", nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
 
   AMAZON_BRAKET_QDMI_Device_Session uninitializedSession = nullptr;
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&uninitializedSession),
             QDMI_SUCCESS);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_open_device_job(
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
                 uninitializedSession, "task-arn", &job),
             QDMI_ERROR_BADSTATE);
   AMAZON_BRAKET_QDMI_device_session_free(uninitializedSession);
 }
 
-TEST_F(AmazonBraketQDMILocalJobTest, JobOpenExistingQuantumTask) {
+TEST_F(AmazonBraketQDMILocalJobTest, JobRetrieveExistingQuantumTask) {
   constexpr auto* taskArn =
       "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
   Aws::Braket::Model::GetQuantumTaskResult task;
@@ -1045,9 +1045,9 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobOpenExistingQuantumTask) {
                                                           std::move(client));
 
   AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
-  ASSERT_EQ(
-      AMAZON_BRAKET_QDMI_device_session_open_device_job(session, taskArn, &job),
-      QDMI_SUCCESS);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                session, taskArn, &job),
+            QDMI_SUCCESS);
   ASSERT_NE(job, nullptr);
   EXPECT_EQ(clientPtr->calls(), 1U);
   EXPECT_EQ(clientPtr->requestedArn(), taskArn);
@@ -1087,7 +1087,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobOpenExistingQuantumTask) {
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest,
-       JobOpenMapsRemotePreExecutionStatesToSubmitted) {
+       JobRetrieveMapsRemotePreExecutionStatesToSubmitted) {
   constexpr auto* taskArn =
       "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
   constexpr std::array remoteStatuses{
@@ -1107,8 +1107,8 @@ TEST_F(AmazonBraketQDMILocalJobTest,
                                                             std::move(client));
 
     AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
-    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_open_device_job(session,
-                                                                taskArn, &job),
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                  session, taskArn, &job),
               QDMI_SUCCESS);
     QDMI_Job_Status status = QDMI_JOB_STATUS_CREATED;
     EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(job, &status), QDMI_SUCCESS);
@@ -1120,7 +1120,7 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   }
 }
 
-TEST_F(AmazonBraketQDMILocalJobTest, JobOpenMapsRemoteTaskStatuses) {
+TEST_F(AmazonBraketQDMILocalJobTest, JobRetrieveMapsRemoteTaskStatuses) {
   constexpr auto* taskArn =
       "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
   constexpr std::array statusMappings{
@@ -1144,8 +1144,8 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobOpenMapsRemoteTaskStatuses) {
         session, std::make_unique<StubBraketClient>(std::move(task)));
 
     AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
-    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_open_device_job(session,
-                                                                taskArn, &job),
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                  session, taskArn, &job),
               QDMI_SUCCESS);
     QDMI_Job_Status status = QDMI_JOB_STATUS_CREATED;
     EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(job, &status), QDMI_SUCCESS);
@@ -1154,7 +1154,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobOpenMapsRemoteTaskStatuses) {
   }
 }
 
-TEST_F(AmazonBraketQDMILocalJobTest, JobOpenMapsAwsErrors) {
+TEST_F(AmazonBraketQDMILocalJobTest, JobRetrieveMapsAwsErrors) {
   const std::array errorMappings{
       std::pair{Aws::Braket::BraketErrors::RESOURCE_NOT_FOUND,
                 QDMI_ERROR_NOTFOUND},
@@ -1172,14 +1172,14 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobOpenMapsAwsErrors) {
     AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
                                                             std::move(client));
     AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
-    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_open_device_job(
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
                   session, "task-arn", &job),
               expected);
     EXPECT_EQ(job, nullptr);
   }
 }
 
-TEST_F(AmazonBraketQDMILocalJobTest, JobOpenRejectsInvalidRemoteMetadata) {
+TEST_F(AmazonBraketQDMILocalJobTest, JobRetrieveRejectsInvalidRemoteMetadata) {
   constexpr auto* taskArn =
       "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
   constexpr std::array invalidTasks{
@@ -1197,14 +1197,14 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobOpenRejectsInvalidRemoteMetadata) {
         session, std::make_unique<StubBraketClient>(std::move(task)));
 
     AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
-    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_open_device_job(session,
-                                                                taskArn, &job),
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                  session, taskArn, &job),
               QDMI_ERROR_FATAL);
     EXPECT_EQ(job, nullptr);
   }
 }
 
-TEST_F(AmazonBraketQDMILocalJobTest, JobOpenMapsSubsequentAwsErrors) {
+TEST_F(AmazonBraketQDMILocalJobTest, JobRetrieveMapsSubsequentAwsErrors) {
   constexpr auto* taskArn =
       "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
   const std::array errorMappings{
@@ -1224,8 +1224,8 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobOpenMapsSubsequentAwsErrors) {
         std::make_unique<StubBraketClient>(task, error, std::nullopt, true));
 
     AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
-    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_open_device_job(session,
-                                                                taskArn, &job),
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                  session, taskArn, &job),
               QDMI_SUCCESS);
     QDMI_Job_Status status = QDMI_JOB_STATUS_CREATED;
     EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(job, &status), expected);
@@ -1234,8 +1234,8 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobOpenMapsSubsequentAwsErrors) {
     AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
         session, std::make_unique<StubBraketClient>(std::move(task),
                                                     std::nullopt, error));
-    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_open_device_job(session,
-                                                                taskArn, &job),
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                  session, taskArn, &job),
               QDMI_SUCCESS);
     EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_cancel(job), expected);
     AMAZON_BRAKET_QDMI_device_job_free(job);
@@ -1243,7 +1243,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobOpenMapsSubsequentAwsErrors) {
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest,
-       JobOpenRejectsQuantumTaskForDifferentDevice) {
+       JobRetrieveRejectsQuantumTaskForDifferentDevice) {
   Aws::Braket::Model::GetQuantumTaskResult task;
   task.WithQuantumTaskArn("task-arn")
       .WithDeviceArn("different-device")
@@ -1253,8 +1253,8 @@ TEST_F(AmazonBraketQDMILocalJobTest,
       session, std::make_unique<StubBraketClient>(std::move(task)));
 
   AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_open_device_job(session,
-                                                              "task-arn", &job),
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                session, "task-arn", &job),
             QDMI_ERROR_NOTFOUND);
   EXPECT_EQ(job, nullptr);
 }

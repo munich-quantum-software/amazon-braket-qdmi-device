@@ -1075,7 +1075,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::openDeviceJob(
   }
 
   auto uniqueJob = std::make_unique<AMAZON_BRAKET_QDMI_Device_Job_impl_d>(this);
-  uniqueJob->opened_ = true;
+  uniqueJob->retrieved_ = true;
   uniqueJob->taskArn_ = jobId;
   uniqueJob->shots_ = static_cast<size_t>(task.GetShots());
   uniqueJob->status_.store(QDMI_JOB_STATUS_SUBMITTED);
@@ -1253,7 +1253,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
   }
 
   const std::scoped_lock<std::mutex> lock(jobMutex_);
-  if (opened_) {
+  if (retrieved_) {
     return QDMI_ERROR_BADSTATE;
   }
   if (status_.load() != QDMI_JOB_STATUS_CREATED) {
@@ -1328,7 +1328,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
     ADD_STRING_PROPERTY(QDMI_DEVICE_JOB_PROPERTY_ID, taskArn_.c_str(), prop,
                         size, value, sizeRet)
   }
-  if (opened_) {
+  if (retrieved_) {
     ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_JOB_PROPERTY_SHOTSNUM, size_t, shots_,
                               prop, size, value, sizeRet)
     return QDMI_ERROR_NOTSUPPORTED;
@@ -1378,7 +1378,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
   size_t localShots = 0;
   {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
-    if (opened_) {
+    if (retrieved_) {
       return QDMI_ERROR_BADSTATE;
     }
     if (status_.load() != QDMI_JOB_STATUS_CREATED) {
@@ -2093,7 +2093,7 @@ int AMAZON_BRAKET_QDMI_device_session_create_device_job(
   return session->createDeviceJob(job);
 }
 
-int AMAZON_BRAKET_QDMI_device_session_open_device_job(
+int AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
     AMAZON_BRAKET_QDMI_Device_Session session, const char* jobId,
     AMAZON_BRAKET_QDMI_Device_Job* job) {
   if (session == nullptr) {

@@ -559,18 +559,18 @@ retrieve results, but cannot be reconfigured or submitted again.
 
 ### Job Management (QDMI Jobs → AWS QuantumTasks)
 
-| Function                                                | AWS SDK Counterpart       | Description                                 |
-| ------------------------------------------------------- | ------------------------- | ------------------------------------------- |
-| `AMAZON_BRAKET_QDMI_device_session_create_device_job()` | (internal allocation)     | Create a new QDMI job                       |
-| `AMAZON_BRAKET_QDMI_device_session_open_device_job()`   | `GetQuantumTask()`        | Open an existing task by ARN                |
-| `AMAZON_BRAKET_QDMI_device_job_set_parameter()`         | (store job config)        | Set job parameters (circuit, shots, format) |
-| `AMAZON_BRAKET_QDMI_device_job_query_property()`        | (return stored values)    | Query job format, program, and shots        |
-| `AMAZON_BRAKET_QDMI_device_job_submit()`                | `CreateQuantumTask()`     | Submit QDMI job as AWS QuantumTask          |
-| `AMAZON_BRAKET_QDMI_device_job_check()`                 | `GetQuantumTask()`        | Check quantum task status                   |
-| `AMAZON_BRAKET_QDMI_device_job_wait()`                  | (poll `GetQuantumTask()`) | Wait for quantum task completion            |
-| `AMAZON_BRAKET_QDMI_device_job_get_results()`           | `S3Client::GetObject()`   | Retrieve measurement results from S3        |
-| `AMAZON_BRAKET_QDMI_device_job_cancel()`                | `CancelQuantumTask()`     | Cancel a running quantum task               |
-| `AMAZON_BRAKET_QDMI_device_job_free()`                  | (internal cleanup)        | Free job resources                          |
+| Function                                                        | AWS SDK Counterpart       | Description                                 |
+| --------------------------------------------------------------- | ------------------------- | ------------------------------------------- |
+| `AMAZON_BRAKET_QDMI_device_session_create_device_job()`         | (internal allocation)     | Create a new QDMI job                       |
+| `AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id()` | `GetQuantumTask()`        | Retrieve an existing task by ARN            |
+| `AMAZON_BRAKET_QDMI_device_job_set_parameter()`                 | (store job config)        | Set job parameters (circuit, shots, format) |
+| `AMAZON_BRAKET_QDMI_device_job_query_property()`                | (return stored values)    | Query job format, program, and shots        |
+| `AMAZON_BRAKET_QDMI_device_job_submit()`                        | `CreateQuantumTask()`     | Submit QDMI job as AWS QuantumTask          |
+| `AMAZON_BRAKET_QDMI_device_job_check()`                         | `GetQuantumTask()`        | Check quantum task status                   |
+| `AMAZON_BRAKET_QDMI_device_job_wait()`                          | (poll `GetQuantumTask()`) | Wait for quantum task completion            |
+| `AMAZON_BRAKET_QDMI_device_job_get_results()`                   | `S3Client::GetObject()`   | Retrieve measurement results from S3        |
+| `AMAZON_BRAKET_QDMI_device_job_cancel()`                        | `CancelQuantumTask()`     | Cancel a running quantum task               |
+| `AMAZON_BRAKET_QDMI_device_job_free()`                          | (internal cleanup)        | Free job resources                          |
 
 ## Testing
 

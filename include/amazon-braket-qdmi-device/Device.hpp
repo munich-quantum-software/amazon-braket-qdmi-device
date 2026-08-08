@@ -312,7 +312,7 @@ private:
   std::string program_;
   size_t shots_ = 100;
   std::string taskArn_;
-  bool opened_ = false;
+  bool retrieved_ = false;
 
   // Per-job S3 configuration (required)
   std::string jobS3Bucket_;    // Required - S3 bucket for results
