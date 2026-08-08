@@ -96,6 +96,7 @@
 // Forward declarations
 struct AMAZON_BRAKET_QDMI_Device_Job_impl_d;
 struct AMAZON_BRAKET_QDMI_Device_Job_TestAccess;
+struct AMAZON_BRAKET_QDMI_Device_Session_TestAccess;
 
 namespace amazon::braket::qdmi {
 
@@ -252,14 +253,14 @@ public:
   auto freeDeviceJob(AMAZON_BRAKET_QDMI_Device_Job job) -> void;
   auto queryDeviceProperty(QDMI_Device_Property prop, size_t size, void* value,
                            size_t* sizeRet) const -> QDMI_STATUS;
-  static auto querySiteProperty(AMAZON_BRAKET_QDMI_Site_impl_d* site,
-                                QDMI_Site_Property prop, size_t size,
-                                void* value, size_t* sizeRet) -> QDMI_STATUS;
-  static auto queryOperationProperty(
+  auto querySiteProperty(AMAZON_BRAKET_QDMI_Site_impl_d* site,
+                         QDMI_Site_Property prop, size_t size, void* value,
+                         size_t* sizeRet) const -> QDMI_STATUS;
+  auto queryOperationProperty(
       AMAZON_BRAKET_QDMI_Operation_impl_d* operation, size_t numSites,
       const AMAZON_BRAKET_QDMI_Site_impl_d* const* sites, size_t numParams,
       const double* params, QDMI_Operation_Property prop, size_t size,
-      void* value, size_t* sizeRet) -> QDMI_STATUS;
+      void* value, size_t* sizeRet) const -> QDMI_STATUS;
 
 private:
   auto fetchDeviceArchitecture() const -> QDMI_STATUS;
@@ -281,6 +282,7 @@ private:
 
   // Allow Job to access session internals
   friend struct AMAZON_BRAKET_QDMI_Device_Job_impl_d;
+  friend struct AMAZON_BRAKET_QDMI_Device_Session_TestAccess;
 };
 
 /**
