@@ -45,6 +45,7 @@
 #include <aws/braket/model/GetQuantumTaskRequest.h>
 #include <aws/braket/model/GetQuantumTaskResult.h>
 #include <aws/braket/model/QuantumTaskStatus.h>
+#include <aws/core/Aws.h>
 #include <aws/core/client/AWSError.h>
 #include <aws/core/client/ClientConfiguration.h>
 #include <chrono>
@@ -93,7 +94,7 @@ struct AMAZON_BRAKET_QDMI_Device_Session_TestAccess {
 
   static auto setClient(AMAZON_BRAKET_QDMI_Device_Session session,
                         std::unique_ptr<Aws::Braket::BraketClient> client)
-       -> void {
+      -> void {
     session->client_ = std::move(client);
   }
 };
@@ -410,9 +411,18 @@ TEST_F(AmazonBraketQDMIOfflineTest, SessionInitUsesEnvironmentFallbacks) {
 class AmazonBraketQDMILocalJobTest : public ::testing::Test {
 protected:
   AMAZON_BRAKET_QDMI_Device_Session session = nullptr;
+#ifdef _WIN32
+  Aws::SDKOptions testAWSOptions_;
+#endif
 
   void SetUp() override {
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+#ifdef _WIN32
+    // The provider DLL and this test executable each contain their own
+    // statically linked AWS SDK state. StubBraketClient is instantiated in the
+    // executable, so initialise that copy as well.
+    Aws::InitAPI(testAWSOptions_);
+#endif
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&session), QDMI_SUCCESS);
 
     // Fake but syntactically valid credentials — init() accepts them and builds
@@ -446,6 +456,9 @@ protected:
       session = nullptr;
     }
     AMAZON_BRAKET_QDMI_device_finalize();
+#ifdef _WIN32
+    Aws::ShutdownAPI(testAWSOptions_);
+#endif
   }
 };
 
