@@ -46,12 +46,15 @@
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
 #include <limits>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <random>
 #include <stdexcept>
 #include <stdlib.h> // NOLINT(modernize-deprecated-headers): POSIX setenv/unsetenv
 #include <string>
 #include <system_error>
+#include <utility>
 
 struct AMAZON_BRAKET_QDMI_Device_Job_TestAccess {
   static auto
