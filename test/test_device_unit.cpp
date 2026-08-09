@@ -37,6 +37,19 @@
 #include "amazon_braket_qdmi/device.h"
 
 #include <array>
+#include <aws/braket/BraketClient.h>
+#include <aws/braket/BraketErrors.h>
+#include <aws/braket/BraketServiceClientModel.h>
+#include <aws/braket/model/CancelQuantumTaskRequest.h>
+#include <aws/braket/model/CancelQuantumTaskResult.h>
+#include <aws/braket/model/GetQuantumTaskRequest.h>
+#include <aws/braket/model/GetQuantumTaskResult.h>
+#include <aws/braket/model/QuantumTaskStatus.h>
+#include <aws/core/client/AWSError.h>
+#include <aws/core/client/ClientConfiguration.h>
+#ifdef _WIN32
+#include <aws/core/Aws.h>
+#endif
 #include <chrono>
 #include <cstddef>
 #include <cstdio>
@@ -65,6 +78,11 @@ struct AMAZON_BRAKET_QDMI_Device_Job_TestAccess {
     job->status_.store(QDMI_JOB_STATUS_RUNNING);
     return job->wait(timeout, functions);
   }
+
+  [[nodiscard]] static auto outputLocation(AMAZON_BRAKET_QDMI_Device_Job job)
+      -> std::pair<std::string, std::string> {
+    return {job->outputS3Bucket_, job->outputS3Directory_};
+  }
 };
 
 struct AMAZON_BRAKET_QDMI_Device_Session_TestAccess {
@@ -75,9 +93,82 @@ struct AMAZON_BRAKET_QDMI_Device_Session_TestAccess {
     const std::scoped_lock lock(session->cachedArchitectureMutex_);
     session->cachedArchitecture_ = std::move(architecture);
   }
+
+  static auto setClient(AMAZON_BRAKET_QDMI_Device_Session session,
+                        std::unique_ptr<Aws::Braket::BraketClient> client)
+      -> void {
+    session->client_ = std::move(client);
+  }
 };
 
 namespace {
+class StubBraketClient final : public Aws::Braket::BraketClient {
+public:
+  explicit StubBraketClient(
+      Aws::Braket::Model::GetQuantumTaskResult result,
+      const std::optional<Aws::Braket::BraketErrors> getError = std::nullopt,
+      const std::optional<Aws::Braket::BraketErrors> cancelError = std::nullopt,
+      const bool failGetAfterFirstCall = false)
+      : Aws::Braket::BraketClient(
+            Aws::Auth::AWSCredentials{"access-key", "secret-key"},
+            clientConfiguration()),
+        result_(std::move(result)), getError_(getError),
+        cancelError_(cancelError),
+        failGetAfterFirstCall_(failGetAfterFirstCall) {}
+
+  auto
+  GetQuantumTask(const Aws::Braket::Model::GetQuantumTaskRequest& request) const
+      -> Aws::Braket::Model::GetQuantumTaskOutcome override {
+    ++calls_;
+    requestedArn_ = request.GetQuantumTaskArn();
+    if (getError_.has_value() && (!failGetAfterFirstCall_ || calls_ > 1)) {
+      Aws::Client::AWSError<Aws::Braket::BraketErrors> error{
+          *getError_, "StubError", "stubbed GetQuantumTask failure", false};
+      return Aws::Braket::BraketError{std::move(error)};
+    }
+    return result_;
+  }
+
+  auto CancelQuantumTask(
+      const Aws::Braket::Model::CancelQuantumTaskRequest& request) const
+      -> Aws::Braket::Model::CancelQuantumTaskOutcome override {
+    ++cancelCalls_;
+    canceledArn_ = request.GetQuantumTaskArn();
+    if (cancelError_.has_value()) {
+      Aws::Client::AWSError<Aws::Braket::BraketErrors> error{
+          *cancelError_, "StubError", "stubbed CancelQuantumTask failure",
+          false};
+      return Aws::Braket::BraketError{std::move(error)};
+    }
+    return Aws::Braket::Model::CancelQuantumTaskResult{};
+  }
+
+  [[nodiscard]] auto calls() const -> size_t { return calls_; }
+  [[nodiscard]] auto cancelCalls() const -> size_t { return cancelCalls_; }
+  [[nodiscard]] auto requestedArn() const -> const std::string& {
+    return requestedArn_;
+  }
+  [[nodiscard]] auto canceledArn() const -> const std::string& {
+    return canceledArn_;
+  }
+
+private:
+  static auto clientConfiguration() -> Aws::Client::ClientConfiguration {
+    Aws::Client::ClientConfiguration config;
+    config.region = "us-east-1";
+    return config;
+  }
+
+  Aws::Braket::Model::GetQuantumTaskResult result_;
+  std::optional<Aws::Braket::BraketErrors> getError_;
+  std::optional<Aws::Braket::BraketErrors> cancelError_;
+  bool failGetAfterFirstCall_;
+  mutable size_t calls_ = 0;
+  mutable size_t cancelCalls_ = 0;
+  mutable std::string requestedArn_;
+  mutable std::string canceledArn_;
+};
+
 struct WaitState {
   QDMI_STATUS checkResult = QDMI_SUCCESS;
   std::array<QDMI_Job_Status, 2> checkedStatuses{QDMI_JOB_STATUS_RUNNING,
@@ -322,9 +413,18 @@ TEST_F(AmazonBraketQDMIOfflineTest, SessionInitUsesEnvironmentFallbacks) {
 class AmazonBraketQDMILocalJobTest : public ::testing::Test {
 protected:
   AMAZON_BRAKET_QDMI_Device_Session session = nullptr;
+#ifdef _WIN32
+  Aws::SDKOptions testAWSOptions_;
+#endif
 
   void SetUp() override {
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+#ifdef _WIN32
+    // The provider DLL and this test executable each contain their own
+    // statically linked AWS SDK state. StubBraketClient is instantiated in the
+    // executable, so initialise that copy as well.
+    Aws::InitAPI(testAWSOptions_);
+#endif
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&session), QDMI_SUCCESS);
 
     // Fake but syntactically valid credentials — init() accepts them and builds
@@ -358,6 +458,9 @@ protected:
       session = nullptr;
     }
     AMAZON_BRAKET_QDMI_device_finalize();
+#ifdef _WIN32
+    Aws::ShutdownAPI(testAWSOptions_);
+#endif
   }
 };
 
@@ -915,6 +1018,260 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobCreate) {
             QDMI_SUCCESS);
   AMAZON_BRAKET_QDMI_device_job_free(job);
   AMAZON_BRAKET_QDMI_device_session_free(uninitializedSession);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, JobRetrieveValidation) {
+  AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                nullptr, "task-arn", &job),
+            QDMI_ERROR_INVALIDARGUMENT);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                session, nullptr, &job),
+            QDMI_ERROR_INVALIDARGUMENT);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                session, "", &job),
+            QDMI_ERROR_INVALIDARGUMENT);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                session, "task-arn", nullptr),
+            QDMI_ERROR_INVALIDARGUMENT);
+
+  AMAZON_BRAKET_QDMI_Device_Session uninitializedSession = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&uninitializedSession),
+            QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                uninitializedSession, "task-arn", &job),
+            QDMI_ERROR_BADSTATE);
+  AMAZON_BRAKET_QDMI_device_session_free(uninitializedSession);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, JobRetrieveExistingQuantumTask) {
+  constexpr auto* taskArn =
+      "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
+  Aws::Braket::Model::GetQuantumTaskResult task;
+  task.WithQuantumTaskArn(taskArn)
+      .WithDeviceArn("arn:aws:braket:::device/quantum-simulator/amazon/sv1")
+      .WithStatus(Aws::Braket::Model::QuantumTaskStatus::COMPLETED)
+      .WithShots(42)
+      .WithOutputS3Bucket("results")
+      .WithOutputS3Directory("tasks/task-id");
+  auto client = std::make_unique<StubBraketClient>(std::move(task));
+  const auto* clientPtr = client.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                          std::move(client));
+
+  AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                session, taskArn, &job),
+            QDMI_SUCCESS);
+  ASSERT_NE(job, nullptr);
+  EXPECT_EQ(clientPtr->calls(), 1U);
+  EXPECT_EQ(clientPtr->requestedArn(), taskArn);
+
+  size_t idSize = 0;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                job, QDMI_DEVICE_JOB_PROPERTY_ID, 0, nullptr, &idSize),
+            QDMI_SUCCESS);
+  std::string id(idSize - 1, '\0');
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                job, QDMI_DEVICE_JOB_PROPERTY_ID, idSize, id.data(), nullptr),
+            QDMI_SUCCESS);
+  EXPECT_EQ(id, taskArn);
+
+  size_t shots = 0;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                job, QDMI_DEVICE_JOB_PROPERTY_SHOTSNUM, sizeof(shots), &shots,
+                nullptr),
+            QDMI_SUCCESS);
+  EXPECT_EQ(shots, 42U);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                job, QDMI_DEVICE_JOB_PROPERTY_PROGRAM, 0, nullptr, nullptr),
+            QDMI_ERROR_NOTSUPPORTED);
+
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(shots), &shots),
+            QDMI_ERROR_BADSTATE);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_ERROR_BADSTATE);
+  QDMI_Job_Status status = QDMI_JOB_STATUS_CREATED;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(job, &status), QDMI_SUCCESS);
+  EXPECT_EQ(status, QDMI_JOB_STATUS_DONE);
+  EXPECT_EQ(clientPtr->calls(), 1U);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_Device_Job_TestAccess::outputLocation(job),
+            (std::pair<std::string, std::string>{"results", "tasks/task-id"}));
+
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       JobRetrieveMapsRemotePreExecutionStatesToSubmitted) {
+  constexpr auto* taskArn =
+      "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
+  constexpr std::array remoteStatuses{
+      Aws::Braket::Model::QuantumTaskStatus::CREATED,
+      Aws::Braket::Model::QuantumTaskStatus::CANCELLING,
+  };
+
+  for (const auto remoteStatus : remoteStatuses) {
+    Aws::Braket::Model::GetQuantumTaskResult task;
+    task.WithQuantumTaskArn(taskArn)
+        .WithDeviceArn("arn:aws:braket:::device/quantum-simulator/amazon/sv1")
+        .WithStatus(remoteStatus)
+        .WithShots(42);
+    auto client = std::make_unique<StubBraketClient>(std::move(task));
+    const auto* clientPtr = client.get();
+    AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                            std::move(client));
+
+    AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                  session, taskArn, &job),
+              QDMI_SUCCESS);
+    QDMI_Job_Status status = QDMI_JOB_STATUS_CREATED;
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(job, &status), QDMI_SUCCESS);
+    EXPECT_EQ(status, QDMI_JOB_STATUS_SUBMITTED);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_cancel(job), QDMI_SUCCESS);
+    EXPECT_EQ(clientPtr->cancelCalls(), 1U);
+    EXPECT_EQ(clientPtr->canceledArn(), taskArn);
+    AMAZON_BRAKET_QDMI_device_job_free(job);
+  }
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, JobRetrieveMapsRemoteTaskStatuses) {
+  constexpr auto* taskArn =
+      "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
+  constexpr std::array statusMappings{
+      std::pair{Aws::Braket::Model::QuantumTaskStatus::QUEUED,
+                QDMI_JOB_STATUS_QUEUED},
+      std::pair{Aws::Braket::Model::QuantumTaskStatus::RUNNING,
+                QDMI_JOB_STATUS_RUNNING},
+      std::pair{Aws::Braket::Model::QuantumTaskStatus::FAILED,
+                QDMI_JOB_STATUS_FAILED},
+      std::pair{Aws::Braket::Model::QuantumTaskStatus::CANCELLED,
+                QDMI_JOB_STATUS_CANCELED},
+  };
+
+  for (const auto& [remoteStatus, expectedStatus] : statusMappings) {
+    Aws::Braket::Model::GetQuantumTaskResult task;
+    task.WithQuantumTaskArn(taskArn)
+        .WithDeviceArn("arn:aws:braket:::device/quantum-simulator/amazon/sv1")
+        .WithStatus(remoteStatus)
+        .WithShots(42);
+    AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+        session, std::make_unique<StubBraketClient>(std::move(task)));
+
+    AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                  session, taskArn, &job),
+              QDMI_SUCCESS);
+    QDMI_Job_Status status = QDMI_JOB_STATUS_CREATED;
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(job, &status), QDMI_SUCCESS);
+    EXPECT_EQ(status, expectedStatus);
+    AMAZON_BRAKET_QDMI_device_job_free(job);
+  }
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, JobRetrieveMapsAwsErrors) {
+  const std::array errorMappings{
+      std::pair{Aws::Braket::BraketErrors::RESOURCE_NOT_FOUND,
+                QDMI_ERROR_NOTFOUND},
+      std::pair{Aws::Braket::BraketErrors::VALIDATION, QDMI_ERROR_NOTFOUND},
+      std::pair{Aws::Braket::BraketErrors::ACCESS_DENIED,
+                QDMI_ERROR_PERMISSIONDENIED},
+      std::pair{Aws::Braket::BraketErrors::UNRECOGNIZED_CLIENT,
+                QDMI_ERROR_PERMISSIONDENIED},
+      std::pair{Aws::Braket::BraketErrors::INTERNAL_FAILURE, QDMI_ERROR_FATAL},
+  };
+
+  for (const auto& [error, expected] : errorMappings) {
+    auto client = std::make_unique<StubBraketClient>(
+        Aws::Braket::Model::GetQuantumTaskResult{}, error);
+    AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                            std::move(client));
+    AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                  session, "task-arn", &job),
+              expected);
+    EXPECT_EQ(job, nullptr);
+  }
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, JobRetrieveRejectsInvalidRemoteMetadata) {
+  constexpr auto* taskArn =
+      "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
+  constexpr std::array invalidTasks{
+      std::pair{Aws::Braket::Model::QuantumTaskStatus::RUNNING, -1LL},
+      std::pair{Aws::Braket::Model::QuantumTaskStatus::NOT_SET, 42LL},
+  };
+
+  for (const auto& [remoteStatus, shots] : invalidTasks) {
+    Aws::Braket::Model::GetQuantumTaskResult task;
+    task.WithQuantumTaskArn(taskArn)
+        .WithDeviceArn("arn:aws:braket:::device/quantum-simulator/amazon/sv1")
+        .WithStatus(remoteStatus)
+        .WithShots(shots);
+    AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+        session, std::make_unique<StubBraketClient>(std::move(task)));
+
+    AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                  session, taskArn, &job),
+              QDMI_ERROR_FATAL);
+    EXPECT_EQ(job, nullptr);
+  }
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, JobRetrieveMapsSubsequentAwsErrors) {
+  constexpr auto* taskArn =
+      "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
+  const std::array errorMappings{
+      std::pair{Aws::Braket::BraketErrors::ACCESS_DENIED,
+                QDMI_ERROR_PERMISSIONDENIED},
+      std::pair{Aws::Braket::BraketErrors::INTERNAL_FAILURE, QDMI_ERROR_FATAL},
+  };
+
+  for (const auto& [error, expected] : errorMappings) {
+    Aws::Braket::Model::GetQuantumTaskResult task;
+    task.WithQuantumTaskArn(taskArn)
+        .WithDeviceArn("arn:aws:braket:::device/quantum-simulator/amazon/sv1")
+        .WithStatus(Aws::Braket::Model::QuantumTaskStatus::CREATED)
+        .WithShots(42);
+    AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+        session,
+        std::make_unique<StubBraketClient>(task, error, std::nullopt, true));
+
+    AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                  session, taskArn, &job),
+              QDMI_SUCCESS);
+    QDMI_Job_Status status = QDMI_JOB_STATUS_CREATED;
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(job, &status), expected);
+    AMAZON_BRAKET_QDMI_device_job_free(job);
+
+    AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+        session, std::make_unique<StubBraketClient>(std::move(task),
+                                                    std::nullopt, error));
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                  session, taskArn, &job),
+              QDMI_SUCCESS);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_cancel(job), expected);
+    AMAZON_BRAKET_QDMI_device_job_free(job);
+  }
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       JobRetrieveRejectsQuantumTaskForDifferentDevice) {
+  Aws::Braket::Model::GetQuantumTaskResult task;
+  task.WithQuantumTaskArn("task-arn")
+      .WithDeviceArn("different-device")
+      .WithStatus(Aws::Braket::Model::QuantumTaskStatus::RUNNING)
+      .WithShots(100);
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::make_unique<StubBraketClient>(std::move(task)));
+
+  AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                session, "task-arn", &job),
+            QDMI_ERROR_NOTFOUND);
+  EXPECT_EQ(job, nullptr);
 }
 
 // =============================================================================
