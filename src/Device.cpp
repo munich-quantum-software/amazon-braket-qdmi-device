@@ -66,6 +66,7 @@
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
 
+#include <algorithm>
 #include <array>
 #include <aws/braket/BraketClient.h>
 #include <aws/braket/model/Association.h>
@@ -101,6 +102,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <span>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -1061,9 +1063,23 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
 
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::querySiteProperty(
     AMAZON_BRAKET_QDMI_Site_impl_d* site, const QDMI_Site_Property prop,
-    const size_t size, void* value, size_t* sizeRet) -> QDMI_STATUS {
+    const size_t size, void* value, size_t* sizeRet) const -> QDMI_STATUS {
+  if (!initialized_) {
+    return QDMI_ERROR_BADSTATE;
+  }
   if (site == nullptr || (value != nullptr && size == 0) ||
       prop == QDMI_SITE_PROPERTY_MAX) {
+    return QDMI_ERROR_INVALIDARGUMENT;
+  }
+
+  std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture> architecture;
+  {
+    const std::scoped_lock lock(cachedArchitectureMutex_);
+    architecture = cachedArchitecture_;
+  }
+  if (architecture == nullptr ||
+      std::ranges::find(architecture->sitesPtr, site) ==
+          architecture->sitesPtr.end()) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
@@ -1087,11 +1103,31 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryOperationProperty(
     AMAZON_BRAKET_QDMI_Operation_impl_d* operation, const size_t numSites,
     const AMAZON_BRAKET_QDMI_Site_impl_d* const* sites, const size_t numParams,
     const double* params, const QDMI_Operation_Property prop, const size_t size,
-    void* value, size_t* sizeRet) -> QDMI_STATUS {
+    void* value, size_t* sizeRet) const -> QDMI_STATUS {
+  if (!initialized_) {
+    return QDMI_ERROR_BADSTATE;
+  }
   if (operation == nullptr || (value != nullptr && size == 0) ||
       (sites != nullptr && numSites == 0) ||
       (params != nullptr && numParams == 0) ||
       prop == QDMI_OPERATION_PROPERTY_MAX) {
+    return QDMI_ERROR_INVALIDARGUMENT;
+  }
+
+  std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture> architecture;
+  {
+    const std::scoped_lock lock(cachedArchitectureMutex_);
+    architecture = cachedArchitecture_;
+  }
+  if (architecture == nullptr ||
+      std::ranges::find(architecture->operationsPtr, operation) ==
+          architecture->operationsPtr.end() ||
+      (sites != nullptr &&
+       std::ranges::any_of(
+           std::span{sites, numSites}, [&architecture](const auto* site) {
+             return std::ranges::find(architecture->sitesPtr, site) ==
+                    architecture->sitesPtr.end();
+           }))) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 

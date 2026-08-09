@@ -46,12 +46,15 @@
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
 #include <limits>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <random>
 #include <stdexcept>
 #include <stdlib.h> // NOLINT(modernize-deprecated-headers): POSIX setenv/unsetenv
 #include <string>
 #include <system_error>
+#include <utility>
 
 struct AMAZON_BRAKET_QDMI_Device_Job_TestAccess {
   static auto
@@ -60,6 +63,16 @@ struct AMAZON_BRAKET_QDMI_Device_Job_TestAccess {
       -> QDMI_STATUS {
     job->status_.store(QDMI_JOB_STATUS_RUNNING);
     return job->wait(timeout, functions);
+  }
+};
+
+struct AMAZON_BRAKET_QDMI_Device_Session_TestAccess {
+  static auto setArchitecture(
+      AMAZON_BRAKET_QDMI_Device_Session session,
+      std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture> architecture)
+      -> void {
+    const std::scoped_lock lock(session->cachedArchitectureMutex_);
+    session->cachedArchitecture_ = std::move(architecture);
   }
 };
 
@@ -676,6 +689,62 @@ TEST_F(AmazonBraketQDMIOfflineTest, SessionSetParameterReservationArnValid) {
 TEST_F(AmazonBraketQDMILocalJobTest, SessionInitBadState) {
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
             QDMI_ERROR_BADSTATE);
+}
+
+TEST_F(AmazonBraketQDMIOfflineTest,
+       SiteAndOperationQueriesRequireInitializedSession) {
+  AMAZON_BRAKET_QDMI_Site_impl_d site;
+  AMAZON_BRAKET_QDMI_Operation_impl_d operation;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
+                session, &site, QDMI_SITE_PROPERTY_INDEX, 0, nullptr, nullptr),
+            QDMI_ERROR_BADSTATE);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+                session, &operation, 0, nullptr, 0, nullptr,
+                QDMI_OPERATION_PROPERTY_NAME, 0, nullptr, nullptr),
+            QDMI_ERROR_BADSTATE);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       SiteAndOperationQueriesRejectForeignHandles) {
+  auto architecture =
+      std::make_shared<amazon::braket::qdmi::DeviceArchitecture>();
+  auto ownedSite = std::make_unique<AMAZON_BRAKET_QDMI_Site_impl_d>();
+  ownedSite->name_ = "0";
+  architecture->sitesPtr.push_back(ownedSite.get());
+  architecture->sites.push_back(std::move(ownedSite));
+  auto ownedOperation = std::make_unique<AMAZON_BRAKET_QDMI_Operation_impl_d>();
+  ownedOperation->name_ = "x";
+  architecture->operationsPtr.push_back(ownedOperation.get());
+  architecture->operations.push_back(std::move(ownedOperation));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setArchitecture(session,
+                                                                architecture);
+
+  AMAZON_BRAKET_QDMI_Site_impl_d foreignSite;
+  AMAZON_BRAKET_QDMI_Operation_impl_d foreignOperation;
+  EXPECT_EQ(
+      AMAZON_BRAKET_QDMI_device_session_query_site_property(
+          session, &foreignSite, QDMI_SITE_PROPERTY_INDEX, 0, nullptr, nullptr),
+      QDMI_ERROR_INVALIDARGUMENT);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+                session, &foreignOperation, 0, nullptr, 0, nullptr,
+                QDMI_OPERATION_PROPERTY_NAME, 0, nullptr, nullptr),
+            QDMI_ERROR_INVALIDARGUMENT);
+
+  AMAZON_BRAKET_QDMI_Site foreignSiteHandle = &foreignSite;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+                session, architecture->operationsPtr.front(), 1,
+                &foreignSiteHandle, 0, nullptr, QDMI_OPERATION_PROPERTY_NAME, 0,
+                nullptr, nullptr),
+            QDMI_ERROR_INVALIDARGUMENT);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
+                session, architecture->sitesPtr.front(),
+                QDMI_SITE_PROPERTY_INDEX, 0, nullptr, nullptr),
+            QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+                session, architecture->operationsPtr.front(), 1,
+                architecture->sitesPtr.data(), 0, nullptr,
+                QDMI_OPERATION_PROPERTY_NAME, 0, nullptr, nullptr),
+            QDMI_SUCCESS);
 }
 
 // Calling set_parameter() after init() returns BADSTATE; unsupported parameters
