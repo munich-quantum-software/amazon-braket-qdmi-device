@@ -45,9 +45,11 @@
 #include <aws/braket/model/GetQuantumTaskRequest.h>
 #include <aws/braket/model/GetQuantumTaskResult.h>
 #include <aws/braket/model/QuantumTaskStatus.h>
-#include <aws/core/Aws.h>
 #include <aws/core/client/AWSError.h>
 #include <aws/core/client/ClientConfiguration.h>
+#ifdef _WIN32
+#include <aws/core/Aws.h>
+#endif
 #include <chrono>
 #include <cstddef>
 #include <cstdio>

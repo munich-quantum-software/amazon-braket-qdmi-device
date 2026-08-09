@@ -80,8 +80,8 @@
 #include <aws/braket/model/GetDeviceRequest.h>
 #include <aws/braket/model/GetDeviceResult.h>
 #include <aws/braket/model/GetQuantumTaskRequest.h>
-#include <aws/braket/model/QuantumTaskAdditionalAttributeName.h>
 #include <aws/braket/model/GetQuantumTaskResult.h>
+#include <aws/braket/model/QuantumTaskAdditionalAttributeName.h>
 #include <aws/braket/model/QuantumTaskStatus.h>
 #include <aws/core/Aws.h>
 #include <aws/core/auth/AWSCredentials.h>
@@ -1545,8 +1545,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::updateFromTask(
     *status = QDMI_JOB_STATUS_QUEUED;
     if (const auto& queueInfo = task.GetQueueInfo();
         queueInfo.PositionHasBeenSet()) {
-      queuePosition_ =
-          amazon::braket::qdmi::detail::parseQueueValue(queueInfo.GetPosition());
+      queuePosition_ = amazon::braket::qdmi::detail::parseQueueValue(
+          queueInfo.GetPosition());
     }
     break;
   case Aws::Braket::Model::QuantumTaskStatus::RUNNING:
