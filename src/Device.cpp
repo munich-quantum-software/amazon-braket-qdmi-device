@@ -62,6 +62,7 @@
 #include "amazon-braket-qdmi-device/Device.hpp"
 
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
+#include "amazon-braket-qdmi-device/Queue.hpp"
 #include "amazon-braket-qdmi-device/Wait.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
@@ -78,6 +79,7 @@
 #include <aws/braket/model/GetDeviceRequest.h>
 #include <aws/braket/model/GetDeviceResult.h>
 #include <aws/braket/model/GetQuantumTaskRequest.h>
+#include <aws/braket/model/QuantumTaskAdditionalAttributeName.h>
 #include <aws/braket/model/QuantumTaskStatus.h>
 #include <aws/core/Aws.h>
 #include <aws/core/auth/AWSCredentials.h>
@@ -99,6 +101,7 @@
 #include <ctime>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -310,31 +313,34 @@ struct UtcTimeOfWeek {
  */
 constexpr int QUEUE_BUSY_THRESHOLD = 5;
 
+} // anonymous namespace
+
+namespace {
+
 /**
- * @brief Compute total queue depth from a Braket GetDevice result.
+ * @brief Compute total queue length from a Braket GetDevice result.
  *
  * Sums the `queueSize` field across all entries in `deviceQueueInfo`.
- * AWS returns queue sizes as strings (e.g. "12" or ">50"); values that
- * cannot be parsed as integers are treated as QUEUE_BUSY_THRESHOLD to
- * indicate "definitely busy".
+ * AWS returns queue sizes as strings (e.g. "12" or ">50"). A lower bound is
+ * represented by its numeric component. If any value cannot be interpreted
+ * reliably, no queue length is returned.
  *
  * @param result Result of a successful BraketClient::GetDevice() call
- * @return Total queue depth (>= 0)
+ * @return Total queue length (>= 0)
  */
-auto getTotalQueueDepth(const Aws::Braket::Model::GetDeviceResult& result)
-    -> int {
-  int totalDepth = 0;
+auto getTotalQueueLength(const Aws::Braket::Model::GetDeviceResult& result)
+    -> std::optional<size_t> {
+  size_t totalLength = 0;
   for (const auto& queueItem : result.GetDeviceQueueInfo()) {
-    const Aws::String& sizeStr = queueItem.GetQueueSize();
-    try {
-      totalDepth += std::stoi(std::string(sizeStr));
-    } catch (...) {
-      // Non-integer strings like ">50" indicate a busy queue; treat as
-      // threshold to ensure the device is reported as BUSY.
-      totalDepth += QUEUE_BUSY_THRESHOLD;
+    const auto length =
+        amazon::braket::qdmi::detail::parseQueueValue(queueItem.GetQueueSize());
+    if (!length.has_value() ||
+        *length > std::numeric_limits<size_t>::max() - totalLength) {
+      return std::nullopt;
     }
+    totalLength += *length;
   }
-  return totalDepth;
+  return totalLength;
 }
 
 auto parseExecutionWindowTime(const std::string& timeStr, int& secondsOfDay)
@@ -470,13 +476,13 @@ auto getCurrentExecutionWindowAvailability(
 auto getQDMIStatusForBraketDevice(
     const Aws::Braket::Model::DeviceStatus braketStatus,
     const std::optional<bool>& executionWindowAvailability,
-    const int queueDepth) -> std::optional<QDMI_Device_Status> {
+    const size_t queueLength) -> std::optional<QDMI_Device_Status> {
   switch (braketStatus) {
   case Aws::Braket::Model::DeviceStatus::ONLINE: {
     const bool isOutsideExecutionWindow =
         executionWindowAvailability.has_value() &&
         !*executionWindowAvailability;
-    if (isOutsideExecutionWindow || queueDepth >= QUEUE_BUSY_THRESHOLD) {
+    if (isOutsideExecutionWindow || queueLength >= QUEUE_BUSY_THRESHOLD) {
       return QDMI_DEVICE_STATUS_BUSY;
     }
     return QDMI_DEVICE_STATUS_IDLE;
@@ -493,15 +499,16 @@ auto getQDMIStatusForBraketDevice(
 
 auto computeQDMIStatusFromDevice(
     const Aws::Braket::Model::GetDeviceResult& device,
-    const bool hasReservationArn) -> std::optional<QDMI_Device_Status> {
+    const bool hasReservationArn, const std::optional<size_t> queueLength)
+    -> std::optional<QDMI_Device_Status> {
   std::optional<bool> executionWindowAvailability;
   if (!hasReservationArn) {
     executionWindowAvailability =
         getCurrentExecutionWindowAvailability(device.GetDeviceCapabilities());
   }
-  return getQDMIStatusForBraketDevice(device.GetDeviceStatus(),
-                                      executionWindowAvailability,
-                                      getTotalQueueDepth(device));
+  return getQDMIStatusForBraketDevice(
+      device.GetDeviceStatus(), executionWindowAvailability,
+      queueLength.value_or(QUEUE_BUSY_THRESHOLD));
 }
 } // anonymous namespace
 
@@ -661,8 +668,9 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
       return QDMI_ERROR_NOTSUPPORTED;
     }
     const auto& device = outcome.GetResult();
-    const auto qdmiStatus =
-        computeQDMIStatusFromDevice(device, !reservationArn_.empty());
+    const auto queueLength = getTotalQueueLength(device);
+    const auto qdmiStatus = computeQDMIStatusFromDevice(
+        device, !reservationArn_.empty(), queueLength);
     if (!qdmiStatus.has_value()) {
       const auto braketStatus = device.GetDeviceStatus();
       std::cerr << "ERROR: Unknown device status (enum value: "
@@ -676,6 +684,10 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
       return QDMI_ERROR_NOTSUPPORTED;
     }
     braketDeviceStatus_.store(*qdmiStatus);
+    {
+      const std::scoped_lock lock(cachedArchitectureMutex_);
+      queueLength_ = queueLength;
+    }
     return QDMI_SUCCESS;
   }
 
@@ -709,8 +721,9 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
   // QDMI has: OFFLINE, IDLE, BUSY, ERROR, MAINTENANCE, CALIBRATION
   const auto braketStatus = device.GetDeviceStatus();
 
-  const auto qdmiStatus =
-      computeQDMIStatusFromDevice(device, !reservationArn_.empty());
+  const auto queueLength = getTotalQueueLength(device);
+  const auto qdmiStatus = computeQDMIStatusFromDevice(
+      device, !reservationArn_.empty(), queueLength);
   if (!qdmiStatus.has_value()) {
     std::cerr << "ERROR: Unknown device status (enum value: "
               << static_cast<int>(braketStatus) << ")\n";
@@ -794,6 +807,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
                                                                 architecture);
     }
     cachedArchitecture_ = architecture;
+    queueLength_ = queueLength;
   }
   return QDMI_SUCCESS;
 }
@@ -1029,9 +1043,11 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
 
   // Snapshot the shared_ptr under the lock
   std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture> arch;
+  std::optional<size_t> queueLength;
   {
     const std::scoped_lock lock(cachedArchitectureMutex_);
     arch = cachedArchitecture_;
+    queueLength = queueLength_;
   }
 
   // Session device architecture properties (from cache)
@@ -1051,6 +1067,13 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_STATUS, QDMI_Device_Status,
                             braketDeviceStatus_.load(), prop, size, value,
                             sizeRet)
+  if (prop == QDMI_DEVICE_PROPERTY_QUEUELENGTH) {
+    if (!queueLength.has_value()) {
+      return QDMI_ERROR_NOTSUPPORTED;
+    }
+    ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_QUEUELENGTH, size_t,
+                              *queueLength, prop, size, value, sizeRet)
+  }
   ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_SUPPORTEDPROGRAMFORMATS,
                     QDMI_Program_Format, SUPPORTED_PROGRAM_FORMATS, prop, size,
                     value, sizeRet)
@@ -1205,6 +1228,27 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
     size_t* sizeRet) const -> QDMI_STATUS {
   if ((value != nullptr && size == 0) || prop == QDMI_DEVICE_JOB_PROPERTY_MAX) {
     return QDMI_ERROR_INVALIDARGUMENT;
+  }
+
+  if (prop == QDMI_DEVICE_JOB_PROPERTY_QUEUEPOSITION) {
+    QDMI_Job_Status refreshedStatus = QDMI_JOB_STATUS_CREATED;
+    if (const auto result = check(&refreshedStatus); result != QDMI_SUCCESS) {
+      return result;
+    }
+    if (refreshedStatus != QDMI_JOB_STATUS_QUEUED) {
+      return QDMI_ERROR_BADSTATE;
+    }
+
+    std::optional<size_t> queuePosition;
+    {
+      const std::scoped_lock<std::mutex> lock(jobMutex_);
+      queuePosition = queuePosition_;
+    }
+    if (!queuePosition.has_value()) {
+      return QDMI_ERROR_NOTSUPPORTED;
+    }
+    ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_JOB_PROPERTY_QUEUEPOSITION, size_t,
+                              *queuePosition, prop, size, value, sizeRet)
   }
 
   const std::scoped_lock<std::mutex> lock(jobMutex_);
@@ -1464,6 +1508,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
 
   Aws::Braket::Model::GetQuantumTaskRequest request;
   request.SetQuantumTaskArn(localTaskArn);
+  request.AddAdditionalAttributeNames(
+      Aws::Braket::Model::QuantumTaskAdditionalAttributeName::QueueInfo);
 
   auto outcome = session_->getClient()->GetQuantumTask(request);
   if (!outcome.IsSuccess()) {
@@ -1472,11 +1518,13 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
     return QDMI_ERROR_NOTSUPPORTED;
   }
 
-  const auto& taskStatus = outcome.GetResult().GetStatus();
+  const auto& result = outcome.GetResult();
+  const auto& taskStatus = result.GetStatus();
 
   QDMI_Job_Status newStatus = QDMI_JOB_STATUS_CREATED;
   {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
+    queuePosition_.reset();
     switch (taskStatus) {
     case Aws::Braket::Model::QuantumTaskStatus::CREATED:
       newStatus = QDMI_JOB_STATUS_CREATED;
@@ -1484,6 +1532,11 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
 
     case Aws::Braket::Model::QuantumTaskStatus::QUEUED:
       newStatus = QDMI_JOB_STATUS_QUEUED;
+      if (const auto& queueInfo = result.GetQueueInfo();
+          queueInfo.PositionHasBeenSet()) {
+        queuePosition_ = amazon::braket::qdmi::detail::parseQueueValue(
+            queueInfo.GetPosition());
+      }
       break;
 
     case Aws::Braket::Model::QuantumTaskStatus::RUNNING:
@@ -1493,8 +1546,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
     case Aws::Braket::Model::QuantumTaskStatus::COMPLETED:
       newStatus = QDMI_JOB_STATUS_DONE;
       // Store S3 location for result retrieval
-      outputS3Bucket_ = outcome.GetResult().GetOutputS3Bucket();
-      outputS3Directory_ = outcome.GetResult().GetOutputS3Directory();
+      outputS3Bucket_ = result.GetOutputS3Bucket();
+      outputS3Directory_ = result.GetOutputS3Directory();
       break;
 
     case Aws::Braket::Model::QuantumTaskStatus::FAILED:
