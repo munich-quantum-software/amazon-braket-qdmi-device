@@ -68,6 +68,7 @@
 #include <stdlib.h> // NOLINT(modernize-deprecated-headers): POSIX setenv/unsetenv
 #include <string>
 #include <system_error>
+#include <utility>
 
 struct AMAZON_BRAKET_QDMI_Device_Job_TestAccess {
   static auto
@@ -169,7 +170,7 @@ private:
 };
 
 auto installParsedArchitecture(AMAZON_BRAKET_QDMI_Device_Session session,
-                               ParsedDeviceProperties&& properties)
+                               ParsedDeviceProperties properties)
     -> std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture> {
   auto architecture =
       std::make_shared<amazon::braket::qdmi::DeviceArchitecture>();
