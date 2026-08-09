@@ -168,6 +168,24 @@ private:
   mutable std::string canceledArn_;
 };
 
+auto installParsedArchitecture(AMAZON_BRAKET_QDMI_Device_Session session,
+                               ParsedDeviceProperties&& properties)
+    -> std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture> {
+  auto architecture =
+      std::make_shared<amazon::braket::qdmi::DeviceArchitecture>();
+  architecture->qubitsNum = properties.qubitCount;
+  architecture->sites = std::move(properties.sites);
+  architecture->sitesPtr = std::move(properties.sitesPtr);
+  architecture->sitesMap = std::move(properties.sitesMap);
+  architecture->operations = std::move(properties.operations);
+  architecture->operationsPtr = std::move(properties.operationsPtr);
+  architecture->operationsMap = std::move(properties.operationsMap);
+  architecture->connectivity = std::move(properties.connectivity);
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setArchitecture(session,
+                                                                architecture);
+  return architecture;
+}
+
 struct WaitState {
   QDMI_STATUS checkResult = QDMI_SUCCESS;
   std::array<QDMI_Job_Status, 2> checkedStatuses{QDMI_JOB_STATUS_RUNNING,
@@ -1969,7 +1987,7 @@ TEST(DeviceParserOfflineTest, SimulatorReportsAvailableOperationSignatures) {
   }
 }
 
-TEST_F(AmazonBraketQDMIOfflineTest,
+TEST_F(AmazonBraketQDMILocalJobTest,
        SimulatorPublicQueriesReportPartialOperationSignatures) {
   const SimulatorPropertiesParser parser;
   ParsedDeviceProperties properties;
@@ -1978,8 +1996,10 @@ TEST_F(AmazonBraketQDMIOfflineTest,
           R"({"paradigm":{"qubitCount":3},"action":{"braket.ir.openqasm.program":{"supportedOperations":["gphase","unitary"]}}})",
           properties),
       QDMI_SUCCESS);
+  const auto architecture =
+      installParsedArchitecture(session, std::move(properties));
 
-  auto* const gphase = properties.operationsMap.at("gphase");
+  auto* const gphase = architecture->operationsMap.at("gphase");
   size_t numQubits = 1;
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
                 session, gphase, 0, nullptr, 0, nullptr,
@@ -2002,7 +2022,7 @@ TEST_F(AmazonBraketQDMIOfflineTest,
                 QDMI_OPERATION_PROPERTY_SITES, 0, nullptr, &sitesSize),
             QDMI_ERROR_NOTSUPPORTED);
 
-  auto* const unitary = properties.operationsMap.at("unitary");
+  auto* const unitary = architecture->operationsMap.at("unitary");
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
                 session, unitary, 0, nullptr, 0, nullptr,
                 QDMI_OPERATION_PROPERTY_QUBITSNUM, sizeof(numQubits),
@@ -2015,7 +2035,7 @@ TEST_F(AmazonBraketQDMIOfflineTest,
             QDMI_ERROR_NOTSUPPORTED);
 }
 
-TEST_F(AmazonBraketQDMIOfflineTest,
+TEST_F(AmazonBraketQDMILocalJobTest,
        IQMPublicQueriesReportSupportedOperationsAndThreeQubitSites) {
   const IQMDeviceParser parser;
   ParsedDeviceProperties properties;
@@ -2041,12 +2061,14 @@ TEST_F(AmazonBraketQDMIOfflineTest,
           })",
                 properties),
             QDMI_SUCCESS);
-  ASSERT_EQ(properties.operationsMap.size(), 3U);
-  EXPECT_TRUE(properties.operationsMap.contains("h"));
+  const auto architecture =
+      installParsedArchitecture(session, std::move(properties));
+  ASSERT_EQ(architecture->operationsMap.size(), 3U);
+  EXPECT_TRUE(architecture->operationsMap.contains("h"));
 
-  auto* const cz = properties.operationsMap.at("cz");
+  auto* const cz = architecture->operationsMap.at("cz");
   const std::array<AMAZON_BRAKET_QDMI_Site, 2> forwardSites{
-      properties.sitesMap.at("1"), properties.sitesMap.at("2")};
+      architecture->sitesMap.at("1"), architecture->sitesMap.at("2")};
   double fidelity = 0;
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
                 session, cz, forwardSites.size(), forwardSites.data(), 0,
@@ -2063,7 +2085,7 @@ TEST_F(AmazonBraketQDMIOfflineTest,
                 &fidelity, nullptr),
             QDMI_ERROR_NOTSUPPORTED);
 
-  auto* const ccnot = properties.operationsMap.at("ccnot");
+  auto* const ccnot = architecture->operationsMap.at("ccnot");
   size_t numQubits = 0;
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
                 session, ccnot, 0, nullptr, 0, nullptr,
