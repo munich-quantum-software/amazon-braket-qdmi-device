@@ -12,6 +12,9 @@ releases may include breaking changes.
 
 ### Added
 
+- ✨ Expose current device queue length and queued job position through QDMI,
+  refreshing Amazon Braket task status for every position query ([#167])
+  ([**@burgholzer**])
 - ✨ Expose AWS QuantumTask ARNs as QDMI job IDs ([#157]) ([**@burgholzer**])
 - ✨ Add an optional GPL-licensed Slurm SPANK plugin for validating Amazon
   Braket devices and injecting QDMI session configuration, including the
@@ -64,6 +67,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#167]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/167
 [#166]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/166
 [#159]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/159
 [#157]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/157
