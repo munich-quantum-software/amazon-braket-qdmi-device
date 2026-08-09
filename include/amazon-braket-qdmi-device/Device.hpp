@@ -87,6 +87,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <random>
 #include <string>
 #include <unordered_map>
@@ -230,6 +231,7 @@ private:
   mutable std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture>
       cachedArchitecture_;
   mutable std::mutex cachedArchitectureMutex_;
+  mutable std::optional<size_t> queueLength_;
 
   // Mutable device status (re-fetched per query, can change over time)
   mutable std::atomic<QDMI_Device_Status> braketDeviceStatus_{
@@ -319,6 +321,7 @@ private:
   mutable bool resultsFetched_ = false;
   mutable std::string outputS3Bucket_;
   mutable std::string outputS3Directory_;
+  mutable std::optional<size_t> queuePosition_;
   mutable std::mutex jobMutex_;
 
   // Helpers to fetch and parse results from S3

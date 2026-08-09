@@ -490,6 +490,7 @@ Other standard QDMI values return `QDMI_ERROR_NOTSUPPORTED`.
 | `QDMI_DEVICE_PROPERTY_STATUS`         | Current Braket device status  |
 | `QDMI_DEVICE_PROPERTY_LIBRARYVERSION` | QDMI version                  |
 | `QDMI_DEVICE_PROPERTY_QUBITSNUM`      | Number of qubits              |
+| `QDMI_DEVICE_PROPERTY_QUEUELENGTH`    | Current queued task count     |
 | `QDMI_DEVICE_PROPERTY_SITES`          | Qubit handles                 |
 | `QDMI_DEVICE_PROPERTY_OPERATIONS`     | Gate handles                  |
 | `QDMI_DEVICE_PROPERTY_COUPLINGMAP`    | Flat source/target site pairs |
@@ -518,6 +519,12 @@ Other standard QDMI values return `QDMI_ERROR_NOTSUPPORTED`.
 | `QDMI_DEVICE_JOB_PROPERTY_PROGRAMFORMAT` | Current program format               |
 | `QDMI_DEVICE_JOB_PROPERTY_PROGRAM`       | Current program source               |
 | `QDMI_DEVICE_JOB_PROPERTY_SHOTSNUM`      | Current shot count                   |
+| `QDMI_DEVICE_JOB_PROPERTY_QUEUEPOSITION` | Jobs ahead while the task is queued  |
+
+Querying `QDMI_DEVICE_JOB_PROPERTY_QUEUEPOSITION` performs a fresh
+`GetQuantumTask` request with the `QueueInfo` additional attribute. The query
+returns `QDMI_ERROR_BADSTATE` unless the refreshed task status is `QUEUED`, and
+`QDMI_ERROR_NOTSUPPORTED` if AWS does not provide a trustworthy position.
 
 ## Job Results
 

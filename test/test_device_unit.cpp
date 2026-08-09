@@ -31,6 +31,7 @@
 
 #include "amazon-braket-qdmi-device/Device.hpp"
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
+#include "amazon-braket-qdmi-device/Queue.hpp"
 #include "amazon-braket-qdmi-device/Wait.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
@@ -245,6 +246,20 @@ TEST(ScopedEnvironmentTest, RestoresExistingEmptyValue) {
 }
 #endif
 } // namespace
+
+TEST(QueueValueParsingTest, ParsesExactAndLowerBoundValues) {
+  EXPECT_EQ(amazon::braket::qdmi::detail::parseQueueValue("0"), 0U);
+  EXPECT_EQ(amazon::braket::qdmi::detail::parseQueueValue("12"), 12U);
+  EXPECT_EQ(amazon::braket::qdmi::detail::parseQueueValue(">50"), 50U);
+}
+
+TEST(QueueValueParsingTest, RejectsUntrustworthyValues) {
+  EXPECT_EQ(amazon::braket::qdmi::detail::parseQueueValue(""), std::nullopt);
+  EXPECT_EQ(amazon::braket::qdmi::detail::parseQueueValue(">"), std::nullopt);
+  EXPECT_EQ(amazon::braket::qdmi::detail::parseQueueValue("-1"), std::nullopt);
+  EXPECT_EQ(amazon::braket::qdmi::detail::parseQueueValue("12 jobs"),
+            std::nullopt);
+}
 
 // =============================================================================
 // Fixture: allocate-only (never initialised)
@@ -1178,6 +1193,20 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobQueryPropertyShotsNum) {
                 &shots, nullptr),
             QDMI_SUCCESS);
   EXPECT_EQ(shots, 100U);
+  AMAZON_BRAKET_QDMI_device_job_free(freshJob);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       JobQueuePositionRequiresSubmittedQueuedTask) {
+  AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
+  ASSERT_EQ(
+      AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
+      QDMI_SUCCESS);
+  size_t queuePosition = 0;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                freshJob, QDMI_DEVICE_JOB_PROPERTY_QUEUEPOSITION,
+                sizeof(queuePosition), &queuePosition, nullptr),
+            QDMI_ERROR_BADSTATE);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
