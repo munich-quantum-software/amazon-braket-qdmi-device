@@ -479,7 +479,7 @@ TEST_F(AmazonBraketQDMISpecificationTest, QueryOperationProperty) {
             QDMI_ERROR_INVALIDARGUMENT);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
                 session, operation, 0, nullptr, 0, nullptr,
-                QDMI_OPERATION_PROPERTY_QUBITSNUM, 0, nullptr, nullptr),
+                QDMI_OPERATION_PROPERTY_NAME, 0, nullptr, nullptr),
             QDMI_SUCCESS);
 }
 
@@ -624,25 +624,58 @@ TEST_F(AmazonBraketQDMISpecificationTest, QueryOperationData) {
     auto result = AMAZON_BRAKET_QDMI_device_session_query_operation_property(
         session, operation, 0, nullptr, 0, nullptr,
         QDMI_OPERATION_PROPERTY_FIDELITY, sizeof(double), &fidelity, nullptr);
-    EXPECT_THAT(result, testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
-    if (result == QDMI_SUCCESS) {
-      EXPECT_GE(fidelity, 0.);
-      EXPECT_LE(fidelity, 1.);
-    }
+    EXPECT_EQ(result, QDMI_ERROR_NOTSUPPORTED)
+        << "Braket only reports site-dependent gate fidelities";
 
     size_t numQubits = 0;
     result = AMAZON_BRAKET_QDMI_device_session_query_operation_property(
         session, operation, 0, nullptr, 0, nullptr,
         QDMI_OPERATION_PROPERTY_QUBITSNUM, sizeof(size_t), &numQubits, nullptr);
-    EXPECT_EQ(result, QDMI_SUCCESS);
-    EXPECT_GT(numQubits, 0);
+    const auto qubitCountResult = result;
+    EXPECT_THAT(result, testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
 
     size_t numParameters = 0;
     result = AMAZON_BRAKET_QDMI_device_session_query_operation_property(
         session, operation, 0, nullptr, 0, nullptr,
         QDMI_OPERATION_PROPERTY_PARAMETERSNUM, sizeof(size_t), &numParameters,
         nullptr);
-    EXPECT_EQ(result, QDMI_SUCCESS);
+    EXPECT_THAT(result, testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+
+    size_t sitesSize = 0;
+    result = AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+        session, operation, 0, nullptr, 0, nullptr,
+        QDMI_OPERATION_PROPERTY_SITES, 0, nullptr, &sitesSize);
+    if (qubitCountResult == QDMI_ERROR_NOTSUPPORTED) {
+      EXPECT_EQ(result, QDMI_ERROR_NOTSUPPORTED);
+      continue;
+    }
+    if (numQubits == 0) {
+      EXPECT_EQ(result, QDMI_ERROR_NOTSUPPORTED)
+          << "Zero-qubit operations have no site tuples";
+      continue;
+    }
+    if (result == QDMI_ERROR_NOTSUPPORTED) {
+      continue;
+    }
+    ASSERT_EQ(result, QDMI_SUCCESS);
+    ASSERT_GT(sitesSize, 0U);
+    ASSERT_EQ(sitesSize % (numQubits * sizeof(AMAZON_BRAKET_QDMI_Site)), 0U);
+    std::vector<AMAZON_BRAKET_QDMI_Site> applicableSites(
+        sitesSize / sizeof(AMAZON_BRAKET_QDMI_Site));
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+                  session, operation, 0, nullptr, 0, nullptr,
+                  QDMI_OPERATION_PROPERTY_SITES, sitesSize,
+                  static_cast<void*>(applicableSites.data()), nullptr),
+              QDMI_SUCCESS);
+
+    result = AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+        session, operation, numQubits, applicableSites.data(), 0, nullptr,
+        QDMI_OPERATION_PROPERTY_FIDELITY, sizeof(double), &fidelity, nullptr);
+    EXPECT_THAT(result, testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+    if (result == QDMI_SUCCESS) {
+      EXPECT_GE(fidelity, 0.);
+      EXPECT_LE(fidelity, 1.);
+    }
   }
 }
 

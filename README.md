@@ -506,10 +506,18 @@ Other standard QDMI values return `QDMI_ERROR_NOTSUPPORTED`.
 
 ## Operation Properties
 
-| Property                            | Notes      |
-| ----------------------------------- | ---------- |
-| `QDMI_OPERATION_PROPERTY_NAME`      | Gate name  |
-| `QDMI_OPERATION_PROPERTY_QUBITSNUM` | Gate arity |
+| Property                                | Notes                                                         |
+| --------------------------------------- | ------------------------------------------------------------- |
+| `QDMI_OPERATION_PROPERTY_NAME`          | Operation accepted by the device's OpenQASM action            |
+| `QDMI_OPERATION_PROPERTY_QUBITSNUM`     | Fixed gate arity, when known                                  |
+| `QDMI_OPERATION_PROPERTY_PARAMETERSNUM` | Number of scalar OpenQASM gate arguments, when representable  |
+| `QDMI_OPERATION_PROPERTY_SITES`         | All sites, connectivity edges, or ordered three-site tuples   |
+| `QDMI_OPERATION_PROPERTY_FIDELITY`      | Site-dependent gate fidelity when Braket reports one          |
+
+Individual properties return `QDMI_ERROR_NOTSUPPORTED` when Braket advertises an
+operation with a variable or otherwise unrepresentable signature. The zero-qubit
+`gphase` operation has no site tuples. Fixed three-qubit gates are applicable to
+all ordered tuples of distinct sites, independent of two-qubit connectivity.
 
 ## Job Properties
 

@@ -31,6 +31,7 @@ class JsonView;
 } // namespace Utils
 } // namespace Aws
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -49,11 +50,16 @@ struct AMAZON_BRAKET_QDMI_Site_impl_d {
  * @brief Operation implementation structure.
  */
 struct AMAZON_BRAKET_QDMI_Operation_impl_d {
+  struct SiteFidelity {
+    std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*> sites;
+    double value = 0.0;
+  };
+
   std::string name_;
-  size_t numQubits_ = 0;
-  size_t numParams_ = 0;
-  double fidelity_ = 0.0;
-  std::vector<std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*>> applicable_sites_;
+  std::optional<size_t> numQubits_;
+  std::optional<size_t> numParams_;
+  std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*> applicableSites_;
+  std::vector<SiteFidelity> siteFidelities_;
 };
 
 /**
@@ -134,10 +140,11 @@ protected:
    */
   static auto BuildFullConnectivity(ParsedDeviceProperties& properties) -> int;
 
-  /**
-   * @brief Helper to determine the number of qubits for a gate
-   */
-  static auto GetGateQubitCount(const std::string& gateName) -> size_t;
+  static auto PopulateOperationSites(ParsedDeviceProperties& properties)
+      -> void;
+  static auto
+  ParseOperationFidelities(const Aws::Utils::Json::JsonView& propertiesJson,
+                           ParsedDeviceProperties& properties) -> void;
 };
 
 /**

@@ -169,6 +169,24 @@ private:
   mutable std::string canceledArn_;
 };
 
+auto installParsedArchitecture(AMAZON_BRAKET_QDMI_Device_Session session,
+                               ParsedDeviceProperties properties)
+    -> std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture> {
+  auto architecture =
+      std::make_shared<amazon::braket::qdmi::DeviceArchitecture>();
+  architecture->qubitsNum = properties.qubitCount;
+  architecture->sites = std::move(properties.sites);
+  architecture->sitesPtr = std::move(properties.sitesPtr);
+  architecture->sitesMap = std::move(properties.sitesMap);
+  architecture->operations = std::move(properties.operations);
+  architecture->operationsPtr = std::move(properties.operationsPtr);
+  architecture->operationsMap = std::move(properties.operationsMap);
+  architecture->connectivity = std::move(properties.connectivity);
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setArchitecture(session,
+                                                                architecture);
+  return architecture;
+}
+
 struct WaitState {
   QDMI_STATUS checkResult = QDMI_SUCCESS;
   std::array<QDMI_Job_Status, 2> checkedStatuses{QDMI_JOB_STATUS_RUNNING,
@@ -1933,6 +1951,156 @@ TEST(DeviceParserOfflineTest,
           R"({"paradigm":{"qubitCount":2,"connectivity":{"fullyConnected":true}},"action":{"braket.ir.openqasm.program":{}}})",
           props),
       QDMI_ERROR_FATAL);
+}
+
+TEST(DeviceParserOfflineTest, SimulatorReportsAvailableOperationSignatures) {
+  const SimulatorPropertiesParser parser;
+  ParsedDeviceProperties properties;
+  ASSERT_EQ(
+      parser.ParseProperties(
+          R"({"paradigm":{"qubitCount":3},"action":{"braket.ir.openqasm.program":{"supportedOperations":["cc_prx","measure_ff","ms","unitary","kraus","gphase","bit_flip"]}}})",
+          properties),
+      QDMI_SUCCESS);
+
+  ASSERT_EQ(properties.operationsMap.size(), 7U);
+
+  const auto* ms = properties.operationsMap.at("ms");
+  EXPECT_EQ(ms->numQubits_, 2U);
+  EXPECT_EQ(ms->numParams_, 3U);
+
+  const auto* gphase = properties.operationsMap.at("gphase");
+  EXPECT_EQ(gphase->numQubits_, 0U);
+  EXPECT_EQ(gphase->numParams_, 1U);
+  EXPECT_TRUE(gphase->applicableSites_.empty());
+
+  for (const auto* name : {"cc_prx", "measure_ff"}) {
+    const auto* operation = properties.operationsMap.at(name);
+    EXPECT_EQ(operation->numQubits_, 1U);
+    EXPECT_FALSE(operation->numParams_.has_value());
+    EXPECT_EQ(operation->applicableSites_.size(), 3U);
+  }
+
+  for (const auto* name : {"unitary", "kraus", "bit_flip"}) {
+    const auto* operation = properties.operationsMap.at(name);
+    EXPECT_FALSE(operation->numQubits_.has_value());
+    EXPECT_FALSE(operation->numParams_.has_value());
+    EXPECT_TRUE(operation->applicableSites_.empty());
+  }
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       SimulatorPublicQueriesReportPartialOperationSignatures) {
+  const SimulatorPropertiesParser parser;
+  ParsedDeviceProperties properties;
+  ASSERT_EQ(
+      parser.ParseProperties(
+          R"({"paradigm":{"qubitCount":3},"action":{"braket.ir.openqasm.program":{"supportedOperations":["gphase","unitary"]}}})",
+          properties),
+      QDMI_SUCCESS);
+  const auto architecture =
+      installParsedArchitecture(session, std::move(properties));
+
+  auto* const gphase = architecture->operationsMap.at("gphase");
+  size_t numQubits = 1;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+                session, gphase, 0, nullptr, 0, nullptr,
+                QDMI_OPERATION_PROPERTY_QUBITSNUM, sizeof(numQubits),
+                &numQubits, nullptr),
+            QDMI_SUCCESS);
+  EXPECT_EQ(numQubits, 0U);
+
+  size_t numParameters = 0;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+                session, gphase, 0, nullptr, 0, nullptr,
+                QDMI_OPERATION_PROPERTY_PARAMETERSNUM, sizeof(numParameters),
+                &numParameters, nullptr),
+            QDMI_SUCCESS);
+  EXPECT_EQ(numParameters, 1U);
+
+  size_t sitesSize = 0;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+                session, gphase, 0, nullptr, 0, nullptr,
+                QDMI_OPERATION_PROPERTY_SITES, 0, nullptr, &sitesSize),
+            QDMI_ERROR_NOTSUPPORTED);
+
+  auto* const unitary = architecture->operationsMap.at("unitary");
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+                session, unitary, 0, nullptr, 0, nullptr,
+                QDMI_OPERATION_PROPERTY_QUBITSNUM, sizeof(numQubits),
+                &numQubits, nullptr),
+            QDMI_ERROR_NOTSUPPORTED);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+                session, unitary, 0, nullptr, 0, nullptr,
+                QDMI_OPERATION_PROPERTY_PARAMETERSNUM, sizeof(numParameters),
+                &numParameters, nullptr),
+            QDMI_ERROR_NOTSUPPORTED);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       IQMPublicQueriesReportSupportedOperationsAndThreeQubitSites) {
+  const IQMDeviceParser parser;
+  ParsedDeviceProperties properties;
+  ASSERT_EQ(parser.ParseProperties(
+                R"({
+            "paradigm":{
+              "qubitCount":3,
+              "nativeGateSet":["cz","ccnot"],
+              "connectivity":{"connectivityGraph":{
+                "1":["2"],"2":["1","3"],"3":["2"]
+              }}
+            },
+            "action":{"braket.ir.openqasm.program":{
+              "supportedOperations":["h","cz","ccnot"]
+            }},
+            "standardized":{"twoQubitProperties":{
+              "1-2":{"twoQubitGateFidelity":[{
+                "gateName":"cz",
+                "fidelity":0.987,
+                "direction":{"control":1,"target":2}
+              }]}
+            }}
+          })",
+                properties),
+            QDMI_SUCCESS);
+  const auto architecture =
+      installParsedArchitecture(session, std::move(properties));
+  ASSERT_EQ(architecture->operationsMap.size(), 3U);
+  EXPECT_TRUE(architecture->operationsMap.contains("h"));
+
+  auto* const cz = architecture->operationsMap.at("cz");
+  const std::array<AMAZON_BRAKET_QDMI_Site, 2> forwardSites{
+      architecture->sitesMap.at("1"), architecture->sitesMap.at("2")};
+  double fidelity = 0;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+                session, cz, forwardSites.size(), forwardSites.data(), 0,
+                nullptr, QDMI_OPERATION_PROPERTY_FIDELITY, sizeof(fidelity),
+                &fidelity, nullptr),
+            QDMI_SUCCESS);
+  EXPECT_DOUBLE_EQ(fidelity, 0.987);
+
+  const std::array<AMAZON_BRAKET_QDMI_Site, 2> reverseSites{forwardSites[1],
+                                                            forwardSites[0]};
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+                session, cz, reverseSites.size(), reverseSites.data(), 0,
+                nullptr, QDMI_OPERATION_PROPERTY_FIDELITY, sizeof(fidelity),
+                &fidelity, nullptr),
+            QDMI_ERROR_NOTSUPPORTED);
+
+  auto* const ccnot = architecture->operationsMap.at("ccnot");
+  size_t numQubits = 0;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+                session, ccnot, 0, nullptr, 0, nullptr,
+                QDMI_OPERATION_PROPERTY_QUBITSNUM, sizeof(numQubits),
+                &numQubits, nullptr),
+            QDMI_SUCCESS);
+  ASSERT_EQ(numQubits, 3U);
+
+  size_t sitesSize = 0;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+                session, ccnot, 0, nullptr, 0, nullptr,
+                QDMI_OPERATION_PROPERTY_SITES, 0, nullptr, &sitesSize),
+            QDMI_SUCCESS);
+  EXPECT_EQ(sitesSize, 18U * sizeof(AMAZON_BRAKET_QDMI_Site));
 }
 
 TEST(DeviceParserOfflineTest, IQMMissingConnectivity) {
