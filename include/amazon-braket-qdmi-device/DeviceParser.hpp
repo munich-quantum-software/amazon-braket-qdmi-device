@@ -25,6 +25,7 @@
 // public header. Implementations include the full header in their .cpp file.
 namespace Aws {
 namespace Utils {
+template <typename T> class Array;
 namespace Json {
 class JsonView;
 } // namespace Json
@@ -81,6 +82,17 @@ struct ParsedDeviceProperties {
   std::unordered_map<std::string, AMAZON_BRAKET_QDMI_Operation_impl_d*>
       operationsMap;
 };
+
+namespace amazon::braket::qdmi {
+
+/**
+ * @brief Convert Amazon Braket measurement rows to QDMI basis-state order.
+ */
+auto parseMeasurementResults(
+    const Aws::Utils::Array<Aws::Utils::Json::JsonView>& measurements)
+    -> std::vector<std::string>;
+
+} // namespace amazon::braket::qdmi
 
 /**
  * @brief Abstract interface for device properties parsers

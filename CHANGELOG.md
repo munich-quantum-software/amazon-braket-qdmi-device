@@ -36,6 +36,8 @@ releases may include breaking changes.
 
 ### Fixed
 
+- 🐛 Convert Amazon Braket measurement rows to QDMI basis-state order ([#175])
+  ([**@burgholzer**])
 - 🐛 Validate that QDMI site and operation query handles belong to an
   initialized device session before dereferencing them ([#166])
   ([**@burgholzer**])
@@ -84,6 +86,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 [#134]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/134
 [#130]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/130
 [#117]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/117
+[#175]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/175
 
 <!-- Contributor -->
 

@@ -33,7 +33,7 @@ if(USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
   add_executable(${QDMI_TEST_TARGET_NAME} test_device.cpp)
 else()
   # Build-from-source: also compile offline unit tests for internal parser classes.
-  add_executable(${QDMI_TEST_TARGET_NAME} test_device.cpp test_device_unit.cpp)
+  add_executable(${QDMI_TEST_TARGET_NAME} test_device.cpp test_device_unit.cpp test_measurement.cpp)
   target_link_libraries(${QDMI_TEST_TARGET_NAME} PRIVATE ${QDMI_TARGET_NAME}-parser-objects)
 endif()
 
