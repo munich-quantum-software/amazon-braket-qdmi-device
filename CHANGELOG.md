@@ -12,6 +12,9 @@ releases may include breaking changes.
 
 ### Added
 
+- 📝 Add Sphinx and MyST documentation for installation, configuration,
+  capabilities, usage, and a standalone native API generated with Doxygen
+  without Breathe ([#176]) ([**@burgholzer**])
 - ✨ Install a relocatable catalogue containing `amazon.braket.default` and
   convenient definitions for supported backends, and expose each device's
   broader OpenQASM operation set through a custom QDMI property ([#171])
@@ -95,9 +98,10 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#176]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/176
 [#173]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/173
-[#171]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/171
 [#172]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/172
+[#171]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/171
 [#167]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/167
 [#166]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/166
 [#160]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/160
