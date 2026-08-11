@@ -1765,29 +1765,14 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal() const
     return QDMI_ERROR_FATAL;
   }
 
-  auto measurements = root.GetArray("measurements");
-  std::vector<std::string> shotsList;
-  shotsList.reserve(measurements.GetLength());
-
-  for (size_t i = 0; i < measurements.GetLength(); ++i) {
-    auto shot = measurements[i].AsArray();
-    std::string bitstring;
-
-    // Each shot is an array of qubit values: [0, 0] or [1, 1]
-    for (size_t q = 0; q < shot.GetLength(); ++q) {
-      bitstring += std::to_string(shot[q].AsInteger());
-    }
-
-    shotsList.push_back(bitstring);
-    counts_[bitstring]++;
-  }
-
-  // Build comma-separated shots string for QDMI_JOB_RESULT_SHOTS
-  for (size_t i = 0; i < shotsList.size(); ++i) {
+  const auto results = amazon::braket::qdmi::parseMeasurementResults(
+      root.GetArray("measurements"));
+  for (size_t i = 0; i < results.size(); ++i) {
     if (i > 0) {
       shotsString_ += ',';
     }
-    shotsString_ += shotsList[i];
+    shotsString_ += results[i];
+    ++counts_[results[i]];
   }
 
   resultsFetched_ = true;

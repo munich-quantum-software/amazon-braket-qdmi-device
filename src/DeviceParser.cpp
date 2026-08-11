@@ -52,6 +52,26 @@
 // Helper Functions (Common to All Parsers)
 // ============================================================================
 
+auto amazon::braket::qdmi::parseMeasurementResults(
+    const Aws::Utils::Array<Aws::Utils::Json::JsonView>& measurements)
+    -> std::vector<std::string> {
+  std::vector<std::string> results;
+  results.reserve(measurements.GetLength());
+  for (size_t i = 0; i < measurements.GetLength(); ++i) {
+    const auto shot = measurements[i].AsArray();
+    std::string bitstring;
+
+    // QDMI bit strings use conventional basis-state order: the
+    // highest-index site is the left-most bit.
+    for (size_t q = shot.GetLength(); q > 0; --q) {
+      bitstring += std::to_string(shot[q - 1].AsInteger());
+    }
+
+    results.emplace_back(std::move(bitstring));
+  }
+  return results;
+}
+
 namespace {
 using OperationSignature =
     std::pair<std::optional<size_t>, std::optional<size_t>>;
