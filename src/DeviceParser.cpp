@@ -19,14 +19,11 @@
 
 /**
  * @file device_parser.cpp
- * @brief Implementation of device properties parsers for different providers
+ * @brief Implementation of the common gate-model capability parser.
  *
- * This file contains parser implementations for:
- * - Amazon Braket Simulators (AWS SV1, AWS DM1, AWS TN1)
- * - IQM Devices (IQM Garnet, IQM Emerald, etc.)
- *
- * Each parser handles the provider-specific JSON format and populates
- * the device architecture data (qubits, connectivity, operations).
+ * The common Amazon Braket paradigm and OpenQASM schemas define sites,
+ * connectivity, native operations, and executable operations. Optional
+ * provider enrichers add calibration data without changing that pipeline.
  */
 
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
@@ -35,10 +32,16 @@
 
 #include <algorithm>
 #include <array>
+#include <aws/braket/model/DeviceType.h>
 #include <aws/core/utils/json/JsonSerializer.h>
+#include <charconv>
 #include <cctype>
+#include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <iostream>
+#include <limits>
+#include <map>
 #include <memory>
 #include <optional>
 #include <ranges>
@@ -75,6 +78,52 @@ auto amazon::braket::qdmi::parseMeasurementResults(
 namespace {
 using OperationSignature =
     std::pair<std::optional<size_t>, std::optional<size_t>>;
+
+auto isDecimalSiteName(const std::string_view name) -> bool {
+  return !name.empty() &&
+         std::ranges::all_of(name, [](const unsigned char character) {
+           return std::isdigit(character) != 0;
+         });
+}
+
+auto decimalSiteIndex(const std::string_view name) -> std::optional<size_t> {
+  if (!isDecimalSiteName(name)) {
+    return std::nullopt;
+  }
+  size_t index = 0;
+  const auto [end, error] =
+      std::from_chars(name.data(), name.data() + name.size(), index);
+  if (error != std::errc{} || end != name.data() + name.size()) {
+    return std::nullopt;
+  }
+  return index;
+}
+
+struct SiteNameLess {
+  auto operator()(const std::string& left, const std::string& right) const
+      -> bool {
+    const auto leftIndex = decimalSiteIndex(left);
+    const auto rightIndex = decimalSiteIndex(right);
+    if (leftIndex.has_value() && rightIndex.has_value() &&
+        *leftIndex != *rightIndex) {
+      return *leftIndex < *rightIndex;
+    }
+    if (leftIndex.has_value() != rightIndex.has_value()) {
+      return leftIndex.has_value();
+    }
+    return left < right;
+  }
+};
+
+auto secondsToNanoseconds(const double seconds) -> std::optional<uint64_t> {
+  constexpr double NANOSECONDS_PER_SECOND = 1'000'000'000.0;
+  const double nanoseconds = seconds * NANOSECONDS_PER_SECOND;
+  if (!std::isfinite(nanoseconds) || nanoseconds <= 0.0 ||
+      nanoseconds > static_cast<double>(std::numeric_limits<uint64_t>::max())) {
+    return std::nullopt;
+  }
+  return static_cast<uint64_t>(std::llround(nanoseconds));
+}
 
 auto getOperationSignature(const std::string& operationName)
     -> OperationSignature {
@@ -136,10 +185,9 @@ auto getOperationSignature(const std::string& operationName)
 }
 } // namespace
 
-auto IDeviceParser::ParseQubitCount(
+auto GateModelCapabilityParser::parseQubitCount(
     const Aws::Utils::Json::JsonView& propertiesJson, size_t& qubitCount)
     -> int {
-
   if (!propertiesJson.ValueExists("paradigm")) {
     std::cerr << "Missing 'paradigm' field in device properties\n";
     return QDMI_ERROR_FATAL;
@@ -151,92 +199,271 @@ auto IDeviceParser::ParseQubitCount(
     return QDMI_ERROR_FATAL;
   }
 
-  qubitCount = static_cast<size_t>(paradigm.GetInteger("qubitCount"));
+  const auto count = paradigm.GetInteger("qubitCount");
+  if (count <= 0) {
+    std::cerr << "Invalid 'qubitCount' in paradigm\n";
+    return QDMI_ERROR_FATAL;
+  }
+  qubitCount = static_cast<size_t>(count);
   return QDMI_SUCCESS;
 }
 
-// ============================================================================
-// Helper Functions (shared across parsers)
-// ============================================================================
-
-auto IDeviceParser::BuildFullConnectivity(ParsedDeviceProperties& properties)
-    -> int {
+auto GateModelCapabilityParser::buildFullConnectivity(
+    ParsedDeviceProperties& properties) -> void {
   properties.connectivity.clear();
-  // Each unordered pair (i,j) contributes 4 entries (both directions, 2 ptrs
-  // each)
+  if (properties.qubitCount < 2) {
+    return;
+  }
   properties.connectivity.reserve(properties.qubitCount *
                                   (properties.qubitCount - 1) * 2);
 
-  // Create bidirectional edges between all pairs of qubits
-  // Stored as flat list with alternating source/target per QDMI spec:
-  // source at index 2n, target at index 2n+1
   for (size_t i = 0; i < properties.qubitCount; ++i) {
     for (size_t j = i + 1; j < properties.qubitCount; ++j) {
-      // Edge i -> j
       properties.connectivity.push_back(properties.sitesPtr[i]);
       properties.connectivity.push_back(properties.sitesPtr[j]);
-      // Edge j -> i
       properties.connectivity.push_back(properties.sitesPtr[j]);
       properties.connectivity.push_back(properties.sitesPtr[i]);
     }
   }
+}
 
+auto GateModelCapabilityParser::parseSitesAndConnectivity(
+    const Aws::Braket::Model::DeviceType deviceType,
+    const Aws::Utils::Json::JsonView& propertiesJson,
+    ParsedDeviceProperties& properties) -> int {
+  const auto paradigm = propertiesJson.GetObject("paradigm");
+  const bool simulator =
+      deviceType == Aws::Braket::Model::DeviceType::SIMULATOR;
+  bool fullyConnected = simulator;
+  if (paradigm.ValueExists("connectivity")) {
+    const auto connectivity = paradigm.GetObject("connectivity");
+    if (connectivity.ValueExists("fullyConnected")) {
+      fullyConnected = connectivity.GetBool("fullyConnected");
+    }
+  } else if (!simulator) {
+    std::cerr << "Missing 'connectivity' in gate-model QPU paradigm\n";
+    return QDMI_ERROR_FATAL;
+  }
+
+  properties.sites.reserve(properties.qubitCount);
+  properties.sitesPtr.reserve(properties.qubitCount);
+  auto addSite = [&properties](const std::string& name, const size_t index) {
+    auto site = std::make_unique<AMAZON_BRAKET_QDMI_Site_impl_d>();
+    site->name_ = name;
+    site->id_ = index;
+    properties.sitesPtr.push_back(site.get());
+    properties.sitesMap.emplace(name, site.get());
+    properties.sites.push_back(std::move(site));
+  };
+
+  if (fullyConnected) {
+    for (size_t index = 0; index < properties.qubitCount; ++index) {
+      addSite(std::to_string(index), index);
+    }
+    buildFullConnectivity(properties);
+    return QDMI_SUCCESS;
+  }
+
+  const auto connectivity = paradigm.GetObject("connectivity");
+  if (!connectivity.ValueExists("connectivityGraph")) {
+    std::cerr << "Missing 'connectivityGraph' in gate-model paradigm\n";
+    return QDMI_ERROR_FATAL;
+  }
+  const auto graph = connectivity.GetObject("connectivityGraph");
+
+  std::set<std::string, SiteNameLess> siteNames;
+  std::map<std::string, std::vector<std::string>> edges;
+  for (const auto& [source, targetsView] : graph.GetAllObjects()) {
+    const std::string sourceName = source;
+    siteNames.insert(sourceName);
+    auto& targets = edges[sourceName];
+    const auto targetsJson = targetsView.AsArray();
+    targets.reserve(targetsJson.GetLength());
+    for (size_t index = 0; index < targetsJson.GetLength(); ++index) {
+      auto target = std::string{targetsJson[index].AsString()};
+      siteNames.insert(target);
+      targets.push_back(std::move(target));
+    }
+  }
+
+  if (siteNames.size() != properties.qubitCount) {
+    std::cerr << "Connectivity graph contains " << siteNames.size()
+              << " sites, but paradigm.qubitCount is " << properties.qubitCount
+              << "\n";
+    return QDMI_ERROR_FATAL;
+  }
+  // Decimal provider labels are the physical indices used in programs. Reserve
+  // all of them first so that nonnumeric labels can receive deterministic,
+  // collision-free fallback indices. Numeric aliases such as "1" and "01"
+  // would otherwise identify the same program site and are rejected.
+  std::set<size_t> assignedIndices;
+  for (const auto& name : siteNames) {
+    const auto index = decimalSiteIndex(name);
+    if (isDecimalSiteName(name) && !index.has_value()) {
+      std::cerr << "Numeric site label is outside the size_t range: " << name
+                << "\n";
+      return QDMI_ERROR_FATAL;
+    }
+    if (index.has_value() && !assignedIndices.insert(*index).second) {
+      std::cerr << "Connectivity graph contains duplicate numeric site index "
+                << *index << "\n";
+      return QDMI_ERROR_FATAL;
+    }
+  }
+
+  size_t fallbackIndex = 0;
+  for (const auto& name : siteNames) {
+    auto index = decimalSiteIndex(name);
+    if (!index.has_value()) {
+      while (assignedIndices.contains(fallbackIndex)) {
+        if (fallbackIndex == std::numeric_limits<size_t>::max()) {
+          std::cerr << "No unused site index is available\n";
+          return QDMI_ERROR_FATAL;
+        }
+        ++fallbackIndex;
+      }
+      index = fallbackIndex;
+      assignedIndices.insert(fallbackIndex);
+    }
+    addSite(name, *index);
+  }
+
+  for (const auto& [source, targets] : edges) {
+    const auto sourceSite = properties.sitesMap.find(source);
+    if (sourceSite == properties.sitesMap.end()) {
+      return QDMI_ERROR_FATAL;
+    }
+    for (const auto& target : targets) {
+      const auto targetSite = properties.sitesMap.find(target);
+      if (targetSite == properties.sitesMap.end()) {
+        return QDMI_ERROR_FATAL;
+      }
+      properties.connectivity.insert(properties.connectivity.end(),
+                                     {sourceSite->second, targetSite->second});
+    }
+  }
   return QDMI_SUCCESS;
 }
 
-auto IDeviceParser::ParseOperationsFromOpenQASM(
+auto GateModelCapabilityParser::parseOperations(
+    const Aws::Braket::Model::DeviceType deviceType,
     const Aws::Utils::Json::JsonView& propertiesJson,
     ParsedDeviceProperties& properties) -> int {
-
   if (!propertiesJson.ValueExists("action")) {
     std::cerr << "Missing 'action' field in device properties\n";
     return QDMI_ERROR_FATAL;
   }
-
-  auto action = propertiesJson.GetObject("action");
+  const auto action = propertiesJson.GetObject("action");
   if (!action.ValueExists("braket.ir.openqasm.program")) {
     std::cerr << "Missing 'braket.ir.openqasm.program' in action\n";
     return QDMI_ERROR_FATAL;
   }
-
-  auto openqasm = action.GetObject("braket.ir.openqasm.program");
+  const auto openqasm = action.GetObject("braket.ir.openqasm.program");
   if (!openqasm.ValueExists("supportedOperations")) {
     std::cerr << "Missing 'supportedOperations' in OpenQASM program\n";
     return QDMI_ERROR_FATAL;
   }
 
-  const auto supportedOperations = openqasm.GetArray("supportedOperations");
-  std::vector<std::string> operationNames;
-  operationNames.reserve(supportedOperations.GetLength());
-  for (size_t i = 0; i < supportedOperations.GetLength(); ++i) {
-    operationNames.emplace_back(supportedOperations[i].AsString());
+  auto readOperationNames = [](const auto& array) {
+    std::vector<std::string> names;
+    names.reserve(array.GetLength());
+    for (size_t index = 0; index < array.GetLength(); ++index) {
+      names.emplace_back(array[index].AsString());
+    }
+    return names;
+  };
+
+  const auto supportedNames =
+      readOperationNames(openqasm.GetArray("supportedOperations"));
+  std::vector<std::string> nativeNames;
+  if (deviceType == Aws::Braket::Model::DeviceType::QPU) {
+    const auto paradigm = propertiesJson.GetObject("paradigm");
+    if (!paradigm.ValueExists("nativeGateSet")) {
+      std::cerr << "Missing 'nativeGateSet' in gate-model QPU paradigm\n";
+      return QDMI_ERROR_FATAL;
+    }
+    nativeNames = readOperationNames(paradigm.GetArray("nativeGateSet"));
+  } else {
+    nativeNames = supportedNames;
   }
 
-  properties.operations.clear();
-  properties.operationsPtr.clear();
-  properties.operationsMap.clear();
-  properties.operations.reserve(operationNames.size());
-  properties.operationsPtr.reserve(operationNames.size());
+  properties.operations.reserve(nativeNames.size() + supportedNames.size());
+  properties.allOperationsPtr.reserve(nativeNames.size() +
+                                      supportedNames.size());
+  auto operationForName = [&properties](const std::string& name) {
+    if (const auto existing = properties.operationsMap.find(name);
+        existing != properties.operationsMap.end()) {
+      return existing->second;
+    }
+    auto operation = std::make_unique<AMAZON_BRAKET_QDMI_Operation_impl_d>();
+    operation->name_ = name;
+    const auto [numQubits, numParams] = getOperationSignature(name);
+    operation->numQubits_ = numQubits;
+    operation->numParams_ = numParams;
+    auto* const handle = operation.get();
+    properties.operationsMap.emplace(name, handle);
+    properties.allOperationsPtr.push_back(handle);
+    properties.operations.push_back(std::move(operation));
+    return handle;
+  };
+  auto appendView =
+      [&operationForName](
+          const std::vector<std::string>& names,
+          std::vector<AMAZON_BRAKET_QDMI_Operation_impl_d*>& view) {
+        view.reserve(names.size());
+        for (const auto& name : names) {
+          auto* const operation = operationForName(name);
+          if (std::ranges::find(view, operation) == view.end()) {
+            view.push_back(operation);
+          }
+        }
+      };
+  appendView(nativeNames, properties.operationsPtr);
+  appendView(supportedNames, properties.supportedOperationsPtr);
 
-  for (const auto& operationName : operationNames) {
-    auto op = std::make_unique<AMAZON_BRAKET_QDMI_Operation_impl_d>();
-    op->name_ = operationName;
-    const auto [numQubits, numParams] = getOperationSignature(operationName);
-    op->numQubits_ = numQubits;
-    op->numParams_ = numParams;
-
-    properties.operationsPtr.push_back(op.get());
-    properties.operationsMap[operationName] = op.get();
-    properties.operations.push_back(std::move(op));
-  }
-
-  PopulateOperationSites(properties);
-  ParseOperationFidelities(propertiesJson, properties);
+  populateOperationSites(properties);
+  parseOperationFidelities(propertiesJson, properties);
   return QDMI_SUCCESS;
 }
 
-auto IDeviceParser::PopulateOperationSites(ParsedDeviceProperties& properties)
-    -> void {
+auto GateModelCapabilityParser::parseProperties(
+    const Aws::Braket::Model::DeviceType deviceType,
+    const std::string& propertiesJsonStr,
+    ParsedDeviceProperties& properties) const -> int {
+  if (deviceType != Aws::Braket::Model::DeviceType::QPU &&
+      deviceType != Aws::Braket::Model::DeviceType::SIMULATOR) {
+    std::cerr << "Unsupported non-gate-model Braket device type\n";
+    return QDMI_ERROR_NOTSUPPORTED;
+  }
+  const Aws::Utils::Json::JsonValue jsonValue(propertiesJsonStr);
+  if (!jsonValue.WasParseSuccessful()) {
+    std::cerr << "Failed to parse device properties JSON\n";
+    return QDMI_ERROR_FATAL;
+  }
+
+  properties = {};
+  const auto propertiesJson = jsonValue.View();
+  if (auto status = parseQubitCount(propertiesJson, properties.qubitCount);
+      status != QDMI_SUCCESS) {
+    return status;
+  }
+  if (auto status =
+          parseSitesAndConnectivity(deviceType, propertiesJson, properties);
+      status != QDMI_SUCCESS) {
+    return status;
+  }
+  if (auto status = parseOperations(deviceType, propertiesJson, properties);
+      status != QDMI_SUCCESS) {
+    return status;
+  }
+  for (const auto& enrich : calibrationEnrichers_) {
+    enrich(propertiesJson, properties);
+  }
+  return QDMI_SUCCESS;
+}
+
+auto GateModelCapabilityParser::populateOperationSites(
+    ParsedDeviceProperties& properties) -> void {
   for (auto& operation : properties.operations) {
     auto& sites = operation->applicableSites_;
     if (operation->numQubits_ == 1) {
@@ -265,7 +492,7 @@ auto IDeviceParser::PopulateOperationSites(ParsedDeviceProperties& properties)
   }
 }
 
-auto IDeviceParser::ParseOperationFidelities(
+auto GateModelCapabilityParser::parseOperationFidelities(
     const Aws::Utils::Json::JsonView& propertiesJson,
     ParsedDeviceProperties& properties) -> void {
   if (!propertiesJson.ValueExists("standardized")) {
@@ -336,202 +563,9 @@ auto IDeviceParser::ParseOperationFidelities(
   }
 }
 
-// ============================================================================
-// Simulator Parser Implementation
-// ============================================================================
-
-auto SimulatorPropertiesParser::ParseProperties(
-    const std::string& propertiesJsonStr,
-    ParsedDeviceProperties& properties) const -> int {
-  const Aws::Utils::Json::JsonValue jsonValue(propertiesJsonStr);
-  if (!jsonValue.WasParseSuccessful()) {
-    std::cerr << "Failed to parse device properties JSON\n";
-    return QDMI_ERROR_FATAL;
-  }
-  const auto propertiesJson = jsonValue.View();
-
-  // 1. Parse qubit count (reusable helper - standard format)
-  auto status = ParseQubitCount(propertiesJson, properties.qubitCount);
-  if (status != QDMI_SUCCESS) {
-    return status;
-  }
-
-  // 2. Create sites (qubits) - simulators use simple numeric IDs
-  properties.sites.clear();
-  properties.sitesPtr.clear();
-  properties.sitesMap.clear();
-  properties.sites.reserve(properties.qubitCount);
-  properties.sitesPtr.reserve(properties.qubitCount);
-
-  for (size_t i = 0; i < properties.qubitCount; ++i) {
-    auto site = std::make_unique<AMAZON_BRAKET_QDMI_Site_impl_d>();
-    site->id_ = i;
-    site->name_ = "Q" + std::to_string(i);
-
-    properties.sitesPtr.push_back(site.get());
-    properties.sitesMap[site->name_] = site.get();
-    properties.sites.push_back(std::move(site));
-  }
-
-  // 3. Build full all-to-all connectivity — simulators support any gate
-  // topology regardless of what the capabilities JSON reports.
-  status = BuildFullConnectivity(properties);
-  if (status != QDMI_SUCCESS) {
-    return status;
-  }
-
-  // 4. Parse operations (reusable helper - standard OpenQASM format)
-  return ParseOperationsFromOpenQASM(propertiesJson, properties);
-}
-
-// ============================================================================
-// IQM Parser Implementation
-// ============================================================================
-
-auto IQMDeviceParser::ParseProperties(const std::string& propertiesJsonStr,
-                                      ParsedDeviceProperties& properties) const
-    -> int {
-  const Aws::Utils::Json::JsonValue jsonValue(propertiesJsonStr);
-  if (!jsonValue.WasParseSuccessful()) {
-    std::cerr << "Failed to parse device properties JSON\n";
-    return QDMI_ERROR_FATAL;
-  }
-  const auto propertiesJson = jsonValue.View();
-
-  // 1. Parse qubit count (reusable helper - standard format)
-  auto status = ParseQubitCount(propertiesJson, properties.qubitCount);
-  if (status != QDMI_SUCCESS) {
-    return status;
-  }
-
-  // 2. Create sites - IQM uses string-based qubit IDs
-  // We need to parse the connectivity graph first to know which qubits exist
-  properties.sites.clear();
-  properties.sitesPtr.clear();
-  properties.sitesMap.clear();
-
-  // IQM devices have numbered qubits, but they may not be contiguous
-  // Parse connectivity graph to discover all qubit IDs
-  if (!propertiesJson.ValueExists("paradigm")) {
-    std::cerr << "Missing 'paradigm' field in IQM device properties\n";
-    return QDMI_ERROR_FATAL;
-  }
-
-  auto const paradigm = propertiesJson.GetObject("paradigm");
-  if (!paradigm.ValueExists("connectivity")) {
-    std::cerr << "Missing 'connectivity' in IQM paradigm\n";
-    return QDMI_ERROR_FATAL;
-  }
-
-  const auto connectivityObj = paradigm.GetObject("connectivity");
-  if (!connectivityObj.ValueExists("connectivityGraph")) {
-    std::cerr << "Missing 'connectivityGraph' in IQM connectivity\n";
-    return QDMI_ERROR_FATAL;
-  }
-
-  const auto connGraph = connectivityObj.GetObject("connectivityGraph");
-
-  // Collect all unique qubit IDs as integers for deterministic numeric order.
-  std::set<size_t> qubitNums;
-  for (const auto& entry : connGraph.GetAllObjects()) {
-    try {
-      qubitNums.insert(std::stoull(entry.first));
-      auto targets = entry.second.AsArray();
-      for (size_t i = 0; i < targets.GetLength(); ++i) {
-        qubitNums.insert(std::stoull(targets[i].AsString()));
-      }
-    } catch (...) {
-      std::cerr << "Invalid qubit ID in connectivity graph\n";
-      return QDMI_ERROR_FATAL;
-    }
-  }
-
-  // Create sites in ascending numeric order
-  properties.sites.reserve(qubitNums.size());
-  properties.sitesPtr.reserve(qubitNums.size());
-  for (const size_t qubitNum : qubitNums) {
-    const std::string qubitId = std::to_string(qubitNum);
-    auto site = std::make_unique<AMAZON_BRAKET_QDMI_Site_impl_d>();
-    site->name_ = qubitId;
-    site->id_ = qubitNum;
-
-    properties.sitesPtr.push_back(site.get());
-    properties.sitesMap[qubitId] = site.get();
-    properties.sites.push_back(std::move(site));
-  }
-
-  // 3. Parse connectivity graph (IQM-specific - limited hardware connectivity)
-  status = ParseConnectivityGraph(paradigm, properties);
-  if (status != QDMI_SUCCESS) {
-    return status;
-  }
-
-  // 4. Populate T1/T2 coherence times from provider calibration data
-  //    (best-effort: missing fields are silently skipped)
-  ParseSiteCoherenceTimes(propertiesJson, properties);
-
-  // 5. Parse operations (reusable helper - standard OpenQASM format)
-  return ParseOperationsFromOpenQASM(propertiesJson, properties);
-}
-
-auto IQMDeviceParser::ParseConnectivityGraph(
-    const Aws::Utils::Json::JsonView& paradigm,
-    ParsedDeviceProperties& properties) -> int {
-
-  if (!paradigm.ValueExists("connectivity")) {
-    return QDMI_ERROR_FATAL;
-  }
-
-  const auto connectivityObj = paradigm.GetObject("connectivity");
-  if (!connectivityObj.ValueExists("connectivityGraph")) {
-    return QDMI_ERROR_FATAL;
-  }
-
-  const auto connGraph = connectivityObj.GetObject("connectivityGraph");
-  properties.connectivity.clear();
-
-  // IQM connectivity graph format:
-  // {
-  //   "1": ["2", "5"],
-  //   "2": ["1", "6"],
-  //   ...
-  // }
-  // Each entry represents edges from the key qubit to the listed qubits
-
-  for (const auto& entry : connGraph.GetAllObjects()) {
-    const std::string& sourceId = entry.first;
-    const auto srcIt = properties.sitesMap.find(sourceId);
-    if (srcIt == properties.sitesMap.end()) {
-      std::cerr << "Invalid source qubit in connectivity graph: " << sourceId
-                << "\n";
-      return QDMI_ERROR_FATAL;
-    }
-    auto* const sourceSite = srcIt->second;
-
-    auto const targets = entry.second.AsArray();
-    for (size_t i = 0; i < targets.GetLength(); ++i) {
-      const std::string targetId = targets[i].AsString();
-      const auto tgtIt = properties.sitesMap.find(targetId);
-      if (tgtIt == properties.sitesMap.end()) {
-        std::cerr << "Invalid target qubit in connectivity graph: " << sourceId
-                  << " -> " << targetId << "\n";
-        return QDMI_ERROR_FATAL;
-      }
-      auto* const targetSite = tgtIt->second;
-
-      // Add edge (stored as alternating source/target per QDMI spec)
-      properties.connectivity.push_back(sourceSite);
-      properties.connectivity.push_back(targetSite);
-    }
-  }
-
-  return QDMI_SUCCESS;
-}
-
-auto IQMDeviceParser::ParseSiteCoherenceTimes(
+auto GateModelCapabilityParser::enrichIqmCalibration(
     const Aws::Utils::Json::JsonView& propertiesJson,
     ParsedDeviceProperties& properties) -> void {
-  // Guard: provider.properties.one_qubit must exist
   if (!propertiesJson.ValueExists("provider")) {
     return;
   }
@@ -545,27 +579,19 @@ auto IQMDeviceParser::ParseSiteCoherenceTimes(
   }
   const auto oneQubit = propsObj.GetObject("one_qubit");
 
-  // Each entry key is the qubit ID string ("1", "2", ...)
-  // Values are seconds (double); stored directly without conversion.
   for (const auto& entry : oneQubit.GetAllObjects()) {
     const std::string& qubitId = entry.first;
     const auto it = properties.sitesMap.find(qubitId);
     if (it == properties.sitesMap.end()) {
-      continue; // qubit not in topology — skip
+      continue;
     }
     auto* site = it->second;
     const auto& qubitData = entry.second;
     if (qubitData.ValueExists("T1")) {
-      const double t1Seconds = qubitData.GetDouble("T1");
-      if (t1Seconds > 0.0) {
-        site->t1_ = t1Seconds;
-      }
+      site->t1_ = secondsToNanoseconds(qubitData.GetDouble("T1"));
     }
     if (qubitData.ValueExists("T2")) {
-      const double t2Seconds = qubitData.GetDouble("T2");
-      if (t2Seconds > 0.0) {
-        site->t2_ = t2Seconds;
-      }
+      site->t2_ = secondsToNanoseconds(qubitData.GetDouble("T2"));
     }
   }
 }

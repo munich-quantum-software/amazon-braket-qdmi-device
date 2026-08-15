@@ -65,7 +65,7 @@ build = [
   "scikit-build-core>=0.11.6"
 ]
 test = [
-  "mqt-core~=3.8.0",
+  "mqt-core @ git+https://github.com/munich-quantum-toolkit/core.git@9b43bf789a3243c496e51ea1c6458ef155a19567",
   "pytest>=9.0.2",
   "pytest-console-scripts>=1.4.1",
   "pytest-cov>=7.1.0",

@@ -19,7 +19,9 @@
 
 #pragma once
 
+#include <aws/braket/model/DeviceType.h>
 #include <cstddef>
+#include <cstdint>
 
 // Forward declaration to avoid pulling aws-cpp-sdk-core headers into this
 // public header. Implementations include the full header in their .cpp file.
@@ -31,10 +33,12 @@ class JsonView;
 } // namespace Json
 } // namespace Utils
 } // namespace Aws
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 /**
@@ -42,9 +46,9 @@ class JsonView;
  */
 struct AMAZON_BRAKET_QDMI_Site_impl_d {
   std::string name_;
-  size_t id_ = 0;
-  double t1_ = 0.0; ///< T1 coherence time in seconds
-  double t2_ = 0.0; ///< T2 coherence time in seconds
+  size_t id_ = 0; ///< Site index used to address the qubit in a program
+  std::optional<uint64_t> t1_; ///< T1 coherence time in nanoseconds
+  std::optional<uint64_t> t2_; ///< T2 coherence time in nanoseconds
 };
 
 /**
@@ -78,7 +82,9 @@ struct ParsedDeviceProperties {
   std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*> connectivity;
 
   std::vector<std::unique_ptr<AMAZON_BRAKET_QDMI_Operation_impl_d>> operations;
+  std::vector<AMAZON_BRAKET_QDMI_Operation_impl_d*> allOperationsPtr;
   std::vector<AMAZON_BRAKET_QDMI_Operation_impl_d*> operationsPtr;
+  std::vector<AMAZON_BRAKET_QDMI_Operation_impl_d*> supportedOperationsPtr;
   std::unordered_map<std::string, AMAZON_BRAKET_QDMI_Operation_impl_d*>
       operationsMap;
 };
@@ -95,108 +101,49 @@ auto parseMeasurementResults(
 } // namespace amazon::braket::qdmi
 
 /**
- * @brief Abstract interface for device properties parsers
- *
- * AWS Braket provides device capabilities through GetDeviceCapabilities() API.
- *
- * This interface allows implementing parsers for different device types and
- * vendors, each handling their specific JSON format while reusing common
- * components where possible.
+ * @brief Common parser for Amazon Braket gate-model device capabilities.
  */
-class IDeviceParser {
+class GateModelCapabilityParser final {
 public:
-  virtual ~IDeviceParser() = default;
+  using CalibrationEnricher = std::function<void(
+      const Aws::Utils::Json::JsonView&, ParsedDeviceProperties&)>;
+
+  explicit GateModelCapabilityParser(
+      std::vector<CalibrationEnricher> calibrationEnrichers = {})
+      : calibrationEnrichers_(std::move(calibrationEnrichers)) {}
 
   /**
-   * @brief Parse device properties from JSON
+   * @brief Parse a gate-model capability document.
    *
-   * @param propertiesJson Raw JSON string of the device properties
-   * @param properties Output structure to populate with parsed data
-   * @return QDMI_SUCCESS on success, error code otherwise
+   * QPUs expose their standard operation list from `nativeGateSet` and their
+   * broader operation list from the OpenQASM action. On-demand simulators use
+   * the OpenQASM list for both views because they do not publish a hardware
+   * native gate set.
    */
-  virtual auto ParseProperties(const std::string& propertiesJson,
-                               ParsedDeviceProperties& properties) const
-      -> int = 0;
+  auto parseProperties(Aws::Braket::Model::DeviceType deviceType,
+                       const std::string& propertiesJson,
+                       ParsedDeviceProperties& properties) const -> int;
 
-protected:
-  // ============================================================================
-  // Reusable Component Parsers
-  // ============================================================================
-  // These static helpers can be used by any parser implementation as the
-  // JSON format is standardized across providers for specific components.
-
-  /**
-   * @brief Parse operations from standard OpenQASM action schema
-   *
-   * Parses: action.braket.ir.openqasm.program.supportedOperations
-   * Reusable across devices that use this standard format.
-   */
+  /** @brief Add IQM T1 and T2 values when the provider schema contains them. */
   static auto
-  ParseOperationsFromOpenQASM(const Aws::Utils::Json::JsonView& propertiesJson,
-                              ParsedDeviceProperties& properties) -> int;
-
-  /**
-   * @brief Parse qubit count from standard paradigm field
-   *
-   * Parses: paradigm.qubitCount
-   * Works for gate-model devices with standard paradigm structure.
-   */
-  static auto ParseQubitCount(const Aws::Utils::Json::JsonView& propertiesJson,
-                              size_t& qubitCount) -> int;
-
-  /**
-   * @brief Build full all-to-all connectivity graph
-   *
-   * Creates bidirectional edges between all qubit pairs.
-   * Use when paradigm.connectivity.fullyConnected == true.
-   */
-  static auto BuildFullConnectivity(ParsedDeviceProperties& properties) -> int;
-
-  static auto PopulateOperationSites(ParsedDeviceProperties& properties)
-      -> void;
-  static auto
-  ParseOperationFidelities(const Aws::Utils::Json::JsonView& propertiesJson,
-                           ParsedDeviceProperties& properties) -> void;
-};
-
-/**
- * @brief Parser for Amazon Braket simulator devices
- *
- * Handles simulator-type devices with full connectivity.
- */
-class SimulatorPropertiesParser : public IDeviceParser {
-public:
-  auto ParseProperties(const std::string& propertiesJson,
-                       ParsedDeviceProperties& properties) const
-      -> int override;
-};
-
-/**
- * @brief Parser for IQM quantum devices
- *
- * Handles IQM-specific format including string-based qubit IDs
- * and custom connectivity graph structure.
- */
-class IQMDeviceParser : public IDeviceParser {
-public:
-  auto ParseProperties(const std::string& propertiesJson,
-                       ParsedDeviceProperties& properties) const
-      -> int override;
+  enrichIqmCalibration(const Aws::Utils::Json::JsonView& propertiesJson,
+                       ParsedDeviceProperties& properties) -> void;
 
 private:
-  /**
-   * @brief Parse IQM-specific connectivity graph
-   */
-  static auto ParseConnectivityGraph(const Aws::Utils::Json::JsonView& paradigm,
-                                     ParsedDeviceProperties& properties) -> int;
-
-  /**
-   * @brief Populate T1/T2 coherence times from provider calibration data
-   *
-   * Reads provider.properties.one_qubit.<qubitId>.T1 and .T2 (seconds)
-   * and stores them as microseconds in site->t1_ and site->t2_.
-   */
+  static auto parseQubitCount(const Aws::Utils::Json::JsonView& propertiesJson,
+                              size_t& qubitCount) -> int;
   static auto
-  ParseSiteCoherenceTimes(const Aws::Utils::Json::JsonView& propertiesJson,
-                          ParsedDeviceProperties& properties) -> void;
+  parseSitesAndConnectivity(Aws::Braket::Model::DeviceType deviceType,
+                            const Aws::Utils::Json::JsonView& propertiesJson,
+                            ParsedDeviceProperties& properties) -> int;
+  static auto buildFullConnectivity(ParsedDeviceProperties& properties) -> void;
+  static auto parseOperations(Aws::Braket::Model::DeviceType deviceType,
+                              const Aws::Utils::Json::JsonView& propertiesJson,
+                              ParsedDeviceProperties& properties) -> int;
+  static auto populateOperationSites(ParsedDeviceProperties& properties)
+      -> void;
+  static auto
+  parseOperationFidelities(const Aws::Utils::Json::JsonView& propertiesJson,
+                           ParsedDeviceProperties& properties) -> void;
+  std::vector<CalibrationEnricher> calibrationEnrichers_;
 };

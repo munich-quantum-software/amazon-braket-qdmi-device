@@ -125,7 +125,9 @@ struct DeviceArchitecture {
 
   // Supported operations
   std::vector<std::unique_ptr<AMAZON_BRAKET_QDMI_Operation_impl_d>> operations;
+  std::vector<AMAZON_BRAKET_QDMI_Operation_impl_d*> allOperationsPtr;
   std::vector<AMAZON_BRAKET_QDMI_Operation_impl_d*> operationsPtr;
+  std::vector<AMAZON_BRAKET_QDMI_Operation_impl_d*> supportedOperationsPtr;
   std::unordered_map<std::string, AMAZON_BRAKET_QDMI_Operation_impl_d*>
       operationsMap;
 
@@ -225,11 +227,13 @@ private:
 
   // Simulators: shared_ptr to the singleton-cached DeviceArchitecture object
   //             (no second copy; same object as in Device::deviceCache_).
-  // QPUs:        holds the latest freshly-fetched full architecture;
-  // overwritten
-  //              on every query. Only a stub lives in the singleton cache.
+  // QPUs:        holds one full session-owned architecture. Only an identity
+  //              stub lives in the singleton cache.
   mutable std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture>
       cachedArchitecture_;
+  // Serializes initial architecture publication and later status refreshes.
+  // A session publishes its site and operation handles only once.
+  mutable std::mutex architectureFetchMutex_;
   mutable std::mutex cachedArchitectureMutex_;
   mutable std::optional<size_t> queueLength_;
 

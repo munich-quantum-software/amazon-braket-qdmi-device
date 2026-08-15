@@ -12,6 +12,9 @@ releases may include breaking changes.
 
 ### Added
 
+- ✨ Install persistent definitions for the current gate-model QPU and simulator
+  catalog, and expose each device's broader OpenQASM operation set through a
+  custom QDMI property ([#171]) ([**@burgholzer**])
 - ✨ Retrieve existing Amazon Braket QuantumTasks by their QDMI job IDs ([#160])
   ([**@burgholzer**])
 - ✨ Expose current device queue length and queued job position through QDMI,
@@ -29,6 +32,9 @@ releases may include breaking changes.
 
 ### Changed
 
+- ♻️ Parse all gate-model capability documents through one schema-driven
+  pipeline while preserving provider-specific calibration enrichment ([#171])
+  ([**@burgholzer**])
 - 💥 Prefix Amazon Braket-specific QDMI parameter aliases with the
   `AMAZON_BRAKET_` vendor namespace and add a semantic device-ARN alias that
   retains the existing `BASEURL` mapping ([#149]) ([**@burgholzer**])
@@ -36,6 +42,10 @@ releases may include breaking changes.
 
 ### Fixed
 
+- 🐛 Preserve numeric site ordering, expose coherence times through QDMI's
+  integer duration ABI, keep retired-device status queryable, and prevent C++
+  exceptions from crossing the C API boundary ([#171])
+  ([**@burgholzer**])
 - 🐛 Convert Amazon Braket measurement rows to QDMI basis-state order ([#175])
   ([**@burgholzer**])
 - 🐛 Validate that QDMI site and operation query handles belong to an
@@ -73,6 +83,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#171]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/171
 [#167]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/167
 [#166]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/166
 [#160]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/160

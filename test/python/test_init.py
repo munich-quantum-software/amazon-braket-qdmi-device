@@ -19,11 +19,13 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from amazon.braket.qdmi import (
+    AMAZON_BRAKET_QDMI_CATALOG_PATH,
     AMAZON_BRAKET_QDMI_CMAKE_DIR,
-    AMAZON_BRAKET_QDMI_DEVICE_ID,
+    AMAZON_BRAKET_QDMI_DEVICE_IDS,
     AMAZON_BRAKET_QDMI_INCLUDE_DIR,
     AMAZON_BRAKET_QDMI_LIBRARY_PATH,
     AMAZON_BRAKET_QDMI_PREFIX,
@@ -40,8 +42,39 @@ def test_version_exists() -> None:
 
 def test_qdmi_device_metadata() -> None:
     """Test that the stable device metadata matches the native library."""
-    assert AMAZON_BRAKET_QDMI_DEVICE_ID == "amazon.braket.default"
+    assert AMAZON_BRAKET_QDMI_CATALOG_PATH.exists()
     assert AMAZON_BRAKET_QDMI_PREFIX == "AMAZON_BRAKET"
+
+
+def test_installed_catalog() -> None:
+    """Test the exact persistent device IDs, ARNs, and regions."""
+    catalog = json.loads(AMAZON_BRAKET_QDMI_CATALOG_PATH.read_text(encoding="utf-8"))
+    devices = catalog["qdmi"]["devices"]
+    expected = {
+        "amazon.braket.aqt.ibex-q1": ("arn:aws:braket:eu-north-1::device/qpu/aqt/Ibex-Q1", "eu-north-1"),
+        "amazon.braket.ionq.forte-1": ("arn:aws:braket:us-east-1::device/qpu/ionq/Forte-1", "us-east-1"),
+        "amazon.braket.ionq.forte-enterprise-1": (
+            "arn:aws:braket:us-east-1::device/qpu/ionq/Forte-Enterprise-1",
+            "us-east-1",
+        ),
+        "amazon.braket.iqm.garnet": ("arn:aws:braket:eu-north-1::device/qpu/iqm/Garnet", "eu-north-1"),
+        "amazon.braket.iqm.emerald": ("arn:aws:braket:eu-north-1::device/qpu/iqm/Emerald", "eu-north-1"),
+        "amazon.braket.rigetti.ankaa-3": (
+            "arn:aws:braket:us-west-1::device/qpu/rigetti/Ankaa-3",
+            "us-west-1",
+        ),
+        "amazon.braket.rigetti.cepheus-1-108q": (
+            "arn:aws:braket:us-west-1::device/qpu/rigetti/Cepheus-1-108Q",
+            "us-west-1",
+        ),
+        "amazon.braket.sv1": ("arn:aws:braket:::device/quantum-simulator/amazon/sv1", "us-east-1"),
+        "amazon.braket.dm1": ("arn:aws:braket:::device/quantum-simulator/amazon/dm1", "us-east-1"),
+    }
+    assert {device["id"] for device in devices} == set(expected)
+    assert tuple(device["id"] for device in devices) == AMAZON_BRAKET_QDMI_DEVICE_IDS
+    for device in devices:
+        session = device["session"]
+        assert (session["base-url"], session["custom2"]) == expected[device["id"]]
 
 
 def test_include_dir_exists() -> None:
@@ -77,6 +110,7 @@ def test_paths_are_pathlib_objects() -> None:
     assert isinstance(AMAZON_BRAKET_QDMI_INCLUDE_DIR, Path)
     assert isinstance(AMAZON_BRAKET_QDMI_CMAKE_DIR, Path)
     assert isinstance(AMAZON_BRAKET_QDMI_LIBRARY_PATH, Path)
+    assert isinstance(AMAZON_BRAKET_QDMI_CATALOG_PATH, Path)
 
 
 def test_paths_are_absolute() -> None:
@@ -84,3 +118,4 @@ def test_paths_are_absolute() -> None:
     assert AMAZON_BRAKET_QDMI_INCLUDE_DIR.is_absolute()
     assert AMAZON_BRAKET_QDMI_CMAKE_DIR.is_absolute()
     assert AMAZON_BRAKET_QDMI_LIBRARY_PATH.is_absolute()
+    assert AMAZON_BRAKET_QDMI_CATALOG_PATH.is_absolute()

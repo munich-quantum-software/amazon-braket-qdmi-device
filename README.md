@@ -43,14 +43,28 @@ QuantumTasks (pure quantum circuit execution).
 
 ### Supported Amazon Braket Devices
 
-This implementation currently supports submitting jobs to simulator and
-gate-based Amazon Braket devices. Additionally, support for querying properties
-(e.g., qubit count, gate set) is implemented for:
+This implementation supports Amazon Braket gate-model QPUs and on-demand
+gate-model simulators. The installed example catalog contains these devices:
 
-| Device Type         | Examples                                                                   |
-| ------------------- | -------------------------------------------------------------------------- |
-| **Simulators**      | AWS SV1 (State Vector), AWS DM1 (Density Matrix), AWS TN1 (Tensor Network) |
-| **Gate-based QPUs** | IQM Garnet, IQM Emerald                                                    |
+| Stable QDMI ID                                  | Region       |
+| ----------------------------------------------- | ------------ |
+| `amazon.braket.aqt.ibex-q1`                     | `eu-north-1` |
+| `amazon.braket.ionq.forte-1`                    | `us-east-1`  |
+| `amazon.braket.ionq.forte-enterprise-1`         | `us-east-1`  |
+| `amazon.braket.iqm.garnet`                      | `eu-north-1` |
+| `amazon.braket.iqm.emerald`                     | `eu-north-1` |
+| `amazon.braket.rigetti.ankaa-3`                 | `us-west-1`  |
+| `amazon.braket.rigetti.cepheus-1-108q`          | `us-west-1`  |
+| `amazon.braket.sv1`                             | `us-east-1`  |
+| `amazon.braket.dm1`                             | `us-east-1`  |
+
+For a QPU, `QDMI_DEVICE_PROPERTY_OPERATIONS` contains only the Braket
+`nativeGateSet`. The custom property
+`AMAZON_BRAKET_QDMI_DEVICE_PROPERTY_SUPPORTEDOPERATIONS` contains the broader
+OpenQASM `supportedOperations` set. Equal names in both sets have the same QDMI
+operation handle. SV1 and DM1 do not publish a hardware-native gate set. For
+these simulators, the standard property contains their executable OpenQASM
+operation set.
 
 ## Quick Start
 
@@ -274,10 +288,10 @@ cmake --build build
 
 ### Using the Device with MQT Core
 
-The installed CMake target exports the stable device ID `amazon.braket.default`
-and the `AMAZON_BRAKET` symbol prefix. An application using MQT Core 3.8 or
-newer can copy the device library and a relocatable manifest beside its
-executable:
+The installed CMake target exports the `AMAZON_BRAKET` symbol prefix and a
+relocatable catalog with all nine stable device definitions. An application
+using MQT Core 3.8 or newer can copy the device library and this catalog beside
+its executable:
 
 ```cmake
 find_package(mqt-core 3.8 CONFIG REQUIRED)
@@ -293,38 +307,25 @@ statically into the executable. A dynamically linked Driver searches beside its
 own shared library instead; in that case, place the generated manifest there or
 register the definition explicitly as shown below.
 
-Python consumers can use the same metadata to preserve any existing
-`amazon.braket.default` configuration and apply credentials or a device ARN to
-each fresh session:
+Python consumers can use the installed catalog directly. Each definition
+contains the exact device ARN and AWS Region. The AWS SDK resolves credentials
+when MQT Core opens the selected device:
 
 ```python
-from pathlib import Path
+import os
 
-from amazon.braket.qdmi import (
-    AMAZON_BRAKET_QDMI_DEVICE_ID,
-    AMAZON_BRAKET_QDMI_LIBRARY_PATH,
-    AMAZON_BRAKET_QDMI_PREFIX,
-)
-from mqt.core.fomac import DeviceDefinition, open_device, register_device_if_absent
+from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_CATALOG_PATH
+from mqt.core.fomac import open_device
 
-register_device_if_absent(
-    DeviceDefinition(
-        AMAZON_BRAKET_QDMI_DEVICE_ID,
-        AMAZON_BRAKET_QDMI_LIBRARY_PATH,
-        AMAZON_BRAKET_QDMI_PREFIX,
-    )
-)
-device = open_device(
-    AMAZON_BRAKET_QDMI_DEVICE_ID,
-    base_url="arn:aws:braket:::device/quantum-simulator/amazon/sv1",
-    auth_file=Path("/path/to/credentials"),
-    custom2="us-east-1",  # AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION
-)
+# Set this before the first FoMaC driver operation.
+os.environ["MQT_CORE_QDMI_CONFIG_FILE"] = str(AMAZON_BRAKET_QDMI_CATALOG_PATH)
+device = open_device("amazon.braket.sv1")
 ```
 
-`register_device_if_absent` does not replace definitions from `qdmi.json`,
-`[tool.qdmi]`, or another higher-precedence configuration source. The explicit
-arguments to `open_device` override only that newly opened session.
+The command `amazon-braket-qdmi --catalog_path` prints the same catalog path.
+The installed `config/slurm-licenses.conf` file gives one local Slurm license to
+each QPU and four to each simulator. The simulator count is a local
+cluster-admission limit. It is not an AWS quantum-task quota.
 
 ### CMake Options
 
