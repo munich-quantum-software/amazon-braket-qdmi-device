@@ -44,6 +44,8 @@
 #include <aws/braket/BraketServiceClientModel.h>
 #include <aws/braket/model/CancelQuantumTaskRequest.h>
 #include <aws/braket/model/CancelQuantumTaskResult.h>
+#include <aws/braket/model/CreateQuantumTaskRequest.h>
+#include <aws/braket/model/CreateQuantumTaskResult.h>
 #include <aws/braket/model/DeviceStatus.h>
 #include <aws/braket/model/DeviceType.h>
 #include <aws/braket/model/GetDeviceRequest.h>
@@ -53,9 +55,25 @@
 #include <aws/braket/model/QuantumTaskStatus.h>
 #include <aws/core/client/AWSError.h>
 #include <aws/core/client/ClientConfiguration.h>
+#include <aws/core/http/HttpResponse.h>
+#include <aws/core/utils/memory/AWSMemory.h>
+#include <aws/core/utils/memory/stl/AWSStringStream.h>
+#include <aws/s3/S3Client.h>
+#include <aws/s3/S3Errors.h>
+#include <aws/s3/S3ServiceClientModel.h>
+#include <aws/s3/model/CreateBucketRequest.h>
+#include <aws/s3/model/GetObjectRequest.h>
+#include <aws/s3/model/GetObjectResult.h>
+#include <aws/s3/model/HeadBucketRequest.h>
+#include <aws/s3/model/PutPublicAccessBlockRequest.h>
+#include <aws/sts/STSClient.h>
+#include <aws/sts/STSErrors.h>
+#include <aws/sts/STSServiceClientModel.h>
+#include <aws/sts/model/GetCallerIdentityResult.h>
 #ifdef _WIN32
 #include <aws/core/Aws.h>
 #endif
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
@@ -63,8 +81,6 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <filesystem>
-#include <fstream>
 #include <future>
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
@@ -74,16 +90,19 @@
 #include <mutex>
 #include <new>
 #include <optional>
-#include <random>
-#include <stdexcept>
 #include <stdlib.h> // NOLINT(modernize-deprecated-headers): POSIX setenv/unsetenv
 #include <string>
-#include <system_error>
 #include <thread>
+#include <tuple>
 #include <utility>
 #include <vector>
 
 struct AMAZON_BRAKET_QDMI_Device_Job_TestAccess {
+  static auto setStatus(AMAZON_BRAKET_QDMI_Device_Job job,
+                        const QDMI_Job_Status status) -> void {
+    job->status_.store(status);
+  }
+
   static auto
   wait(AMAZON_BRAKET_QDMI_Device_Job job, const size_t timeout,
        const amazon::braket::qdmi::detail::JobWaitFunctions& functions)
@@ -112,6 +131,22 @@ struct AMAZON_BRAKET_QDMI_Device_Session_TestAccess {
       -> void {
     session->client_ = std::move(client);
   }
+
+  static auto setS3Client(AMAZON_BRAKET_QDMI_Device_Session session,
+                          std::unique_ptr<Aws::S3::S3Client> client) -> void {
+    session->s3Client_ = std::move(client);
+  }
+
+  static auto setStsClient(AMAZON_BRAKET_QDMI_Device_Session session,
+                           std::unique_ptr<Aws::STS::STSClient> client)
+      -> void {
+    session->stsClient_ = std::move(client);
+  }
+
+  static auto setRegion(AMAZON_BRAKET_QDMI_Device_Session session,
+                        std::string region) -> void {
+    session->region_ = std::move(region);
+  }
 };
 
 namespace {
@@ -121,13 +156,15 @@ public:
       Aws::Braket::Model::GetQuantumTaskResult result,
       const std::optional<Aws::Braket::BraketErrors> getError = std::nullopt,
       const std::optional<Aws::Braket::BraketErrors> cancelError = std::nullopt,
-      const bool failGetAfterFirstCall = false)
+      const bool failGetAfterFirstCall = false,
+      const std::optional<Aws::Braket::BraketErrors> createError = std::nullopt)
       : Aws::Braket::BraketClient(
             Aws::Auth::AWSCredentials{"access-key", "secret-key"},
             clientConfiguration()),
         result_(std::move(result)), getError_(getError),
         cancelError_(cancelError),
-        failGetAfterFirstCall_(failGetAfterFirstCall) {}
+        failGetAfterFirstCall_(failGetAfterFirstCall),
+        createError_(createError) {}
 
   auto
   GetQuantumTask(const Aws::Braket::Model::GetQuantumTaskRequest& request) const
@@ -156,6 +193,28 @@ public:
     return Aws::Braket::Model::CancelQuantumTaskResult{};
   }
 
+  auto CreateQuantumTask(
+      const Aws::Braket::Model::CreateQuantumTaskRequest& request) const
+      -> Aws::Braket::Model::CreateQuantumTaskOutcome override {
+    ++createCalls_;
+    {
+      const std::scoped_lock lock(createMutex_);
+      outputBucket_ = request.GetOutputS3Bucket();
+      outputPrefix_ = request.GetOutputS3KeyPrefix();
+      if (!request.GetAssociations().empty()) {
+        reservationArn_ = request.GetAssociations().front().GetArn();
+      }
+    }
+    if (createError_.has_value()) {
+      Aws::Client::AWSError<Aws::Braket::BraketErrors> error{
+          *createError_, "StubError", "stubbed CreateQuantumTask failure",
+          false};
+      return Aws::Braket::BraketError{std::move(error)};
+    }
+    return Aws::Braket::Model::CreateQuantumTaskResult{}.WithQuantumTaskArn(
+        "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id");
+  }
+
   [[nodiscard]] auto calls() const -> size_t { return calls_; }
   [[nodiscard]] auto cancelCalls() const -> size_t { return cancelCalls_; }
   [[nodiscard]] auto requestedArn() const -> const std::string& {
@@ -163,6 +222,21 @@ public:
   }
   [[nodiscard]] auto canceledArn() const -> const std::string& {
     return canceledArn_;
+  }
+  [[nodiscard]] auto createCalls() const -> size_t {
+    return createCalls_.load();
+  }
+  [[nodiscard]] auto outputBucket() const -> std::string {
+    const std::scoped_lock lock(createMutex_);
+    return outputBucket_;
+  }
+  [[nodiscard]] auto outputPrefix() const -> std::string {
+    const std::scoped_lock lock(createMutex_);
+    return outputPrefix_;
+  }
+  [[nodiscard]] auto reservationArn() const -> std::string {
+    const std::scoped_lock lock(createMutex_);
+    return reservationArn_;
   }
 
 private:
@@ -176,24 +250,210 @@ private:
   std::optional<Aws::Braket::BraketErrors> getError_;
   std::optional<Aws::Braket::BraketErrors> cancelError_;
   bool failGetAfterFirstCall_;
+  std::optional<Aws::Braket::BraketErrors> createError_;
   mutable size_t calls_ = 0;
   mutable size_t cancelCalls_ = 0;
   mutable std::string requestedArn_;
   mutable std::string canceledArn_;
+  mutable std::atomic<size_t> createCalls_ = 0;
+  mutable std::mutex createMutex_;
+  mutable std::string outputBucket_;
+  mutable std::string outputPrefix_;
+  mutable std::string reservationArn_;
+};
+
+class StubStsClient final : public Aws::STS::STSClient {
+public:
+  explicit StubStsClient(
+      const std::optional<Aws::STS::STSErrors> error = std::nullopt,
+      std::string account = "123456789012")
+      : Aws::STS::STSClient(Aws::Auth::AWSCredentials{"access", "secret"}),
+        error_(error), account_(std::move(account)) {}
+
+  auto GetCallerIdentity(
+      const Aws::STS::Model::GetCallerIdentityRequest& request) const
+      -> Aws::STS::Model::GetCallerIdentityOutcome override {
+    static_cast<void>(request);
+    ++calls_;
+    if (error_.has_value()) {
+      Aws::Client::AWSError<Aws::STS::STSErrors> error{
+          *error_, "StubError", "stubbed STS failure", false};
+      return Aws::STS::STSError{std::move(error)};
+    }
+    return Aws::STS::Model::GetCallerIdentityResult{}.WithAccount(account_);
+  }
+
+  [[nodiscard]] auto calls() const -> size_t { return calls_; }
+
+private:
+  std::optional<Aws::STS::STSErrors> error_;
+  std::string account_;
+  mutable size_t calls_ = 0;
+};
+
+class StubS3Client final : public Aws::S3::S3Client {
+public:
+  enum class BucketState : std::uint8_t {
+    Missing,
+    Owned,
+    Forbidden,
+    TransientFailure
+  };
+
+  struct Configuration {
+    BucketState state = BucketState::Owned;
+    std::optional<Aws::S3::S3Errors> createError = std::nullopt;
+    std::optional<Aws::S3::S3Errors> publicAccessBlockError = std::nullopt;
+    std::optional<Aws::S3::S3Errors> getObjectError = std::nullopt;
+    bool failPublicAccessBlockOnce = false;
+    Aws::Http::HttpResponseCode responseCode =
+        Aws::Http::HttpResponseCode::REQUEST_NOT_MADE;
+    std::string exceptionName = "StubError";
+    std::string resultJson = R"({"measurements":[[0,0],[1,1]]})";
+  };
+
+  explicit StubS3Client(const BucketState state)
+      : Aws::S3::S3Client(Aws::Auth::AWSCredentials{"access", "secret"}),
+        configuration_{.state = state}, state_(state) {}
+
+  explicit StubS3Client(Configuration configuration)
+      : Aws::S3::S3Client(Aws::Auth::AWSCredentials{"access", "secret"}),
+        configuration_(std::move(configuration)), state_(configuration_.state) {
+  }
+
+  auto HeadBucket(const Aws::S3::Model::HeadBucketRequest& request) const
+      -> Aws::S3::Model::HeadBucketOutcome override {
+    ++headCalls_;
+    bucket_ = request.GetBucket();
+    if (state_ == BucketState::Owned) {
+      return Aws::S3::Model::HeadBucketResult{};
+    }
+    const auto type = [this] {
+      switch (state_) {
+      case BucketState::Missing:
+        return Aws::S3::S3Errors::NO_SUCH_BUCKET;
+      case BucketState::Forbidden:
+        return Aws::S3::S3Errors::ACCESS_DENIED;
+      case BucketState::TransientFailure:
+        return Aws::S3::S3Errors::SERVICE_UNAVAILABLE;
+      case BucketState::Owned:
+        break;
+      }
+      return Aws::S3::S3Errors::UNKNOWN;
+    }();
+    Aws::Client::AWSError<Aws::S3::S3Errors> error{
+        type, "StubError", "stubbed HeadBucket failure", false};
+    return Aws::S3::S3Error{std::move(error)};
+  }
+
+  auto CreateBucket(const Aws::S3::Model::CreateBucketRequest& request) const
+      -> Aws::S3::Model::CreateBucketOutcome override {
+    ++createCalls_;
+    bucket_ = request.GetBucket();
+    hasLocationConstraint_ = request.CreateBucketConfigurationHasBeenSet();
+    if (configuration_.createError.has_value()) {
+      if (*configuration_.createError ==
+          Aws::S3::S3Errors::BUCKET_ALREADY_OWNED_BY_YOU) {
+        state_ = BucketState::Owned;
+      }
+      Aws::Client::AWSError<Aws::S3::S3Errors> error{
+          *configuration_.createError, configuration_.exceptionName,
+          "stubbed CreateBucket failure", false};
+      error.SetResponseCode(configuration_.responseCode);
+      return Aws::S3::S3Error{std::move(error)};
+    }
+    state_ = BucketState::Owned;
+    return Aws::S3::Model::CreateBucketResult{};
+  }
+
+  auto PutPublicAccessBlock(
+      const Aws::S3::Model::PutPublicAccessBlockRequest& request) const
+      -> Aws::S3::Model::PutPublicAccessBlockOutcome override {
+    static_cast<void>(request);
+    ++publicAccessBlockCalls_;
+    if (configuration_.publicAccessBlockError.has_value() &&
+        (!configuration_.failPublicAccessBlockOnce ||
+         publicAccessBlockCalls_ == 1U)) {
+      Aws::Client::AWSError<Aws::S3::S3Errors> error{
+          *configuration_.publicAccessBlockError, configuration_.exceptionName,
+          "stubbed PutPublicAccessBlock failure", false};
+      error.SetResponseCode(configuration_.responseCode);
+      return Aws::S3::S3Error{std::move(error)};
+    }
+    return Aws::NoResult{};
+  }
+
+  auto GetObject(const Aws::S3::Model::GetObjectRequest& request) const
+      -> Aws::S3::Model::GetObjectOutcome override {
+    ++getObjectCalls_;
+    getObjectBucket_ = request.GetBucket();
+    getObjectKey_ = request.GetKey();
+    if (configuration_.getObjectError.has_value()) {
+      Aws::Client::AWSError<Aws::S3::S3Errors> error{
+          *configuration_.getObjectError, configuration_.exceptionName,
+          "stubbed GetObject failure", false};
+      error.SetResponseCode(configuration_.responseCode);
+      return Aws::S3::S3Error{std::move(error)};
+    }
+    Aws::S3::Model::GetObjectResult result;
+    result.ReplaceBody(Aws::New<Aws::StringStream>("AmazonBraketQDMIResult",
+                                                   configuration_.resultJson));
+    return Aws::S3::Model::GetObjectOutcome{std::move(result)};
+  }
+
+  [[nodiscard]] auto headCalls() const -> size_t { return headCalls_; }
+  [[nodiscard]] auto createCalls() const -> size_t { return createCalls_; }
+  [[nodiscard]] auto publicAccessBlockCalls() const -> size_t {
+    return publicAccessBlockCalls_;
+  }
+  [[nodiscard]] auto hasLocationConstraint() const -> bool {
+    return hasLocationConstraint_;
+  }
+  [[nodiscard]] auto bucket() const -> const std::string& { return bucket_; }
+  [[nodiscard]] auto getObjectCalls() const -> size_t {
+    return getObjectCalls_;
+  }
+  [[nodiscard]] auto getObjectBucket() const -> const std::string& {
+    return getObjectBucket_;
+  }
+  [[nodiscard]] auto getObjectKey() const -> const std::string& {
+    return getObjectKey_;
+  }
+
+private:
+  Configuration configuration_;
+  mutable BucketState state_;
+  mutable size_t headCalls_ = 0;
+  mutable size_t createCalls_ = 0;
+  mutable size_t publicAccessBlockCalls_ = 0;
+  mutable bool hasLocationConstraint_ = false;
+  mutable std::string bucket_;
+  mutable size_t getObjectCalls_ = 0;
+  mutable std::string getObjectBucket_;
+  mutable std::string getObjectKey_;
 };
 
 class StubGetDeviceClient final : public Aws::Braket::BraketClient {
 public:
-  explicit StubGetDeviceClient(Aws::Braket::Model::GetDeviceResult result)
+  explicit StubGetDeviceClient(
+      Aws::Braket::Model::GetDeviceResult result,
+      const std::optional<Aws::Braket::BraketErrors> error = std::nullopt,
+      const bool failAfterFirstCall = false)
       : Aws::Braket::BraketClient(
             Aws::Auth::AWSCredentials{"access-key", "secret-key"},
             clientConfiguration()),
-        result_(std::move(result)) {}
+        result_(std::move(result)), error_(error),
+        failAfterFirstCall_(failAfterFirstCall) {}
 
   auto GetDevice(const Aws::Braket::Model::GetDeviceRequest& request) const
       -> Aws::Braket::Model::GetDeviceOutcome override {
     requestedArn_ = request.GetDeviceArn();
     ++calls_;
+    if (error_.has_value() && (!failAfterFirstCall_ || calls_ > 1U)) {
+      Aws::Client::AWSError<Aws::Braket::BraketErrors> error{
+          *error_, "StubError", "stubbed GetDevice failure", false};
+      return Aws::Braket::BraketError{std::move(error)};
+    }
     return result_;
   }
 
@@ -210,6 +470,8 @@ private:
   }
 
   Aws::Braket::Model::GetDeviceResult result_;
+  std::optional<Aws::Braket::BraketErrors> error_;
+  bool failAfterFirstCall_;
   mutable size_t calls_ = 0;
   mutable std::string requestedArn_;
 };
@@ -370,56 +632,30 @@ constexpr const char* BELL_STATE_PROGRAM = "OPENQASM 3.0;\n"
                                            "c[0] = measure q[0];\n"
                                            "c[1] = measure q[1];\n";
 
+auto createConfiguredJob(AMAZON_BRAKET_QDMI_Device_Session session)
+    -> AMAZON_BRAKET_QDMI_Device_Job {
+  AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+  if (AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job) !=
+          QDMI_SUCCESS ||
+      AMAZON_BRAKET_QDMI_device_job_set_parameter(
+          job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
+          strlen(BELL_STATE_PROGRAM) + 1, BELL_STATE_PROGRAM) != QDMI_SUCCESS) {
+    AMAZON_BRAKET_QDMI_device_job_free(job);
+    return nullptr;
+  }
+  return job;
+}
+
 static_assert(AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN ==
               QDMI_DEVICE_SESSION_PARAMETER_BASEURL);
 static_assert(AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION ==
               QDMI_DEVICE_SESSION_PARAMETER_CUSTOM2);
 static_assert(AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN ==
               QDMI_DEVICE_SESSION_PARAMETER_CUSTOM3);
-static_assert(AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET ==
+static_assert(AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI ==
               QDMI_DEVICE_JOB_PARAMETER_CUSTOM1);
-static_assert(AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX ==
-              QDMI_DEVICE_JOB_PARAMETER_CUSTOM2);
 static_assert(AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN ==
               QDMI_DEVICE_JOB_PARAMETER_CUSTOM3);
-
-class ScopedTemporaryDirectory {
-public:
-  ScopedTemporaryDirectory() {
-    const auto parent = std::filesystem::temp_directory_path();
-    std::random_device random;
-    for (size_t attempt = 0; attempt < 100; ++attempt) {
-      path_ = parent / ("amazon-braket-qdmi-" + std::to_string(random()) + "-" +
-                        std::to_string(attempt));
-      std::error_code error;
-      if (std::filesystem::create_directory(path_, error)) {
-        return;
-      }
-      if (error && error != std::errc::file_exists) {
-        throw std::filesystem::filesystem_error(
-            "Failed to create temporary test directory", path_, error);
-      }
-    }
-    throw std::runtime_error(
-        "Failed to create a unique temporary test directory");
-  }
-
-  ScopedTemporaryDirectory(const ScopedTemporaryDirectory&) = delete;
-  auto operator=(const ScopedTemporaryDirectory&)
-      -> ScopedTemporaryDirectory& = delete;
-
-  ~ScopedTemporaryDirectory() {
-    std::error_code error;
-    std::filesystem::remove_all(path_, error);
-  }
-
-  [[nodiscard]] auto path() const -> const std::filesystem::path& {
-    return path_;
-  }
-
-private:
-  std::filesystem::path path_;
-};
 
 // NOLINTBEGIN(misc-include-cleaner)
 class ScopedEnvironment {
@@ -522,21 +758,9 @@ protected:
 };
 
 TEST_F(AmazonBraketQDMIOfflineTest, SessionInitUsesEnvironmentFallbacks) {
-  const ScopedTemporaryDirectory temporaryDirectory;
-  const auto credentialsFile = temporaryDirectory.path() / "credentials.ini";
-  {
-    std::ofstream file(credentialsFile);
-    ASSERT_TRUE(file.is_open());
-    file << "[default]\n"
-         << "aws_access_key_id=AKIAIOSFODNN7EXAMPLE\n"
-         << "aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n";
-  }
-
   const ScopedEnvironment baseUrl(
       AMAZON_BRAKET_QDMI_DEVICE_ENV_DEVICE_ARN,
       "arn:aws:braket:::device/quantum-simulator/amazon/sv1");
-  const ScopedEnvironment authFile(AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE,
-                                   credentialsFile.string().c_str());
   const ScopedEnvironment region(AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION,
                                  "us-east-1");
 
@@ -569,20 +793,6 @@ protected:
     Aws::InitAPI(testAWSOptions_);
 #endif
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&session), QDMI_SUCCESS);
-
-    // Fake but syntactically valid credentials — init() accepts them and builds
-    // a BraketClient, but no AWS API call is issued at this stage.
-    const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
-    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                  session, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
-                  strlen(accessKey) + 1, accessKey),
-              QDMI_SUCCESS);
-
-    const char* secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
-    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                  session, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
-                  strlen(secretKey) + 1, secretKey),
-              QDMI_SUCCESS);
 
     const char* deviceArn =
         "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
@@ -632,156 +842,55 @@ TEST_F(AmazonBraketQDMIOfflineTest,
 }
 
 TEST_F(AmazonBraketQDMIOfflineTest,
-       SessionInitRejectsAccessKeyWithoutSecretKey) {
-  const char* deviceArn =
+       SessionInitAcceptsServiceEndpointOverrides) {
+  const ScopedEnvironment braketEndpoint("AWS_ENDPOINT_URL_BRAKET",
+                                         "http://127.0.0.1:1");
+  const ScopedEnvironment s3Endpoint("AWS_ENDPOINT_URL_S3",
+                                     "http://127.0.0.1:1");
+  const ScopedEnvironment stsEndpoint("AWS_ENDPOINT_URL_STS",
+                                      "http://127.0.0.1:1");
+  constexpr std::string_view deviceArn =
       "arn:aws:braket:us-east-1::device/qpu/test/FakeDevice";
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
-                strlen(deviceArn) + 1, deviceArn),
+                deviceArn.size() + 1, deviceArn.data()),
             QDMI_SUCCESS);
-  const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
-                strlen(accessKey) + 1, accessKey),
-            QDMI_SUCCESS);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
-            QDMI_ERROR_INVALIDARGUMENT);
-}
-
-TEST_F(AmazonBraketQDMIOfflineTest,
-       SessionInitRejectsSecretKeyWithoutAccessKey) {
-  const char* deviceArn =
-      "arn:aws:braket:us-east-1::device/qpu/test/FakeDevice";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
-                strlen(deviceArn) + 1, deviceArn),
-            QDMI_SUCCESS);
-  const char* secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
-                strlen(secretKey) + 1, secretKey),
-            QDMI_SUCCESS);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
-            QDMI_ERROR_INVALIDARGUMENT);
-}
-
-TEST_F(AmazonBraketQDMIOfflineTest,
-       SessionInitRejectsTokenWithoutAccessAndSecretKeys) {
-  const char* deviceArn =
-      "arn:aws:braket:us-east-1::device/qpu/test/FakeDevice";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
-                strlen(deviceArn) + 1, deviceArn),
-            QDMI_SUCCESS);
-  const char* sessionToken = "FakeSessionToken123";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_TOKEN,
-                strlen(sessionToken) + 1, sessionToken),
-            QDMI_SUCCESS);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
-            QDMI_ERROR_INVALIDARGUMENT);
-}
-
-// Explicit API credentials must take precedence over an AUTHFILE fallback.
-TEST_F(AmazonBraketQDMIOfflineTest,
-       SessionInitDirectCredentialsIgnoreEnvironmentAuthFile) {
-  const ScopedEnvironment authFile(AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE,
-                                   "/nonexistent/environment/credentials.ini");
-  const char* deviceArn =
-      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
-                strlen(deviceArn) + 1, deviceArn),
-            QDMI_SUCCESS);
-  const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
-                strlen(accessKey) + 1, accessKey),
-            QDMI_SUCCESS);
-  const char* secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
-                strlen(secretKey) + 1, secretKey),
-            QDMI_SUCCESS);
-
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
 }
 
-// Any explicit direct-credential parameter must suppress an AUTHFILE fallback,
-// including a token that is invalid without its access and secret keys.
 TEST_F(AmazonBraketQDMIOfflineTest,
-       SessionInitTokenOnlyIgnoresEnvironmentAuthFile) {
-  const ScopedTemporaryDirectory temporaryDirectory;
-  const auto credentialsFile = temporaryDirectory.path() / "credentials.ini";
-  {
-    std::ofstream file(credentialsFile);
-    ASSERT_TRUE(file.is_open());
-    file << "[default]\n"
-         << "aws_access_key_id=AKIAIOSFODNN7EXAMPLE\n"
-         << "aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/"
-            "bPxRfiCYEXAMPLEKEY\n";
+       SessionCredentialParametersAreNotSupported) {
+  constexpr std::array credentialParameters{
+      QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
+      QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
+      QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
+      QDMI_DEVICE_SESSION_PARAMETER_TOKEN};
+  constexpr std::string_view value = "not-used";
+  for (const auto parameter : credentialParameters) {
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                  session, parameter, value.size() + 1, value.data()),
+              QDMI_ERROR_NOTSUPPORTED);
   }
-  const auto credentialsPath = credentialsFile.string();
-  const ScopedEnvironment authFile(AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE,
-                                   credentialsPath.c_str());
-
-  const char* deviceArn =
-      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_BASEURL,
-                strlen(deviceArn) + 1, deviceArn),
-            QDMI_SUCCESS);
-  const char* sessionToken = "FakeSessionToken123";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_TOKEN,
-                strlen(sessionToken) + 1, sessionToken),
-            QDMI_SUCCESS);
-
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
-            QDMI_ERROR_INVALIDARGUMENT);
 }
 
-// init() with a credentials file that does not exist must fail.
-TEST_F(AmazonBraketQDMIOfflineTest, SessionInitNonexistentCredentialsFile) {
-  const char* deviceArn =
-      "arn:aws:braket:us-east-1::device/qpu/test/FakeDevice";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
-                strlen(deviceArn) + 1, deviceArn),
-            QDMI_SUCCESS);
-  const char* badFile = "/nonexistent/path/to/credentials.ini";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
-                strlen(badFile) + 1, badFile),
-            QDMI_SUCCESS);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
-            QDMI_ERROR_INVALIDARGUMENT);
+TEST_F(AmazonBraketQDMIOfflineTest,
+       OtherStandardSessionParametersAreNotSupported) {
+  constexpr std::string_view value = "not-used";
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_AUTHURL,
+                value.size() + 1, value.data()),
+            QDMI_ERROR_NOTSUPPORTED);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_CHILDDEVICE,
+                value.size() + 1, value.data()),
+            QDMI_ERROR_FATAL);
 }
 
-// An explicitly configured credentials file remains authoritative and malformed
-// files must not fall back to the default credential provider chain.
-TEST_F(AmazonBraketQDMIOfflineTest, SessionInitMalformedCredentialsFile) {
-  const ScopedTemporaryDirectory temporaryDirectory;
-  const auto credentialsFile =
-      temporaryDirectory.path() / "malformed-credentials.ini";
-  {
-    std::ofstream file(credentialsFile);
-    file << "[default]\n"
-         << "aws_access_key_id=AKIAIOSFODNN7EXAMPLE\n";
-  }
-  const auto credentialsPath = credentialsFile.string();
-
-  const char* deviceArn =
-      "arn:aws:braket:us-east-1::device/qpu/test/FakeDevice";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
-                strlen(deviceArn) + 1, deviceArn),
-            QDMI_SUCCESS);
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
-                credentialsPath.size() + 1, credentialsPath.c_str()),
-            QDMI_SUCCESS);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
+TEST_F(AmazonBraketQDMIOfflineTest, UnknownCustomSessionParameterIsRejected) {
+  constexpr std::string_view value = "not-used";
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, QDMI_DEVICE_SESSION_PARAMETER_CUSTOM4,
+                value.size() + 1, value.data()),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
@@ -872,42 +981,6 @@ TEST_F(AmazonBraketQDMIOfflineTest,
   const std::array<char, 7> notTerminated = {'u', 's', '-', 'e', 'a', 's', 't'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION,
-                notTerminated.size(), notTerminated.data()),
-            QDMI_ERROR_INVALIDARGUMENT);
-}
-
-TEST_F(AmazonBraketQDMIOfflineTest,
-       SessionSetParameterAuthfileNotNullTerminated) {
-  const std::array<char, 7> notTerminated = {'/', 't', 'm', 'p', '/', 'c', 'r'};
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
-                notTerminated.size(), notTerminated.data()),
-            QDMI_ERROR_INVALIDARGUMENT);
-}
-
-TEST_F(AmazonBraketQDMIOfflineTest,
-       SessionSetParameterAccessKeyNotNullTerminated) {
-  const std::array<char, 7> notTerminated = {'A', 'K', 'I', 'A', '1', '2', '3'};
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
-                notTerminated.size(), notTerminated.data()),
-            QDMI_ERROR_INVALIDARGUMENT);
-}
-
-TEST_F(AmazonBraketQDMIOfflineTest,
-       SessionSetParameterSecretKeyNotNullTerminated) {
-  const std::array<char, 6> notTerminated = {'s', 'e', 'c', 'r', 'e', 't'};
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
-                notTerminated.size(), notTerminated.data()),
-            QDMI_ERROR_INVALIDARGUMENT);
-}
-
-TEST_F(AmazonBraketQDMIOfflineTest,
-       SessionSetParameterSessionTokenNotNullTerminated) {
-  const std::array<char, 5> notTerminated = {'t', 'o', 'k', 'e', 'n'};
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_TOKEN,
                 notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
 }
@@ -1039,106 +1112,24 @@ TEST_F(AmazonBraketQDMILocalJobTest, SessionSetParameter) {
   AMAZON_BRAKET_QDMI_device_session_free(uninitializedSession);
 }
 
-// A valid AUTHFILE takes precedence over direct parameters, including an
-// otherwise incomplete direct credential configuration.
-TEST_F(AmazonBraketQDMIOfflineTest,
-       SessionCredentialsFileTakesPrecedenceOverDirectCredentials) {
-  const ScopedTemporaryDirectory temporaryDirectory;
-  const auto credentialsFile =
-      temporaryDirectory.path() / "precedence-credentials.ini";
-  {
-    std::ofstream file(credentialsFile);
-    file << "[default]\n"
-         << "aws_access_key_id=AKIAIOSFODNN7EXAMPLE\n"
-         << "aws_secret_access_key="
-            "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n";
+TEST_F(AmazonBraketQDMILocalJobTest,
+       SessionParameterCapabilityProbesDoNotMutateState) {
+  AMAZON_BRAKET_QDMI_Device_Session uninitializedSession = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&uninitializedSession),
+            QDMI_SUCCESS);
+  for (const auto parameter : {
+           AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+           AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION,
+           AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN}) {
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                  uninitializedSession, parameter, 0, nullptr),
+              QDMI_SUCCESS);
   }
-  const auto credentialsPath = credentialsFile.string();
-
-  const char* incompleteAccessKey = "INCOMPLETE_DIRECT_ACCESS_KEY";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
-                strlen(incompleteAccessKey) + 1, incompleteAccessKey),
-            QDMI_SUCCESS);
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
-                credentialsPath.size() + 1, credentialsPath.c_str()),
-            QDMI_SUCCESS);
-
-  const char* deviceArn =
-      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
-                strlen(deviceArn) + 1, deviceArn),
-            QDMI_SUCCESS);
-
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
-}
-
-// A credentials file that contains more than one profile section triggers a
-// warning and uses the first profile's credentials.
-// This covers the multi-profile warning branch in parseCredentialsFile().
-TEST_F(AmazonBraketQDMIOfflineTest,
-       SessionInitMultipleProfilesCredentialsFile) {
-  const ScopedTemporaryDirectory temporaryDirectory;
-  const auto credentialsFile =
-      temporaryDirectory.path() / "multiple-profile-credentials.ini";
-  {
-    std::ofstream f(credentialsFile);
-    f << "[default]\n"
-      << "aws_access_key_id=AKIAIOSFODNN7EXAMPLE\n"
-      << "aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n"
-      << "[profile2]\n"
-      << "aws_access_key_id=AKIAI44QH8DHBEXAMPLE\n"
-      << "aws_secret_access_key=je7MtGbClwBF/2Zp9Utk/h3yCo8nvbEXAMPLEKEY\n";
-  }
-  const auto credentialsPath = credentialsFile.string();
-
-  const char* deviceArn =
-      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
-                strlen(deviceArn) + 1, deviceArn),
-            QDMI_SUCCESS);
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
-                credentialsPath.size() + 1, credentialsPath.c_str()),
-            QDMI_SUCCESS);
-
-  // init() parses the two-profile file (triggering the warning), then builds
-  // a BraketClient with the first profile's fake credentials. Client
-  // construction does not issue an AWS request.
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
-}
-
-// Verify that a complete direct credential set constructs the client offline.
-TEST_F(AmazonBraketQDMIOfflineTest, SessionInitWithDirectCredentials) {
-  const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
-                strlen(accessKey) + 1, accessKey),
-            QDMI_SUCCESS);
-
-  const char* secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
-                strlen(secretKey) + 1, secretKey),
-            QDMI_SUCCESS);
-
-  const char* sessionToken = "FakeSessionToken123";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, QDMI_DEVICE_SESSION_PARAMETER_TOKEN,
-                strlen(sessionToken) + 1, sessionToken),
-            QDMI_SUCCESS);
-
-  const char* deviceArn =
-      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
-                strlen(deviceArn) + 1, deviceArn),
-            QDMI_SUCCESS);
-
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                uninitializedSession, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
+                0, nullptr),
+            QDMI_ERROR_NOTSUPPORTED);
+  AMAZON_BRAKET_QDMI_device_session_free(uninitializedSession);
 }
 
 // =============================================================================
@@ -1450,31 +1441,35 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterProgram) {
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
-TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterS3Bucket) {
+TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterS3Uri) {
   AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
       QDMI_SUCCESS);
-  const char* s3Bucket = "test-job-specific-results-bucket";
+  const char* s3Uri = "s3://test-job-specific-results-bucket/tasks/run-42";
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob,
-                AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
-                strlen(s3Bucket) + 1, s3Bucket),
+                freshJob, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
+                strlen(s3Uri) + 1, s3Uri),
             QDMI_SUCCESS);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
-TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterS3Prefix) {
+TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterRejectsInvalidS3Uris) {
   AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
       QDMI_SUCCESS);
-  const char* s3Prefix = "my-experiment/run-42/";
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob,
-                AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX,
-                strlen(s3Prefix) + 1, s3Prefix),
-            QDMI_SUCCESS);
+  constexpr std::array invalidUris{
+      "bucket/prefix",       "s3://bucket",
+      "s3:///prefix",        "s3://UPPER/prefix",
+      "s3://ab/prefix",      "s3://-bucket/prefix",
+      "s3://bucket-/prefix", "s3://bucket..name/prefix"};
+  for (const auto* uri : invalidUris) {
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                  freshJob, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
+                  strlen(uri) + 1, uri),
+              QDMI_ERROR_INVALIDARGUMENT);
+  }
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
@@ -1495,29 +1490,21 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterReservationArn) {
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest,
-       JobSetParameterReservationArnInvalidArgument) {
+       JobParameterCapabilityProbesDoNotMutateState) {
   AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
       QDMI_SUCCESS);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob,
-                AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN, 0,
-                nullptr),
-            QDMI_ERROR_INVALIDARGUMENT);
-  AMAZON_BRAKET_QDMI_device_job_free(freshJob);
-}
-
-TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterS3InvalidArgument) {
-  AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
-  ASSERT_EQ(
-      AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
-      QDMI_SUCCESS);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob,
-                AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET, 0,
-                nullptr),
-            QDMI_ERROR_INVALIDARGUMENT);
+  for (const auto parameter : {
+           QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
+           QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT,
+           QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM,
+           AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
+           AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN}) {
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                  freshJob, parameter, 0, nullptr),
+              QDMI_SUCCESS);
+  }
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
@@ -1578,29 +1565,15 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterValueNonNullZeroSize) {
 
 // Custom string parameters must have a null-terminator at buf[size-1].
 
-TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterS3BucketNotNullTerminated) {
+TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterS3UriNotNullTerminated) {
   AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
       QDMI_SUCCESS);
-  const std::array<char, 6> notTerminated = {'b', 'u', 'c', 'k', 'e', 't'};
+  const std::array<char, 11> notTerminated = {'s', '3', ':', '/', '/', 'b',
+                                              '/', 'p', 'r', 'e', 'f'};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob,
-                AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
-                notTerminated.size(), notTerminated.data()),
-            QDMI_ERROR_INVALIDARGUMENT);
-  AMAZON_BRAKET_QDMI_device_job_free(freshJob);
-}
-
-TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterS3PrefixNotNullTerminated) {
-  AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
-  ASSERT_EQ(
-      AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
-      QDMI_SUCCESS);
-  const std::array<char, 6> notTerminated = {'p', 'r', 'e', 'f', 'i', 'x'};
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob,
-                AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX,
+                freshJob, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
                 notTerminated.size(), notTerminated.data()),
             QDMI_ERROR_INVALIDARGUMENT);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
@@ -1804,13 +1777,8 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobWaitOnFailedJob) {
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
       QDMI_SUCCESS);
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
-                strlen(BELL_STATE_PROGRAM) + 1, BELL_STATE_PROGRAM),
-            QDMI_SUCCESS);
-  // No S3 bucket → submit() transitions status to FAILED.
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(freshJob),
-            QDMI_ERROR_INVALIDARGUMENT);
+  AMAZON_BRAKET_QDMI_Device_Job_TestAccess::setStatus(freshJob,
+                                                      QDMI_JOB_STATUS_FAILED);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(freshJob, 1), QDMI_SUCCESS);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
@@ -1887,145 +1855,571 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSubmitNoProgram) {
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
-// submit() with a program but no S3 bucket → INVALIDARGUMENT; status becomes
-// FAILED (covers the inside-lock empty-bucket check in submit()).
-TEST_F(AmazonBraketQDMILocalJobTest, JobSubmitNoS3Bucket) {
-  AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
-  ASSERT_EQ(
-      AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
-      QDMI_SUCCESS);
+TEST_F(AmazonBraketQDMILocalJobTest,
+       ExplicitS3UriAvoidsStsAndBucketManagement) {
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI,
+      "s3://ignored-environment/tasks");
+  auto braketClient = std::make_unique<StubBraketClient>(
+      Aws::Braket::Model::GetQuantumTaskResult{});
+  const auto* braket = braketClient.get();
+  auto s3Client =
+      std::make_unique<StubS3Client>(StubS3Client::BucketState::Forbidden);
+  const auto* s3 = s3Client.get();
+  auto stsClient =
+      std::make_unique<StubStsClient>(Aws::STS::STSErrors::ACCESS_DENIED);
+  const auto* sts = stsClient.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::move(braketClient));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
+      session, std::move(s3Client));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
+      session, std::move(stsClient));
+
+  AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job),
+            QDMI_SUCCESS);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
+                job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
                 strlen(BELL_STATE_PROGRAM) + 1, BELL_STATE_PROGRAM),
             QDMI_SUCCESS);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(freshJob),
-            QDMI_ERROR_INVALIDARGUMENT);
-
-  QDMI_Job_Status status = QDMI_JOB_STATUS_CREATED;
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(freshJob, &status),
+  constexpr auto s3Uri = "s3://explicit-results/experiments/run-42";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
+                strlen(s3Uri) + 1, s3Uri),
             QDMI_SUCCESS);
-  EXPECT_EQ(status, QDMI_JOB_STATUS_FAILED);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_SUCCESS);
+  EXPECT_EQ(sts->calls(), 0U);
+  EXPECT_EQ(s3->headCalls(), 0U);
+  EXPECT_EQ(braket->outputBucket(), "explicit-results");
+  EXPECT_EQ(braket->outputPrefix(), "experiments/run-42");
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
 
-  AMAZON_BRAKET_QDMI_device_job_free(freshJob);
+TEST_F(AmazonBraketQDMILocalJobTest, JobReservationIsAttachedToQuantumTask) {
+  auto braketClient = std::make_unique<StubBraketClient>(
+      Aws::Braket::Model::GetQuantumTaskResult{});
+  const auto* braket = braketClient.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::move(braketClient));
+  auto* const job = createConfiguredJob(session);
+  ASSERT_NE(job, nullptr);
+  constexpr std::string_view s3Uri = "s3://explicit-results/tasks";
+  constexpr std::string_view reservationArn =
+      "arn:aws:braket:us-east-1:123456789012:reservation/"
+      "a1b2c3d4-5678-90ab-cdef-1234567890ab";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
+                s3Uri.size() + 1, s3Uri.data()),
+            QDMI_SUCCESS);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN,
+                reservationArn.size() + 1, reservationArn.data()),
+            QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_SUCCESS);
+  EXPECT_EQ(braket->reservationArn(), reservationArn);
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, CreateQuantumTaskFailuresMapAwsErrors) {
+  constexpr std::array failures{
+      std::pair{Aws::Braket::BraketErrors::ACCESS_DENIED,
+                QDMI_ERROR_PERMISSIONDENIED},
+      std::pair{Aws::Braket::BraketErrors::SERVICE_UNAVAILABLE,
+                QDMI_ERROR_FATAL}};
+  for (const auto& [error, expected] : failures) {
+    SCOPED_TRACE(static_cast<int>(error));
+    auto braketClient = std::make_unique<StubBraketClient>(
+        Aws::Braket::Model::GetQuantumTaskResult{}, std::nullopt, std::nullopt,
+        false, error);
+    AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+        session, std::move(braketClient));
+    auto* const job = createConfiguredJob(session);
+    ASSERT_NE(job, nullptr);
+    constexpr std::string_view s3Uri = "s3://explicit-results/tasks";
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                  job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
+                  s3Uri.size() + 1, s3Uri.data()),
+              QDMI_SUCCESS);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), expected);
+    QDMI_Job_Status status = QDMI_JOB_STATUS_CREATED;
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(job, &status), QDMI_SUCCESS);
+    EXPECT_EQ(status, QDMI_JOB_STATUS_FAILED);
+    AMAZON_BRAKET_QDMI_device_job_free(job);
+  }
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest,
-       JobSubmitNoS3BucketWithSessionReservationArn) {
-  AMAZON_BRAKET_QDMI_Device_Session reservedSession = nullptr;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&reservedSession),
-            QDMI_SUCCESS);
+       EnvironmentS3UriAvoidsStsAndBucketManagement) {
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI,
+      "s3://environment-results/tasks");
+  auto braketClient = std::make_unique<StubBraketClient>(
+      Aws::Braket::Model::GetQuantumTaskResult{});
+  const auto* braket = braketClient.get();
+  auto s3Client =
+      std::make_unique<StubS3Client>(StubS3Client::BucketState::Forbidden);
+  const auto* s3 = s3Client.get();
+  auto stsClient =
+      std::make_unique<StubStsClient>(Aws::STS::STSErrors::ACCESS_DENIED);
+  const auto* sts = stsClient.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::move(braketClient));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
+      session, std::move(s3Client));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
+      session, std::move(stsClient));
 
-  const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
-                strlen(accessKey) + 1, accessKey),
-            QDMI_SUCCESS);
-  const char* secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
-                strlen(secretKey) + 1, secretKey),
-            QDMI_SUCCESS);
-  const char* deviceArn =
-      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                reservedSession,
-                AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
-                strlen(deviceArn) + 1, deviceArn),
-            QDMI_SUCCESS);
-  const char* reservationArn =
-      "arn:aws:braket:us-east-1:123456789012:reservation/"
-      "a1b2c3d4-5678-90ab-cdef-1234567890ab";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                reservedSession,
-                AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
-                strlen(reservationArn) + 1, reservationArn),
-            QDMI_SUCCESS);
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_init(reservedSession),
-            QDMI_SUCCESS);
-
-  AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(reservedSession,
-                                                                &freshJob),
+  AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job),
             QDMI_SUCCESS);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
+                job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
                 strlen(BELL_STATE_PROGRAM) + 1, BELL_STATE_PROGRAM),
             QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_SUCCESS);
+  EXPECT_EQ(sts->calls(), 0U);
+  EXPECT_EQ(s3->headCalls(), 0U);
+  EXPECT_EQ(braket->outputBucket(), "environment-results");
+  EXPECT_EQ(braket->outputPrefix(), "tasks");
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
 
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(freshJob),
-            QDMI_ERROR_INVALIDARGUMENT);
+TEST_F(AmazonBraketQDMILocalJobTest, DefaultS3DestinationIsCreatedAndCached) {
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
+  auto braketClient = std::make_unique<StubBraketClient>(
+      Aws::Braket::Model::GetQuantumTaskResult{});
+  const auto* braket = braketClient.get();
+  auto s3Client =
+      std::make_unique<StubS3Client>(StubS3Client::BucketState::Missing);
+  const auto* s3 = s3Client.get();
+  auto stsClient = std::make_unique<StubStsClient>();
+  const auto* sts = stsClient.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::move(braketClient));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
+      session, std::move(s3Client));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
+      session, std::move(stsClient));
 
-  QDMI_Job_Status status = QDMI_JOB_STATUS_CREATED;
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(freshJob, &status),
-            QDMI_SUCCESS);
-  EXPECT_EQ(status, QDMI_JOB_STATUS_FAILED);
-
-  AMAZON_BRAKET_QDMI_device_job_free(freshJob);
-  AMAZON_BRAKET_QDMI_device_session_free(reservedSession);
+  auto* const firstJob = createConfiguredJob(session);
+  auto* const secondJob = createConfiguredJob(session);
+  ASSERT_NE(firstJob, nullptr);
+  ASSERT_NE(secondJob, nullptr);
+  auto firstSubmission = std::async(std::launch::async, [firstJob] {
+    return AMAZON_BRAKET_QDMI_device_job_submit(firstJob);
+  });
+  auto secondSubmission = std::async(std::launch::async, [secondJob] {
+    return AMAZON_BRAKET_QDMI_device_job_submit(secondJob);
+  });
+  EXPECT_EQ(firstSubmission.get(), QDMI_SUCCESS);
+  EXPECT_EQ(secondSubmission.get(), QDMI_SUCCESS);
+  AMAZON_BRAKET_QDMI_device_job_free(firstJob);
+  AMAZON_BRAKET_QDMI_device_job_free(secondJob);
+  EXPECT_EQ(sts->calls(), 1U);
+  EXPECT_EQ(s3->headCalls(), 1U);
+  EXPECT_EQ(s3->createCalls(), 1U);
+  EXPECT_EQ(s3->publicAccessBlockCalls(), 1U);
+  EXPECT_FALSE(s3->hasLocationConstraint());
+  EXPECT_EQ(s3->bucket(), "amazon-braket-us-east-1-123456789012");
+  EXPECT_EQ(braket->createCalls(), 2U);
+  EXPECT_EQ(braket->outputBucket(), "amazon-braket-us-east-1-123456789012");
+  EXPECT_EQ(braket->outputPrefix(), "tasks");
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest,
-       JobSubmitWithBothReservationArnsNoS3BucketFails) {
-  AMAZON_BRAKET_QDMI_Device_Session reservedSession = nullptr;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&reservedSession),
-            QDMI_SUCCESS);
-
-  const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
-                strlen(accessKey) + 1, accessKey),
-            QDMI_SUCCESS);
-  const char* secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                reservedSession, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
-                strlen(secretKey) + 1, secretKey),
-            QDMI_SUCCESS);
-  const char* deviceArn =
-      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                reservedSession,
-                AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
-                strlen(deviceArn) + 1, deviceArn),
-            QDMI_SUCCESS);
-  const char* sessionReservationArn =
-      "arn:aws:braket:us-east-1:123456789012:reservation/"
-      "a1b2c3d4-5678-90ab-cdef-1234567890ab";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                reservedSession,
-                AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
-                strlen(sessionReservationArn) + 1, sessionReservationArn),
-            QDMI_SUCCESS);
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_init(reservedSession),
-            QDMI_SUCCESS);
-
-  AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(reservedSession,
-                                                                &freshJob),
+       DefaultS3DestinationMapsStsPermissionFailure) {
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
+  auto stsClient =
+      std::make_unique<StubStsClient>(Aws::STS::STSErrors::ACCESS_DENIED);
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
+      session, std::move(stsClient));
+  AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job),
             QDMI_SUCCESS);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
+                job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
                 strlen(BELL_STATE_PROGRAM) + 1, BELL_STATE_PROGRAM),
             QDMI_SUCCESS);
-  const char* jobReservationArn =
-      "arn:aws:braket:us-east-1:123456789012:reservation/"
-      "b2c3d4e5-6789-0abc-def1-234567890abc";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob,
-                AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN,
-                strlen(jobReservationArn) + 1, jobReservationArn),
-            QDMI_SUCCESS);
-
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(freshJob),
-            QDMI_ERROR_INVALIDARGUMENT);
-
-  QDMI_Job_Status status = QDMI_JOB_STATUS_CREATED;
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(freshJob, &status),
-            QDMI_SUCCESS);
-  EXPECT_EQ(status, QDMI_JOB_STATUS_FAILED);
-
-  AMAZON_BRAKET_QDMI_device_job_free(freshJob);
-  AMAZON_BRAKET_QDMI_device_session_free(reservedSession);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job),
+            QDMI_ERROR_PERMISSIONDENIED);
+  AMAZON_BRAKET_QDMI_device_job_free(job);
 }
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       DefaultS3DestinationRequiresStsAndS3Clients) {
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(session, nullptr);
+  auto* const job = createConfiguredJob(session);
+  ASSERT_NE(job, nullptr);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_ERROR_BADSTATE);
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
+      session, std::make_unique<StubStsClient>());
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(session, nullptr);
+  auto* const secondJob = createConfiguredJob(session);
+  ASSERT_NE(secondJob, nullptr);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(secondJob),
+            QDMI_ERROR_BADSTATE);
+  AMAZON_BRAKET_QDMI_device_job_free(secondJob);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       DefaultS3DestinationRejectsEmptyAccountId) {
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
+      session, std::make_unique<StubStsClient>(std::nullopt, ""));
+  auto* const job = createConfiguredJob(session);
+  ASSERT_NE(job, nullptr);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_ERROR_FATAL);
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, ExistingDefaultBucketIsReused) {
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
+  auto braketClient = std::make_unique<StubBraketClient>(
+      Aws::Braket::Model::GetQuantumTaskResult{});
+  const auto* braket = braketClient.get();
+  auto s3Client =
+      std::make_unique<StubS3Client>(StubS3Client::BucketState::Owned);
+  const auto* s3 = s3Client.get();
+  auto stsClient = std::make_unique<StubStsClient>();
+  const auto* sts = stsClient.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::move(braketClient));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
+      session, std::move(s3Client));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
+      session, std::move(stsClient));
+
+  auto* const job = createConfiguredJob(session);
+  ASSERT_NE(job, nullptr);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_SUCCESS);
+  EXPECT_EQ(sts->calls(), 1U);
+  EXPECT_EQ(s3->headCalls(), 1U);
+  EXPECT_EQ(s3->createCalls(), 0U);
+  EXPECT_EQ(s3->publicAccessBlockCalls(), 0U);
+  EXPECT_EQ(braket->outputBucket(), "amazon-braket-us-east-1-123456789012");
+  EXPECT_EQ(braket->outputPrefix(), "tasks");
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, RegionalDefaultBucketSetsLocation) {
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setRegion(session,
+                                                          "eu-north-1");
+  auto braketClient = std::make_unique<StubBraketClient>(
+      Aws::Braket::Model::GetQuantumTaskResult{});
+  const auto* braket = braketClient.get();
+  auto s3Client =
+      std::make_unique<StubS3Client>(StubS3Client::BucketState::Missing);
+  const auto* s3 = s3Client.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::move(braketClient));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
+      session, std::move(s3Client));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
+      session, std::make_unique<StubStsClient>());
+
+  auto* const job = createConfiguredJob(session);
+  ASSERT_NE(job, nullptr);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_SUCCESS);
+  EXPECT_TRUE(s3->hasLocationConstraint());
+  EXPECT_EQ(braket->outputBucket(), "amazon-braket-eu-north-1-123456789012");
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, InvalidEnvironmentS3UriIsRejected) {
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "s3://missing-prefix");
+  auto braketClient = std::make_unique<StubBraketClient>(
+      Aws::Braket::Model::GetQuantumTaskResult{});
+  const auto* braket = braketClient.get();
+  auto s3Client =
+      std::make_unique<StubS3Client>(StubS3Client::BucketState::Owned);
+  const auto* s3 = s3Client.get();
+  auto stsClient = std::make_unique<StubStsClient>();
+  const auto* sts = stsClient.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::move(braketClient));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
+      session, std::move(s3Client));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
+      session, std::move(stsClient));
+
+  auto* const job = createConfiguredJob(session);
+  ASSERT_NE(job, nullptr);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job),
+            QDMI_ERROR_INVALIDARGUMENT);
+  EXPECT_EQ(sts->calls(), 0U);
+  EXPECT_EQ(s3->headCalls(), 0U);
+  EXPECT_EQ(braket->createCalls(), 0U);
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+namespace {
+class S3FailureTest : public AmazonBraketQDMILocalJobTest,
+                      public testing::WithParamInterface<
+                          std::tuple<StubS3Client::BucketState, QDMI_STATUS>> {
+};
+
+TEST_P(S3FailureTest, MapsHeadBucketFailure) {
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
+  auto s3Client = std::make_unique<StubS3Client>(std::get<0>(GetParam()));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
+      session, std::move(s3Client));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
+      session, std::make_unique<StubStsClient>());
+  auto* const job = createConfiguredJob(session);
+  ASSERT_NE(job, nullptr);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), std::get<1>(GetParam()));
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    AmazonBraketQDMILocalJobTest, S3FailureTest,
+    testing::Values(std::tuple{StubS3Client::BucketState::Forbidden,
+                               QDMI_ERROR_PERMISSIONDENIED},
+                    std::tuple{StubS3Client::BucketState::TransientFailure,
+                               QDMI_ERROR_FATAL}));
+} // namespace
+
+TEST_F(AmazonBraketQDMILocalJobTest, DefaultBucketNameConflictIsDenied) {
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
+  auto s3Client = std::make_unique<StubS3Client>(StubS3Client::Configuration{
+      .state = StubS3Client::BucketState::Missing,
+      .createError = Aws::S3::S3Errors::BUCKET_ALREADY_EXISTS});
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
+      session, std::move(s3Client));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
+      session, std::make_unique<StubStsClient>());
+  auto* const job = createConfiguredJob(session);
+  ASSERT_NE(job, nullptr);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job),
+            QDMI_ERROR_PERMISSIONDENIED);
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       AlreadyOwnedDefaultBucketIsReusedWithoutConfigurationChanges) {
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
+  auto braketClient = std::make_unique<StubBraketClient>(
+      Aws::Braket::Model::GetQuantumTaskResult{});
+  auto s3Client = std::make_unique<StubS3Client>(StubS3Client::Configuration{
+      .state = StubS3Client::BucketState::Missing,
+      .createError = Aws::S3::S3Errors::BUCKET_ALREADY_OWNED_BY_YOU});
+  const auto* s3 = s3Client.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::move(braketClient));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
+      session, std::move(s3Client));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
+      session, std::make_unique<StubStsClient>());
+  auto* const job = createConfiguredJob(session);
+  ASSERT_NE(job, nullptr);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_SUCCESS);
+  EXPECT_EQ(s3->createCalls(), 1U);
+  EXPECT_EQ(s3->publicAccessBlockCalls(), 0U);
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+class CreateBucketFailureTest
+    : public AmazonBraketQDMILocalJobTest,
+      public testing::WithParamInterface<
+          std::tuple<Aws::S3::S3Errors, QDMI_STATUS>> {};
+
+TEST_P(CreateBucketFailureTest, MapsServiceFailure) {
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
+  auto s3Client = std::make_unique<StubS3Client>(
+      StubS3Client::Configuration{.state = StubS3Client::BucketState::Missing,
+                                  .createError = std::get<0>(GetParam())});
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
+      session, std::move(s3Client));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
+      session, std::make_unique<StubStsClient>());
+  auto* const job = createConfiguredJob(session);
+  ASSERT_NE(job, nullptr);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), std::get<1>(GetParam()));
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    AmazonBraketQDMILocalJobTest, CreateBucketFailureTest,
+    testing::Values(std::tuple{Aws::S3::S3Errors::ACCESS_DENIED,
+                               QDMI_ERROR_PERMISSIONDENIED},
+                    std::tuple{Aws::S3::S3Errors::SERVICE_UNAVAILABLE,
+                               QDMI_ERROR_FATAL}));
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       DefaultBucketPublicAccessBlockPermissionFailureIsDenied) {
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
+  auto s3Client = std::make_unique<StubS3Client>(StubS3Client::Configuration{
+      .state = StubS3Client::BucketState::Missing,
+      .publicAccessBlockError = Aws::S3::S3Errors::UNKNOWN,
+      .responseCode = Aws::Http::HttpResponseCode::FORBIDDEN});
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
+      session, std::move(s3Client));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
+      session, std::make_unique<StubStsClient>());
+  auto* const job = createConfiguredJob(session);
+  ASSERT_NE(job, nullptr);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job),
+            QDMI_ERROR_PERMISSIONDENIED);
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       PartialDefaultBucketSetupIsRetriedBeforeCaching) {
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
+  auto braketClient = std::make_unique<StubBraketClient>(
+      Aws::Braket::Model::GetQuantumTaskResult{});
+  const auto* braket = braketClient.get();
+  auto s3Client = std::make_unique<StubS3Client>(StubS3Client::Configuration{
+      .state = StubS3Client::BucketState::Missing,
+      .publicAccessBlockError = Aws::S3::S3Errors::SERVICE_UNAVAILABLE,
+      .failPublicAccessBlockOnce = true});
+  const auto* s3 = s3Client.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::move(braketClient));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
+      session, std::move(s3Client));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
+      session, std::make_unique<StubStsClient>());
+
+  auto* const firstJob = createConfiguredJob(session);
+  ASSERT_NE(firstJob, nullptr);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(firstJob), QDMI_ERROR_FATAL);
+  AMAZON_BRAKET_QDMI_device_job_free(firstJob);
+
+  auto* const secondJob = createConfiguredJob(session);
+  ASSERT_NE(secondJob, nullptr);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(secondJob), QDMI_SUCCESS);
+  AMAZON_BRAKET_QDMI_device_job_free(secondJob);
+  EXPECT_EQ(s3->headCalls(), 2U);
+  EXPECT_EQ(s3->createCalls(), 1U);
+  EXPECT_EQ(s3->publicAccessBlockCalls(), 2U);
+  EXPECT_EQ(braket->createCalls(), 1U);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       ResultRetrievalUsesTaskReturnedS3Location) {
+#ifdef _WIN32
+  GTEST_SKIP() << "The test executable and provider DLL contain separate "
+                  "static AWS SDK ResponseStream state on Windows.";
+#endif
+  constexpr auto* taskArn =
+      "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
+  Aws::Braket::Model::GetQuantumTaskResult
+      task; // NOLINT(misc-const-correctness)
+  task.WithQuantumTaskArn(taskArn)
+      .WithDeviceArn("arn:aws:braket:::device/quantum-simulator/amazon/sv1")
+      .WithStatus(Aws::Braket::Model::QuantumTaskStatus::COMPLETED)
+      .WithShots(2)
+      .WithOutputS3Bucket("task-returned-results")
+      .WithOutputS3Directory("returned/task-id");
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::make_unique<StubBraketClient>(std::move(task)));
+  auto s3Client =
+      std::make_unique<StubS3Client>(StubS3Client::BucketState::Owned);
+  const auto* s3 = s3Client.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
+      session, std::move(s3Client));
+
+  AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                session, taskArn, &job),
+            QDMI_SUCCESS);
+  size_t resultSize = 0; // NOLINT(misc-const-correctness)
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
+                job, QDMI_JOB_RESULT_SHOTS, 0, nullptr, &resultSize),
+            QDMI_SUCCESS);
+  std::string result(resultSize - 1, '\0');
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
+                job, QDMI_JOB_RESULT_SHOTS, resultSize, result.data(), nullptr),
+            QDMI_SUCCESS);
+  EXPECT_EQ(result, "00,11");
+  EXPECT_EQ(s3->getObjectCalls(), 1U);
+  EXPECT_EQ(s3->getObjectBucket(), "task-returned-results");
+  EXPECT_EQ(s3->getObjectKey(), "returned/task-id/results.json");
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, ResultRetrievalMapsS3PermissionFailure) {
+  constexpr auto* taskArn =
+      "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
+  Aws::Braket::Model::GetQuantumTaskResult task;
+  task.WithQuantumTaskArn(taskArn)
+      .WithDeviceArn("arn:aws:braket:::device/quantum-simulator/amazon/sv1")
+      .WithStatus(Aws::Braket::Model::QuantumTaskStatus::COMPLETED)
+      .WithShots(2)
+      .WithOutputS3Bucket("task-returned-results")
+      .WithOutputS3Directory("returned/task-id");
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::make_unique<StubBraketClient>(std::move(task)));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
+      session, std::make_unique<StubS3Client>(StubS3Client::Configuration{
+                   .state = StubS3Client::BucketState::Owned,
+                   .getObjectError = Aws::S3::S3Errors::ACCESS_DENIED}));
+  AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                session, taskArn, &job),
+            QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
+                job, QDMI_JOB_RESULT_SHOTS, 0, nullptr, nullptr),
+            QDMI_ERROR_PERMISSIONDENIED);
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+class InvalidResultDocumentTest
+    : public AmazonBraketQDMILocalJobTest,
+      public testing::WithParamInterface<std::string> {};
+
+TEST_P(InvalidResultDocumentTest, IsRejected) {
+#ifdef _WIN32
+  GTEST_SKIP() << "The test executable and provider DLL contain separate "
+                  "static AWS SDK ResponseStream state on Windows.";
+#endif
+  constexpr auto* taskArn =
+      "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
+  Aws::Braket::Model::GetQuantumTaskResult task;
+  task.WithQuantumTaskArn(taskArn)
+      .WithDeviceArn("arn:aws:braket:::device/quantum-simulator/amazon/sv1")
+      .WithStatus(Aws::Braket::Model::QuantumTaskStatus::COMPLETED)
+      .WithShots(2)
+      .WithOutputS3Bucket("task-returned-results")
+      .WithOutputS3Directory("returned/task-id");
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::make_unique<StubBraketClient>(std::move(task)));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
+      session, std::make_unique<StubS3Client>(StubS3Client::Configuration{
+                   .state = StubS3Client::BucketState::Owned,
+                   .resultJson = GetParam()}));
+  AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                session, taskArn, &job),
+            QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
+                job, QDMI_JOB_RESULT_SHOTS, 0, nullptr, nullptr),
+            QDMI_ERROR_FATAL);
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+INSTANTIATE_TEST_SUITE_P(AmazonBraketQDMILocalJobTest,
+                         InvalidResultDocumentTest,
+                         testing::Values("not-json", R"({"metadata":{}})"));
 
 // =============================================================================
 // DeviceParser offline error-path tests
@@ -2481,6 +2875,96 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   EXPECT_GE(stubPtr->calls(), 1U);
   EXPECT_EQ(stubPtr->requestedArn(),
             "arn:aws:braket:::device/quantum-simulator/amazon/sv1");
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       DevicePropertyPropagatesInitialGetDeviceFailure) {
+  auto stub = std::make_unique<StubGetDeviceClient>(
+      Aws::Braket::Model::GetDeviceResult{},
+      Aws::Braket::BraketErrors::INTERNAL_FAILURE);
+  auto* const stubPtr = stub.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                          std::move(stub));
+
+  size_t numQubits = 0;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_QUBITSNUM, sizeof(numQubits),
+                &numQubits, nullptr),
+            QDMI_ERROR_FATAL);
+  EXPECT_EQ(stubPtr->calls(), 1U);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       DevicePropertyPropagatesCachedStatusRefreshFailure) {
+  Aws::Braket::Model::GetDeviceResult result;
+  result.SetDeviceName("SV1");
+  result.SetProviderName("Amazon Web Services");
+  result.SetDeviceType(Aws::Braket::Model::DeviceType::SIMULATOR);
+  result.SetDeviceStatus(Aws::Braket::Model::DeviceStatus::ONLINE);
+  result.SetDeviceCapabilities(
+      std::string{amazon::braket::qdmi::test::SV1}.c_str());
+  auto stub = std::make_unique<StubGetDeviceClient>(
+      std::move(result), Aws::Braket::BraketErrors::INTERNAL_FAILURE, true);
+  auto* const stubPtr = stub.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                          std::move(stub));
+
+  size_t numQubits = 0;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_QUBITSNUM, sizeof(numQubits),
+                &numQubits, nullptr),
+            QDMI_SUCCESS);
+  EXPECT_GT(numQubits, 0U);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_QUBITSNUM, sizeof(numQubits),
+                &numQubits, nullptr),
+            QDMI_ERROR_FATAL);
+  EXPECT_EQ(stubPtr->calls(), 2U);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       DevicePropertyPreservesGetDevicePermissionFailure) {
+  auto stub = std::make_unique<StubGetDeviceClient>(
+      Aws::Braket::Model::GetDeviceResult{},
+      Aws::Braket::BraketErrors::ACCESS_DENIED);
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                          std::move(stub));
+
+  size_t numQubits = 0;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_QUBITSNUM, sizeof(numQubits),
+                &numQubits, nullptr),
+            QDMI_ERROR_PERMISSIONDENIED);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       DevicePropertyMapsMissingGetDeviceResource) {
+  auto stub = std::make_unique<StubGetDeviceClient>(
+      Aws::Braket::Model::GetDeviceResult{},
+      Aws::Braket::BraketErrors::RESOURCE_NOT_FOUND);
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                          std::move(stub));
+
+  size_t numQubits = 0;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_QUBITSNUM, sizeof(numQubits),
+                &numQubits, nullptr),
+            QDMI_ERROR_NOTFOUND);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       DevicePropertyMapsInvalidGetDeviceRequest) {
+  auto stub = std::make_unique<StubGetDeviceClient>(
+      Aws::Braket::Model::GetDeviceResult{},
+      Aws::Braket::BraketErrors::VALIDATION);
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                          std::move(stub));
+
+  size_t numQubits = 0;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_QUBITSNUM, sizeof(numQubits),
+                &numQubits, nullptr),
+            QDMI_ERROR_INVALIDARGUMENT);
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest,

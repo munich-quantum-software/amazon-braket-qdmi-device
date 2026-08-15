@@ -88,14 +88,14 @@ h q[0];
 cx q[0], q[1];
 c = measure q;
 )";
-  const char* bucket = "my-amazon-braket-results";
+  const char* s3Uri = "s3://my-amazon-braket-results/tasks";
 
   AMAZON_BRAKET_QDMI_device_job_set_parameter(
       job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM, std::strlen(program) + 1,
       program);
   AMAZON_BRAKET_QDMI_device_job_set_parameter(
-      job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
-      std::strlen(bucket) + 1, bucket);
+      job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
+      std::strlen(s3Uri) + 1, s3Uri);
   AMAZON_BRAKET_QDMI_device_job_submit(job);
 
   AMAZON_BRAKET_QDMI_device_job_free(job);
@@ -114,7 +114,7 @@ Values use the following precedence: job option, submitted environment, then the
 | `--amazon-braket-device-arn`       | `amazon_braket_device_arn`       | `AMAZON_BRAKET_DEVICE_ARN`      | `AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN`       |
 | `--amazon-braket-region`           | `amazon_braket_region`           | `AWS_REGION`                    | `AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION`          |
 | `--amazon-braket-reservation-arn`  | `amazon_braket_reservation_arn`  | `AMAZON_BRAKET_RESERVATION_ARN` | `AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN` |
-| `--amazon-braket-credentials-file` | `amazon_braket_credentials_file` | `AWS_SHARED_CREDENTIALS_FILE`   | `QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE`                      |
+| `--amazon-braket-credentials-file` | `amazon_braket_credentials_file` | `AWS_SHARED_CREDENTIALS_FILE`   | AWS SDK default credential provider chain                     |
 
 The device ARN is the only required value. Region defaults to the ARN region or
 `us-east-1`. Reservation and credentials file are optional. Standard AWS

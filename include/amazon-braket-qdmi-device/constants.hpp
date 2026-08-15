@@ -27,10 +27,11 @@
 
 /** Environment variables used as fallback session parameters. */
 #define AMAZON_BRAKET_QDMI_DEVICE_ENV_DEVICE_ARN "AMAZON_BRAKET_DEVICE_ARN"
-#define AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE "AWS_SHARED_CREDENTIALS_FILE"
 #define AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION "AWS_REGION"
 #define AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN                          \
   "AMAZON_BRAKET_RESERVATION_ARN"
+#define AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI                      \
+  "AMZN_BRAKET_TASK_RESULTS_S3_URI"
 
 /**
  * @brief OpenQASM operations accepted by the Amazon Braket device.
@@ -81,22 +82,13 @@
  */
 
 /**
- * @brief `char*` (string) S3 bucket for this job's results.
- * @details Required parameter. Must be set before submitting the QDMI job
- * (which creates an Amazon Braket quantum task).
- * The bucket must be in the same region as the device and accessible with
- * the configured AWS credentials.
+ * @brief `char*` (string) S3 destination for this job's results.
+ * @details Optional complete URI, for example `s3://bucket/prefix`. If it is
+ * not set, the provider uses `AMZN_BRAKET_TASK_RESULTS_S3_URI`, then the
+ * standard regional Braket default bucket with the prefix `tasks`.
  */
-#define AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET                 \
+#define AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI                    \
   QDMI_DEVICE_JOB_PARAMETER_CUSTOM1
-
-/**
- * @brief `char*` (string) S3 prefix for this job's results.
- * @details Optional parameter. If not set, a timestamp is used as the prefix
- * (milliseconds since epoch). The prefix organizes results within the bucket.
- */
-#define AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX                 \
-  QDMI_DEVICE_JOB_PARAMETER_CUSTOM2
 
 /**
  * @brief `char*` (string) AWS Braket Reservation ARN.

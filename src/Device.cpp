@@ -84,17 +84,29 @@
 #include <aws/braket/model/QuantumTaskAdditionalAttributeName.h>
 #include <aws/braket/model/QuantumTaskStatus.h>
 #include <aws/core/Aws.h>
-#include <aws/core/auth/AWSCredentials.h>
 #include <aws/core/auth/AWSCredentialsProvider.h>
 #include <aws/core/auth/AWSCredentialsProviderChain.h>
 #include <aws/core/client/ClientConfiguration.h>
+#include <aws/core/client/CoreErrors.h>
+#include <aws/core/http/HttpResponse.h>
 #include <aws/core/utils/Array.h>
 #include <aws/core/utils/json/JsonSerializer.h>
 #include <aws/core/utils/memory/stl/AWSAllocator.h>
 #include <aws/core/utils/memory/stl/AWSString.h>
 #include <aws/s3/S3Client.h>
 #include <aws/s3/S3ClientConfiguration.h>
+#include <aws/s3/S3Errors.h>
+#include <aws/s3/model/BucketLocationConstraint.h>
+#include <aws/s3/model/CreateBucketConfiguration.h>
+#include <aws/s3/model/CreateBucketRequest.h>
 #include <aws/s3/model/GetObjectRequest.h>
+#include <aws/s3/model/HeadBucketRequest.h>
+#include <aws/s3/model/PublicAccessBlockConfiguration.h>
+#include <aws/s3/model/PutPublicAccessBlockRequest.h>
+#include <aws/sts/STSClient.h>
+#include <aws/sts/STSServiceClientModel.h>
+#include <aws/sts/model/GetCallerIdentityRequest.h>
+#include <cctype>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -112,6 +124,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <unordered_map>
 #include <utility>
@@ -196,112 +209,6 @@ namespace {
 
 constexpr std::array<QDMI_Program_Format, 2> SUPPORTED_PROGRAM_FORMATS = {
     QDMI_PROGRAM_FORMAT_QASM2, QDMI_PROGRAM_FORMAT_QASM3};
-
-/**
- * @brief Parse AWS credentials from an INI-format credentials file.
- *
- * Reads the first profile section found in the credentials file.
- * Only one profile section should be present in the file.
- * Format:
- * [default]
- * aws_access_key_id=AKIA...
- * aws_secret_access_key=...
- * aws_session_token=... (optional)
- *
- * @param filePath Path to the credentials file
- * @param accessKeyId Output parameter for access key
- * @param secretAccessKey Output parameter for secret key
- * @param sessionToken Output parameter for session token (optional)
- * @return true if credentials were successfully parsed, false otherwise
- */
-auto parseCredentialsFile(const std::string& filePath, std::string& accessKeyId,
-                          std::string& secretAccessKey,
-                          std::string& sessionToken) -> bool {
-  std::ifstream file(filePath);
-  if (!file.is_open()) {
-    std::cerr << "ERROR: Failed to open credentials file: " << filePath << "\n";
-    return false;
-  }
-
-  std::string line;
-  std::string currentProfile;
-  std::string firstProfile;     // Track the first profile name
-  bool inTargetProfile = false; // Only parse after finding a profile header
-  bool foundCredentials = false;
-
-  while (std::getline(file, line)) {
-    // Trim leading whitespace
-    line.erase(0, line.find_first_not_of(" \t\r\n"));
-    // Trim trailing whitespace
-    {
-      const auto last = line.find_last_not_of(" \t\r\n");
-      line.erase(last == std::string::npos ? 0 : last + 1);
-    }
-    // Skip empty lines and comments
-    if (line.empty() || line[0] == '#' || line[0] == ';') {
-      continue;
-    }
-    // Check for profile header [default] or [profile_name]
-    if (line[0] == '[' && line[line.length() - 1] == ']') {
-      currentProfile = line.substr(1, line.length() - 2);
-      if (foundCredentials) {
-        // Multiple profiles detected - warn and use the first one
-        std::cerr << "WARNING: Multiple profiles detected in credentials file. "
-                  << "Using first profile [" << firstProfile << "]\n";
-        break;
-      }
-      if (firstProfile.empty()) {
-        firstProfile = currentProfile;
-      }
-      inTargetProfile = true;
-      continue;
-    }
-
-    // Parse key=value pairs within the target profile
-    if (inTargetProfile) {
-      const size_t equalPos = line.find('=');
-      if (equalPos != std::string::npos) {
-        std::string key = line.substr(0, equalPos);
-        std::string value = line.substr(equalPos + 1);
-
-        // Trim whitespace from key and value
-        key.erase(0, key.find_first_not_of(" \t"));
-        {
-          const auto last = key.find_last_not_of(" \t");
-          key.erase(last == std::string::npos ? 0 : last + 1);
-        }
-        value.erase(0, value.find_first_not_of(" \t"));
-        {
-          const auto last = value.find_last_not_of(" \t");
-          value.erase(last == std::string::npos ? 0 : last + 1);
-        }
-
-        if (key == "aws_access_key_id") {
-          accessKeyId = value;
-          foundCredentials = true;
-        } else if (key == "aws_secret_access_key") {
-          secretAccessKey = value;
-        } else if (key == "aws_session_token") {
-          sessionToken = value;
-        }
-      }
-    }
-  }
-
-  if (!foundCredentials || accessKeyId.empty() || secretAccessKey.empty()) {
-    std::cerr << "ERROR: Invalid credentials file format or missing required "
-                 "fields\n";
-    std::cerr
-        << "Expected format (only one profile section should be present):\n";
-    std::cerr << "[default]\n";
-    std::cerr << "aws_access_key_id=AKIA...\n";
-    std::cerr << "aws_secret_access_key=...\n";
-    std::cerr << "aws_session_token=... (optional)\n";
-    return false;
-  }
-
-  return true;
-}
 
 struct UtcTimeOfWeek {
   int dayOfWeek = 0; // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
@@ -542,6 +449,84 @@ auto statusFromCurrentException() noexcept -> QDMI_STATUS {
     return QDMI_ERROR_FATAL;
   }
 }
+
+template <class Error> auto isAwsPermissionError(const Error& error) -> bool {
+  const auto errorCode = static_cast<int>(error.GetErrorType());
+  if (errorCode == static_cast<int>(Aws::Client::CoreErrors::ACCESS_DENIED) ||
+      errorCode ==
+          static_cast<int>(Aws::Client::CoreErrors::INVALID_ACCESS_KEY_ID) ||
+      errorCode ==
+          static_cast<int>(Aws::Client::CoreErrors::INVALID_CLIENT_TOKEN_ID) ||
+      errorCode ==
+          static_cast<int>(Aws::Client::CoreErrors::INVALID_SIGNATURE) ||
+      errorCode == static_cast<int>(
+                       Aws::Client::CoreErrors::MISSING_AUTHENTICATION_TOKEN) ||
+      errorCode ==
+          static_cast<int>(Aws::Client::CoreErrors::SIGNATURE_DOES_NOT_MATCH) ||
+      errorCode ==
+          static_cast<int>(Aws::Client::CoreErrors::UNRECOGNIZED_CLIENT)) {
+    return true;
+  }
+  const auto responseCode = error.GetResponseCode();
+  if (responseCode == Aws::Http::HttpResponseCode::UNAUTHORIZED ||
+      responseCode == Aws::Http::HttpResponseCode::FORBIDDEN) {
+    return true;
+  }
+  const auto& exceptionName = error.GetExceptionName();
+  const std::string_view name{exceptionName.data(), exceptionName.size()};
+  return name == "AccessDenied" || name == "AccessDeniedException" ||
+         name == "InvalidAccessKeyId" || name == "InvalidClientTokenId" ||
+         name == "InvalidSignature" || name == "MissingAuthenticationToken" ||
+         name == "SignatureDoesNotMatch" || name == "UnrecognizedClient" ||
+         name == "ExpiredToken";
+}
+
+template <class Error>
+auto mapAwsServiceError(const Error& error, const std::string_view operation)
+    -> QDMI_STATUS {
+  std::cerr << operation << " failed: " << error.GetMessage() << "\n";
+  return isAwsPermissionError(error) ? QDMI_ERROR_PERMISSIONDENIED
+                                     : QDMI_ERROR_FATAL;
+}
+
+auto isValidS3BucketName(const std::string_view bucket) -> bool {
+  if (bucket.size() < 3 || bucket.size() > 63 ||
+      std::isalnum(static_cast<unsigned char>(bucket.front())) == 0 ||
+      std::isalnum(static_cast<unsigned char>(bucket.back())) == 0 ||
+      bucket.find("..") != std::string_view::npos) {
+    return false;
+  }
+  return std::ranges::all_of(bucket, [](const char character) {
+    const auto value = static_cast<unsigned char>(character);
+    return std::islower(value) != 0 || std::isdigit(value) != 0 ||
+           character == '-' || character == '.';
+  });
+}
+
+auto parseS3Uri(const std::string_view uri, std::string& bucket,
+                std::string& prefix) -> bool {
+  constexpr std::string_view scheme = "s3://";
+  if (!uri.starts_with(scheme)) {
+    return false;
+  }
+  const auto separator = uri.find('/', scheme.size());
+  if (separator == std::string_view::npos || separator == scheme.size() ||
+      separator + 1 >= uri.size()) {
+    return false;
+  }
+  const auto bucketView = uri.substr(scheme.size(), separator - scheme.size());
+  const auto prefixView = uri.substr(separator + 1);
+  if (!isValidS3BucketName(bucketView) ||
+      std::ranges::any_of(prefixView, [](const char character) {
+        const auto value = static_cast<unsigned char>(character);
+        return std::iscntrl(value) != 0;
+      })) {
+    return false;
+  }
+  bucket.assign(bucketView);
+  prefix.assign(prefixView);
+  return true;
+}
 } // anonymous namespace
 
 namespace amazon::braket::qdmi {
@@ -696,13 +681,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
     request.SetDeviceArn(deviceArn_.c_str());
     auto outcome = client_->GetDevice(request);
     if (!outcome.IsSuccess()) {
-      std::cerr << "Failed to get device: " << outcome.GetError().GetMessage()
-                << "\n";
-      std::cerr
-          << "Ensure AWS credentials are available through the SDK default "
-             "provider chain or supplied explicitly via AUTHFILE or complete "
-             "USERNAME/PASSWORD parameters (with optional TOKEN).\n";
-      return QDMI_ERROR_NOTSUPPORTED;
+      return mapAwsServiceError(outcome.GetError(), "Braket GetDevice");
     }
     const auto& device = outcome.GetResult();
     const auto queueLength = getTotalQueueLength(device);
@@ -728,13 +707,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
 
   auto outcome = client_->GetDevice(request);
   if (!outcome.IsSuccess()) {
-    std::cerr << "Failed to get device: " << outcome.GetError().GetMessage()
-              << "\n";
-    std::cerr << "Ensure AWS credentials are available through the SDK default "
-                 "provider chain or supplied explicitly via AUTHFILE or "
-                 "complete USERNAME/PASSWORD parameters (with optional "
-                 "TOKEN).\n";
-    return QDMI_ERROR_NOTSUPPORTED;
+    return mapAwsServiceError(outcome.GetError(), "Braket GetDevice");
   }
 
   const auto& device = outcome.GetResult();
@@ -831,22 +804,18 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
  * Initialize a device session.
  *
  * Session initialization involves:
- * 1. Validating the required device ARN and any explicit credentials
+ * 1. Validating the required device ARN
  * 2. Setting up the AWS SDK client with proper region configuration
  * 3. Transitioning the session to INITIALIZED state
  *
  * Configuration:
- * AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN
- * - Credentials: Optional. Explicit credentials can be set via one of:
- *   - QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE (credentials file path)
- *   - QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY +
- * QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN (optional). Without explicit
- * credentials, the AWS SDK default credential provider chain is used.
- *  - AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION (defaults to the value
- *    from the ARN or us-east-1)
- *  - AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN (optional
- *    session default; skips public execution-window status checks and is
- *    inherited by jobs)
+ * - AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN
+ * - Credentials are resolved by the AWS SDK default credential provider chain.
+ * - AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION (defaults to the value
+ *   from the ARN or us-east-1)
+ * - AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN (optional
+ *   session default; skips public execution-window status checks and is
+ *   inherited by jobs)
  *
  *
  * @return QDMI_SUCCESS on successful initialization
@@ -876,12 +845,6 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS try {
   applyEnvironmentFallback(region_, AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION);
   applyEnvironmentFallback(reservationArn_,
                            AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN);
-  if (credentialsFile_.empty() && accessKeyId_.empty() &&
-      secretAccessKey_.empty() && sessionToken_.empty()) {
-    applyEnvironmentFallback(credentialsFile_,
-                             AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE);
-  }
-
   // Check that required parameters are set
   if (deviceArn_.empty()) {
     std::cerr << "ERROR: Device ARN not configured. Set via:\n";
@@ -910,61 +873,55 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS try {
     }
   }
 
-  // Configure AWS client with region
-  Aws::Client::ClientConfiguration config;
-  if (!region_.empty()) {
-    config.region = region_;
-  }
-
-  // Parse credentials file if provided (takes precedence over direct
-  // parameters)
-  if (!credentialsFile_.empty()) {
-    std::string accessKeyId;
-    std::string secretAccessKey;
-    std::string sessionToken;
-    if (parseCredentialsFile(credentialsFile_, accessKeyId, secretAccessKey,
-                             sessionToken)) {
-      accessKeyId_ = accessKeyId;
-      secretAccessKey_ = secretAccessKey;
-      sessionToken_ = sessionToken;
-    } else {
-      std::cerr << "ERROR: Failed to parse credentials file: "
-                << credentialsFile_ << "\n";
-      return QDMI_ERROR_INVALIDARGUMENT;
+  const auto applyEndpointOverride = [](auto& configuration,
+                                        const char* serviceVariable) {
+    const auto apply = [&configuration](const char* variable) {
+      if (const auto* value = std::getenv(variable);
+          value != nullptr && *value != '\0') {
+        configuration.endpointOverride = value;
+        return true;
+      }
+      return false;
+    };
+    if (!apply(serviceVariable)) {
+      apply("AWS_ENDPOINT_URL");
     }
-  }
+  };
 
-  const bool hasAccessKey = !accessKeyId_.empty();
-  const bool hasSecretKey = !secretAccessKey_.empty();
-  const bool hasSessionToken = !sessionToken_.empty();
-  if (credentialsFile_.empty() &&
-      (hasAccessKey != hasSecretKey ||
-       (hasSessionToken && !(hasAccessKey && hasSecretKey)))) {
-    std::cerr << "ERROR: Incomplete direct AWS credentials.\n";
-    std::cerr << "Provide both QDMI_DEVICE_SESSION_PARAMETER_USERNAME and "
-                 "QDMI_DEVICE_SESSION_PARAMETER_PASSWORD; "
-                 "QDMI_DEVICE_SESSION_PARAMETER_TOKEN is only valid with a "
-                 "complete access/secret key pair.\n";
-    std::cerr << "To use the AWS SDK default credential provider chain, do not "
-                 "set any direct credential parameters.\n";
-    return QDMI_ERROR_INVALIDARGUMENT;
-  }
+  // Configure AWS clients with the device region and standard SDK endpoint
+  // overrides. The service-specific value takes precedence over the common
+  // endpoint.
+  const auto config = [this, &applyEndpointOverride] {
+    Aws::Client::ClientConfiguration result;
+    if (!region_.empty()) {
+      result.region = region_;
+    }
+    applyEndpointOverride(result, "AWS_ENDPOINT_URL_BRAKET");
+    return result;
+  }();
 
-  if (hasAccessKey && hasSecretKey) {
-    const Aws::Auth::AWSCredentials credentials(
-        accessKeyId_, secretAccessKey_,
-        sessionToken_.empty() ? "" : sessionToken_);
-    credentialsProvider_ =
-        Aws::MakeShared<Aws::Auth::SimpleAWSCredentialsProvider>(
-            "AmazonBraketQDMICredentialsProvider", credentials);
-  } else {
-    credentialsProvider_ =
-        Aws::MakeShared<Aws::Auth::DefaultAWSCredentialsProviderChain>(
-            "AmazonBraketQDMICredentialsProvider",
-            config.ResolveCredentialProviderConfig());
-  }
+  credentialsProvider_ =
+      Aws::MakeShared<Aws::Auth::DefaultAWSCredentialsProviderChain>(
+          "AmazonBraketQDMICredentialsProvider",
+          config.ResolveCredentialProviderConfig());
   client_ =
       std::make_unique<Aws::Braket::BraketClient>(credentialsProvider_, config);
+  const auto s3Config = [this, &applyEndpointOverride] {
+    Aws::S3::S3ClientConfiguration result;
+    result.region = region_;
+    applyEndpointOverride(result, "AWS_ENDPOINT_URL_S3");
+    return result;
+  }();
+  s3Client_ = std::make_unique<Aws::S3::S3Client>(credentialsProvider_, nullptr,
+                                                  s3Config);
+  const auto stsConfig = [this, &applyEndpointOverride] {
+    Aws::STS::STSClientConfiguration result;
+    result.region = region_;
+    applyEndpointOverride(result, "AWS_ENDPOINT_URL_STS");
+    return result;
+  }();
+  stsClient_ = std::make_unique<Aws::STS::STSClient>(credentialsProvider_,
+                                                     nullptr, stsConfig);
 
   initialized_ = true;
   return QDMI_SUCCESS;
@@ -975,8 +932,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS try {
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
     const QDMI_Device_Session_Parameter param, const size_t size,
     const void* value) -> QDMI_STATUS try {
-  // Check for invalid arguments (value must never be null for a setter)
-  if (value == nullptr || size == 0) {
+  if (value != nullptr && size == 0) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
@@ -996,32 +952,144 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
     return QDMI_ERROR_BADSTATE;
   }
 
+  const bool capabilityProbe = value == nullptr && size == 0;
+
   // Handle Amazon Braket parameters
   switch (param) {
   case AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN: // Device ARN
+    if (capabilityProbe) {
+      return QDMI_SUCCESS;
+    }
     SET_STRING(size, value, deviceArn_)
   case AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION: // AWS Region
+    if (capabilityProbe) {
+      return QDMI_SUCCESS;
+    }
     SET_STRING(size, value, region_)
   case AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN:
+    if (capabilityProbe) {
+      return QDMI_SUCCESS;
+    }
     SET_STRING(size, value, reservationArn_)
-  // Method 1: AWS Credentials File (AUTHFILE)
-  // Supports standard AWS credentials file format with profiles
   case QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE:
-    SET_STRING(size, value, credentialsFile_)
-  // Method 2: Direct Credential Parameters
-  // For programmatic credential specification
-  case QDMI_DEVICE_SESSION_PARAMETER_USERNAME: // AWS_ACCESS_KEY_ID
-    SET_STRING(size, value, accessKeyId_)
-  case QDMI_DEVICE_SESSION_PARAMETER_PASSWORD: // AWS_SECRET_ACCESS_KEY
-    SET_STRING(size, value, secretAccessKey_)
-  case QDMI_DEVICE_SESSION_PARAMETER_TOKEN: // AWS_SESSION_TOKEN
-    SET_STRING(size, value, sessionToken_)
+  case QDMI_DEVICE_SESSION_PARAMETER_USERNAME:
+  case QDMI_DEVICE_SESSION_PARAMETER_PASSWORD:
+  case QDMI_DEVICE_SESSION_PARAMETER_TOKEN:
+    return QDMI_ERROR_NOTSUPPORTED;
   default:
     break;
   }
   return QDMI_ERROR_NOTSUPPORTED;
 } catch (...) {
   return statusFromCurrentException();
+}
+
+auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::resolveS3Destination(
+    const std::string& jobS3Uri, S3Destination& destination) -> QDMI_STATUS {
+  std::string uri = jobS3Uri;
+  if (uri.empty()) {
+    if (const auto* environmentUri =
+            std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI);
+        environmentUri != nullptr && *environmentUri != '\0') {
+      uri = environmentUri;
+    }
+  }
+  if (!uri.empty()) {
+    if (!parseS3Uri(uri, destination.bucket, destination.prefix)) {
+      std::cerr << "Invalid Amazon Braket task results S3 URI. Expected "
+                   "s3://bucket/prefix.\n";
+      return QDMI_ERROR_INVALIDARGUMENT;
+    }
+    return QDMI_SUCCESS;
+  }
+
+  const std::scoped_lock lock(defaultS3DestinationMutex_);
+  if (defaultS3Destination_.has_value()) {
+    destination = *defaultS3Destination_;
+    return QDMI_SUCCESS;
+  }
+  if (stsClient_ == nullptr || s3Client_ == nullptr) {
+    return QDMI_ERROR_BADSTATE;
+  }
+
+  const Aws::STS::Model::GetCallerIdentityRequest identityRequest;
+  const auto identityOutcome = stsClient_->GetCallerIdentity(identityRequest);
+  if (!identityOutcome.IsSuccess()) {
+    return mapAwsServiceError(identityOutcome.GetError(),
+                              "STS GetCallerIdentity");
+  }
+  const std::string accountId = identityOutcome.GetResult().GetAccount();
+  if (accountId.empty()) {
+    std::cerr << "STS GetCallerIdentity returned an empty account ID.\n";
+    return QDMI_ERROR_FATAL;
+  }
+
+  S3Destination resolved{.bucket = "amazon-braket-" + region_ + "-" + accountId,
+                         .prefix = "tasks"};
+
+  Aws::S3::Model::HeadBucketRequest headRequest;
+  headRequest.SetBucket(resolved.bucket);
+  const auto headOutcome = s3Client_->HeadBucket(headRequest);
+  if (!headOutcome.IsSuccess()) {
+    const auto& headError = headOutcome.GetError();
+    const bool bucketMissing =
+        headError.GetErrorType() == Aws::S3::S3Errors::NO_SUCH_BUCKET ||
+        headError.GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND;
+    if (!bucketMissing) {
+      return mapAwsServiceError(headError, "S3 HeadBucket");
+    }
+
+    Aws::S3::Model::CreateBucketRequest createRequest;
+    createRequest.SetBucket(resolved.bucket);
+    if (region_ != "us-east-1") {
+      Aws::S3::Model::CreateBucketConfiguration configuration;
+      configuration.SetLocationConstraint(
+          Aws::S3::Model::BucketLocationConstraintMapper::
+              GetBucketLocationConstraintForName(region_));
+      createRequest.SetCreateBucketConfiguration(configuration);
+    }
+    const auto createOutcome = s3Client_->CreateBucket(createRequest);
+    if (!createOutcome.IsSuccess()) {
+      const auto& createError = createOutcome.GetError();
+      if (createError.GetErrorType() ==
+          Aws::S3::S3Errors::BUCKET_ALREADY_EXISTS) {
+        std::cerr << "The standard Amazon Braket bucket name belongs to "
+                     "another AWS account.\n";
+        return QDMI_ERROR_PERMISSIONDENIED;
+      }
+      if (createError.GetErrorType() !=
+          Aws::S3::S3Errors::BUCKET_ALREADY_OWNED_BY_YOU) {
+        return mapAwsServiceError(createError, "S3 CreateBucket");
+      }
+    } else {
+      defaultS3BucketCreated_ = true;
+    }
+  }
+
+  if (defaultS3BucketCreated_) {
+    // Keep the created flag set until public-access blocking succeeds so a
+    // later submission can finish a partial setup. Never replace the
+    // configuration of a bucket that predates this session.
+    Aws::S3::Model::PublicAccessBlockConfiguration publicAccessBlock;
+    publicAccessBlock.SetBlockPublicAcls(true);
+    publicAccessBlock.SetIgnorePublicAcls(true);
+    publicAccessBlock.SetBlockPublicPolicy(true);
+    publicAccessBlock.SetRestrictPublicBuckets(true);
+    Aws::S3::Model::PutPublicAccessBlockRequest blockRequest;
+    blockRequest.SetBucket(resolved.bucket);
+    blockRequest.SetPublicAccessBlockConfiguration(publicAccessBlock);
+    const auto blockOutcome = s3Client_->PutPublicAccessBlock(blockRequest);
+    if (!blockOutcome.IsSuccess()) {
+      return mapAwsServiceError(blockOutcome.GetError(),
+                                "S3 PutPublicAccessBlock");
+    }
+
+    defaultS3BucketCreated_ = false;
+  }
+
+  defaultS3Destination_ = resolved;
+  destination = std::move(resolved);
+  return QDMI_SUCCESS;
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::createDeviceJob(
@@ -1276,11 +1344,10 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
     const QDMI_Device_Job_Parameter param, const size_t size, const void* value)
     -> QDMI_STATUS try {
   // Validate parameter: must be standard QDMI param or one of the specifically
-  // defined custom params (OUTPUTS3BUCKET, OUTPUTS3PREFIX, RESERVATION_ARN)
+  // defined custom params (OUTPUTS3URI, RESERVATION_ARN)
   const bool isStandardParam = param < QDMI_DEVICE_JOB_PARAMETER_MAX;
   const bool isDefinedCustomParam =
-      (param == AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET ||
-       param == AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX ||
+      (param == AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI ||
        param == AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN);
 
   if ((value != nullptr && size == 0) ||
@@ -1295,15 +1362,25 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
   if (status_.load() != QDMI_JOB_STATUS_CREATED) {
     return QDMI_ERROR_BADSTATE;
   }
+  const bool capabilityProbe = value == nullptr && size == 0;
   if (param == QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM) {
+    if (capabilityProbe) {
+      return QDMI_SUCCESS;
+    }
     if (value == nullptr || size != sizeof(size_t)) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
     shots_ = *static_cast<const size_t*>(value);
     return QDMI_SUCCESS;
   }
+  if (param == QDMI_DEVICE_JOB_PARAMETER_PROGRAM && capabilityProbe) {
+    return QDMI_SUCCESS;
+  }
   SET_STRING_IF(QDMI_DEVICE_JOB_PARAMETER_PROGRAM, param, size, value, program_)
   if (param == QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT) {
+    if (capabilityProbe) {
+      return QDMI_SUCCESS;
+    }
     if (value == nullptr || size != sizeof(QDMI_Program_Format)) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
@@ -1318,13 +1395,29 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
     return QDMI_SUCCESS;
   }
 
-  // Per-job S3 bucket configuration (required)
-  SET_STRING_IF(AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET, param,
-                size, value, jobS3Bucket_)
-  // Per-job S3 prefix configuration (optional, defaults to timestamp)
-  SET_STRING_IF(AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX, param,
-                size, value, jobS3Prefix_)
+  if (param == AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI) {
+    if (capabilityProbe) {
+      return QDMI_SUCCESS;
+    }
+    const auto* uriValue = static_cast<const char*>(value);
+    if (value == nullptr || uriValue[size - 1] != '\0' ||
+        memchr(uriValue, '\0', size - 1) != nullptr) {
+      return QDMI_ERROR_INVALIDARGUMENT;
+    }
+    const std::string uri{uriValue};
+    std::string bucket;
+    std::string prefix;
+    if (!parseS3Uri(uri, bucket, prefix)) {
+      return QDMI_ERROR_INVALIDARGUMENT;
+    }
+    jobS3Uri_ = uri;
+    return QDMI_SUCCESS;
+  }
   // Braket reservation ARN (optional, routes the task into a reserved window)
+  if (param == AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN &&
+      capabilityProbe) {
+    return QDMI_SUCCESS;
+  }
   SET_STRING_IF(AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN, param,
                 size, value, reservationArn_)
 
@@ -1391,7 +1484,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
   // - deviceArn: Target device ARN string
   // - action: OpenQASM 2.0/3.0 circuit string WRAPPED in Braket JSON schema
   // - shots: Number of circuit executions (measurements)
-  // - outputS3Bucket: S3 location for storing results
+  // - outputS3Bucket: resolved S3 location for storing results
   //
   // AWS SDK Usage:
   // 1. Create CreateQuantumTaskRequest
@@ -1433,8 +1526,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
   // Capture all shared fields under jobMutex_ to prevent data races with
   // concurrent setParameter() calls
   std::string localProgram;
-  std::string localS3Bucket;
-  std::string localS3Prefix;
+  std::string localS3Uri;
   std::string localReservationArn;
   size_t localShots = 0;
   {
@@ -1450,8 +1542,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
     }
     status_.store(QDMI_JOB_STATUS_QUEUED);
     localProgram = program_;
-    localS3Bucket = jobS3Bucket_;
-    localS3Prefix = jobS3Prefix_;
+    localS3Uri = jobS3Uri_;
     localReservationArn = reservationArn_.empty()
                               ? session_->getReservationArn()
                               : reservationArn_;
@@ -1472,32 +1563,16 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
 
   request.SetAction(actionJson.View().WriteCompact());
 
-  // Configure Output S3 Bucket and Prefix
-  // Bucket is required per job (no session-level fallback in AWS Braket)
-  if (localS3Bucket.empty()) {
-    std::cerr << "Error: S3 bucket must be configured per job to store task "
-                 "results.\n";
+  AMAZON_BRAKET_QDMI_Device_Session_impl_d::S3Destination destination;
+  const auto destinationStatus =
+      session_->resolveS3Destination(localS3Uri, destination);
+  if (destinationStatus != QDMI_SUCCESS) {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
     status_.store(QDMI_JOB_STATUS_FAILED);
-    return QDMI_ERROR_INVALIDARGUMENT;
+    return destinationStatus;
   }
-
-  request.SetOutputS3Bucket(localS3Bucket);
-
-  // Use provided prefix or generate timestamp-based prefix
-  std::string effectivePrefix;
-  if (!localS3Prefix.empty()) {
-    effectivePrefix = localS3Prefix;
-  } else {
-    // Generate timestamp-based prefix
-    const auto now = std::chrono::system_clock::now();
-    const auto timestamp =
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-            now.time_since_epoch())
-            .count();
-    effectivePrefix = std::to_string(timestamp);
-  }
-  request.SetOutputS3KeyPrefix(effectivePrefix);
+  request.SetOutputS3Bucket(destination.bucket);
+  request.SetOutputS3KeyPrefix(destination.prefix);
 
   // Attach reservation ARN when provided (routes task into a reserved window).
   // A job-level reservation overrides the session default.
@@ -1511,11 +1586,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
 
   auto outcome = session_->getClient()->CreateQuantumTask(request);
   if (!outcome.IsSuccess()) {
-    std::cerr << "Failed to submit task: " << outcome.GetError().GetMessage()
-              << "\n";
     const std::scoped_lock<std::mutex> lock(jobMutex_);
     status_.store(QDMI_JOB_STATUS_FAILED);
-    return QDMI_ERROR_NOTSUPPORTED;
+    return mapAwsServiceError(outcome.GetError(), "Braket CreateQuantumTask");
   }
 
   {
@@ -1771,13 +1844,6 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal() const
     return QDMI_ERROR_FATAL;
   }
 
-  // Create the S3 client with the same refreshable credentials provider and
-  // region as the Braket client.
-  Aws::S3::S3ClientConfiguration s3Config;
-  s3Config.region = session_->getRegion();
-  Aws::S3::S3Client const s3Client(session_->getCredentialsProvider(), nullptr,
-                                   s3Config);
-
   // Download results.json from S3
   // Key format: {outputS3Directory}/results.json
   const std::string objectKey = outputS3Directory_ + "/results.json";
@@ -1786,11 +1852,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal() const
   getRequest.SetBucket(outputS3Bucket_);
   getRequest.SetKey(objectKey);
 
-  auto outcome = s3Client.GetObject(getRequest);
+  auto outcome = session_->getS3Client()->GetObject(getRequest);
   if (!outcome.IsSuccess()) {
-    std::cerr << "Failed to download results from S3: "
-              << outcome.GetError().GetMessage() << "\n";
-    return QDMI_ERROR_FATAL;
+    return mapAwsServiceError(outcome.GetError(), "S3 GetObject");
   }
 
   // Read response body into string
@@ -2064,20 +2128,8 @@ void AMAZON_BRAKET_QDMI_device_session_free(
  *   Example: "arn:aws:braket:::device/quantum-simulator/amazon/<sim-name>"
  *            "arn:aws:braket:eu-north-1::device/qpu/<vendor>/<device-name>"
  *
- * AWS Authentication (optional explicit configuration):
- * - QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE: Path to credentials file (INI
- * format) Example: "/path/to/credentials"
- *
- * OR
- *
- * - QDMI_DEVICE_SESSION_PARAMETER_AWS_ACCESS_KEY_ID: AWS Access Key ID (string)
- * - QDMI_DEVICE_SESSION_PARAMETER_AWS_SECRET_ACCESS_KEY: AWS Secret Access Key
- * (string)
- * - QDMI_DEVICE_SESSION_PARAMETER_AWS_SESSION_TOKEN: AWS Session Token (string,
- * optional) For temporary credentials from STS or SSO
- *
- * If no explicit credential parameters are set, the AWS SDK default credential
- * provider chain is used.
+ * AWS authentication is resolved by the AWS SDK default credential provider
+ * chain. Generic QDMI credential parameters are not supported.
  *
  * Optional Parameters:
  * - AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION: AWS region override
@@ -2085,8 +2137,12 @@ void AMAZON_BRAKET_QDMI_device_session_free(
  *   If not set, region is extracted from ARN. Example: "us-east-1",
  * "eu-north-1"
  *
- * Unsupported QDMI Authentication Parameters:
+ * Unsupported QDMI authentication parameters:
+ * - QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE
  * - QDMI_DEVICE_SESSION_PARAMETER_AUTHURL
+ * - QDMI_DEVICE_SESSION_PARAMETER_USERNAME
+ * - QDMI_DEVICE_SESSION_PARAMETER_PASSWORD
+ * - QDMI_DEVICE_SESSION_PARAMETER_TOKEN
  *
  * @param session The session handle
  * @param param The parameter to set
@@ -2186,17 +2242,12 @@ void AMAZON_BRAKET_QDMI_device_job_free(AMAZON_BRAKET_QDMI_Device_Job job) {
  * Required parameters:
  * - QDMI_DEVICE_JOB_PARAMETER_PROGRAM: OpenQASM circuit string
  * - QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT: Format (QASM2 or QASM3)
- * - AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET: S3 bucket for
- *   results (string)
- *   Example: "amazon-braket-my-bucket"
- *
- * Optional parameters:
  * - QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM: Number of measurement shots (default:
  * 100)
- * - AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX: S3 prefix for
- *   results (string)
- *   Optional. If not set, uses timestamp (epoch milliseconds): "1234567890123"
- *   Example: "my-experiment/1234567890123/"
+ * - AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI: Complete S3 result
+ *   destination, for example "s3://my-bucket/my-prefix". If omitted, the
+ *   provider uses AMZN_BRAKET_TASK_RESULTS_S3_URI and then the standard Braket
+ *   default bucket with the "tasks" prefix.
  *
  * @param job The job handle
  * @param param The parameter to set

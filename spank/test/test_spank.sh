@@ -34,7 +34,12 @@ srun --partition=debug --immediate=5 /bin/true
 
 echo "=== Verifying SPANK options and injected job environment ==="
 job_environment=$(
-  AWS_REGION=invalid-region srun \
+  env \
+    -u AWS_ACCESS_KEY_ID \
+    -u AWS_SECRET_ACCESS_KEY \
+    -u AWS_SESSION_TOKEN \
+    AWS_REGION=invalid-region \
+    srun \
     --partition=debug \
     --immediate=5 \
     --amazon-braket-device-arn="${device_arn}" \

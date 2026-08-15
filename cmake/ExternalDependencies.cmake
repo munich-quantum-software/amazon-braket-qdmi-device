@@ -72,7 +72,7 @@ if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
       OFF
       CACHE BOOL "Disable building shared libraries for AWS SDK" FORCE)
   set(BUILD_ONLY
-      "s3;braket"
+      "s3;sts;braket"
       CACHE STRING "" FORCE)
   set("AUTORUN_UNIT_TESTS"
       OFF
@@ -88,7 +88,13 @@ if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
     GIT_REPOSITORY https://github.com/aws/aws-sdk-cpp.git
     GIT_TAG ${AWSSDK_VERSION}
     GIT_SHALLOW TRUE
-    FIND_PACKAGE_ARGS ${AWSSDK_VERSION} COMPONENTS braket s3 core)
+    FIND_PACKAGE_ARGS
+    ${AWSSDK_VERSION}
+    COMPONENTS
+    braket
+    s3
+    sts
+    core)
   list(APPEND FETCH_PACKAGES awssdk)
 endif()
 
