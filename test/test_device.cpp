@@ -1306,8 +1306,7 @@ TEST_F(DeviceParsingTestFixture, IQMDeviceSiteCoherenceTimes) {
         session, site, QDMI_SITE_PROPERTY_T1, sizeof(t1), &t1, nullptr);
     if (t1Result == QDMI_SUCCESS) {
       EXPECT_GT(t1, 0U) << "T1 must be > 0 when supported";
-      EXPECT_LT(t1, 1'000'000'000U)
-          << "T1 above 1 s is implausibly large";
+      EXPECT_LT(t1, 1'000'000'000U) << "T1 above 1 s is implausibly large";
       ++sitesWithT1;
     } else {
       EXPECT_EQ(t1Result, QDMI_ERROR_NOTSUPPORTED);
@@ -1318,8 +1317,7 @@ TEST_F(DeviceParsingTestFixture, IQMDeviceSiteCoherenceTimes) {
         session, site, QDMI_SITE_PROPERTY_T2, sizeof(t2), &t2, nullptr);
     if (t2Result == QDMI_SUCCESS) {
       EXPECT_GT(t2, 0U) << "T2 must be > 0 when supported";
-      EXPECT_LT(t2, 1'000'000'000U)
-          << "T2 above 1 s is implausibly large";
+      EXPECT_LT(t2, 1'000'000'000U) << "T2 above 1 s is implausibly large";
       ++sitesWithT2;
     } else {
       EXPECT_EQ(t2Result, QDMI_ERROR_NOTSUPPORTED);

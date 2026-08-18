@@ -179,7 +179,8 @@
 #define SET_STRING(size, value, member)                                        \
   {                                                                            \
     const auto* str_ = static_cast<const char*>((value));                      \
-    if (str_[(size)-1] != '\0' || memchr(str_, '\0', (size)-1) != nullptr) {    \
+    if (str_[(size) - 1] != '\0' ||                                            \
+        memchr(str_, '\0', (size) - 1) != nullptr) {                           \
       return QDMI_ERROR_INVALIDARGUMENT;                                       \
     }                                                                          \
     (member) = str_;                                                           \
@@ -2092,9 +2093,8 @@ int AMAZON_BRAKET_QDMI_device_session_set_parameter(
     AMAZON_BRAKET_QDMI_Device_Session session,
     QDMI_Device_Session_Parameter param, const size_t size, const void* value) {
   return guardCFunction(__func__, [=] {
-    return session == nullptr
-               ? QDMI_ERROR_INVALIDARGUMENT
-               : session->setParameter(param, size, value);
+    return session == nullptr ? QDMI_ERROR_INVALIDARGUMENT
+                              : session->setParameter(param, size, value);
   });
 }
 

@@ -44,8 +44,7 @@ releases may include breaking changes.
 
 - 🐛 Preserve numeric site ordering, expose coherence times through QDMI's
   integer duration ABI, keep retired-device status queryable, and prevent C++
-  exceptions from crossing the C API boundary ([#171])
-  ([**@burgholzer**])
+  exceptions from crossing the C API boundary ([#171]) ([**@burgholzer**])
 - 🐛 Convert Amazon Braket measurement rows to QDMI basis-state order ([#175])
   ([**@burgholzer**])
 - 🐛 Validate that QDMI site and operation query handles belong to an
