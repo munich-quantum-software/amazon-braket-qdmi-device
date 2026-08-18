@@ -14,19 +14,6 @@ on:
           This can be any valid CMake build type, such as 'Debug' or 'Release'.
         default: "Release"
         type: string
-      device-arn:
-        description: >
-          The Amazon Braket device ARN to use for tests that require a quantum device.
-          This can be any valid Amazon Braket device ARN, such as 'arn:aws:braket:::device/quantum-simulator/amazon/sv1'.
-        default: "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
-        type: string
-    secrets:
-      AWS_S3_BUCKET:
-        required: false
-      AWS_ACCESS_KEY_ID:
-        required: false
-      AWS_SECRET_ACCESS_KEY:
-        required: false
 
 defaults:
   run:
@@ -52,7 +39,9 @@ jobs:
       - name: Configure CMake
         env:
           CONFIG: ${{ inputs.config }}
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE="$env:CONFIG" --log-level=VERBOSE
+        run: >-
+          cmake -S . -B build -DCMAKE_BUILD_TYPE="$env:CONFIG"
+          -DBUILD_AMAZON_BRAKET_LIVE_TESTS=OFF --log-level=VERBOSE
       - name: Build
         env:
           CONFIG: ${{ inputs.config }}
@@ -60,9 +49,4 @@ jobs:
       - name: Test
         env:
           CONFIG: ${{ inputs.config }}
-          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEVICE_ARN: ${{ inputs.device-arn }}
-        run: |
-          ctest -C $env:CONFIG --output-on-failure --test-dir build --repeat after-timeout:3 --timeout 600 --verbose
+        run: ctest -C $env:CONFIG --output-on-failure --test-dir build --timeout 600 --verbose

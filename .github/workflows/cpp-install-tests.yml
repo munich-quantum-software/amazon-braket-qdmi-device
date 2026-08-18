@@ -7,18 +7,6 @@ on:
           The runner image to use.
         default: "ubuntu-latest"
         type: string
-      device-arn:
-        description: >
-          The Amazon Braket device ARN to use for tests that require a quantum device.
-        default: "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
-        type: string
-    secrets:
-      AWS_S3_BUCKET:
-        required: false
-      AWS_ACCESS_KEY_ID:
-        required: false
-      AWS_SECRET_ACCESS_KEY:
-        required: false
 
 permissions:
   contents: read
@@ -61,7 +49,9 @@ jobs:
 
       # Build and install the Amazon Braket QDMI library
       - name: Configure CMake for QDMI
-        run: cmake -S . -B install-build -DCMAKE_BUILD_TYPE=Release
+        run: >-
+          cmake -S . -B install-build -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_AMAZON_BRAKET_TESTS=OFF
 
       - name: Build QDMI
         run: cmake --build install-build --config Release --target amazon-braket-qdmi-device
@@ -83,15 +73,11 @@ jobs:
         run: >
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
           -DUSE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE=ON
+          -DBUILD_AMAZON_BRAKET_LIVE_TESTS=OFF
           -DCMAKE_PREFIX_PATH=install-dir
 
       - name: Build tests
         run: cmake --build build --config Release
 
       - name: Test
-        env:
-          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEVICE_ARN: ${{ inputs.device-arn }}
-        run: ctest -C Release --output-on-failure --test-dir build --repeat until-pass:3 --timeout 600
+        run: ctest -C Release --output-on-failure --test-dir build --timeout 600

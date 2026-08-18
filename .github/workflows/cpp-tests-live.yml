@@ -1,0 +1,60 @@
+name: 🇨 • Live tests • Amazon Braket
+on:
+  workflow_call:
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+      AWS_SESSION_TOKEN:
+        required: false
+      AWS_S3_BUCKET:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  cpp-tests-live:
+    name: ☁️ SV1 and device metadata
+    runs-on: ubuntu-24.04
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+      CMAKE_BUILD_PARALLEL_LEVEL: 4
+      FORCE_COLOR: 3
+    steps:
+      - name: Skip without AWS credentials
+        if: >-
+          env.AWS_ACCESS_KEY_ID == '' || env.AWS_SECRET_ACCESS_KEY == '' ||
+          env.AWS_S3_BUCKET == ''
+        run: echo "AWS credentials or the dedicated result bucket are unavailable; skipping live tests."
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.AWS_ACCESS_KEY_ID != '' && env.AWS_SECRET_ACCESS_KEY != '' && env.AWS_S3_BUCKET != ''
+        with:
+          persist-credentials: false
+
+      - name: Install dependencies
+        if: env.AWS_ACCESS_KEY_ID != '' && env.AWS_SECRET_ACCESS_KEY != '' && env.AWS_S3_BUCKET != ''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev
+
+      - name: Configure CMake
+        if: env.AWS_ACCESS_KEY_ID != '' && env.AWS_SECRET_ACCESS_KEY != '' && env.AWS_S3_BUCKET != ''
+        run: >-
+          cmake -S . -B build-live -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_AMAZON_BRAKET_LIVE_TESTS=ON
+
+      - name: Build
+        if: env.AWS_ACCESS_KEY_ID != '' && env.AWS_SECRET_ACCESS_KEY != '' && env.AWS_S3_BUCKET != ''
+        run: cmake --build build-live --config Release
+
+      - name: Test
+        if: env.AWS_ACCESS_KEY_ID != '' && env.AWS_SECRET_ACCESS_KEY != '' && env.AWS_S3_BUCKET != ''
+        run: >-
+          ctest -C Release --test-dir build-live -L amazon-braket-live
+          --output-on-failure --no-tests=error --timeout 600

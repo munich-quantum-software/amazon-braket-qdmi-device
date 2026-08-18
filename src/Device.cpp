@@ -179,7 +179,7 @@
 #define SET_STRING(size, value, member)                                        \
   {                                                                            \
     const auto* str_ = static_cast<const char*>((value));                      \
-    if (str_[(size) - 1] != '\0' ||                                            \
+    if (str_ == nullptr || (size) == 0 || str_[(size) - 1] != '\0' ||          \
         memchr(str_, '\0', (size) - 1) != nullptr) {                           \
       return QDMI_ERROR_INVALIDARGUMENT;                                       \
     }                                                                          \
@@ -1116,12 +1116,12 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
                             arch->qubitsNum, prop, size, value, sizeRet)
   ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_NAME, arch->name.c_str(), prop, size,
                       value, sizeRet)
-  constexpr auto DURATION_UNIT = "us";
-  constexpr double DURATION_SCALE_FACTOR = 0.001;
-  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_DURATIONUNIT, DURATION_UNIT, prop,
+  constexpr auto durationUnit = "us";
+  constexpr double durationScaleFactor = 0.001;
+  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_DURATIONUNIT, durationUnit, prop,
                       size, value, sizeRet)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_DURATIONSCALEFACTOR, double,
-                            DURATION_SCALE_FACTOR, prop, size, value, sizeRet)
+                            durationScaleFactor, prop, size, value, sizeRet)
 
   // Return device status from Amazon Braket (mutable, per-query)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_STATUS, QDMI_Device_Status,
@@ -1387,6 +1387,10 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
       return QDMI_ERROR_BADSTATE;
     }
     if (program_.empty() || session_->getDeviceArn().empty()) {
+      return QDMI_ERROR_INVALIDARGUMENT;
+    }
+    if (jobS3Bucket_.empty()) {
+      status_.store(QDMI_JOB_STATUS_FAILED);
       return QDMI_ERROR_INVALIDARGUMENT;
     }
   }

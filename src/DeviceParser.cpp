@@ -48,6 +48,7 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -116,8 +117,8 @@ struct SiteNameLess {
 };
 
 auto secondsToNanoseconds(const double seconds) -> std::optional<uint64_t> {
-  constexpr double NANOSECONDS_PER_SECOND = 1'000'000'000.0;
-  const double nanoseconds = seconds * NANOSECONDS_PER_SECOND;
+  constexpr double nanosecondsPerSecond = 1'000'000'000.0;
+  const double nanoseconds = seconds * nanosecondsPerSecond;
   if (!std::isfinite(nanoseconds) || nanoseconds <= 0.0 ||
       nanoseconds > static_cast<double>(std::numeric_limits<uint64_t>::max())) {
     return std::nullopt;

@@ -1,20 +1,6 @@
 name: 🇨 • Coverage
 on:
   workflow_call:
-    inputs:
-      device-arn:
-        description: >
-          The Amazon Braket device ARN to use for tests that require a quantum device.
-          This can be any valid Amazon Braket device ARN, such as 'arn:aws:braket:::device/quantum-simulator/amazon/sv1'.
-        default: "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
-        type: string
-    secrets:
-      AWS_S3_BUCKET:
-        required: false
-      AWS_ACCESS_KEY_ID:
-        required: false
-      AWS_SECRET_ACCESS_KEY:
-        required: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}-cpp-coverage
@@ -69,18 +55,15 @@ jobs:
           sudo apt-get install -y libcurl4-openssl-dev
 
       - name: Configure CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON
+        run: >-
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON
+          -DBUILD_AMAZON_BRAKET_LIVE_TESTS=OFF
 
       - name: Build
         run: cmake --build build --config Debug
 
       - name: Test
-        env:
-          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEVICE_ARN: ${{ inputs.device-arn }}
-        run: ctest -C Debug --output-on-failure --test-dir build --repeat until-pass:3 --timeout 600
+        run: ctest -C Debug --output-on-failure --test-dir build --timeout 600
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0

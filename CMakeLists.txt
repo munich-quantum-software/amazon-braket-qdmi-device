@@ -57,6 +57,12 @@ set(QDMI_PREFIX "AMAZON_BRAKET")
 # Check if this is the master project or used via add_subdirectory
 option(BUILD_AMAZON_BRAKET_TESTS "Build tests for the Amazon Braket QDMI device"
        ${PROJECT_IS_TOP_LEVEL})
+option(BUILD_AMAZON_BRAKET_LIVE_TESTS
+       "Build tests that access AWS and may submit paid Amazon Braket tasks" OFF)
+
+if(BUILD_AMAZON_BRAKET_LIVE_TESTS AND NOT BUILD_AMAZON_BRAKET_TESTS)
+  message(FATAL_ERROR "BUILD_AMAZON_BRAKET_LIVE_TESTS requires BUILD_AMAZON_BRAKET_TESTS")
+endif()
 
 include(cmake/ExternalDependencies.cmake)
 
