@@ -1117,17 +1117,17 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   AMAZON_BRAKET_QDMI_Device_Session uninitializedSession = nullptr;
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&uninitializedSession),
             QDMI_SUCCESS);
-  for (const auto parameter : {
-           AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
-           AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION,
-           AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN}) {
+  for (const auto parameter :
+       {AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+        AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION,
+        AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN}) {
     EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                   uninitializedSession, parameter, 0, nullptr),
               QDMI_SUCCESS);
   }
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                uninitializedSession, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
-                0, nullptr),
+                uninitializedSession, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE, 0,
+                nullptr),
             QDMI_ERROR_NOTSUPPORTED);
   AMAZON_BRAKET_QDMI_device_session_free(uninitializedSession);
 }
@@ -1495,14 +1495,14 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
       QDMI_SUCCESS);
-  for (const auto parameter : {
-           QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
-           QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT,
-           QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM,
-           AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
-           AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN}) {
-    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                  freshJob, parameter, 0, nullptr),
+  for (const auto parameter :
+       {QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
+        QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT,
+        QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM,
+        AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
+        AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN}) {
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(freshJob, parameter,
+                                                          0, nullptr),
               QDMI_SUCCESS);
   }
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);

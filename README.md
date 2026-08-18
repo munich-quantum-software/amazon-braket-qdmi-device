@@ -277,13 +277,13 @@ only the newly opened session.
 
 ### CMake Options
 
-| Option                                    | Default | Description                             |
-| ----------------------------------------- | ------- | --------------------------------------- |
-| `BUILD_AMAZON_BRAKET_TESTS`               | `ON`    | Build the offline test suite            |
-| `BUILD_AMAZON_BRAKET_LIVE_TESTS`          | `OFF`   | Build opt-in tests that access AWS       |
-| `BUILD_AMAZON_BRAKET_SPANK_PLUGIN`        | `OFF`   | Build the optional Slurm SPANK plugin   |
-| `USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE` | `OFF`   | Use installed library instead of build  |
-| `CMAKE_PREFIX_PATH`                       | -       | Path to dependencies (AWS SDK, QDMI)    |
+| Option                                    | Default | Description                            |
+| ----------------------------------------- | ------- | -------------------------------------- |
+| `BUILD_AMAZON_BRAKET_TESTS`               | `ON`    | Build the offline test suite           |
+| `BUILD_AMAZON_BRAKET_LIVE_TESTS`          | `OFF`   | Build opt-in tests that access AWS     |
+| `BUILD_AMAZON_BRAKET_SPANK_PLUGIN`        | `OFF`   | Build the optional Slurm SPANK plugin  |
+| `USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE` | `OFF`   | Use installed library instead of build |
+| `CMAKE_PREFIX_PATH`                       | -       | Path to dependencies (AWS SDK, QDMI)   |
 
 ## Usage
 
