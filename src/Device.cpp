@@ -489,6 +489,21 @@ auto mapAwsServiceError(const Error& error, const std::string_view operation)
                                      : QDMI_ERROR_FATAL;
 }
 
+auto mapGetDeviceError(const Aws::Braket::BraketError& error) -> QDMI_STATUS {
+  std::cerr << "Braket GetDevice failed: " << error.GetMessage() << "\n";
+  if (isAwsPermissionError(error)) {
+    return QDMI_ERROR_PERMISSIONDENIED;
+  }
+  switch (error.GetErrorType()) {
+  case Aws::Braket::BraketErrors::RESOURCE_NOT_FOUND:
+    return QDMI_ERROR_NOTFOUND;
+  case Aws::Braket::BraketErrors::VALIDATION:
+    return QDMI_ERROR_INVALIDARGUMENT;
+  default:
+    return QDMI_ERROR_FATAL;
+  }
+}
+
 auto isValidS3BucketName(const std::string_view bucket) -> bool {
   if (bucket.size() < 3 || bucket.size() > 63 ||
       std::isalnum(static_cast<unsigned char>(bucket.front())) == 0 ||
@@ -681,7 +696,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
     request.SetDeviceArn(deviceArn_.c_str());
     auto outcome = client_->GetDevice(request);
     if (!outcome.IsSuccess()) {
-      return mapAwsServiceError(outcome.GetError(), "Braket GetDevice");
+      return mapGetDeviceError(outcome.GetError());
     }
     const auto& device = outcome.GetResult();
     const auto queueLength = getTotalQueueLength(device);
@@ -707,7 +722,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
 
   auto outcome = client_->GetDevice(request);
   if (!outcome.IsSuccess()) {
-    return mapAwsServiceError(outcome.GetError(), "Braket GetDevice");
+    return mapGetDeviceError(outcome.GetError());
   }
 
   const auto& device = outcome.GetResult();
@@ -932,10 +947,6 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS try {
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
     const QDMI_Device_Session_Parameter param, const size_t size,
     const void* value) -> QDMI_STATUS try {
-  if (value != nullptr && size == 0) {
-    return QDMI_ERROR_INVALIDARGUMENT;
-  }
-
   // Validate parameter: must be standard QDMI param or one of the specifically
   // defined custom params (REGION, RESERVATION_ARN)
   const bool isStandardParam = param < QDMI_DEVICE_SESSION_PARAMETER_MAX;
@@ -953,23 +964,24 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
   }
 
   const bool capabilityProbe = value == nullptr && size == 0;
+  const bool isSupportedParam =
+      param == AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN ||
+      param == AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION ||
+      param == AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN;
+  if (capabilityProbe) {
+    return isSupportedParam ? QDMI_SUCCESS : QDMI_ERROR_NOTSUPPORTED;
+  }
+  if (value == nullptr || size == 0) {
+    return QDMI_ERROR_INVALIDARGUMENT;
+  }
 
   // Handle Amazon Braket parameters
   switch (param) {
   case AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN: // Device ARN
-    if (capabilityProbe) {
-      return QDMI_SUCCESS;
-    }
     SET_STRING(size, value, deviceArn_)
   case AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION: // AWS Region
-    if (capabilityProbe) {
-      return QDMI_SUCCESS;
-    }
     SET_STRING(size, value, region_)
   case AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN:
-    if (capabilityProbe) {
-      return QDMI_SUCCESS;
-    }
     SET_STRING(size, value, reservationArn_)
   case QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE:
   case QDMI_DEVICE_SESSION_PARAMETER_USERNAME:
@@ -1258,7 +1270,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::querySiteProperty(
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
-  ADD_SINGLE_VALUE_PROPERTY(QDMI_SITE_PROPERTY_INDEX, uint64_t, site->id_, prop,
+  ADD_SINGLE_VALUE_PROPERTY(QDMI_SITE_PROPERTY_INDEX, size_t, site->id_, prop,
                             size, value, sizeRet)
   ADD_STRING_PROPERTY(QDMI_SITE_PROPERTY_NAME, site->name_.c_str(), prop, size,
                       value, sizeRet)
@@ -1350,8 +1362,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
       (param == AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI ||
        param == AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN);
 
-  if ((value != nullptr && size == 0) ||
-      (!isStandardParam && !isDefinedCustomParam)) {
+  if (!isStandardParam && !isDefinedCustomParam) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
@@ -1359,29 +1370,26 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
   if (retrieved_) {
     return QDMI_ERROR_BADSTATE;
   }
-  if (status_.load() != QDMI_JOB_STATUS_CREATED) {
+  if (submitting_ || status_.load() != QDMI_JOB_STATUS_CREATED) {
     return QDMI_ERROR_BADSTATE;
   }
   const bool capabilityProbe = value == nullptr && size == 0;
+  if (capabilityProbe) {
+    return QDMI_SUCCESS;
+  }
+  if (value == nullptr || size == 0) {
+    return QDMI_ERROR_INVALIDARGUMENT;
+  }
   if (param == QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM) {
-    if (capabilityProbe) {
-      return QDMI_SUCCESS;
-    }
-    if (value == nullptr || size != sizeof(size_t)) {
+    if (size != sizeof(size_t)) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
     shots_ = *static_cast<const size_t*>(value);
     return QDMI_SUCCESS;
   }
-  if (param == QDMI_DEVICE_JOB_PARAMETER_PROGRAM && capabilityProbe) {
-    return QDMI_SUCCESS;
-  }
   SET_STRING_IF(QDMI_DEVICE_JOB_PARAMETER_PROGRAM, param, size, value, program_)
   if (param == QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT) {
-    if (capabilityProbe) {
-      return QDMI_SUCCESS;
-    }
-    if (value == nullptr || size != sizeof(QDMI_Program_Format)) {
+    if (size != sizeof(QDMI_Program_Format)) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
     const auto fmt = *static_cast<const QDMI_Program_Format*>(value);
@@ -1396,11 +1404,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
   }
 
   if (param == AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI) {
-    if (capabilityProbe) {
-      return QDMI_SUCCESS;
-    }
     const auto* uriValue = static_cast<const char*>(value);
-    if (value == nullptr || uriValue[size - 1] != '\0' ||
+    if (uriValue[size - 1] != '\0' ||
         memchr(uriValue, '\0', size - 1) != nullptr) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
@@ -1414,10 +1419,6 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
     return QDMI_SUCCESS;
   }
   // Braket reservation ARN (optional, routes the task into a reserved window)
-  if (param == AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN &&
-      capabilityProbe) {
-    return QDMI_SUCCESS;
-  }
   SET_STRING_IF(AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN, param,
                 size, value, reservationArn_)
 
@@ -1508,10 +1509,6 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
     if (program_.empty() || session_->getDeviceArn().empty()) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
-    if (jobS3Bucket_.empty()) {
-      status_.store(QDMI_JOB_STATUS_FAILED);
-      return QDMI_ERROR_INVALIDARGUMENT;
-    }
   }
 
   if (const auto result = session_->fetchDeviceArchitecture();
@@ -1531,7 +1528,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
   size_t localShots = 0;
   {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
-    if (retrieved_) {
+    if (retrieved_ || submitting_) {
       return QDMI_ERROR_BADSTATE;
     }
     if (status_.load() != QDMI_JOB_STATUS_CREATED) {
@@ -1540,7 +1537,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
     if (program_.empty() || session_->getDeviceArn().empty()) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
-    status_.store(QDMI_JOB_STATUS_QUEUED);
+    submitting_ = true;
     localProgram = program_;
     localS3Uri = jobS3Uri_;
     localReservationArn = reservationArn_.empty()
@@ -1568,6 +1565,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
       session_->resolveS3Destination(localS3Uri, destination);
   if (destinationStatus != QDMI_SUCCESS) {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
+    submitting_ = false;
     status_.store(QDMI_JOB_STATUS_FAILED);
     return destinationStatus;
   }
@@ -1587,6 +1585,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
   auto outcome = session_->getClient()->CreateQuantumTask(request);
   if (!outcome.IsSuccess()) {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
+    submitting_ = false;
     status_.store(QDMI_JOB_STATUS_FAILED);
     return mapAwsServiceError(outcome.GetError(), "Braket CreateQuantumTask");
   }
@@ -1594,19 +1593,27 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
   {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
     taskArn_ = outcome.GetResult().GetQuantumTaskArn();
+    submitting_ = false;
+    status_.store(QDMI_JOB_STATUS_SUBMITTED);
   }
-  status_.store(QDMI_JOB_STATUS_SUBMITTED);
   return QDMI_SUCCESS;
 } catch (...) {
   return statusFromCurrentException();
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS try {
-  const auto currentStatus = status_.load();
+  QDMI_Job_Status currentStatus = QDMI_JOB_STATUS_CREATED;
+  {
+    const std::scoped_lock<std::mutex> lock(jobMutex_);
+    if (submitting_) {
+      return QDMI_ERROR_BADSTATE;
+    }
+    currentStatus = status_.load();
 
-  if (currentStatus == QDMI_JOB_STATUS_CREATED) {
-    status_.store(QDMI_JOB_STATUS_CANCELED);
-    return QDMI_SUCCESS;
+    if (currentStatus == QDMI_JOB_STATUS_CREATED) {
+      status_.store(QDMI_JOB_STATUS_CANCELED);
+      return QDMI_SUCCESS;
+    }
   }
 
   if (currentStatus != QDMI_JOB_STATUS_SUBMITTED &&
@@ -2124,7 +2131,7 @@ void AMAZON_BRAKET_QDMI_device_session_free(
  * Required Parameters:
  * - AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN: Device ARN (string)
  *   **REQUIRED**
- *   Format: arn:aws:braket:<region>::device/<type>/<provider>/<device-name>
+ *   Format: `arn:aws:braket:{region}::device/{type}/{provider}/{device-name}`
  *   Example: "arn:aws:braket:::device/quantum-simulator/amazon/<sim-name>"
  *            "arn:aws:braket:eu-north-1::device/qpu/<vendor>/<device-name>"
  *
@@ -2149,10 +2156,11 @@ void AMAZON_BRAKET_QDMI_device_session_free(
  * @param size Size of the value in bytes (must include null terminator for
  * strings)
  * @param value Pointer to the parameter value (must be null-terminated for
- * strings)
- * @return QDMI_SUCCESS on success
- * @return QDMI_ERROR_INVALIDARGUMENT if value is NULL, size is 0, or string not
- * null-terminated
+ * strings), or NULL with size 0 to query parameter support
+ * @return QDMI_SUCCESS on success or when a supported parameter is queried with
+ * value NULL and size 0
+ * @return QDMI_ERROR_INVALIDARGUMENT if value and size are inconsistent or a
+ * string is not terminated exactly at size - 1
  * @return QDMI_ERROR_BADSTATE if session is already initialized
  * @return QDMI_ERROR_NOTSUPPORTED if parameter is not supported
  */
@@ -2251,9 +2259,16 @@ void AMAZON_BRAKET_QDMI_device_job_free(AMAZON_BRAKET_QDMI_Device_Job job) {
  *
  * @param job The job handle
  * @param param The parameter to set
- * @param size Size of the value in bytes
- * @param value Pointer to the parameter value
- * @return QDMI_SUCCESS on success, error code otherwise
+ * @param size Size of the value in bytes (must include the null terminator for
+ * string parameters)
+ * @param value Pointer to the parameter value, or NULL with size 0 to query
+ * parameter support
+ * @return QDMI_SUCCESS on success or when a supported parameter is queried with
+ * value NULL and size 0
+ * @return QDMI_ERROR_INVALIDARGUMENT if value and size are inconsistent or a
+ * string is not terminated exactly at size - 1
+ * @return QDMI_ERROR_BADSTATE if the job can no longer be configured
+ * @return QDMI_ERROR_NOTSUPPORTED if the parameter or value is not supported
  */
 int AMAZON_BRAKET_QDMI_device_job_set_parameter(
     AMAZON_BRAKET_QDMI_Device_Job job, const QDMI_Device_Job_Parameter param,
@@ -2314,7 +2329,9 @@ int AMAZON_BRAKET_QDMI_device_job_cancel(AMAZON_BRAKET_QDMI_Device_Job job) {
  * Check the status of a QDMI job.
  *
  * Queries Amazon Braket for the current quantum task status.
- * Status values include: CREATED, QUEUED, RUNNING, DONE, FAILED, CANCELLED.
+ * QDMI status values include CREATED, SUBMITTED, QUEUED, RUNNING, DONE,
+ * FAILED, and CANCELED. Amazon Braket CREATED maps to QDMI SUBMITTED because
+ * the remote task has already been accepted.
  *
  * @param job The QDMI job handle
  * @param status Pointer to receive the current job status

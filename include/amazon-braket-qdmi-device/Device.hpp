@@ -318,6 +318,7 @@ private:
   /// - CANCELED: User canceled before completion
   /// - FAILED: Execution failed due to error
   mutable std::atomic<QDMI_Job_Status> status_{QDMI_JOB_STATUS_CREATED};
+  bool submitting_ = false; ///< A CreateQuantumTask request is in progress
 
   QDMI_Program_Format format_ = QDMI_PROGRAM_FORMAT_QASM3;
   std::string program_;
