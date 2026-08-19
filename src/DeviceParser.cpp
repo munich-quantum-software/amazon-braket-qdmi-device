@@ -281,7 +281,7 @@ auto GateModelCapabilityParser::parseSitesAndConnectivity(
     const auto targetsJson = targetsView.AsArray();
     targets.reserve(targetsJson.GetLength());
     for (size_t index = 0; index < targetsJson.GetLength(); ++index) {
-      auto target = std::string{targetsJson[index].AsString()};
+      auto target = std::string{targetsJson.GetItem(index).AsString()};
       siteNames.insert(target);
       targets.push_back(std::move(target));
     }
@@ -369,7 +369,7 @@ auto GateModelCapabilityParser::parseOperations(
     std::vector<std::string> names;
     names.reserve(array.GetLength());
     for (size_t index = 0; index < array.GetLength(); ++index) {
-      names.emplace_back(array[index].AsString());
+      names.emplace_back(array.GetItem(index).AsString());
     }
     return names;
   };

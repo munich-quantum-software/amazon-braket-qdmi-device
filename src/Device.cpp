@@ -101,7 +101,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
-#include <exception>
 #include <fstream>
 #include <iostream>
 #include <limits>
@@ -531,6 +530,18 @@ auto isPermissionError(const Aws::Braket::BraketErrors error) -> bool {
     return false;
   }
 }
+
+auto statusFromCurrentException() noexcept -> QDMI_STATUS {
+  try {
+    throw;
+  } catch (const std::bad_alloc&) {
+    return QDMI_ERROR_OUTOFMEM;
+  } catch (const std::invalid_argument&) {
+    return QDMI_ERROR_INVALIDARGUMENT;
+  } catch (...) {
+    return QDMI_ERROR_FATAL;
+  }
+}
 } // anonymous namespace
 
 namespace amazon::braket::qdmi {
@@ -551,7 +562,7 @@ namespace amazon::braket::qdmi {
 Device::Device() = default;
 
 auto Device::sessionAlloc(AMAZON_BRAKET_QDMI_Device_Session* session)
-    -> QDMI_STATUS {
+    -> QDMI_STATUS try {
   if (session == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -562,6 +573,8 @@ auto Device::sessionAlloc(AMAZON_BRAKET_QDMI_Device_Session* session)
       sessions_.emplace(uniqueSession.get(), std::move(uniqueSession)).first;
   *session = it->first;
   return QDMI_SUCCESS;
+} catch (...) {
+  return statusFromCurrentException();
 }
 
 auto Device::sessionFree(AMAZON_BRAKET_QDMI_Device_Session session) -> void {
@@ -655,7 +668,7 @@ auto Device::setCachedArchitecture(
  * @return QDMI_SUCCESS on successful fetch, error code otherwise
  */
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
-    -> QDMI_STATUS {
+    -> QDMI_STATUS try {
   if (deviceArn_.empty() || client_ == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -810,6 +823,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
     queueLength_ = queueLength;
   }
   return QDMI_SUCCESS;
+} catch (...) {
+  return statusFromCurrentException();
 }
 
 /**
@@ -838,7 +853,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
  * @return QDMI_ERROR_BADSTATE if session is not in ALLOCATED state
  * @return QDMI_ERROR_INVALIDARGUMENT if device ARN is not configured
  */
-auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
+auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS try {
   if (initialized_) {
     return QDMI_ERROR_BADSTATE;
   }
@@ -953,11 +968,13 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS {
 
   initialized_ = true;
   return QDMI_SUCCESS;
+} catch (...) {
+  return statusFromCurrentException();
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
     const QDMI_Device_Session_Parameter param, const size_t size,
-    const void* value) -> QDMI_STATUS {
+    const void* value) -> QDMI_STATUS try {
   // Check for invalid arguments (value must never be null for a setter)
   if (value == nullptr || size == 0) {
     return QDMI_ERROR_INVALIDARGUMENT;
@@ -1003,10 +1020,12 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::setParameter(
     break;
   }
   return QDMI_ERROR_NOTSUPPORTED;
+} catch (...) {
+  return statusFromCurrentException();
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::createDeviceJob(
-    AMAZON_BRAKET_QDMI_Device_Job* job) -> QDMI_STATUS {
+    AMAZON_BRAKET_QDMI_Device_Job* job) -> QDMI_STATUS try {
   if (job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -1019,10 +1038,12 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::createDeviceJob(
   const std::scoped_lock<std::mutex> lock(jobsMutex_);
   *job = jobs_.emplace(uniqueJob.get(), std::move(uniqueJob)).first->first;
   return QDMI_SUCCESS;
+} catch (...) {
+  return statusFromCurrentException();
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::openDeviceJob(
-    const char* jobId, AMAZON_BRAKET_QDMI_Device_Job* job) -> QDMI_STATUS {
+    const char* jobId, AMAZON_BRAKET_QDMI_Device_Job* job) -> QDMI_STATUS try {
   if (jobId == nullptr || *jobId == '\0' || job == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -1071,6 +1092,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::openDeviceJob(
   const std::scoped_lock<std::mutex> lock(jobsMutex_);
   *job = jobs_.emplace(uniqueJob.get(), std::move(uniqueJob)).first->first;
   return QDMI_SUCCESS;
+} catch (...) {
+  return statusFromCurrentException();
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::freeDeviceJob(
@@ -1251,7 +1274,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryOperationProperty(
 // Job implementation
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
     const QDMI_Device_Job_Parameter param, const size_t size, const void* value)
-    -> QDMI_STATUS {
+    -> QDMI_STATUS try {
   // Validate parameter: must be standard QDMI param or one of the specifically
   // defined custom params (OUTPUTS3BUCKET, OUTPUTS3PREFIX, RESERVATION_ARN)
   const bool isStandardParam = param < QDMI_DEVICE_JOB_PARAMETER_MAX;
@@ -1306,6 +1329,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
                 size, value, reservationArn_)
 
   return QDMI_ERROR_NOTSUPPORTED;
+} catch (...) {
+  return statusFromCurrentException();
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
@@ -1357,7 +1382,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
   return QDMI_ERROR_NOTSUPPORTED;
 }
 
-auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
   // Amazon Braket CreateQuantumTask API Call
 
   // Purpose: Submit a quantum circuit for execution on the target device
@@ -1499,9 +1524,11 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS {
   }
   status_.store(QDMI_JOB_STATUS_SUBMITTED);
   return QDMI_SUCCESS;
+} catch (...) {
+  return statusFromCurrentException();
 }
 
-auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS try {
   const auto currentStatus = status_.load();
 
   if (currentStatus == QDMI_JOB_STATUS_CREATED) {
@@ -1566,6 +1593,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS {
   // status while CANCELLING and update to the terminal state once resolved.
 
   return QDMI_SUCCESS;
+} catch (...) {
+  return statusFromCurrentException();
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::updateFromTask(
@@ -1611,7 +1640,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::updateFromTask(
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
-    -> QDMI_STATUS {
+    -> QDMI_STATUS try {
   if (status == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -1684,10 +1713,12 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
   }
 
   return updateFromTask(outcome.GetResult(), status);
+} catch (...) {
+  return statusFromCurrentException();
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
-    -> QDMI_STATUS {
+    -> QDMI_STATUS try {
   struct WaitContext {
     const AMAZON_BRAKET_QDMI_Device_Job_impl_d* job;
   } context{this};
@@ -1705,6 +1736,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
             std::this_thread::sleep_for(duration);
           }};
   return wait(timeout, functions);
+} catch (...) {
+  return statusFromCurrentException();
 }
 
 /**
@@ -1728,7 +1761,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResults() const -> QDMI_STATUS {
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal() const
-    -> QDMI_STATUS {
+    -> QDMI_STATUS try {
   if (resultsFetched_) {
     return QDMI_SUCCESS;
   }
@@ -1792,6 +1825,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal() const
 
   resultsFetched_ = true;
   return QDMI_SUCCESS;
+} catch (...) {
+  return statusFromCurrentException();
 }
 
 /**
@@ -1805,7 +1840,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal() const
  */
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::getResults(
     const QDMI_Job_Result result, const size_t size, void* data,
-    size_t* sizeRet) const -> QDMI_STATUS {
+    size_t* sizeRet) const -> QDMI_STATUS try {
   if ((data != nullptr && size == 0) || result >= QDMI_JOB_RESULT_MAX) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -1898,6 +1933,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::getResults(
   }
 
   return QDMI_ERROR_NOTSUPPORTED;
+} catch (...) {
+  return statusFromCurrentException();
 }
 
 // ============================================================================
@@ -1913,18 +1950,6 @@ Aws::SDKOptions gAWSOptions;
 bool gAWSInitialized = false;
 std::mutex gAWSInitMutex;
 
-template <class Function>
-auto translateExceptions(Function&& function) noexcept -> int {
-  try {
-    return std::forward<Function>(function)();
-  } catch (const std::bad_alloc&) {
-    return QDMI_ERROR_OUTOFMEM;
-  } catch (const std::invalid_argument&) {
-    return QDMI_ERROR_INVALIDARGUMENT;
-  } catch (...) {
-    return QDMI_ERROR_FATAL;
-  }
-}
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 } // namespace
 
@@ -1938,16 +1963,18 @@ auto translateExceptions(Function&& function) noexcept -> int {
  *
  * @return QDMI_SUCCESS on successful initialization
  */
-int AMAZON_BRAKET_QDMI_device_initialize() {
-  return translateExceptions([] {
-    const std::scoped_lock lock(gAWSInitMutex);
-    if (!gAWSInitialized) {
-      Aws::InitAPI(gAWSOptions);
-      gAWSInitialized = true;
-    }
-    std::ignore = amazon::braket::qdmi::Device::get();
-    return QDMI_SUCCESS;
-  });
+int AMAZON_BRAKET_QDMI_device_initialize() try {
+  const std::scoped_lock lock(gAWSInitMutex);
+  if (!gAWSInitialized) {
+    Aws::InitAPI(gAWSOptions);
+    gAWSInitialized = true;
+  }
+  std::ignore = amazon::braket::qdmi::Device::get();
+  return QDMI_SUCCESS;
+} catch (const std::bad_alloc&) {
+  return QDMI_ERROR_OUTOFMEM;
+} catch (...) {
+  return QDMI_ERROR_FATAL;
 }
 
 /**
@@ -1963,16 +1990,16 @@ int AMAZON_BRAKET_QDMI_device_initialize() {
  *
  * @return QDMI_SUCCESS on successful finalization
  */
-int AMAZON_BRAKET_QDMI_device_finalize() {
-  return translateExceptions([] {
-    const std::scoped_lock lock(gAWSInitMutex);
-    if (gAWSInitialized) {
-      amazon::braket::qdmi::Device::get().clear();
-      Aws::ShutdownAPI(gAWSOptions);
-      gAWSInitialized = false;
-    }
-    return QDMI_SUCCESS;
-  });
+int AMAZON_BRAKET_QDMI_device_finalize() try {
+  const std::scoped_lock lock(gAWSInitMutex);
+  if (gAWSInitialized) {
+    amazon::braket::qdmi::Device::get().clear();
+    Aws::ShutdownAPI(gAWSOptions);
+    gAWSInitialized = false;
+  }
+  return QDMI_SUCCESS;
+} catch (...) {
+  return QDMI_ERROR_FATAL;
 }
 
 /**
@@ -1987,9 +2014,7 @@ int AMAZON_BRAKET_QDMI_device_finalize() {
  */
 int AMAZON_BRAKET_QDMI_device_session_alloc(
     AMAZON_BRAKET_QDMI_Device_Session* session) {
-  return translateExceptions([session] {
-    return amazon::braket::qdmi::Device::get().sessionAlloc(session);
-  });
+  return amazon::braket::qdmi::Device::get().sessionAlloc(session);
 }
 
 /**
@@ -2005,9 +2030,7 @@ int AMAZON_BRAKET_QDMI_device_session_alloc(
  */
 int AMAZON_BRAKET_QDMI_device_session_init(
     AMAZON_BRAKET_QDMI_Device_Session session) {
-  return translateExceptions([session] {
-    return session == nullptr ? QDMI_ERROR_INVALIDARGUMENT : session->init();
-  });
+  return session == nullptr ? QDMI_ERROR_INVALIDARGUMENT : session->init();
 }
 
 /**
@@ -2025,11 +2048,7 @@ int AMAZON_BRAKET_QDMI_device_session_init(
  */
 void AMAZON_BRAKET_QDMI_device_session_free(
     AMAZON_BRAKET_QDMI_Device_Session session) {
-  try {
-    amazon::braket::qdmi::Device::get().sessionFree(session);
-  } catch (...) {
-    // A void C API cannot report cleanup failures.
-  }
+  amazon::braket::qdmi::Device::get().sessionFree(session);
 }
 
 /**
@@ -2084,10 +2103,8 @@ void AMAZON_BRAKET_QDMI_device_session_free(
 int AMAZON_BRAKET_QDMI_device_session_set_parameter(
     AMAZON_BRAKET_QDMI_Device_Session session,
     QDMI_Device_Session_Parameter param, const size_t size, const void* value) {
-  return translateExceptions([=] {
-    return session == nullptr ? QDMI_ERROR_INVALIDARGUMENT
-                              : session->setParameter(param, size, value);
-  });
+  return session == nullptr ? QDMI_ERROR_INVALIDARGUMENT
+                            : session->setParameter(param, size, value);
 }
 
 /**
@@ -2110,11 +2127,9 @@ int AMAZON_BRAKET_QDMI_device_session_set_parameter(
 int AMAZON_BRAKET_QDMI_device_session_query_device_property(
     AMAZON_BRAKET_QDMI_Device_Session session, const QDMI_Device_Property prop,
     const size_t size, void* value, size_t* sizeRet) {
-  return translateExceptions([=] {
-    return session == nullptr
-               ? QDMI_ERROR_INVALIDARGUMENT
-               : session->queryDeviceProperty(prop, size, value, sizeRet);
-  });
+  return session == nullptr
+             ? QDMI_ERROR_INVALIDARGUMENT
+             : session->queryDeviceProperty(prop, size, value, sizeRet);
 }
 
 /**
@@ -2132,19 +2147,15 @@ int AMAZON_BRAKET_QDMI_device_session_query_device_property(
 int AMAZON_BRAKET_QDMI_device_session_create_device_job(
     AMAZON_BRAKET_QDMI_Device_Session session,
     AMAZON_BRAKET_QDMI_Device_Job* job) {
-  return translateExceptions([=] {
-    return session == nullptr ? QDMI_ERROR_INVALIDARGUMENT
-                              : session->createDeviceJob(job);
-  });
+  return session == nullptr ? QDMI_ERROR_INVALIDARGUMENT
+                            : session->createDeviceJob(job);
 }
 
 int AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
     AMAZON_BRAKET_QDMI_Device_Session session, const char* jobId,
     AMAZON_BRAKET_QDMI_Device_Job* job) {
-  return translateExceptions([=] {
-    return session == nullptr ? QDMI_ERROR_INVALIDARGUMENT
-                              : session->openDeviceJob(jobId, job);
-  });
+  return session == nullptr ? QDMI_ERROR_INVALIDARGUMENT
+                            : session->openDeviceJob(jobId, job);
 }
 
 /**
@@ -2162,12 +2173,8 @@ int AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
  * @param job The job handle to free
  */
 void AMAZON_BRAKET_QDMI_device_job_free(AMAZON_BRAKET_QDMI_Device_Job job) {
-  try {
-    if (job != nullptr) {
-      job->getSession()->freeDeviceJob(job);
-    }
-  } catch (...) {
-    // A void C API cannot report cleanup failures.
+  if (job != nullptr) {
+    job->getSession()->freeDeviceJob(job);
   }
 }
 
@@ -2200,10 +2207,8 @@ void AMAZON_BRAKET_QDMI_device_job_free(AMAZON_BRAKET_QDMI_Device_Job job) {
 int AMAZON_BRAKET_QDMI_device_job_set_parameter(
     AMAZON_BRAKET_QDMI_Device_Job job, const QDMI_Device_Job_Parameter param,
     const size_t size, const void* value) {
-  return translateExceptions([=] {
-    return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT
-                          : job->setParameter(param, size, value);
-  });
+  return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT
+                        : job->setParameter(param, size, value);
 }
 
 /**
@@ -2221,10 +2226,8 @@ int AMAZON_BRAKET_QDMI_device_job_set_parameter(
 int AMAZON_BRAKET_QDMI_device_job_query_property(
     AMAZON_BRAKET_QDMI_Device_Job job, const QDMI_Device_Job_Property prop,
     const size_t size, void* value, size_t* sizeRet) {
-  return translateExceptions([=] {
-    return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT
-                          : job->queryProperty(prop, size, value, sizeRet);
-  });
+  return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT
+                        : job->queryProperty(prop, size, value, sizeRet);
 }
 
 /**
@@ -2240,9 +2243,7 @@ int AMAZON_BRAKET_QDMI_device_job_query_property(
  * @return QDMI_SUCCESS on successful submission, error code otherwise
  */
 int AMAZON_BRAKET_QDMI_device_job_submit(AMAZON_BRAKET_QDMI_Device_Job job) {
-  return translateExceptions([job] {
-    return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT : job->submit();
-  });
+  return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT : job->submit();
 }
 
 /**
@@ -2255,9 +2256,7 @@ int AMAZON_BRAKET_QDMI_device_job_submit(AMAZON_BRAKET_QDMI_Device_Job job) {
  * @return QDMI_SUCCESS on successful cancellation, error code otherwise
  */
 int AMAZON_BRAKET_QDMI_device_job_cancel(AMAZON_BRAKET_QDMI_Device_Job job) {
-  return translateExceptions([job] {
-    return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT : job->cancel();
-  });
+  return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT : job->cancel();
 }
 
 /**
@@ -2272,9 +2271,7 @@ int AMAZON_BRAKET_QDMI_device_job_cancel(AMAZON_BRAKET_QDMI_Device_Job job) {
  */
 int AMAZON_BRAKET_QDMI_device_job_check(AMAZON_BRAKET_QDMI_Device_Job job,
                                         QDMI_Job_Status* status) {
-  return translateExceptions([=] {
-    return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT : job->check(status);
-  });
+  return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT : job->check(status);
 }
 
 /**
@@ -2290,9 +2287,7 @@ int AMAZON_BRAKET_QDMI_device_job_check(AMAZON_BRAKET_QDMI_Device_Job job,
  */
 int AMAZON_BRAKET_QDMI_device_job_wait(AMAZON_BRAKET_QDMI_Device_Job job,
                                        const size_t timeout) {
-  return translateExceptions([=] {
-    return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT : job->wait(timeout);
-  });
+  return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT : job->wait(timeout);
 }
 
 /**
@@ -2315,10 +2310,8 @@ int AMAZON_BRAKET_QDMI_device_job_get_results(AMAZON_BRAKET_QDMI_Device_Job job,
                                               QDMI_Job_Result result,
                                               const size_t size, void* data,
                                               size_t* sizeRet) {
-  return translateExceptions([=] {
-    return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT
-                          : job->getResults(result, size, data, sizeRet);
-  });
+  return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT
+                        : job->getResults(result, size, data, sizeRet);
 }
 
 /**
@@ -2338,13 +2331,11 @@ int AMAZON_BRAKET_QDMI_device_job_get_results(AMAZON_BRAKET_QDMI_Device_Job job,
 int AMAZON_BRAKET_QDMI_device_session_query_site_property(
     AMAZON_BRAKET_QDMI_Device_Session session, AMAZON_BRAKET_QDMI_Site site,
     QDMI_Site_Property prop, const size_t size, void* value, size_t* sizeRet) {
-  return translateExceptions([=] {
-    if (session == nullptr) {
-      return QDMI_ERROR_INVALIDARGUMENT;
-    }
-    return session // NOLINT(readability-static-accessed-through-instance)
-        ->querySiteProperty(site, prop, size, value, sizeRet);
-  });
+  if (session == nullptr) {
+    return QDMI_ERROR_INVALIDARGUMENT;
+  }
+  return session // NOLINT(readability-static-accessed-through-instance)
+      ->querySiteProperty(site, prop, size, value, sizeRet);
 }
 
 /**
@@ -2371,15 +2362,12 @@ int AMAZON_BRAKET_QDMI_device_session_query_operation_property(
     const AMAZON_BRAKET_QDMI_Site* sites, size_t numParams,
     const double* params, QDMI_Operation_Property prop, size_t size,
     void* value, size_t* sizeRet) {
-  return translateExceptions([=] {
-    if (session == nullptr) {
-      return QDMI_ERROR_INVALIDARGUMENT;
-    }
-    return session // NOLINT(readability-static-accessed-through-instance)
-        ->queryOperationProperty(
-            operation, numSites,
-            reinterpret_cast<const AMAZON_BRAKET_QDMI_Site_impl_d* const*>(
-                sites),
-            numParams, params, prop, size, value, sizeRet);
-  });
+  if (session == nullptr) {
+    return QDMI_ERROR_INVALIDARGUMENT;
+  }
+  return session // NOLINT(readability-static-accessed-through-instance)
+      ->queryOperationProperty(
+          operation, numSites,
+          reinterpret_cast<const AMAZON_BRAKET_QDMI_Site_impl_d* const*>(sites),
+          numParams, params, prop, size, value, sizeRet);
 }
