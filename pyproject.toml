@@ -36,11 +36,12 @@ license-files = ["LICENSE"]
 
 classifiers = [
   "Development Status :: 5 - Production/Stable",
+  "Intended Audience :: Information Technology",
   "Intended Audience :: Science/Research",
   "Natural Language :: English",
-  "Operating System :: POSIX :: Linux",
   "Operating System :: MacOS",
   "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
   "Programming Language :: C++",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
@@ -50,6 +51,7 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Topic :: Scientific/Engineering :: Quantum Computing",
   "Typing :: Typed",
 ]
 
@@ -191,7 +193,6 @@ ignore = [
   "COM812",  # Conflicts with formatter
   "PLR09",   # Too many <...>
   "PLR2004", # Magic value used in comparison
-  "RUF067",  # `__init__` module should only contain docstrings and re-exports
   "S101",    # Use of assert detected
   "S404",    # `subprocess` module is possibly insecure
   "TID252"   # Prefer absolute imports over relative imports from parent modules
@@ -208,6 +209,12 @@ convention = "google"
 "docs/**" = ["INP001", "T20"]
 "python/amazon/braket/qdmi/__main__.py" = ["T201"]
 "test/python/**" = ["T20", "INP001"]
+
+
+[tool.ty.terminal]
+# Error if ty emits any warning-level diagnostics.
+error-on-warning = true
+
 
 [tool.typos]
 default.extend-ignore-re = [
@@ -228,8 +235,6 @@ nd = "nd"
 
 [tool.repo-review.ignore]
 GH200 = "We use Renovate instead of Dependabot"
-MY100 = "We use ty instead of mypy"
-PC111 = "We use ruff instead of blacken-docs"
 PC160 = "We use a mirror of crate-ci/typos"
 PC170 = "We do not use rST files anymore"
 
