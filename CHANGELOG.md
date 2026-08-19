@@ -33,6 +33,9 @@ releases may include breaking changes.
 
 ### Changed
 
+- ♻️ Use the AWS SDK default credential provider chain for all AWS clients and
+  resolve each quantum task's result destination from one optional S3 URI or the
+  standard Amazon Braket default bucket ([#172]) ([**@burgholzer**])
 - ♻️ Parse all gate-model capability documents through one schema-driven
   pipeline while preserving provider-specific calibration enrichment ([#171])
   ([**@burgholzer**])
@@ -43,6 +46,9 @@ releases may include breaking changes.
 
 ### Fixed
 
+- 🐛 Make parameter capability probes side-effect free, preserve AWS permission
+  errors, and keep all live AWS tests out of the default CTest suite ([#172])
+  ([**@burgholzer**])
 - 🐛 Preserve numeric site ordering, expose coherence times through QDMI's
   integer duration ABI, keep retired-device status queryable, and prevent C++
   exceptions from crossing the C API boundary ([#171]) ([**@burgholzer**])
@@ -84,6 +90,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 <!-- PR links -->
 
 [#171]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/171
+[#172]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/172
 [#167]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/167
 [#166]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/166
 [#160]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/160

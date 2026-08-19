@@ -9,7 +9,7 @@ specification.
 This library enables **any QDMI-compliant quantum software** to run on Amazon
 Braket quantum devices without code changes. Simply link against this library
 instead of another QDMI implementation, and your OpenQASM circuits will execute
-on Amazon Braket simulators (and soon real quantum hardware).
+on supported Amazon Braket gate-model simulators and QPUs.
 
 ### What is QDMI?
 
@@ -83,95 +83,20 @@ plugin is available in the [SPANK README](spank/README.md).
 
 ### Session Configuration
 
-**AWS Credentials:**
+The provider uses the
+[AWS SDK for C++ default credential provider chain](https://docs.aws.amazon.com/sdk-for-cpp/v1/developer-guide/credproviders.html)
+for Amazon Braket, S3, and STS. The chain supports environment credentials,
+shared AWS profiles, `credential_process`, web identity, container credentials,
+and instance roles. It also refreshes temporary credentials. Do not store access
+keys or session tokens in a QDMI device definition.
 
-Explicit QDMI credential parameters are optional. If none are set, the session
-uses the AWS SDK default credential provider chain. Depending on the runtime,
-the chain can load credentials from environment variables, shared AWS profile
-files, web identity, container credentials, or an EC2 instance role. The same
-refreshable provider is used for Amazon Braket requests and S3 result retrieval.
+The generic QDMI `AUTHFILE`, `USERNAME`, `PASSWORD`, and `TOKEN` session
+parameters return `QDMI_ERROR_NOTSUPPORTED`. Select a profile or another
+credential source before you start the process. For example:
 
-Alternatively, this library supports two methods for providing explicit
-session-specific credentials:
-
-**Method 1: Credentials File (Recommended for Multi-User Scenarios):**
-
-Use the QDMI `AUTHFILE` parameter to specify a credentials file path:
-
-```cpp
-#include <amazon-braket-qdmi-device/constants.hpp>
-
-AMAZON_BRAKET_QDMI_Device_Session session;
-AMAZON_BRAKET_QDMI_device_session_alloc(&session);
-
-// Set credentials file before initialization
-const char* credsFile = "/path/to/credentials";
-AMAZON_BRAKET_QDMI_device_session_set_parameter(
-    session, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
-    strlen(credsFile) + 1, credsFile);
-
-// Configure device and initialize
-const char* deviceArn = "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
-AMAZON_BRAKET_QDMI_device_session_set_parameter(
-    session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
-    strlen(deviceArn) + 1, deviceArn);
-
-AMAZON_BRAKET_QDMI_device_session_init(session);
+```bash
+export AWS_PROFILE=hpc-quantum
 ```
-
-**Credentials File Format (Standard AWS INI Format):**
-
-```ini
-[default]
-aws_access_key_id=AKIAIOSFODNN7EXAMPLE
-aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-# Optional for temporary credentials
-aws_session_token=IQoJb3JpZ2luX2VjEOT//////////...
-```
-
-**Note:** The credentials file should contain only one profile section. The
-parser reads the first profile found. This method allows different sessions to
-use different credentials within the same process.
-
-**Method 2: Direct Parameters:**
-
-Use QDMI session parameters to specify credentials programmatically:
-
-```cpp
-#include <amazon-braket-qdmi-device/constants.hpp>
-
-// Set credentials directly via QDMI parameters
-const char* accessKey = "AKIAIOSFODNN7EXAMPLE";
-AMAZON_BRAKET_QDMI_device_session_set_parameter(
-    session, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
-    strlen(accessKey) + 1, accessKey);
-
-const char* secretKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
-AMAZON_BRAKET_QDMI_device_session_set_parameter(
-    session, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
-    strlen(secretKey) + 1, secretKey);
-
-// Optional: session token for temporary credentials (STS, SSO)
-const char* sessionToken = "IQoJb3JpZ2luX2VjEOT//////////...";
-AMAZON_BRAKET_QDMI_device_session_set_parameter(
-    session, QDMI_DEVICE_SESSION_PARAMETER_TOKEN,
-    strlen(sessionToken) + 1, sessionToken);
-```
-
-The access key and secret key must be provided together. A session token is only
-valid with a complete access/secret key pair. `AUTHFILE` takes precedence over
-direct parameters when both are set.
-
-**Available Credential Parameters:**
-
-| Parameter                                | Type    | Required | Description                                   |
-| ---------------------------------------- | ------- | -------- | --------------------------------------------- |
-| `QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE` | `char*` | No       | Path to AWS credentials file (INI format)     |
-| `QDMI_DEVICE_SESSION_PARAMETER_USERNAME` | `char*` | No       | AWS Access Key ID                             |
-| `QDMI_DEVICE_SESSION_PARAMETER_PASSWORD` | `char*` | No       | AWS Secret Access Key                         |
-| `QDMI_DEVICE_SESSION_PARAMETER_TOKEN`    | `char*` | No       | AWS Session Token (for temporary credentials) |
-
-**Device Configuration:**
 
 Configure the device using QDMI session parameters:
 
@@ -185,28 +110,27 @@ AMAZON_BRAKET_QDMI_device_session_set_parameter(
     strlen(deviceArn) + 1, deviceArn);
 ```
 
-**Configuration Parameters:**
-
 | Parameter                                                     | Type    | Required | Description                                                                                         |
 | ------------------------------------------------------------- | ------- | -------- | --------------------------------------------------------------------------------------------------- |
 | `AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN`       | `char*` | Yes      | Amazon Braket device ARN                                                                            |
 | `AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION`          | `char*` | No       | AWS region override (extracted from ARN by default)                                                 |
 | `AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN` | `char*` | No       | Braket reservation ARN used for status reporting and inherited by jobs unless a job override is set |
 
-**Note**: AWS authentication is handled via:
-
-- The AWS SDK default credential provider chain when no explicit credential
-  parameters are set
-- `QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE` for credentials files (see AWS
-  Credentials section)
-- `QDMI_DEVICE_SESSION_PARAMETER_USERNAME`,
-  `QDMI_DEVICE_SESSION_PARAMETER_PASSWORD`,
-  `QDMI_DEVICE_SESSION_PARAMETER_TOKEN` for direct credentials
-
 ### Job Configuration
 
-Each QDMI job (which becomes an Amazon Braket QuantumTask) requires S3 storage
-configuration for results. Configure using job-level parameters:
+Amazon Braket requires an S3 destination for every quantum task. The provider
+resolves the destination in this order:
+
+1. `AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI` on the job.
+2. `AMZN_BRAKET_TASK_RESULTS_S3_URI` in the process environment.
+3. The standard bucket `amazon-braket-<region>-<account-id>` and prefix `tasks`.
+
+The first two forms must contain a complete URI such as
+`s3://my-results/experiments/run-42`. They do not call STS or any S3 bucket
+management API. The automatic form resolves the account with STS. It creates the
+standard bucket when needed; new S3 buckets block public access by default. This
+work starts only when the first job is submitted. Opening a device and querying
+properties do not require STS or S3 permissions.
 
 ```cpp
 #include <amazon-braket-qdmi-device/constants.hpp>
@@ -215,29 +139,26 @@ configuration for results. Configure using job-level parameters:
 AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
 AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job);
 
-// Set S3 bucket (required)
-const char* s3Bucket = "my-braket-results";
+// This is optional when the environment or automatic default is suitable.
+const char* s3Uri = "s3://my-braket-results/experiments/run-42";
 AMAZON_BRAKET_QDMI_device_job_set_parameter(
-    job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
-    strlen(s3Bucket) + 1, s3Bucket);
-
-// Set S3 prefix (optional - auto-generates timestamp-based prefix if not set)
-const char* s3Prefix = "my-experiment/run-42/";
-AMAZON_BRAKET_QDMI_device_job_set_parameter(
-    job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX,
-    strlen(s3Prefix) + 1, s3Prefix);
+    job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
+    strlen(s3Uri) + 1, s3Uri);
 ```
+
+For a restricted HPC role, provision the bucket in advance and set the job URI
+or `AMZN_BRAKET_TASK_RESULTS_S3_URI`. This path needs object access but does not
+need STS or `CreateBucket`.
 
 ## Job Parameters
 
-| Parameter                                                 | Type                  | Required | Description                            |
-| --------------------------------------------------------- | --------------------- | -------- | -------------------------------------- |
-| `QDMI_DEVICE_JOB_PARAMETER_PROGRAM`                       | `char*`               | Yes      | OpenQASM circuit source                |
-| `QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT`                 | `QDMI_Program_Format` | No       | QASM2 or QASM3; default QASM3          |
-| `QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM`                      | `size_t`              | No       | Number of shots; defaults to 100       |
-| `AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET`  | `char*`               | Yes      | S3 bucket for quantum task results     |
-| `AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3PREFIX`  | `char*`               | No       | S3 prefix for results                  |
-| `AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN` | `char*`               | No       | Braket reservation ARN for time window |
+| Parameter                                                 | Type                  | Required | Description                                       |
+| --------------------------------------------------------- | --------------------- | -------- | ------------------------------------------------- |
+| `QDMI_DEVICE_JOB_PARAMETER_PROGRAM`                       | `char*`               | Yes      | OpenQASM circuit source                           |
+| `QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT`                 | `QDMI_Program_Format` | No       | QASM2 or QASM3; default QASM3                     |
+| `QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM`                      | `size_t`              | No       | Number of shots; defaults to 100                  |
+| `AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI`     | `char*`               | No       | Complete S3 URI for quantum-task results          |
+| `AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN` | `char*`               | No       | Braket reservation ARN for a reserved time window |
 
 ### Installation
 
@@ -356,12 +277,13 @@ only the newly opened session.
 
 ### CMake Options
 
-| Option                                    | Default | Description                             |
-| ----------------------------------------- | ------- | --------------------------------------- |
-| `BUILD_AMAZON_BRAKET_TESTS`               | `ON`    | Build test suite (requires Google Test) |
-| `BUILD_AMAZON_BRAKET_SPANK_PLUGIN`        | `OFF`   | Build the optional Slurm SPANK plugin   |
-| `USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE` | `OFF`   | Use installed library instead of build  |
-| `CMAKE_PREFIX_PATH`                       | -       | Path to dependencies (AWS SDK, QDMI)    |
+| Option                                    | Default | Description                            |
+| ----------------------------------------- | ------- | -------------------------------------- |
+| `BUILD_AMAZON_BRAKET_TESTS`               | `ON`    | Build the offline test suite           |
+| `BUILD_AMAZON_BRAKET_LIVE_TESTS`          | `OFF`   | Build opt-in tests that access AWS     |
+| `BUILD_AMAZON_BRAKET_SPANK_PLUGIN`        | `OFF`   | Build the optional Slurm SPANK plugin  |
+| `USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE` | `OFF`   | Use installed library instead of build |
+| `CMAKE_PREFIX_PATH`                       | -       | Path to dependencies (AWS SDK, QDMI)   |
 
 ## Usage
 
@@ -406,11 +328,12 @@ int main() {
     AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
     AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job);
 
-    // Configure S3 bucket for results (required)
-    const char* s3Bucket = "my-amazon-braket-bucket";
+    // An explicit URI is optional. Without it, the environment or standard
+    // Amazon Braket default bucket is used.
+    const char* s3Uri = "s3://my-amazon-braket-bucket/tasks";
     AMAZON_BRAKET_QDMI_device_job_set_parameter(
-        job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
-        strlen(s3Bucket) + 1, s3Bucket);
+        job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
+        strlen(s3Uri) + 1, s3Uri);
 
     // Configure job parameters
     size_t shots = 1000;
@@ -586,8 +509,8 @@ retrieve results, but cannot be reconfigured or submitted again.
 | Function                                                       | AWS SDK Counterpart            | Description                              |
 | -------------------------------------------------------------- | ------------------------------ | ---------------------------------------- |
 | `AMAZON_BRAKET_QDMI_device_session_alloc()`                    | (internal allocation)          | Allocate a new session                   |
-| `AMAZON_BRAKET_QDMI_device_session_set_parameter()`            | (store session config)         | Set credentials, device ARN, and region  |
-| `AMAZON_BRAKET_QDMI_device_session_init()`                     | `BraketClient` construction    | Configure the session's AWS client       |
+| `AMAZON_BRAKET_QDMI_device_session_set_parameter()`            | (store session config)         | Set device ARN, region, and reservation  |
+| `AMAZON_BRAKET_QDMI_device_session_init()`                     | `BraketClient` construction    | Configure the session's AWS clients      |
 | `AMAZON_BRAKET_QDMI_device_session_free()`                     | `BraketClient` destructor      | Free session resources                   |
 | `AMAZON_BRAKET_QDMI_device_session_query_device_property()`    | (parse GetDevice JSON)         | Query device properties                  |
 | `AMAZON_BRAKET_QDMI_device_session_query_site_property()`      | (parse GetDevice JSON)         | Query qubit properties                   |
@@ -616,6 +539,8 @@ credentials:
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
+
+# Run the offline tests. CTest disables EC2 metadata lookup for this target.
 ctest --test-dir build --output-on-failure
 ```
 
@@ -633,9 +558,28 @@ export AMAZON_BRAKET_QDMI_RUN_LIVE_CATALOG=1
 ctest --test-dir build-live -L amazon-braket-live --output-on-failure
 ```
 
-The catalogue check performs authenticated metadata queries but does not submit
-QPU tasks. The coverage workflow enables the live registry and this check only
-when its AWS access key, secret key, and S3 bucket secrets are all available.
+**Test Configuration:**
+
+- **Device ARNs**: Hardcoded directly in test code (e.g.,
+  `arn:aws:braket:::device/quantum-simulator/amazon/sv1`)
+  - Device ARNs are public identifiers and don't need to be secrets
+  - Tests use various devices to verify functionality
+- **Credentials**: The AWS SDK resolves and refreshes credentials. The tests do
+  not pass credentials through QDMI parameters.
+- **S3 destination**: Quantum-task tests use `AMZN_BRAKET_TASK_RESULTS_S3_URI`
+  so that they do not create AWS resources.
+- **Catalog test**: Set `AMAZON_BRAKET_QDMI_RUN_LIVE_CATALOG=1` to query all
+  nine installed devices. This test is serial and does not submit paid QPU
+  tasks.
+- **Automatic bucket test**: Set
+  `AMAZON_BRAKET_QDMI_TEST_ALLOW_BUCKET_CREATION=1` and unset
+  `AMZN_BRAKET_TASK_RESULTS_S3_URI`. This separately authorized test submits an
+  SV1 task and can create the standard regional bucket.
+
+The offline tests need no AWS credentials or network access. All tests that
+access AWS are excluded from the default build and CTest registration. The
+coverage workflow enables the live registry and catalogue check only when its
+AWS access key, secret key, and S3 bucket secrets are all available.
 
 ## Project Structure
 

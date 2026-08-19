@@ -22,13 +22,13 @@
  * @brief Integration tests for the Amazon Braket QDMI device adapter.
  *
  * These tests make real AWS API calls. They require:
- *   - AWS credentials (via AWS_CREDENTIALS_FILE or AWS_ACCESS_KEY_ID /
- *     AWS_SECRET_ACCESS_KEY environment variables), and
- *   - an S3 bucket (via AWS_S3_BUCKET) for job-submission tests.
+ *   - AWS credentials available to the AWS SDK default provider chain, and
+ *   - an S3 destination (via AMZN_BRAKET_TASK_RESULTS_S3_URI) for
+ *     job-submission tests.
  *
  * Run configuration (example):
- *   AWS_CREDENTIALS_FILE=/path/to/.aws/credentials \
- *   AWS_S3_BUCKET=amazon-braket-my-bucket \
+ *   AWS_PROFILE=my-profile \
+ *   AMZN_BRAKET_TASK_RESULTS_S3_URI=s3://amazon-braket-my-bucket/tasks \
  *   ./build/test/amazon-braket-qdmi-device-aws-test
  *
  * Fixtures:
@@ -47,7 +47,6 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <exception>
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
 #include <iostream>
@@ -68,49 +67,6 @@ constexpr const char* BELL_STATE_PROGRAM = "OPENQASM 3.0;\n"
                                            "c[1] = measure q[1];\n";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-void setupCredentials(AMAZON_BRAKET_QDMI_Device_Session session,
-                      bool failOnMissing = true) {
-  const char* credsFileEnv = std::getenv("AWS_CREDENTIALS_FILE");
-  if (credsFileEnv != nullptr && strlen(credsFileEnv) > 0) {
-    if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
-            session, QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
-            strlen(credsFileEnv) + 1, credsFileEnv) != QDMI_SUCCESS) {
-      if (failOnMissing) {
-        throw std::runtime_error("Failed to set credentials file");
-      }
-    }
-    return;
-  }
-
-  const char* accessKeyEnv = std::getenv("AWS_ACCESS_KEY_ID");
-  const char* secretKeyEnv = std::getenv("AWS_SECRET_ACCESS_KEY");
-  const char* sessionTokenEnv = std::getenv("AWS_SESSION_TOKEN");
-
-  if (accessKeyEnv != nullptr && secretKeyEnv != nullptr) {
-    if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
-            session, QDMI_DEVICE_SESSION_PARAMETER_USERNAME,
-            strlen(accessKeyEnv) + 1, accessKeyEnv) != QDMI_SUCCESS) {
-      if (failOnMissing) {
-        throw std::runtime_error("Failed to set AWS_ACCESS_KEY_ID");
-      }
-    }
-    if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
-            session, QDMI_DEVICE_SESSION_PARAMETER_PASSWORD,
-            strlen(secretKeyEnv) + 1, secretKeyEnv) != QDMI_SUCCESS) {
-      if (failOnMissing) {
-        throw std::runtime_error("Failed to set AWS_SECRET_ACCESS_KEY");
-      }
-    }
-    if (sessionTokenEnv != nullptr && strlen(sessionTokenEnv) > 0) {
-      AMAZON_BRAKET_QDMI_device_session_set_parameter(
-          session, QDMI_DEVICE_SESSION_PARAMETER_TOKEN,
-          strlen(sessionTokenEnv) + 1, sessionTokenEnv);
-    }
-  } else if (failOnMissing) {
-    throw std::runtime_error("No credentials provided");
-  }
-}
 
 [[nodiscard]] auto querySites(AMAZON_BRAKET_QDMI_Device_Session session)
     -> std::vector<AMAZON_BRAKET_QDMI_Site> {
@@ -174,15 +130,6 @@ protected:
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&session), QDMI_SUCCESS)
         << "Failed to allocate a session";
 
-    try {
-      setupCredentials(session);
-    } catch (const std::exception& e) {
-      GTEST_FAIL() << "Credentials setup failed: " << e.what() << "\n"
-                   << "Set either:\n"
-                   << "  1. AWS_CREDENTIALS_FILE (path to credentials file)\n"
-                   << "  2. AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY";
-    }
-
     const char* deviceArn =
         "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
@@ -245,17 +192,6 @@ protected:
       return;
     }
 
-    try {
-      setupCredentials(sharedSession);
-    } catch (const std::exception& e) {
-      GTEST_FAIL() << "Credentials setup failed in SetUpTestSuite: " << e.what()
-                   << "\n"
-                   << "Set either:\n"
-                   << "  1. AWS_CREDENTIALS_FILE (path to credentials file)\n"
-                   << "  2. AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY";
-      return;
-    }
-
     const char* deviceArn =
         "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
     if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
@@ -288,16 +224,14 @@ protected:
     AMAZON_BRAKET_QDMI_device_job_set_parameter(
         sharedJob, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(shots), &shots);
 
-    const char* s3BucketEnv = std::getenv("AWS_S3_BUCKET");
-    if (s3BucketEnv == nullptr || strlen(s3BucketEnv) == 0) {
+    const char* s3Uri =
+        std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI);
+    if (s3Uri == nullptr || strlen(s3Uri) == 0) {
       GTEST_SKIP()
-          << "AWS_S3_BUCKET environment variable not set; skipping job "
+          << "AMZN_BRAKET_TASK_RESULTS_S3_URI is not set; skipping job "
              "submission tests";
       return;
     }
-    AMAZON_BRAKET_QDMI_device_job_set_parameter(
-        sharedJob, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
-        strlen(s3BucketEnv) + 1, s3BucketEnv);
 
     if (const auto submitStatus =
             AMAZON_BRAKET_QDMI_device_job_submit(sharedJob);
@@ -941,9 +875,10 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest,
 // =============================================================================
 
 TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
-  const char* s3BucketEnv = std::getenv("AWS_S3_BUCKET");
-  if (s3BucketEnv == nullptr || strlen(s3BucketEnv) == 0) {
-    GTEST_SKIP() << "AWS_S3_BUCKET not set, skipping S3 integration test";
+  const char* s3Uri =
+      std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI);
+  if (s3Uri == nullptr || strlen(s3Uri) == 0) {
+    GTEST_SKIP() << "AMZN_BRAKET_TASK_RESULTS_S3_URI is not set";
   }
 
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
@@ -964,12 +899,6 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
   auto& session = guard.session;
 
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&session), QDMI_SUCCESS);
-
-  try {
-    ::setupCredentials(session, true);
-  } catch (const std::exception& e) {
-    GTEST_SKIP() << "Credentials not available: " << e.what();
-  }
 
   const char* deviceArn =
       "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
@@ -1000,8 +929,8 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
             QDMI_SUCCESS);
 
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
-                strlen(s3BucketEnv) + 1, s3BucketEnv),
+                job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
+                strlen(s3Uri) + 1, s3Uri),
             QDMI_SUCCESS);
 
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_SUCCESS)
@@ -1097,11 +1026,6 @@ protected:
   }
 
   void initializeDevice(const char* deviceArn) {
-    try {
-      ::setupCredentials(session, true);
-    } catch (const std::exception& e) {
-      GTEST_SKIP() << "Credentials not available: " << e.what();
-    }
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                   session,
                   AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
@@ -1385,9 +1309,10 @@ TEST_F(DeviceParsingTestFixture, IQMDeviceStatus) {
 // finishes unusually quickly.
 // The test accepts QDMI_SUCCESS too, in case SV1 is unusually fast on the day.
 TEST(AmazonBraketQDMIWaitTimeoutTest, JobWaitTimeout) {
-  const char* s3BucketEnv = std::getenv("AWS_S3_BUCKET");
-  if (s3BucketEnv == nullptr || strlen(s3BucketEnv) == 0) {
-    GTEST_SKIP() << "AWS_S3_BUCKET not set; skipping wait-timeout test";
+  const char* s3Uri =
+      std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI);
+  if (s3Uri == nullptr || strlen(s3Uri) == 0) {
+    GTEST_SKIP() << "AMZN_BRAKET_TASK_RESULTS_S3_URI is not set";
   }
 
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
@@ -1408,12 +1333,6 @@ TEST(AmazonBraketQDMIWaitTimeoutTest, JobWaitTimeout) {
 
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&guard.session),
             QDMI_SUCCESS);
-  try {
-    ::setupCredentials(guard.session, true);
-  } catch (const std::exception& e) {
-    GTEST_SKIP() << "Credentials not available: " << e.what();
-  }
-
   const char* deviceArn =
       "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
@@ -1443,9 +1362,8 @@ TEST(AmazonBraketQDMIWaitTimeoutTest, JobWaitTimeout) {
           guard.job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(shots), &shots),
       QDMI_SUCCESS);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                guard.job,
-                AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET,
-                strlen(s3BucketEnv) + 1, s3BucketEnv),
+                guard.job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
+                strlen(s3Uri) + 1, s3Uri),
             QDMI_SUCCESS);
 
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(guard.job), QDMI_SUCCESS)

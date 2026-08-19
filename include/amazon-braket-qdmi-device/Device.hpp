@@ -32,11 +32,7 @@
  * A quantum software stack (compiler, orchestrator) initializes this library
  * once, then creates multiple sessions to address many AWS QPUs concurrently
  * (e.g., IQM Garnet, AWS SV1 simulator). Each session can have its own AWS
- * credentials specified via:
- * - Credentials file (AUTHFILE parameter with INI format)
- * - Direct parameters (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
- * AWS_SESSION_TOKEN)
- * - AWS SDK default credential provider chain
+ * credentials resolved by the AWS SDK default credential provider chain.
  *
  * Device (Singleton - ONE per Amazon Braket QMDI Device)
  *   ├─ Initializes AWS SDK once via QDMI device_initialize()
@@ -48,7 +44,7 @@
  *
  * Device_Session (MANY - one per user+device combination)
  *   ├─ Connects to specific AWS Braket device (IQM Garnet, AWS SV1, etc.)
- *   ├─ Has own BraketClient instance with explicit credentials or defaults
+ *   ├─ Has Braket, S3, and STS clients that share one refreshable provider
  *   ├─ Simulators: holds a shared_ptr to the singleton-cached architecture;
  *   │             only status is re-fetched per query (no second copy)
  *   ├─ QPUs: re-fetches sites/operations/connectivity on every query and
@@ -81,6 +77,8 @@
 #include <aws/braket/BraketClient.h>
 #include <aws/braket/model/DeviceType.h>
 #include <aws/core/auth/AWSCredentialsProvider.h>
+#include <aws/s3/S3Client.h>
+#include <aws/sts/STSClient.h>
 #include <cstddef>
 #include <future>
 #include <limits>
@@ -208,8 +206,8 @@ public:
  * combination.
  *
  * Each session represents a connection to a specific AWS Braket device with
- * specific credentials. Multiple sessions can exist concurrently to address
- * different QPUs or the same QPU with different user credentials.
+ * the credentials selected by the AWS SDK environment. Multiple sessions can
+ * exist concurrently to address different QPUs.
  */
 struct AMAZON_BRAKET_QDMI_Device_Session_impl_d {
 private:
@@ -218,12 +216,6 @@ private:
   std::string region_;
   std::string deviceArn_;
   std::string reservationArn_; // Optional - session default reserved window
-
-  // AWS Credentials
-  std::string credentialsFile_; // Path to AWS credentials file (INI format)
-  std::string accessKeyId_;     // AWS Access Key ID (CUSTOM3)
-  std::string secretAccessKey_; // AWS Secret Access Key (CUSTOM4)
-  std::string sessionToken_;    // AWS Session Token (CUSTOM5)
 
   // Simulators: shared_ptr to the singleton-cached DeviceArchitecture object
   //             (no second copy; same object as in Device::deviceCache_).
@@ -250,6 +242,15 @@ private:
   // every AWS client used for that session.
   std::shared_ptr<Aws::Auth::AWSCredentialsProvider> credentialsProvider_;
   std::unique_ptr<Aws::Braket::BraketClient> client_;
+  std::unique_ptr<Aws::S3::S3Client> s3Client_;
+  std::unique_ptr<Aws::STS::STSClient> stsClient_;
+
+  struct S3Destination {
+    std::string bucket;
+    std::string prefix;
+  };
+  std::optional<S3Destination> defaultS3Destination_;
+  mutable std::mutex defaultS3DestinationMutex_;
 
 public:
   auto init() -> QDMI_STATUS;
@@ -270,6 +271,9 @@ public:
       const double* params, QDMI_Operation_Property prop, size_t size,
       void* value, size_t* sizeRet) const -> QDMI_STATUS;
 
+  auto resolveS3Destination(const std::string& jobS3Uri,
+                            S3Destination& destination) -> QDMI_STATUS;
+
 private:
   auto fetchDeviceArchitecture() const -> QDMI_STATUS;
 
@@ -283,9 +287,8 @@ private:
   [[nodiscard]] auto getReservationArn() const -> const std::string& {
     return reservationArn_;
   }
-  [[nodiscard]] auto getCredentialsProvider() const
-      -> const std::shared_ptr<Aws::Auth::AWSCredentialsProvider>& {
-    return credentialsProvider_;
+  [[nodiscard]] auto getS3Client() const -> Aws::S3::S3Client* {
+    return s3Client_.get();
   }
 
   // Allow Job to access session internals
@@ -311,6 +314,7 @@ private:
   /// - CANCELED: User canceled before completion
   /// - FAILED: Execution failed due to error
   mutable std::atomic<QDMI_Job_Status> status_{QDMI_JOB_STATUS_CREATED};
+  bool submitting_ = false; ///< A CreateQuantumTask request is in progress
 
   QDMI_Program_Format format_ = QDMI_PROGRAM_FORMAT_QASM3;
   std::string program_;
@@ -318,9 +322,9 @@ private:
   std::string taskArn_;
   bool retrieved_ = false;
 
-  // Per-job S3 configuration (required)
-  std::string jobS3Bucket_;    // Required - S3 bucket for results
-  std::string jobS3Prefix_;    // Optional - S3 prefix, defaults to timestamp
+  // Optional per-job S3 destination. The environment and the standard Braket
+  // default bucket are used when it is empty.
+  std::string jobS3Uri_;
   std::string reservationArn_; // Optional - dedicate task to a reserved window
 
   std::future<void> jobHandle_;

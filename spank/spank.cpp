@@ -74,11 +74,7 @@ struct ConfigMapping {
   const char* argumentName;
   const char* usage;
   QDMI_Device_Session_Parameter parameter;
-};
-
-struct SessionParameterMapping {
-  const char* environment;
-  QDMI_Device_Session_Parameter parameter;
+  bool validateAsSessionParameter;
 };
 
 constexpr std::array<ConfigMapping, 4> CONFIG_MAPPINGS = {{
@@ -87,34 +83,29 @@ constexpr std::array<ConfigMapping, 4> CONFIG_MAPPINGS = {{
      .optionName = "amazon-braket-device-arn",
      .argumentName = "ARN",
      .usage = "Amazon Braket device ARN",
-     .parameter = AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN},
+     .parameter = AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+     .validateAsSessionParameter = true},
     {.plugstackKey = "amazon_braket_region",
      .environment = AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION,
      .optionName = "amazon-braket-region",
      .argumentName = "REGION",
      .usage = "AWS region",
-     .parameter = AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION},
+     .parameter = AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION,
+     .validateAsSessionParameter = true},
     {.plugstackKey = "amazon_braket_reservation_arn",
      .environment = AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN,
      .optionName = "amazon-braket-reservation-arn",
      .argumentName = "ARN",
      .usage = "Amazon Braket reservation ARN",
-     .parameter = AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN},
+     .parameter = AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
+     .validateAsSessionParameter = true},
     {.plugstackKey = "amazon_braket_credentials_file",
-     .environment = AMAZON_BRAKET_QDMI_DEVICE_ENV_AUTHFILE,
+     .environment = "AWS_SHARED_CREDENTIALS_FILE",
      .optionName = "amazon-braket-credentials-file",
      .argumentName = "PATH",
      .usage = "AWS shared credentials file",
-     .parameter = QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE},
-}};
-
-constexpr std::array<SessionParameterMapping, 3> AWS_CREDENTIAL_MAPPINGS = {{
-    {.environment = "AWS_ACCESS_KEY_ID",
-     .parameter = QDMI_DEVICE_SESSION_PARAMETER_USERNAME},
-    {.environment = "AWS_SECRET_ACCESS_KEY",
-     .parameter = QDMI_DEVICE_SESSION_PARAMETER_PASSWORD},
-    {.environment = "AWS_SESSION_TOKEN",
-     .parameter = QDMI_DEVICE_SESSION_PARAMETER_TOKEN},
+     .parameter = QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
+     .validateAsSessionParameter = false},
 }};
 
 /**
@@ -126,7 +117,7 @@ constexpr std::array<SessionParameterMapping, 3> AWS_CREDENTIAL_MAPPINGS = {{
  * while validating so the SDK sees the job's configuration and never inherits
  * credentials from the daemon.
  */
-constexpr std::array<const char*, 29> AWS_PROVIDER_ENVIRONMENT = {{
+constexpr std::array<const char*, 30> AWS_PROVIDER_ENVIRONMENT = {{
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",
     "AWS_SESSION_TOKEN",
@@ -134,6 +125,7 @@ constexpr std::array<const char*, 29> AWS_PROVIDER_ENVIRONMENT = {{
     "AWS_PROFILE",
     "AWS_DEFAULT_PROFILE",
     "AWS_CONFIG_FILE",
+    "AWS_SHARED_CREDENTIALS_FILE",
     "AWS_DEFAULT_REGION",
     "AWS_ROLE_ARN",
     "AWS_IAM_ROLE_ARN",
@@ -426,6 +418,9 @@ public:
       }
 
       for (const auto& mapping : CONFIG_MAPPINGS) {
+        if (!mapping.validateAsSessionParameter) {
+          continue;
+        }
         const auto value = getJobEnvironment(spank, mapping.environment);
         if (!value.has_value()) {
           continue;
@@ -434,18 +429,6 @@ public:
                 guard.session, mapping.parameter, value->size() + 1,
                 value->c_str()) != QDMI_SUCCESS) {
           logFailure("invalid Amazon Braket session parameter");
-          return false;
-        }
-      }
-      for (const auto& mapping : AWS_CREDENTIAL_MAPPINGS) {
-        const auto value = getJobEnvironment(spank, mapping.environment);
-        if (!value.has_value()) {
-          continue;
-        }
-        if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                guard.session, mapping.parameter, value->size() + 1,
-                value->c_str()) != QDMI_SUCCESS) {
-          logFailure("invalid AWS credential environment");
           return false;
         }
       }

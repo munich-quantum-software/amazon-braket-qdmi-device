@@ -21,7 +21,9 @@
 #include "amazon_braket_qdmi/device.h"
 
 #include <array>
+#include <cstddef>
 #include <cstdlib>
+#include <cstring>
 #include <gtest/gtest.h>
 #include <string_view>
 
@@ -64,6 +66,14 @@ constexpr std::array CATALOG{
                  .region = "us-east-1"},
 };
 
+constexpr std::string_view BELL_STATE_PROGRAM = "OPENQASM 3.0;\n"
+                                                "qubit[2] q;\n"
+                                                "bit[2] c;\n"
+                                                "h q[0];\n"
+                                                "cnot q[0], q[1];\n"
+                                                "c[0] = measure q[0];\n"
+                                                "c[1] = measure q[1];\n";
+
 [[nodiscard]] auto isEnabled(const char* variable) -> bool {
   const auto* value = std::getenv(variable);
   return value != nullptr && std::string_view{value} == "1";
@@ -103,5 +113,47 @@ TEST(AmazonBraketQDMILiveTest, OpensInstalledCatalog) {
     EXPECT_GT(nameSize, 1U) << entry.id;
     AMAZON_BRAKET_QDMI_device_session_free(session);
   }
+  AMAZON_BRAKET_QDMI_device_finalize();
+}
+
+TEST(AmazonBraketQDMILiveTest, UsesAutomaticDefaultS3Destination) {
+  if (!isEnabled("AMAZON_BRAKET_QDMI_TEST_ALLOW_BUCKET_CREATION")) {
+    // NOLINTNEXTLINE(readability-implicit-bool-conversion)
+    GTEST_SKIP() << "Set AMAZON_BRAKET_QDMI_TEST_ALLOW_BUCKET_CREATION=1 to "
+                    "authorize an SV1 task and possible S3 bucket creation.";
+  }
+  if (const auto* uri =
+          std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI);
+      uri != nullptr && *uri != '\0') {
+    // NOLINTNEXTLINE(readability-implicit-bool-conversion)
+    GTEST_SKIP() << "Unset AMZN_BRAKET_TASK_RESULTS_S3_URI to test the "
+                    "automatic destination.";
+  }
+
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+  AMAZON_BRAKET_QDMI_Device_Session session = nullptr;
+  AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&session), QDMI_SUCCESS);
+  constexpr std::string_view arn =
+      "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
+                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
+                arn.size() + 1, arn.data()),
+            QDMI_SUCCESS);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job),
+            QDMI_SUCCESS);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
+                BELL_STATE_PROGRAM.size() + 1, BELL_STATE_PROGRAM.data()),
+            QDMI_SUCCESS);
+  const size_t shots = 1;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(shots), &shots),
+            QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_SUCCESS);
+
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+  AMAZON_BRAKET_QDMI_device_session_free(session);
   AMAZON_BRAKET_QDMI_device_finalize();
 }
