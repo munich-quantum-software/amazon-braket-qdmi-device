@@ -12,9 +12,10 @@ releases may include breaking changes.
 
 ### Added
 
-- ✨ Expose each device's broader OpenQASM operation set through a custom QDMI
-  property while retaining `amazon.braket.default` as the configurable stable
-  device ID ([#171]) ([**@burgholzer**])
+- ✨ Install a relocatable catalogue containing `amazon.braket.default` and
+  convenient definitions for supported backends, and expose each device's
+  broader OpenQASM operation set through a custom QDMI property ([#171])
+  ([**@burgholzer**])
 - ✨ Retrieve existing Amazon Braket QuantumTasks by their QDMI job IDs ([#160])
   ([**@burgholzer**])
 - ✨ Expose current device queue length and queued job position through QDMI,

@@ -2020,11 +2020,21 @@ auto siteNames(const ParsedDeviceProperties& properties)
   return names;
 }
 
+auto siteIndices(const ParsedDeviceProperties& properties)
+    -> std::vector<size_t> {
+  std::vector<size_t> indices;
+  indices.reserve(properties.sitesPtr.size());
+  std::ranges::transform(properties.sitesPtr, std::back_inserter(indices),
+                         [](const auto* site) { return site->id_; });
+  return indices;
+}
+
 struct CapabilityFixtureCase {
   std::string_view name;
   std::string_view json;
   Aws::Braket::Model::DeviceType type;
   std::vector<std::string> sites;
+  std::vector<size_t> indices;
   std::vector<std::string> nativeOperations;
   std::vector<std::string> supportedOperations;
   size_t directedEdges;
@@ -2072,6 +2082,7 @@ TEST(DeviceParserOfflineTest, ParsesRepresentativeCapabilityFixtures) {
        AQT_IBEX_Q1,
        DeviceType::QPU,
        {"0", "1", "2", "3"},
+       {0, 1, 2, 3},
        {"prx", "xx", "rz"},
        {"prx", "xx", "rz", "h", "cnot", "swap"},
        12},
@@ -2079,6 +2090,7 @@ TEST(DeviceParserOfflineTest, ParsesRepresentativeCapabilityFixtures) {
        IONQ_FORTE,
        DeviceType::QPU,
        {"0", "1", "2"},
+       {0, 1, 2},
        {"gpi", "gpi2", "zz"},
        {"x", "y", "z", "rx", "ry", "rz", "h", "cnot", "gpi", "gpi2", "zz"},
        6},
@@ -2086,6 +2098,7 @@ TEST(DeviceParserOfflineTest, ParsesRepresentativeCapabilityFixtures) {
        IQM_GARNET,
        DeviceType::QPU,
        {"1", "2", "5"},
+       {1, 2, 5},
        {"cz", "prx"},
        {"h", "cnot", "cz", "prx", "rx", "rz"},
        3},
@@ -2093,6 +2106,7 @@ TEST(DeviceParserOfflineTest, ParsesRepresentativeCapabilityFixtures) {
        RIGETTI_ANKAA_3,
        DeviceType::QPU,
        {"0", "1", "2"},
+       {0, 1, 2},
        {"rx", "rz", "iswap"},
        {"rx", "rz", "iswap", "cz", "xy", "h", "cnot"},
        2},
@@ -2100,6 +2114,7 @@ TEST(DeviceParserOfflineTest, ParsesRepresentativeCapabilityFixtures) {
        RIGETTI_ANKAA_12,
        DeviceType::QPU,
        {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"},
+       {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},
        {"rx", "rz", "cz"},
        {"rx", "rz", "cz"},
        11},
@@ -2107,6 +2122,7 @@ TEST(DeviceParserOfflineTest, ParsesRepresentativeCapabilityFixtures) {
        SV1,
        DeviceType::SIMULATOR,
        {"0", "1", "2", "3"},
+       {0, 1, 2, 3},
        {"h", "cnot", "rx", "ry", "rz", "unitary", "gphase"},
        {"h", "cnot", "rx", "ry", "rz", "unitary", "gphase"},
        12},
@@ -2114,6 +2130,7 @@ TEST(DeviceParserOfflineTest, ParsesRepresentativeCapabilityFixtures) {
        DM1,
        DeviceType::SIMULATOR,
        {"0", "1", "2"},
+       {0, 1, 2},
        {"x", "cnot", "kraus", "bit_flip", "gphase"},
        {"x", "cnot", "kraus", "bit_flip", "gphase"},
        6},
@@ -2132,6 +2149,7 @@ TEST(DeviceParserOfflineTest, ParsesRepresentativeCapabilityFixtures) {
               QDMI_SUCCESS);
     EXPECT_EQ(properties.qubitCount, fixture.sites.size());
     EXPECT_EQ(siteNames(properties), fixture.sites);
+    EXPECT_EQ(siteIndices(properties), fixture.indices);
     EXPECT_EQ(properties.connectivity.size(), fixture.directedEdges * 2);
     EXPECT_EQ(operationNames(properties.operationsPtr),
               fixture.nativeOperations);
@@ -2144,6 +2162,61 @@ TEST(DeviceParserOfflineTest, ParsesRepresentativeCapabilityFixtures) {
       }
     }
   }
+}
+
+TEST(DeviceParserOfflineTest, RejectsAliasedDecimalSiteIndices) {
+  const GateModelCapabilityParser parser;
+  ParsedDeviceProperties properties;
+  EXPECT_EQ(
+      parser.parseProperties(
+          Aws::Braket::Model::DeviceType::QPU,
+          R"({"paradigm":{"qubitCount":2,"nativeGateSet":["x"],"connectivity":{"fullyConnected":false,"connectivityGraph":{"1":["01"],"01":[]}}},"action":{"braket.ir.openqasm.program":{"supportedOperations":["x"]}}})",
+          properties),
+      QDMI_ERROR_FATAL);
+}
+
+TEST(DeviceParserOfflineTest, AssignsDeterministicNonnumericSiteIndices) {
+  const GateModelCapabilityParser parser;
+  ParsedDeviceProperties properties;
+  ASSERT_EQ(
+      parser.parseProperties(
+          Aws::Braket::Model::DeviceType::QPU,
+          R"({"paradigm":{"qubitCount":4,"nativeGateSet":["x"],"connectivity":{"fullyConnected":false,"connectivityGraph":{"2":["10"],"10":["alpha"],"alpha":["beta"],"beta":[]}}},"action":{"braket.ir.openqasm.program":{"supportedOperations":["x"]}}})",
+          properties),
+      QDMI_SUCCESS);
+  EXPECT_EQ(siteNames(properties),
+            (std::vector<std::string>{"2", "10", "alpha", "beta"}));
+  EXPECT_EQ(siteIndices(properties), (std::vector<size_t>{2, 10, 0, 1}));
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       SiteIndexQueriesPreserveProviderProgramIndices) {
+  const auto checkFixture = [this](const std::string_view json,
+                                   const std::vector<size_t>& expected) {
+    const GateModelCapabilityParser parser;
+    ParsedDeviceProperties properties;
+    ASSERT_EQ(parser.parseProperties(Aws::Braket::Model::DeviceType::QPU,
+                                     std::string{json}, properties),
+              QDMI_SUCCESS);
+    const auto architecture =
+        installParsedArchitecture(session, std::move(properties));
+    ASSERT_EQ(architecture->sitesPtr.size(), expected.size());
+    for (size_t position = 0; position < expected.size(); ++position) {
+      SCOPED_TRACE(position);
+      size_t index = std::numeric_limits<size_t>::max();
+      size_t sizeRet = 0;
+      EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
+                    session, architecture->sitesPtr[position],
+                    QDMI_SITE_PROPERTY_INDEX, sizeof(index), &index, &sizeRet),
+                QDMI_SUCCESS);
+      EXPECT_EQ(sizeRet, sizeof(size_t));
+      EXPECT_EQ(index, expected[position]);
+    }
+  };
+
+  using namespace amazon::braket::qdmi::test;
+  checkFixture(IQM_GARNET, {1, 2, 5});
+  checkFixture(RIGETTI_ANKAA_12, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11});
 }
 
 TEST(DeviceParserOfflineTest,
@@ -2328,6 +2401,87 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   EXPECT_GE(stubPtr->calls(), 1U);
   EXPECT_EQ(stubPtr->requestedArn(),
             "arn:aws:braket:::device/quantum-simulator/amazon/sv1");
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       RetiredDeviceStatusIsQueryableOnInitialAndCachedFetches) {
+  Aws::Braket::Model::GetDeviceResult result;
+  result.SetDeviceName("SV1");
+  result.SetProviderName("Amazon Web Services");
+  result.SetDeviceType(Aws::Braket::Model::DeviceType::SIMULATOR);
+  result.SetDeviceStatus(Aws::Braket::Model::DeviceStatus::RETIRED);
+  result.SetDeviceCapabilities(
+      std::string{amazon::braket::qdmi::test::SV1}.c_str());
+  auto stub = std::make_unique<StubGetDeviceClient>(std::move(result));
+  auto* const stubPtr = stub.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                          std::move(stub));
+
+  QDMI_Device_Status status = QDMI_DEVICE_STATUS_IDLE;
+  for (size_t query = 0; query < 2; ++query) {
+    SCOPED_TRACE(query);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                  session, QDMI_DEVICE_PROPERTY_STATUS, sizeof(status), &status,
+                  nullptr),
+              QDMI_SUCCESS);
+    EXPECT_EQ(status, QDMI_DEVICE_STATUS_OFFLINE);
+  }
+  EXPECT_EQ(stubPtr->calls(), 2U);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       DurationMetadataScalesPublicCalibrationValues) {
+  Aws::Braket::Model::GetDeviceResult result;
+  result.SetDeviceName("Garnet");
+  result.SetProviderName("IQM");
+  result.SetDeviceType(Aws::Braket::Model::DeviceType::QPU);
+  result.SetDeviceStatus(Aws::Braket::Model::DeviceStatus::ONLINE);
+  result.SetDeviceCapabilities(
+      std::string{amazon::braket::qdmi::test::IQM_GARNET}.c_str());
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::make_unique<StubGetDeviceClient>(std::move(result)));
+
+  std::array<char, 3> unit{};
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_DURATIONUNIT, unit.size(),
+                unit.data(), nullptr),
+            QDMI_SUCCESS);
+  EXPECT_STREQ(unit.data(), "us");
+
+  double scaleFactor = 0.0;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_DURATIONSCALEFACTOR,
+                sizeof(scaleFactor), &scaleFactor, nullptr),
+            QDMI_SUCCESS);
+  EXPECT_DOUBLE_EQ(scaleFactor, 0.001);
+
+  size_t sitesSize = 0;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_SITES, 0, nullptr, &sitesSize),
+            QDMI_SUCCESS);
+  std::vector<AMAZON_BRAKET_QDMI_Site> sites(sitesSize /
+                                             sizeof(AMAZON_BRAKET_QDMI_Site));
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_SITES, sitesSize,
+                static_cast<void*>(sites.data()), nullptr),
+            QDMI_SUCCESS);
+  ASSERT_EQ(sites.size(), 3U);
+
+  uint64_t t1 = 0;
+  ASSERT_EQ(
+      AMAZON_BRAKET_QDMI_device_session_query_site_property(
+          session, sites[0], QDMI_SITE_PROPERTY_T1, sizeof(t1), &t1, nullptr),
+      QDMI_SUCCESS);
+  EXPECT_EQ(t1, 40'000U);
+  EXPECT_DOUBLE_EQ(static_cast<double>(t1) * scaleFactor, 40.0);
+
+  uint64_t t2 = 0;
+  ASSERT_EQ(
+      AMAZON_BRAKET_QDMI_device_session_query_site_property(
+          session, sites[2], QDMI_SITE_PROPERTY_T2, sizeof(t2), &t2, nullptr),
+      QDMI_SUCCESS);
+  EXPECT_EQ(t2, 50'000U);
+  EXPECT_DOUBLE_EQ(static_cast<double>(t2) * scaleFactor, 50.0);
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest,

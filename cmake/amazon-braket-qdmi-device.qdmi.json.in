@@ -1,0 +1,103 @@
+{
+  "schema-version": 1,
+  "qdmi": {
+    "devices": [
+      {
+        "id": "amazon.braket.default",
+        "library": "@AMAZON_BRAKET_QDMI_LIBRARY_FILE@",
+        "prefix": "AMAZON_BRAKET",
+        "enabled": true
+      },
+      {
+        "id": "amazon.braket.aqt.ibex-q1",
+        "library": "@AMAZON_BRAKET_QDMI_LIBRARY_FILE@",
+        "prefix": "AMAZON_BRAKET",
+        "enabled": true,
+        "session": {
+          "base-url": "arn:aws:braket:eu-north-1::device/qpu/aqt/Ibex-Q1",
+          "custom2": "eu-north-1"
+        }
+      },
+      {
+        "id": "amazon.braket.ionq.forte-1",
+        "library": "@AMAZON_BRAKET_QDMI_LIBRARY_FILE@",
+        "prefix": "AMAZON_BRAKET",
+        "enabled": true,
+        "session": {
+          "base-url": "arn:aws:braket:us-east-1::device/qpu/ionq/Forte-1",
+          "custom2": "us-east-1"
+        }
+      },
+      {
+        "id": "amazon.braket.ionq.forte-enterprise-1",
+        "library": "@AMAZON_BRAKET_QDMI_LIBRARY_FILE@",
+        "prefix": "AMAZON_BRAKET",
+        "enabled": true,
+        "session": {
+          "base-url": "arn:aws:braket:us-east-1::device/qpu/ionq/Forte-Enterprise-1",
+          "custom2": "us-east-1"
+        }
+      },
+      {
+        "id": "amazon.braket.iqm.garnet",
+        "library": "@AMAZON_BRAKET_QDMI_LIBRARY_FILE@",
+        "prefix": "AMAZON_BRAKET",
+        "enabled": true,
+        "session": {
+          "base-url": "arn:aws:braket:eu-north-1::device/qpu/iqm/Garnet",
+          "custom2": "eu-north-1"
+        }
+      },
+      {
+        "id": "amazon.braket.iqm.emerald",
+        "library": "@AMAZON_BRAKET_QDMI_LIBRARY_FILE@",
+        "prefix": "AMAZON_BRAKET",
+        "enabled": true,
+        "session": {
+          "base-url": "arn:aws:braket:eu-north-1::device/qpu/iqm/Emerald",
+          "custom2": "eu-north-1"
+        }
+      },
+      {
+        "id": "amazon.braket.rigetti.ankaa-3",
+        "library": "@AMAZON_BRAKET_QDMI_LIBRARY_FILE@",
+        "prefix": "AMAZON_BRAKET",
+        "enabled": true,
+        "session": {
+          "base-url": "arn:aws:braket:us-west-1::device/qpu/rigetti/Ankaa-3",
+          "custom2": "us-west-1"
+        }
+      },
+      {
+        "id": "amazon.braket.rigetti.cepheus-1-108q",
+        "library": "@AMAZON_BRAKET_QDMI_LIBRARY_FILE@",
+        "prefix": "AMAZON_BRAKET",
+        "enabled": true,
+        "session": {
+          "base-url": "arn:aws:braket:us-west-1::device/qpu/rigetti/Cepheus-1-108Q",
+          "custom2": "us-west-1"
+        }
+      },
+      {
+        "id": "amazon.braket.sv1",
+        "library": "@AMAZON_BRAKET_QDMI_LIBRARY_FILE@",
+        "prefix": "AMAZON_BRAKET",
+        "enabled": true,
+        "session": {
+          "base-url": "arn:aws:braket:::device/quantum-simulator/amazon/sv1",
+          "custom2": "us-east-1"
+        }
+      },
+      {
+        "id": "amazon.braket.dm1",
+        "library": "@AMAZON_BRAKET_QDMI_LIBRARY_FILE@",
+        "prefix": "AMAZON_BRAKET",
+        "enabled": true,
+        "session": {
+          "base-url": "arn:aws:braket:::device/quantum-simulator/amazon/dm1",
+          "custom2": "us-east-1"
+        }
+      }
+    ]
+  }
+}

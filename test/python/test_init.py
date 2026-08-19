@@ -19,9 +19,11 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from amazon.braket.qdmi import (
+    AMAZON_BRAKET_QDMI_CATALOG_PATH,
     AMAZON_BRAKET_QDMI_CMAKE_DIR,
     AMAZON_BRAKET_QDMI_DEVICE_ID,
     AMAZON_BRAKET_QDMI_INCLUDE_DIR,
@@ -42,6 +44,29 @@ def test_qdmi_device_metadata() -> None:
     """Test that the stable device metadata matches the native library."""
     assert AMAZON_BRAKET_QDMI_DEVICE_ID == "amazon.braket.default"
     assert AMAZON_BRAKET_QDMI_PREFIX == "AMAZON_BRAKET"
+
+
+def test_installed_catalogue() -> None:
+    """Test the generic entry and concrete device definitions."""
+    catalogue = json.loads(AMAZON_BRAKET_QDMI_CATALOG_PATH.read_text(encoding="utf-8"))
+    devices = {device["id"]: device for device in catalogue["qdmi"]["devices"]}
+    assert set(devices) == {
+        "amazon.braket.default",
+        "amazon.braket.aqt.ibex-q1",
+        "amazon.braket.ionq.forte-1",
+        "amazon.braket.ionq.forte-enterprise-1",
+        "amazon.braket.iqm.garnet",
+        "amazon.braket.iqm.emerald",
+        "amazon.braket.rigetti.ankaa-3",
+        "amazon.braket.rigetti.cepheus-1-108q",
+        "amazon.braket.sv1",
+        "amazon.braket.dm1",
+    }
+    assert "session" not in devices[AMAZON_BRAKET_QDMI_DEVICE_ID]
+    for device_id, device in devices.items():
+        assert device["prefix"] == AMAZON_BRAKET_QDMI_PREFIX
+        if device_id != AMAZON_BRAKET_QDMI_DEVICE_ID:
+            assert device["session"]["base-url"].startswith("arn:aws:braket:")
 
 
 def test_include_dir_exists() -> None:
@@ -77,6 +102,7 @@ def test_paths_are_pathlib_objects() -> None:
     assert isinstance(AMAZON_BRAKET_QDMI_INCLUDE_DIR, Path)
     assert isinstance(AMAZON_BRAKET_QDMI_CMAKE_DIR, Path)
     assert isinstance(AMAZON_BRAKET_QDMI_LIBRARY_PATH, Path)
+    assert isinstance(AMAZON_BRAKET_QDMI_CATALOG_PATH, Path)
 
 
 def test_paths_are_absolute() -> None:
@@ -84,3 +110,4 @@ def test_paths_are_absolute() -> None:
     assert AMAZON_BRAKET_QDMI_INCLUDE_DIR.is_absolute()
     assert AMAZON_BRAKET_QDMI_CMAKE_DIR.is_absolute()
     assert AMAZON_BRAKET_QDMI_LIBRARY_PATH.is_absolute()
+    assert AMAZON_BRAKET_QDMI_CATALOG_PATH.is_absolute()

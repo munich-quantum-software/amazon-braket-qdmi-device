@@ -24,6 +24,7 @@ from pathlib import Path
 from ._version import version as __version__
 
 __all__ = [
+    "AMAZON_BRAKET_QDMI_CATALOG_PATH",
     "AMAZON_BRAKET_QDMI_CMAKE_DIR",
     "AMAZON_BRAKET_QDMI_DEVICE_ID",
     "AMAZON_BRAKET_QDMI_INCLUDE_DIR",
@@ -81,13 +82,23 @@ def _resolve_library_dir() -> Path:
 
 
 _AMAZON_BRAKET_QDMI_LIBRARY_DIR = _resolve_library_dir()
+_AMAZON_BRAKET_QDMI_CATALOG_NAME = "amazon-braket-qdmi-device.qdmi.json"
 
-# the library is the sole file in the packaged library directory
-library_files = list(_AMAZON_BRAKET_QDMI_LIBRARY_DIR.glob("*amazon-braket-qdmi-device*"))
+# Ignore the adjacent QDMI catalogue when locating the native library.
+library_files = [
+    path
+    for path in _AMAZON_BRAKET_QDMI_LIBRARY_DIR.glob("*amazon-braket-qdmi-device*")
+    if path.name != _AMAZON_BRAKET_QDMI_CATALOG_NAME
+]
 if not library_files:
     msg = f"No Amazon Braket QDMI library found in: {_AMAZON_BRAKET_QDMI_LIBRARY_DIR}"
     raise FileNotFoundError(msg)
 AMAZON_BRAKET_QDMI_LIBRARY_PATH = min(library_files, key=lambda p: len(p.name))
+
+AMAZON_BRAKET_QDMI_CATALOG_PATH = _AMAZON_BRAKET_QDMI_LIBRARY_DIR / _AMAZON_BRAKET_QDMI_CATALOG_NAME
+if not AMAZON_BRAKET_QDMI_CATALOG_PATH.exists():
+    msg = f"AMAZON_BRAKET_QDMI_CATALOG_PATH does not exist: {AMAZON_BRAKET_QDMI_CATALOG_PATH}"
+    raise FileNotFoundError(msg)
 
 AMAZON_BRAKET_QDMI_INCLUDE_DIR = _AMAZON_BRAKET_QDMI_DATA / "include"
 if not AMAZON_BRAKET_QDMI_INCLUDE_DIR.exists():

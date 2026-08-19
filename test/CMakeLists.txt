@@ -57,6 +57,16 @@ set(QDMI_LIVE_TEST_FILTER
 )
 set(QDMI_OFFLINE_TEST_FILTER "-${QDMI_LIVE_TEST_FILTER}")
 
+if(BUILD_AMAZON_BRAKET_LIVE_TESTS)
+  set(QDMI_LIVE_TEST_TARGET_NAME "${QDMI_TARGET_NAME}-live-test")
+  add_executable(${QDMI_LIVE_TEST_TARGET_NAME} test_live.cpp)
+  target_link_libraries(
+    ${QDMI_LIVE_TEST_TARGET_NAME} PRIVATE GTest::gtest_main ${QDMI_TARGET_NAME} qdmi::qdmi
+                                          qdmi::qdmi_project_warnings)
+  target_compile_features(${QDMI_LIVE_TEST_TARGET_NAME} PRIVATE cxx_std_20)
+  add_dependencies(${QDMI_LIVE_TEST_TARGET_NAME} qdmi_test_amazon_braket_device_defs)
+endif()
+
 if(WIN32)
   # On Windows, copy the DLL to the test executable directory
   add_custom_command(
@@ -65,6 +75,15 @@ if(WIN32)
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:${QDMI_TARGET_NAME}>
             $<TARGET_FILE_DIR:${QDMI_TEST_TARGET_NAME}>
     COMMENT "Copying ${QDMI_TARGET_NAME} DLL to test directory")
+
+  if(BUILD_AMAZON_BRAKET_LIVE_TESTS)
+    add_custom_command(
+      TARGET ${QDMI_LIVE_TEST_TARGET_NAME}
+      POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:${QDMI_TARGET_NAME}>
+              $<TARGET_FILE_DIR:${QDMI_LIVE_TEST_TARGET_NAME}>
+      COMMENT "Copying ${QDMI_TARGET_NAME} DLL to live test directory")
+  endif()
 
   # Add the directory containing the DLL to the test's PATH environment
   set(DLL_PATH "$<TARGET_FILE_DIR:${QDMI_TARGET_NAME}>")
@@ -95,6 +114,12 @@ endif()
 if(BUILD_AMAZON_BRAKET_LIVE_TESTS)
   gtest_discover_tests(
     ${QDMI_TEST_TARGET_NAME} TEST_FILTER "${QDMI_LIVE_TEST_FILTER}"
+    TEST_PREFIX "live::"
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    PROPERTIES RUN_SERIAL TRUE LABELS amazon-braket-live DISCOVERY_TIMEOUT 60)
+
+  gtest_discover_tests(
+    ${QDMI_LIVE_TEST_TARGET_NAME}
     TEST_PREFIX "live::"
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     PROPERTIES RUN_SERIAL TRUE LABELS amazon-braket-live DISCOVERY_TIMEOUT 60)

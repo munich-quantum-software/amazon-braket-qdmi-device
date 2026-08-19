@@ -72,6 +72,7 @@ jobs:
           live_tests=OFF
           if [[ -n "${AWS_ACCESS_KEY_ID}" && -n "${AWS_SECRET_ACCESS_KEY}" && -n "${AWS_S3_BUCKET}" ]]; then
             live_tests=ON
+            echo "AMAZON_BRAKET_QDMI_RUN_LIVE_CATALOG=1" >> "${GITHUB_ENV}"
           fi
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON \
             "-DBUILD_AMAZON_BRAKET_LIVE_TESTS=${live_tests}"

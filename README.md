@@ -44,9 +44,21 @@ QuantumTasks (pure quantum circuit execution).
 ### Supported Amazon Braket Devices
 
 This implementation supports Amazon Braket gate-model QPUs and on-demand
-gate-model simulators. It exposes the stable QDMI ID `amazon.braket.default`;
-each new session must be configured with a concrete device ARN and, when needed,
-an AWS Region before initialization.
+gate-model simulators. The generic QDMI ID `amazon.braket.default` must be
+configured with a device ARN and, when needed, an AWS Region before
+initialization. The installed catalogue also provides these preconfigured IDs:
+
+| Stable QDMI ID                                  | Region       |
+| ----------------------------------------------- | ------------ |
+| `amazon.braket.aqt.ibex-q1`                     | `eu-north-1` |
+| `amazon.braket.ionq.forte-1`                    | `us-east-1`  |
+| `amazon.braket.ionq.forte-enterprise-1`         | `us-east-1`  |
+| `amazon.braket.iqm.garnet`                      | `eu-north-1` |
+| `amazon.braket.iqm.emerald`                     | `eu-north-1` |
+| `amazon.braket.rigetti.ankaa-3`                 | `us-west-1`  |
+| `amazon.braket.rigetti.cepheus-1-108q`          | `us-west-1`  |
+| `amazon.braket.sv1`                             | `us-east-1`  |
+| `amazon.braket.dm1`                             | `us-east-1`  |
 
 For a QPU, `QDMI_DEVICE_PROPERTY_OPERATIONS` contains only the Braket
 `nativeGateSet`. The custom property
@@ -278,9 +290,10 @@ cmake --build build
 
 ### Using the Device with MQT Core
 
-The installed CMake target exports the stable device ID `amazon.braket.default`
-and the `AMAZON_BRAKET` symbol prefix. An application using MQT Core can copy
-the device library and a generated definition beside its executable:
+The installed CMake target exports the generic device ID
+`amazon.braket.default`, the `AMAZON_BRAKET` symbol prefix, and the relocatable
+catalogue. An application using MQT Core can copy the library and catalogue
+beside its executable:
 
 ```cmake
 find_package(mqt-core 3.8 CONFIG REQUIRED)
@@ -296,8 +309,24 @@ statically into the executable. A dynamically linked Driver searches beside its
 own shared library instead; in that case, place the generated manifest there or
 register the definition explicitly as shown below.
 
-Python consumers can register the packaged generic device and configure each
-fresh session with the desired device ARN and Region:
+Python consumers can point MQT Core at the complete installed catalogue before
+the first driver call:
+
+```python
+import os
+
+from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_CATALOG_PATH
+
+os.environ["MQT_CORE_QDMI_CONFIG_FILE"] = str(AMAZON_BRAKET_QDMI_CATALOG_PATH)
+
+from mqt.core.qdmi.driver import open_device
+
+device = open_device("amazon.braket.sv1")
+```
+
+The command `amazon-braket-qdmi --catalog_path` prints the same catalogue path.
+Alternatively, an application can register only the generic device and configure
+each fresh session with the desired device ARN and Region:
 
 ```python
 from amazon.braket.qdmi import (
@@ -558,7 +587,7 @@ retrieve results, but cannot be reconfigured or submitted again.
 | -------------------------------------------------------------- | ------------------------------ | ---------------------------------------- |
 | `AMAZON_BRAKET_QDMI_device_session_alloc()`                    | (internal allocation)          | Allocate a new session                   |
 | `AMAZON_BRAKET_QDMI_device_session_set_parameter()`            | (store session config)         | Set credentials, device ARN, and region  |
-| `AMAZON_BRAKET_QDMI_device_session_init()`                     | `BraketClient` + `GetDevice()` | Initialize session and connect to device |
+| `AMAZON_BRAKET_QDMI_device_session_init()`                     | `BraketClient` construction    | Configure the session's AWS client       |
 | `AMAZON_BRAKET_QDMI_device_session_free()`                     | `BraketClient` destructor      | Free session resources                   |
 | `AMAZON_BRAKET_QDMI_device_session_query_device_property()`    | (parse GetDevice JSON)         | Query device properties                  |
 | `AMAZON_BRAKET_QDMI_device_session_query_site_property()`      | (parse GetDevice JSON)         | Query qubit properties                   |
@@ -581,57 +610,32 @@ retrieve results, but cannot be reconfigured or submitted again.
 
 ## Testing
 
-To run the test suite:
+The default test build and CTest registry are offline and require no AWS
+credentials:
 
 ```bash
-# Build with tests enabled (default)
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
-
-# Configure credentials and S3 storage for online/device tests
-export AWS_S3_BUCKET="my-braket-results-bucket"
-
-# Set credentials - choose one method:
-
-# Method 1: Credentials file (recommended for local development)
-export AWS_CREDENTIALS_FILE="/path/to/credentials"
-
-# Method 2: Direct credentials (recommended for CI/CD with secrets)
-export AWS_ACCESS_KEY_ID="your_access_key_id"
-export AWS_SECRET_ACCESS_KEY="your_secret_access_key"
-export AWS_SESSION_TOKEN="your_session_token"  # Optional
-
-# Run tests
 ctest --test-dir build --output-on-failure
 ```
 
-**Test Configuration:**
+Live tests can query devices, submit SV1 tasks, write S3 objects, and incur
+charges. Enable their separate CTest registration explicitly, provide AWS SDK
+credentials and a pre-provisioned result bucket, then select the live label:
 
-- **Device ARNs**: Hardcoded directly in test code (e.g.,
-  `arn:aws:braket:::device/quantum-simulator/amazon/sv1`)
-  - Device ARNs are public identifiers and don't need to be secrets
-  - Tests use various devices to verify functionality
+```bash
+cmake -S . -B build-live -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_AMAZON_BRAKET_LIVE_TESTS=ON
+cmake --build build-live
 
-- **Credentials**: Read from environment variables and passed to QDMI parameters
-  - **Method 1:** `AWS_CREDENTIALS_FILE` → passed to
-    `QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE`
-  - **Method 2:** `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` +
-    `AWS_SESSION_TOKEN` (optional) → passed to respective QDMI parameters
-  - Method 1 is recommended for local development
-  - Method 2 is recommended for CI/CD pipelines where credentials are stored as
-    secrets
+export AWS_S3_BUCKET="my-braket-results-bucket"
+export AMAZON_BRAKET_QDMI_RUN_LIVE_CATALOG=1
+ctest --test-dir build-live -L amazon-braket-live --output-on-failure
+```
 
-- **S3 Bucket**: Read from `AWS_S3_BUCKET` environment variable
-  - Passed to `AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3BUCKET` in job
-    tests
-
-**Note:** The offline tests require no AWS credentials. The online tests read
-the variables above and pass explicit credentials through QDMI parameters. In
-normal use, omitting those parameters delegates credential discovery and refresh
-to the AWS SDK default provider chain. Session initialization also accepts the
-service-specific environment fallbacks documented in the
-[SPANK guide](spank/README.md) when the corresponding API parameters have not
-been set explicitly.
+The catalogue check performs authenticated metadata queries but does not submit
+QPU tasks. The coverage workflow enables the live registry and this check only
+when its AWS access key, secret key, and S3 bucket secrets are all available.
 
 ## Project Structure
 
