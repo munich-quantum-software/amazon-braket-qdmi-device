@@ -33,6 +33,16 @@
   "AMAZON_BRAKET_RESERVATION_ARN"
 
 /**
+ * @brief OpenQASM operations accepted by the Amazon Braket device.
+ * @details Returns an array of `AMAZON_BRAKET_QDMI_Operation` handles. For a
+ * QPU, this set can be broader than the hardware-native operations returned by
+ * `QDMI_DEVICE_PROPERTY_OPERATIONS`. Equal operation names use equal handles
+ * in both views.
+ */
+#define AMAZON_BRAKET_QDMI_DEVICE_PROPERTY_SUPPORTEDOPERATIONS                 \
+  QDMI_DEVICE_PROPERTY_CUSTOM1
+
+/**
  * @brief Amazon Braket-specific device session parameters.
  * @details These extend the standard QDMI parameters using the CUSTOM slots.
  */

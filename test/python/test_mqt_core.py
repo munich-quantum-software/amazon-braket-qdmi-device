@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from mqt.core.fomac import DeviceDefinition, register_device_if_absent
+from mqt.core.qdmi import driver
 
 from amazon.braket.qdmi import (
     AMAZON_BRAKET_QDMI_LIBRARY_PATH,
@@ -31,11 +31,11 @@ TEST_DEVICE_ID = "test.amazon.braket.packaged"
 
 def test_register_device_if_absent() -> None:
     """Register the packaged device without loading it or contacting AWS."""
-    definition = DeviceDefinition(
+    definition = driver.DeviceDefinition(
         TEST_DEVICE_ID,
         AMAZON_BRAKET_QDMI_LIBRARY_PATH,
         AMAZON_BRAKET_QDMI_PREFIX,
     )
 
-    assert register_device_if_absent(definition)
-    assert not register_device_if_absent(definition)
+    assert driver.register_device_if_absent(definition)
+    assert not driver.register_device_if_absent(definition)

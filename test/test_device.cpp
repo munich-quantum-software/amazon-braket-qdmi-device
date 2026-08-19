@@ -592,15 +592,15 @@ TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteData) {
   EXPECT_NO_THROW(sites = querySites(session)) << "Devices must provide sites";
   EXPECT_GT(sites.size(), 0);
   for (auto* site : sites) {
-    double t1 = 0.0;
+    uint64_t t1 = 0;
     EXPECT_THAT(
         AMAZON_BRAKET_QDMI_device_session_query_site_property(
-            session, site, QDMI_SITE_PROPERTY_T1, sizeof(double), &t1, nullptr),
+            session, site, QDMI_SITE_PROPERTY_T1, sizeof(t1), &t1, nullptr),
         testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
-    double t2 = 0.0;
+    uint64_t t2 = 0;
     EXPECT_THAT(
         AMAZON_BRAKET_QDMI_device_session_query_site_property(
-            session, site, QDMI_SITE_PROPERTY_T2, sizeof(double), &t2, nullptr),
+            session, site, QDMI_SITE_PROPERTY_T2, sizeof(t2), &t2, nullptr),
         testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
   }
 }
@@ -1193,8 +1193,8 @@ TEST_F(DeviceParsingTestFixture, SV1SimulatorParsing) {
 
   auto siteNames = getSiteNames(3);
   for (size_t i = 0; i < siteNames.size(); ++i) {
-    EXPECT_EQ(siteNames[i], "Q" + std::to_string(i))
-        << "SV1 sites should use standard format Q0, Q1, Q2, ...";
+    EXPECT_EQ(siteNames[i], std::to_string(i))
+        << "SV1 sites should use numeric names 0, 1, 2, ...";
   }
 
   size_t connectivitySize = 0;
@@ -1301,24 +1301,23 @@ TEST_F(DeviceParsingTestFixture, IQMDeviceSiteCoherenceTimes) {
   size_t sitesWithT1 = 0;
   size_t sitesWithT2 = 0;
   for (auto* site : sites) {
-    double t1 = 0.0;
+    uint64_t t1 = 0;
     const auto t1Result = AMAZON_BRAKET_QDMI_device_session_query_site_property(
-        session, site, QDMI_SITE_PROPERTY_T1, sizeof(double), &t1, nullptr);
+        session, site, QDMI_SITE_PROPERTY_T1, sizeof(t1), &t1, nullptr);
     if (t1Result == QDMI_SUCCESS) {
-      EXPECT_GT(t1, 0.0) << "T1 must be > 0 when supported";
-      // IQM T1 values in seconds; typical range is ~5e-6 to ~1e-4 s
-      EXPECT_LT(t1, 1.0) << "T1 above 1 s is implausibly large";
+      EXPECT_GT(t1, 0U) << "T1 must be > 0 when supported";
+      EXPECT_LT(t1, 1'000'000'000U) << "T1 above 1 s is implausibly large";
       ++sitesWithT1;
     } else {
       EXPECT_EQ(t1Result, QDMI_ERROR_NOTSUPPORTED);
     }
 
-    double t2 = 0.0;
+    uint64_t t2 = 0;
     const auto t2Result = AMAZON_BRAKET_QDMI_device_session_query_site_property(
-        session, site, QDMI_SITE_PROPERTY_T2, sizeof(double), &t2, nullptr);
+        session, site, QDMI_SITE_PROPERTY_T2, sizeof(t2), &t2, nullptr);
     if (t2Result == QDMI_SUCCESS) {
-      EXPECT_GT(t2, 0.0) << "T2 must be > 0 when supported";
-      EXPECT_LT(t2, 1.0) << "T2 above 1 s is implausibly large";
+      EXPECT_GT(t2, 0U) << "T2 must be > 0 when supported";
+      EXPECT_LT(t2, 1'000'000'000U) << "T2 above 1 s is implausibly large";
       ++sitesWithT2;
     } else {
       EXPECT_EQ(t2Result, QDMI_ERROR_NOTSUPPORTED);

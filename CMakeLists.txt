@@ -57,6 +57,12 @@ set(QDMI_PREFIX "AMAZON_BRAKET")
 # Check if this is the master project or used via add_subdirectory
 option(BUILD_AMAZON_BRAKET_TESTS "Build tests for the Amazon Braket QDMI device"
        ${PROJECT_IS_TOP_LEVEL})
+option(BUILD_AMAZON_BRAKET_LIVE_TESTS
+       "Build tests that access AWS and may submit paid Amazon Braket tasks" OFF)
+
+if(BUILD_AMAZON_BRAKET_LIVE_TESTS AND NOT BUILD_AMAZON_BRAKET_TESTS)
+  message(FATAL_ERROR "BUILD_AMAZON_BRAKET_LIVE_TESTS requires BUILD_AMAZON_BRAKET_TESTS")
+endif()
 
 include(cmake/ExternalDependencies.cmake)
 
@@ -86,11 +92,15 @@ endif()
 if(BUILD_AMAZON_BRAKET_TESTS)
   get_target_property(AMAZON_BRAKET_QDMI_DEVICE_ID ${QDMI_TARGET_NAME} QDMI_DEVICE_ID)
   get_target_property(AMAZON_BRAKET_QDMI_DEVICE_PREFIX ${QDMI_TARGET_NAME} QDMI_DEVICE_PREFIX)
+  get_target_property(AMAZON_BRAKET_QDMI_MANIFEST_NAME ${QDMI_TARGET_NAME} QDMI_MANIFEST_NAME)
   if(NOT AMAZON_BRAKET_QDMI_DEVICE_ID STREQUAL "amazon.braket.default")
     message(FATAL_ERROR "The Amazon Braket QDMI target does not export its stable device ID")
   endif()
   if(NOT AMAZON_BRAKET_QDMI_DEVICE_PREFIX STREQUAL "${QDMI_PREFIX}")
     message(FATAL_ERROR "The Amazon Braket QDMI target does not export its symbol prefix")
+  endif()
+  if(NOT AMAZON_BRAKET_QDMI_MANIFEST_NAME STREQUAL "${QDMI_TARGET_NAME}.qdmi.json")
+    message(FATAL_ERROR "The Amazon Braket QDMI target does not export its device catalog")
   endif()
 
   enable_testing()

@@ -1,19 +1,14 @@
 name: 🇨 • Coverage
 on:
   workflow_call:
-    inputs:
-      device-arn:
-        description: >
-          The Amazon Braket device ARN to use for tests that require a quantum device.
-          This can be any valid Amazon Braket device ARN, such as 'arn:aws:braket:::device/quantum-simulator/amazon/sv1'.
-        default: "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
-        type: string
     secrets:
-      AWS_S3_BUCKET:
-        required: false
       AWS_ACCESS_KEY_ID:
         required: false
       AWS_SECRET_ACCESS_KEY:
+        required: false
+      AWS_SESSION_TOKEN:
+        required: false
+      AWS_S3_BUCKET:
         required: false
 
 concurrency:
@@ -31,6 +26,10 @@ jobs:
       contents: read # Required for the `actions/checkout` action
       id-token: write # Required for the `codecov/codecov-action` action
     env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
       CMAKE_BUILD_PARALLEL_LEVEL: 4
       CTEST_PARALLEL_LEVEL: 4
       FORCE_COLOR: 3
@@ -41,12 +40,27 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Install dependencies
+        run: |
+          sudo timeout 10m apt-get \
+            -o Acquire::Retries=3 \
+            -o Acquire::http::Timeout=30 \
+            -o Acquire::https::Timeout=30 \
+            update
+          sudo timeout 10m apt-get \
+            -o Acquire::Retries=3 \
+            -o Acquire::http::Timeout=30 \
+            -o Acquire::https::Timeout=30 \
+            install -y ccache libcurl4-openssl-dev
+
       # set up ccache for faster builds
       - name: Set up ccache
         uses: Chocobo1/setup-ccache-action@802ec72ba1d54bbf75c52f45367253d6abec30f5 # v1.5.8
         with:
+          install_ccache: false
           prepend_symlinks_to_path: false
           override_cache_key: c++-coverage
+          update_packager_index: false
 
       - name: Set up mold as linker
         uses: rui314/setup-mold@9c9c13bf4c3f1adef0cc596abc155580bcb04444 # v1
@@ -62,25 +76,21 @@ jobs:
       - name: Install Ninja
         run: uv tool install ninja
 
-      # Install build dependencies
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libcurl4-openssl-dev
-
       - name: Configure CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON
+        run: |
+          live_tests=OFF
+          if [[ -n "${AWS_ACCESS_KEY_ID}" && -n "${AWS_SECRET_ACCESS_KEY}" && -n "${AWS_S3_BUCKET}" ]]; then
+            live_tests=ON
+            echo "AMAZON_BRAKET_QDMI_RUN_LIVE_CATALOG=1" >> "${GITHUB_ENV}"
+          fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON \
+            "-DBUILD_AMAZON_BRAKET_LIVE_TESTS=${live_tests}"
 
       - name: Build
         run: cmake --build build --config Debug
 
       - name: Test
-        env:
-          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEVICE_ARN: ${{ inputs.device-arn }}
-        run: ctest -C Debug --output-on-failure --test-dir build --repeat until-pass:3 --timeout 600
+        run: ctest -C Debug --output-on-failure --test-dir build --timeout 600
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0

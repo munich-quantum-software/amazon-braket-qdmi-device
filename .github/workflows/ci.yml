@@ -39,10 +39,6 @@ jobs:
     with:
       runs-on: ${{ matrix.runs-on }}
       config: ${{ matrix.config }}
-    secrets:
-      AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET || '' }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
 
   cpp-spank-tests-ubuntu:
     name: 🇨 SPANK 🐧
@@ -66,10 +62,6 @@ jobs:
     with:
       runs-on: ${{ matrix.runs-on }}
       config: ${{ matrix.config }}
-    secrets:
-      AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET || '' }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
 
   cpp-tests-windows:
     name: 🇨 Test 🏁
@@ -87,10 +79,6 @@ jobs:
     with:
       runs-on: ${{ matrix.runs-on }}
       config: ${{ matrix.config }}
-    secrets:
-      AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET || '' }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
 
   cpp-install-tests:
     name: 📦 Install
@@ -103,10 +91,6 @@ jobs:
     uses: ./.github/workflows/cpp-install-tests.yml
     with:
       runs-on: ${{ matrix.runs-on }}
-    secrets:
-      AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET || '' }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
 
   cpp-coverage:
     name: 🇨 Coverage
@@ -117,9 +101,10 @@ jobs:
       contents: read
       id-token: write
     secrets:
-      AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET || '' }}
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID || '' }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+      AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
 
   cpp-linter:
     name: 🇨 Lint
