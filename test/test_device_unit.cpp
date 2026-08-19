@@ -64,8 +64,6 @@
 #include <aws/s3/model/CreateBucketRequest.h>
 #include <aws/s3/model/GetObjectRequest.h>
 #include <aws/s3/model/GetObjectResult.h>
-#include <aws/s3/model/HeadBucketRequest.h>
-#include <aws/s3/model/PutPublicAccessBlockRequest.h>
 #include <aws/sts/STSClient.h>
 #include <aws/sts/STSErrors.h>
 #include <aws/sts/STSServiceClientModel.h>
@@ -328,58 +326,22 @@ private:
 
 class StubS3Client final : public Aws::S3::S3Client {
 public:
-  enum class BucketState : std::uint8_t {
-    Missing,
-    Owned,
-    Forbidden,
-    TransientFailure
-  };
-
   struct Configuration {
-    BucketState state = BucketState::Owned;
     std::optional<Aws::S3::S3Errors> createError = std::nullopt;
-    std::optional<Aws::S3::S3Errors> publicAccessBlockError = std::nullopt;
     std::optional<Aws::S3::S3Errors> getObjectError = std::nullopt;
-    bool failPublicAccessBlockOnce = false;
     Aws::Http::HttpResponseCode responseCode =
         Aws::Http::HttpResponseCode::REQUEST_NOT_MADE;
     std::string exceptionName = "StubError";
+    std::string errorMessage = "stubbed S3 failure";
     std::string resultJson = R"({"measurements":[[0,0],[1,1]]})";
   };
 
-  explicit StubS3Client(const BucketState state)
-      : Aws::S3::S3Client(Aws::Auth::AWSCredentials{"access", "secret"}),
-        configuration_{.state = state}, state_(state) {}
+  StubS3Client()
+      : Aws::S3::S3Client(Aws::Auth::AWSCredentials{"access", "secret"}) {}
 
   explicit StubS3Client(Configuration configuration)
       : Aws::S3::S3Client(Aws::Auth::AWSCredentials{"access", "secret"}),
-        configuration_(std::move(configuration)), state_(configuration_.state) {
-  }
-
-  auto HeadBucket(const Aws::S3::Model::HeadBucketRequest& request) const
-      -> Aws::S3::Model::HeadBucketOutcome override {
-    ++headCalls_;
-    bucket_ = request.GetBucket();
-    if (state_ == BucketState::Owned) {
-      return Aws::S3::Model::HeadBucketResult{};
-    }
-    const auto type = [this] {
-      switch (state_) {
-      case BucketState::Missing:
-        return Aws::S3::S3Errors::NO_SUCH_BUCKET;
-      case BucketState::Forbidden:
-        return Aws::S3::S3Errors::ACCESS_DENIED;
-      case BucketState::TransientFailure:
-        return Aws::S3::S3Errors::SERVICE_UNAVAILABLE;
-      case BucketState::Owned:
-        break;
-      }
-      return Aws::S3::S3Errors::UNKNOWN;
-    }();
-    Aws::Client::AWSError<Aws::S3::S3Errors> error{
-        type, "StubError", "stubbed HeadBucket failure", false};
-    return Aws::S3::S3Error{std::move(error)};
-  }
+        configuration_(std::move(configuration)) {}
 
   auto CreateBucket(const Aws::S3::Model::CreateBucketRequest& request) const
       -> Aws::S3::Model::CreateBucketOutcome override {
@@ -387,35 +349,13 @@ public:
     bucket_ = request.GetBucket();
     hasLocationConstraint_ = request.CreateBucketConfigurationHasBeenSet();
     if (configuration_.createError.has_value()) {
-      if (*configuration_.createError ==
-          Aws::S3::S3Errors::BUCKET_ALREADY_OWNED_BY_YOU) {
-        state_ = BucketState::Owned;
-      }
       Aws::Client::AWSError<Aws::S3::S3Errors> error{
           *configuration_.createError, configuration_.exceptionName,
-          "stubbed CreateBucket failure", false};
+          configuration_.errorMessage, false};
       error.SetResponseCode(configuration_.responseCode);
       return Aws::S3::S3Error{std::move(error)};
     }
-    state_ = BucketState::Owned;
     return Aws::S3::Model::CreateBucketResult{};
-  }
-
-  auto PutPublicAccessBlock(
-      const Aws::S3::Model::PutPublicAccessBlockRequest& request) const
-      -> Aws::S3::Model::PutPublicAccessBlockOutcome override {
-    static_cast<void>(request);
-    ++publicAccessBlockCalls_;
-    if (configuration_.publicAccessBlockError.has_value() &&
-        (!configuration_.failPublicAccessBlockOnce ||
-         publicAccessBlockCalls_ == 1U)) {
-      Aws::Client::AWSError<Aws::S3::S3Errors> error{
-          *configuration_.publicAccessBlockError, configuration_.exceptionName,
-          "stubbed PutPublicAccessBlock failure", false};
-      error.SetResponseCode(configuration_.responseCode);
-      return Aws::S3::S3Error{std::move(error)};
-    }
-    return Aws::NoResult{};
   }
 
   auto GetObject(const Aws::S3::Model::GetObjectRequest& request) const
@@ -426,7 +366,7 @@ public:
     if (configuration_.getObjectError.has_value()) {
       Aws::Client::AWSError<Aws::S3::S3Errors> error{
           *configuration_.getObjectError, configuration_.exceptionName,
-          "stubbed GetObject failure", false};
+          configuration_.errorMessage, false};
       error.SetResponseCode(configuration_.responseCode);
       return Aws::S3::S3Error{std::move(error)};
     }
@@ -436,11 +376,7 @@ public:
     return Aws::S3::Model::GetObjectOutcome{std::move(result)};
   }
 
-  [[nodiscard]] auto headCalls() const -> size_t { return headCalls_; }
   [[nodiscard]] auto createCalls() const -> size_t { return createCalls_; }
-  [[nodiscard]] auto publicAccessBlockCalls() const -> size_t {
-    return publicAccessBlockCalls_;
-  }
   [[nodiscard]] auto hasLocationConstraint() const -> bool {
     return hasLocationConstraint_;
   }
@@ -457,10 +393,7 @@ public:
 
 private:
   Configuration configuration_;
-  mutable BucketState state_;
-  mutable size_t headCalls_ = 0;
   mutable size_t createCalls_ = 0;
-  mutable size_t publicAccessBlockCalls_ = 0;
   mutable bool hasLocationConstraint_ = false;
   mutable std::string bucket_;
   mutable size_t getObjectCalls_ = 0;
@@ -876,23 +809,6 @@ TEST_F(AmazonBraketQDMIOfflineTest,
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
                 session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
                 strlen(deviceArn) + 1, deviceArn),
-            QDMI_SUCCESS);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
-}
-
-TEST_F(AmazonBraketQDMIOfflineTest,
-       SessionInitAcceptsServiceEndpointOverrides) {
-  const ScopedEnvironment braketEndpoint("AWS_ENDPOINT_URL_BRAKET",
-                                         "http://127.0.0.1:1");
-  const ScopedEnvironment s3Endpoint("AWS_ENDPOINT_URL_S3",
-                                     "http://127.0.0.1:1");
-  const ScopedEnvironment stsEndpoint("AWS_ENDPOINT_URL_STS",
-                                      "http://127.0.0.1:1");
-  constexpr std::string_view deviceArn =
-      "arn:aws:braket:us-east-1::device/qpu/test/FakeDevice";
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                session, AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
-                deviceArn.size() + 1, deviceArn.data()),
             QDMI_SUCCESS);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
 }
@@ -1380,7 +1296,8 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobRetrieveMapsAwsErrors) {
   const std::array errorMappings{
       std::pair{Aws::Braket::BraketErrors::RESOURCE_NOT_FOUND,
                 QDMI_ERROR_NOTFOUND},
-      std::pair{Aws::Braket::BraketErrors::VALIDATION, QDMI_ERROR_NOTFOUND},
+      std::pair{Aws::Braket::BraketErrors::VALIDATION,
+                QDMI_ERROR_INVALIDARGUMENT},
       std::pair{Aws::Braket::BraketErrors::ACCESS_DENIED,
                 QDMI_ERROR_PERMISSIONDENIED},
       std::pair{Aws::Braket::BraketErrors::UNRECOGNIZED_CLIENT,
@@ -1531,11 +1448,8 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterRejectsInvalidS3Uris) {
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
       QDMI_SUCCESS);
-  constexpr std::array invalidUris{
-      "bucket/prefix",       "s3://bucket",
-      "s3:///prefix",        "s3://UPPER/prefix",
-      "s3://ab/prefix",      "s3://-bucket/prefix",
-      "s3://bucket-/prefix", "s3://bucket..name/prefix"};
+  constexpr std::array invalidUris{"bucket/prefix", "s3://bucket",
+                                   "s3:///prefix", "s3://bucket/"};
   for (const auto* uri : invalidUris) {
     EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
                   freshJob, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
@@ -1978,8 +1892,7 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   auto braketClient = std::make_unique<StubBraketClient>(
       Aws::Braket::Model::GetQuantumTaskResult{});
   const auto* braket = braketClient.get();
-  auto s3Client =
-      std::make_unique<StubS3Client>(StubS3Client::BucketState::Forbidden);
+  auto s3Client = std::make_unique<StubS3Client>();
   const auto* s3 = s3Client.get();
   auto stsClient =
       std::make_unique<StubStsClient>(Aws::STS::STSErrors::ACCESS_DENIED);
@@ -2005,7 +1918,7 @@ TEST_F(AmazonBraketQDMILocalJobTest,
             QDMI_SUCCESS);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_SUCCESS);
   EXPECT_EQ(sts->calls(), 0U);
-  EXPECT_EQ(s3->headCalls(), 0U);
+  EXPECT_EQ(s3->createCalls(), 0U);
   EXPECT_EQ(braket->outputBucket(), "explicit-results");
   EXPECT_EQ(braket->outputPrefix(), "experiments/run-42");
   AMAZON_BRAKET_QDMI_device_job_free(job);
@@ -2082,6 +1995,11 @@ TEST_F(AmazonBraketQDMILocalJobTest, CreateQuantumTaskFailuresMapAwsErrors) {
   constexpr std::array failures{
       std::pair{Aws::Braket::BraketErrors::ACCESS_DENIED,
                 QDMI_ERROR_PERMISSIONDENIED},
+      std::pair{Aws::Braket::BraketErrors::VALIDATION,
+                QDMI_ERROR_INVALIDARGUMENT},
+      std::pair{Aws::Braket::BraketErrors::DEVICE_OFFLINE, QDMI_ERROR_BADSTATE},
+      std::pair{Aws::Braket::BraketErrors::DEVICE_RETIRED, QDMI_ERROR_BADSTATE},
+      std::pair{Aws::Braket::BraketErrors::CONFLICT, QDMI_ERROR_BADSTATE},
       std::pair{Aws::Braket::BraketErrors::SERVICE_UNAVAILABLE,
                 QDMI_ERROR_FATAL}};
   for (const auto& [error, expected] : failures) {
@@ -2114,8 +2032,7 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   auto braketClient = std::make_unique<StubBraketClient>(
       Aws::Braket::Model::GetQuantumTaskResult{});
   const auto* braket = braketClient.get();
-  auto s3Client =
-      std::make_unique<StubS3Client>(StubS3Client::BucketState::Forbidden);
+  auto s3Client = std::make_unique<StubS3Client>();
   const auto* s3 = s3Client.get();
   auto stsClient =
       std::make_unique<StubStsClient>(Aws::STS::STSErrors::ACCESS_DENIED);
@@ -2136,7 +2053,7 @@ TEST_F(AmazonBraketQDMILocalJobTest,
             QDMI_SUCCESS);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_SUCCESS);
   EXPECT_EQ(sts->calls(), 0U);
-  EXPECT_EQ(s3->headCalls(), 0U);
+  EXPECT_EQ(s3->createCalls(), 0U);
   EXPECT_EQ(braket->outputBucket(), "environment-results");
   EXPECT_EQ(braket->outputPrefix(), "tasks");
   AMAZON_BRAKET_QDMI_device_job_free(job);
@@ -2148,8 +2065,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, DefaultS3DestinationIsCreatedAndCached) {
   auto braketClient = std::make_unique<StubBraketClient>(
       Aws::Braket::Model::GetQuantumTaskResult{});
   const auto* braket = braketClient.get();
-  auto s3Client =
-      std::make_unique<StubS3Client>(StubS3Client::BucketState::Missing);
+  auto s3Client = std::make_unique<StubS3Client>();
   const auto* s3 = s3Client.get();
   auto stsClient = std::make_unique<StubStsClient>();
   const auto* sts = stsClient.get();
@@ -2175,9 +2091,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, DefaultS3DestinationIsCreatedAndCached) {
   AMAZON_BRAKET_QDMI_device_job_free(firstJob);
   AMAZON_BRAKET_QDMI_device_job_free(secondJob);
   EXPECT_EQ(sts->calls(), 1U);
-  EXPECT_EQ(s3->headCalls(), 1U);
   EXPECT_EQ(s3->createCalls(), 1U);
-  EXPECT_EQ(s3->publicAccessBlockCalls(), 1U);
   EXPECT_FALSE(s3->hasLocationConstraint());
   EXPECT_EQ(s3->bucket(), "amazon-braket-us-east-1-123456789012");
   EXPECT_EQ(braket->createCalls(), 2U);
@@ -2237,36 +2151,6 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   AMAZON_BRAKET_QDMI_device_job_free(job);
 }
 
-TEST_F(AmazonBraketQDMILocalJobTest, ExistingDefaultBucketIsReused) {
-  const ScopedEnvironment environment(
-      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
-  auto braketClient = std::make_unique<StubBraketClient>(
-      Aws::Braket::Model::GetQuantumTaskResult{});
-  const auto* braket = braketClient.get();
-  auto s3Client =
-      std::make_unique<StubS3Client>(StubS3Client::BucketState::Owned);
-  const auto* s3 = s3Client.get();
-  auto stsClient = std::make_unique<StubStsClient>();
-  const auto* sts = stsClient.get();
-  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
-      session, std::move(braketClient));
-  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
-      session, std::move(s3Client));
-  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
-      session, std::move(stsClient));
-
-  auto* const job = createConfiguredJob(session);
-  ASSERT_NE(job, nullptr);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_SUCCESS);
-  EXPECT_EQ(sts->calls(), 1U);
-  EXPECT_EQ(s3->headCalls(), 1U);
-  EXPECT_EQ(s3->createCalls(), 0U);
-  EXPECT_EQ(s3->publicAccessBlockCalls(), 0U);
-  EXPECT_EQ(braket->outputBucket(), "amazon-braket-us-east-1-123456789012");
-  EXPECT_EQ(braket->outputPrefix(), "tasks");
-  AMAZON_BRAKET_QDMI_device_job_free(job);
-}
-
 TEST_F(AmazonBraketQDMILocalJobTest, RegionalDefaultBucketSetsLocation) {
   const ScopedEnvironment environment(
       AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
@@ -2275,8 +2159,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, RegionalDefaultBucketSetsLocation) {
   auto braketClient = std::make_unique<StubBraketClient>(
       Aws::Braket::Model::GetQuantumTaskResult{});
   const auto* braket = braketClient.get();
-  auto s3Client =
-      std::make_unique<StubS3Client>(StubS3Client::BucketState::Missing);
+  auto s3Client = std::make_unique<StubS3Client>();
   const auto* s3 = s3Client.get();
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
       session, std::move(braketClient));
@@ -2299,8 +2182,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, InvalidEnvironmentS3UriIsRejected) {
   auto braketClient = std::make_unique<StubBraketClient>(
       Aws::Braket::Model::GetQuantumTaskResult{});
   const auto* braket = braketClient.get();
-  auto s3Client =
-      std::make_unique<StubS3Client>(StubS3Client::BucketState::Owned);
+  auto s3Client = std::make_unique<StubS3Client>();
   const auto* s3 = s3Client.get();
   auto stsClient = std::make_unique<StubStsClient>();
   const auto* sts = stsClient.get();
@@ -2316,44 +2198,15 @@ TEST_F(AmazonBraketQDMILocalJobTest, InvalidEnvironmentS3UriIsRejected) {
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job),
             QDMI_ERROR_INVALIDARGUMENT);
   EXPECT_EQ(sts->calls(), 0U);
-  EXPECT_EQ(s3->headCalls(), 0U);
+  EXPECT_EQ(s3->createCalls(), 0U);
   EXPECT_EQ(braket->createCalls(), 0U);
   AMAZON_BRAKET_QDMI_device_job_free(job);
 }
-
-namespace {
-class S3FailureTest : public AmazonBraketQDMILocalJobTest,
-                      public testing::WithParamInterface<
-                          std::tuple<StubS3Client::BucketState, QDMI_STATUS>> {
-};
-
-TEST_P(S3FailureTest, MapsHeadBucketFailure) {
-  const ScopedEnvironment environment(
-      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
-  auto s3Client = std::make_unique<StubS3Client>(std::get<0>(GetParam()));
-  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
-      session, std::move(s3Client));
-  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
-      session, std::make_unique<StubStsClient>());
-  auto* const job = createConfiguredJob(session);
-  ASSERT_NE(job, nullptr);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), std::get<1>(GetParam()));
-  AMAZON_BRAKET_QDMI_device_job_free(job);
-}
-
-INSTANTIATE_TEST_SUITE_P(
-    AmazonBraketQDMILocalJobTest, S3FailureTest,
-    testing::Values(std::tuple{StubS3Client::BucketState::Forbidden,
-                               QDMI_ERROR_PERMISSIONDENIED},
-                    std::tuple{StubS3Client::BucketState::TransientFailure,
-                               QDMI_ERROR_FATAL}));
-} // namespace
 
 TEST_F(AmazonBraketQDMILocalJobTest, DefaultBucketNameConflictIsDenied) {
   const ScopedEnvironment environment(
       AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
   auto s3Client = std::make_unique<StubS3Client>(StubS3Client::Configuration{
-      .state = StubS3Client::BucketState::Missing,
       .createError = Aws::S3::S3Errors::BUCKET_ALREADY_EXISTS});
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
       session, std::move(s3Client));
@@ -2366,14 +2219,12 @@ TEST_F(AmazonBraketQDMILocalJobTest, DefaultBucketNameConflictIsDenied) {
   AMAZON_BRAKET_QDMI_device_job_free(job);
 }
 
-TEST_F(AmazonBraketQDMILocalJobTest,
-       AlreadyOwnedDefaultBucketIsReusedWithoutConfigurationChanges) {
+TEST_F(AmazonBraketQDMILocalJobTest, AlreadyOwnedDefaultBucketIsReused) {
   const ScopedEnvironment environment(
       AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
   auto braketClient = std::make_unique<StubBraketClient>(
       Aws::Braket::Model::GetQuantumTaskResult{});
   auto s3Client = std::make_unique<StubS3Client>(StubS3Client::Configuration{
-      .state = StubS3Client::BucketState::Missing,
       .createError = Aws::S3::S3Errors::BUCKET_ALREADY_OWNED_BY_YOU});
   const auto* s3 = s3Client.get();
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
@@ -2386,7 +2237,6 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   ASSERT_NE(job, nullptr);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_SUCCESS);
   EXPECT_EQ(s3->createCalls(), 1U);
-  EXPECT_EQ(s3->publicAccessBlockCalls(), 0U);
   AMAZON_BRAKET_QDMI_device_job_free(job);
 }
 
@@ -2399,8 +2249,7 @@ TEST_P(CreateBucketFailureTest, MapsServiceFailure) {
   const ScopedEnvironment environment(
       AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
   auto s3Client = std::make_unique<StubS3Client>(
-      StubS3Client::Configuration{.state = StubS3Client::BucketState::Missing,
-                                  .createError = std::get<0>(GetParam())});
+      StubS3Client::Configuration{.createError = std::get<0>(GetParam())});
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
       session, std::move(s3Client));
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
@@ -2419,35 +2268,16 @@ INSTANTIATE_TEST_SUITE_P(
                                QDMI_ERROR_FATAL}));
 
 TEST_F(AmazonBraketQDMILocalJobTest,
-       DefaultBucketPublicAccessBlockPermissionFailureIsDenied) {
-  const ScopedEnvironment environment(
-      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
-  auto s3Client = std::make_unique<StubS3Client>(StubS3Client::Configuration{
-      .state = StubS3Client::BucketState::Missing,
-      .publicAccessBlockError = Aws::S3::S3Errors::UNKNOWN,
-      .responseCode = Aws::Http::HttpResponseCode::FORBIDDEN});
-  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
-      session, std::move(s3Client));
-  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
-      session, std::make_unique<StubStsClient>());
-  auto* const job = createConfiguredJob(session);
-  ASSERT_NE(job, nullptr);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job),
-            QDMI_ERROR_PERMISSIONDENIED);
-  AMAZON_BRAKET_QDMI_device_job_free(job);
-}
-
-TEST_F(AmazonBraketQDMILocalJobTest,
-       PartialDefaultBucketSetupIsRetriedBeforeCaching) {
+       ConcurrentDefaultBucketCreationIsAccepted) {
   const ScopedEnvironment environment(
       AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
   auto braketClient = std::make_unique<StubBraketClient>(
       Aws::Braket::Model::GetQuantumTaskResult{});
   const auto* braket = braketClient.get();
   auto s3Client = std::make_unique<StubS3Client>(StubS3Client::Configuration{
-      .state = StubS3Client::BucketState::Missing,
-      .publicAccessBlockError = Aws::S3::S3Errors::SERVICE_UNAVAILABLE,
-      .failPublicAccessBlockOnce = true});
+      .createError = Aws::S3::S3Errors::UNKNOWN,
+      .exceptionName = "OperationAborted",
+      .errorMessage = "A conflicting conditional operation is in progress"});
   const auto* s3 = s3Client.get();
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
       session, std::move(braketClient));
@@ -2455,20 +2285,31 @@ TEST_F(AmazonBraketQDMILocalJobTest,
       session, std::move(s3Client));
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
       session, std::make_unique<StubStsClient>());
-
-  auto* const firstJob = createConfiguredJob(session);
-  ASSERT_NE(firstJob, nullptr);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(firstJob), QDMI_ERROR_FATAL);
-  AMAZON_BRAKET_QDMI_device_job_free(firstJob);
-
-  auto* const secondJob = createConfiguredJob(session);
-  ASSERT_NE(secondJob, nullptr);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(secondJob), QDMI_SUCCESS);
-  AMAZON_BRAKET_QDMI_device_job_free(secondJob);
-  EXPECT_EQ(s3->headCalls(), 2U);
+  auto* const job = createConfiguredJob(session);
+  ASSERT_NE(job, nullptr);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_SUCCESS);
   EXPECT_EQ(s3->createCalls(), 1U);
-  EXPECT_EQ(s3->publicAccessBlockCalls(), 2U);
   EXPECT_EQ(braket->createCalls(), 1U);
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       UnrelatedOperationAbortedBucketFailureIsRejected) {
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI, "");
+  auto s3Client = std::make_unique<StubS3Client>(StubS3Client::Configuration{
+      .createError = Aws::S3::S3Errors::UNKNOWN,
+      .exceptionName = "OperationAborted",
+      .errorMessage = "A different operation was aborted"});
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
+      session, std::move(s3Client));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(
+      session, std::make_unique<StubStsClient>());
+
+  auto* const job = createConfiguredJob(session);
+  ASSERT_NE(job, nullptr);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_ERROR_FATAL);
+  AMAZON_BRAKET_QDMI_device_job_free(job);
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest,
@@ -2489,8 +2330,7 @@ TEST_F(AmazonBraketQDMILocalJobTest,
       .WithOutputS3Directory("returned/task-id");
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
       session, std::make_unique<StubBraketClient>(std::move(task)));
-  auto s3Client =
-      std::make_unique<StubS3Client>(StubS3Client::BucketState::Owned);
+  auto s3Client = std::make_unique<StubS3Client>();
   const auto* s3 = s3Client.get();
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
       session, std::move(s3Client));
@@ -2528,7 +2368,6 @@ TEST_F(AmazonBraketQDMILocalJobTest, ResultRetrievalMapsS3PermissionFailure) {
       session, std::make_unique<StubBraketClient>(std::move(task)));
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
       session, std::make_unique<StubS3Client>(StubS3Client::Configuration{
-                   .state = StubS3Client::BucketState::Owned,
                    .getObjectError = Aws::S3::S3Errors::ACCESS_DENIED}));
   AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
@@ -2537,6 +2376,31 @@ TEST_F(AmazonBraketQDMILocalJobTest, ResultRetrievalMapsS3PermissionFailure) {
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
                 job, QDMI_JOB_RESULT_SHOTS, 0, nullptr, nullptr),
             QDMI_ERROR_PERMISSIONDENIED);
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, ResultRetrievalMapsMissingS3Object) {
+  constexpr auto* taskArn =
+      "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
+  Aws::Braket::Model::GetQuantumTaskResult task;
+  task.WithQuantumTaskArn(taskArn)
+      .WithDeviceArn("arn:aws:braket:::device/quantum-simulator/amazon/sv1")
+      .WithStatus(Aws::Braket::Model::QuantumTaskStatus::COMPLETED)
+      .WithShots(2)
+      .WithOutputS3Bucket("task-returned-results")
+      .WithOutputS3Directory("returned/task-id");
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::make_unique<StubBraketClient>(std::move(task)));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
+      session, std::make_unique<StubS3Client>(StubS3Client::Configuration{
+                   .getObjectError = Aws::S3::S3Errors::NO_SUCH_KEY}));
+  AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                session, taskArn, &job),
+            QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
+                job, QDMI_JOB_RESULT_SHOTS, 0, nullptr, nullptr),
+            QDMI_ERROR_NOTFOUND);
   AMAZON_BRAKET_QDMI_device_job_free(job);
 }
 
@@ -2561,9 +2425,8 @@ TEST_P(InvalidResultDocumentTest, IsRejected) {
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
       session, std::make_unique<StubBraketClient>(std::move(task)));
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
-      session, std::make_unique<StubS3Client>(StubS3Client::Configuration{
-                   .state = StubS3Client::BucketState::Owned,
-                   .resultJson = GetParam()}));
+      session, std::make_unique<StubS3Client>(
+                   StubS3Client::Configuration{.resultJson = GetParam()}));
   AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
                 session, taskArn, &job),

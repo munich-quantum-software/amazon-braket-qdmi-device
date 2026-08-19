@@ -250,10 +250,6 @@ private:
     std::string prefix;
   };
   std::optional<S3Destination> defaultS3Destination_;
-  // Keep retrying the security setup only for a bucket created by this
-  // session. A pre-existing bucket can have administrator-managed settings
-  // and must not be modified.
-  bool defaultS3BucketCreated_ = false;
   mutable std::mutex defaultS3DestinationMutex_;
 
 public:

@@ -90,6 +90,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 <!-- PR links -->
 
 [#171]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/171
+[#172]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/172
 [#167]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/167
 [#166]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/166
 [#160]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/160

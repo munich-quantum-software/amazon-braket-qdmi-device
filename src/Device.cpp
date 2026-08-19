@@ -71,6 +71,7 @@
 #include <array>
 #include <aws/braket/BraketClient.h>
 #include <aws/braket/BraketErrors.h>
+#include <aws/braket/BraketServiceClientModel.h>
 #include <aws/braket/model/Association.h>
 #include <aws/braket/model/AssociationType.h>
 #include <aws/braket/model/CancelQuantumTaskRequest.h>
@@ -84,10 +85,9 @@
 #include <aws/braket/model/QuantumTaskAdditionalAttributeName.h>
 #include <aws/braket/model/QuantumTaskStatus.h>
 #include <aws/core/Aws.h>
-#include <aws/core/auth/AWSCredentialsProvider.h>
 #include <aws/core/auth/AWSCredentialsProviderChain.h>
-#include <aws/core/client/ClientConfiguration.h>
 #include <aws/core/client/CoreErrors.h>
+#include <aws/core/config/EndpointResolver.h>
 #include <aws/core/http/HttpResponse.h>
 #include <aws/core/utils/Array.h>
 #include <aws/core/utils/json/JsonSerializer.h>
@@ -100,20 +100,15 @@
 #include <aws/s3/model/CreateBucketConfiguration.h>
 #include <aws/s3/model/CreateBucketRequest.h>
 #include <aws/s3/model/GetObjectRequest.h>
-#include <aws/s3/model/HeadBucketRequest.h>
-#include <aws/s3/model/PublicAccessBlockConfiguration.h>
-#include <aws/s3/model/PutPublicAccessBlockRequest.h>
 #include <aws/sts/STSClient.h>
 #include <aws/sts/STSServiceClientModel.h>
 #include <aws/sts/model/GetCallerIdentityRequest.h>
-#include <cctype>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
-#include <fstream>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -423,21 +418,6 @@ auto computeQDMIStatusFromDevice(
       queueLength.value_or(QUEUE_BUSY_THRESHOLD));
 }
 
-auto isPermissionError(const Aws::Braket::BraketErrors error) -> bool {
-  switch (error) {
-  case Aws::Braket::BraketErrors::ACCESS_DENIED:
-  case Aws::Braket::BraketErrors::INVALID_ACCESS_KEY_ID:
-  case Aws::Braket::BraketErrors::INVALID_CLIENT_TOKEN_ID:
-  case Aws::Braket::BraketErrors::INVALID_SIGNATURE:
-  case Aws::Braket::BraketErrors::MISSING_AUTHENTICATION_TOKEN:
-  case Aws::Braket::BraketErrors::SIGNATURE_DOES_NOT_MATCH:
-  case Aws::Braket::BraketErrors::UNRECOGNIZED_CLIENT:
-    return true;
-  default:
-    return false;
-  }
-}
-
 auto statusFromCurrentException() noexcept -> QDMI_STATUS {
   try {
     throw;
@@ -482,15 +462,25 @@ template <class Error> auto isAwsPermissionError(const Error& error) -> bool {
 }
 
 template <class Error>
+void logAwsServiceError(const Error& error, const std::string_view operation) {
+  std::cerr << operation << " failed (" << error.GetExceptionName();
+  if (!error.GetRequestId().empty()) {
+    std::cerr << ", request ID " << error.GetRequestId();
+  }
+  std::cerr << ").\n";
+}
+
+template <class Error>
 auto mapAwsServiceError(const Error& error, const std::string_view operation)
     -> QDMI_STATUS {
-  std::cerr << operation << " failed: " << error.GetMessage() << "\n";
+  logAwsServiceError(error, operation);
   return isAwsPermissionError(error) ? QDMI_ERROR_PERMISSIONDENIED
                                      : QDMI_ERROR_FATAL;
 }
 
-auto mapGetDeviceError(const Aws::Braket::BraketError& error) -> QDMI_STATUS {
-  std::cerr << "Braket GetDevice failed: " << error.GetMessage() << "\n";
+auto mapBraketServiceError(const Aws::Braket::BraketError& error,
+                           const std::string_view operation) -> QDMI_STATUS {
+  logAwsServiceError(error, operation);
   if (isAwsPermissionError(error)) {
     return QDMI_ERROR_PERMISSIONDENIED;
   }
@@ -499,23 +489,29 @@ auto mapGetDeviceError(const Aws::Braket::BraketError& error) -> QDMI_STATUS {
     return QDMI_ERROR_NOTFOUND;
   case Aws::Braket::BraketErrors::VALIDATION:
     return QDMI_ERROR_INVALIDARGUMENT;
+  case Aws::Braket::BraketErrors::CONFLICT:
+  case Aws::Braket::BraketErrors::DEVICE_OFFLINE:
+  case Aws::Braket::BraketErrors::DEVICE_RETIRED:
+    return QDMI_ERROR_BADSTATE;
   default:
     return QDMI_ERROR_FATAL;
   }
 }
 
-auto isValidS3BucketName(const std::string_view bucket) -> bool {
-  if (bucket.size() < 3 || bucket.size() > 63 ||
-      std::isalnum(static_cast<unsigned char>(bucket.front())) == 0 ||
-      std::isalnum(static_cast<unsigned char>(bucket.back())) == 0 ||
-      bucket.find("..") != std::string_view::npos) {
-    return false;
+auto mapS3ServiceError(const Aws::S3::S3Error& error,
+                       const std::string_view operation) -> QDMI_STATUS {
+  logAwsServiceError(error, operation);
+  if (isAwsPermissionError(error)) {
+    return QDMI_ERROR_PERMISSIONDENIED;
   }
-  return std::ranges::all_of(bucket, [](const char character) {
-    const auto value = static_cast<unsigned char>(character);
-    return std::islower(value) != 0 || std::isdigit(value) != 0 ||
-           character == '-' || character == '.';
-  });
+  switch (error.GetErrorType()) {
+  case Aws::S3::S3Errors::NO_SUCH_BUCKET:
+  case Aws::S3::S3Errors::NO_SUCH_KEY:
+  case Aws::S3::S3Errors::RESOURCE_NOT_FOUND:
+    return QDMI_ERROR_NOTFOUND;
+  default:
+    return QDMI_ERROR_FATAL;
+  }
 }
 
 auto parseS3Uri(const std::string_view uri, std::string& bucket,
@@ -529,17 +525,8 @@ auto parseS3Uri(const std::string_view uri, std::string& bucket,
       separator + 1 >= uri.size()) {
     return false;
   }
-  const auto bucketView = uri.substr(scheme.size(), separator - scheme.size());
-  const auto prefixView = uri.substr(separator + 1);
-  if (!isValidS3BucketName(bucketView) ||
-      std::ranges::any_of(prefixView, [](const char character) {
-        const auto value = static_cast<unsigned char>(character);
-        return std::iscntrl(value) != 0;
-      })) {
-    return false;
-  }
-  bucket.assign(bucketView);
-  prefix.assign(prefixView);
+  bucket.assign(uri.substr(scheme.size(), separator - scheme.size()));
+  prefix.assign(uri.substr(separator + 1));
   return true;
 }
 } // anonymous namespace
@@ -696,7 +683,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
     request.SetDeviceArn(deviceArn_.c_str());
     auto outcome = client_->GetDevice(request);
     if (!outcome.IsSuccess()) {
-      return mapGetDeviceError(outcome.GetError());
+      return mapBraketServiceError(outcome.GetError(), "Braket GetDevice");
     }
     const auto& device = outcome.GetResult();
     const auto queueLength = getTotalQueueLength(device);
@@ -722,7 +709,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
 
   auto outcome = client_->GetDevice(request);
   if (!outcome.IsSuccess()) {
-    return mapGetDeviceError(outcome.GetError());
+    return mapBraketServiceError(outcome.GetError(), "Braket GetDevice");
   }
 
   const auto& device = outcome.GetResult();
@@ -888,53 +875,26 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS try {
     }
   }
 
-  const auto applyEndpointOverride = [](auto& configuration,
-                                        const char* serviceVariable) {
-    const auto apply = [&configuration](const char* variable) {
-      if (const auto* value = std::getenv(variable);
-          value != nullptr && *value != '\0') {
-        configuration.endpointOverride = value;
-        return true;
-      }
-      return false;
-    };
-    if (!apply(serviceVariable)) {
-      apply("AWS_ENDPOINT_URL");
-    }
-  };
-
-  // Configure AWS clients with the device region and standard SDK endpoint
-  // overrides. The service-specific value takes precedence over the common
-  // endpoint.
-  const auto config = [this, &applyEndpointOverride] {
-    Aws::Client::ClientConfiguration result;
-    if (!region_.empty()) {
-      result.region = region_;
-    }
-    applyEndpointOverride(result, "AWS_ENDPOINT_URL_BRAKET");
-    return result;
-  }();
+  Aws::Braket::BraketClientConfiguration config;
+  config.region = region_;
 
   credentialsProvider_ =
       Aws::MakeShared<Aws::Auth::DefaultAWSCredentialsProviderChain>(
           "AmazonBraketQDMICredentialsProvider",
           config.ResolveCredentialProviderConfig());
-  client_ =
-      std::make_unique<Aws::Braket::BraketClient>(credentialsProvider_, config);
-  const auto s3Config = [this, &applyEndpointOverride] {
-    Aws::S3::S3ClientConfiguration result;
-    result.region = region_;
-    applyEndpointOverride(result, "AWS_ENDPOINT_URL_S3");
-    return result;
-  }();
+  client_ = std::make_unique<Aws::Braket::BraketClient>(credentialsProvider_,
+                                                        nullptr, config);
+  Aws::S3::S3ClientConfiguration s3Config;
+  s3Config.region = region_;
   s3Client_ = std::make_unique<Aws::S3::S3Client>(credentialsProvider_, nullptr,
                                                   s3Config);
-  const auto stsConfig = [this, &applyEndpointOverride] {
-    Aws::STS::STSClientConfiguration result;
-    result.region = region_;
-    applyEndpointOverride(result, "AWS_ENDPOINT_URL_STS");
-    return result;
-  }();
+  Aws::STS::STSClientConfiguration stsConfig;
+  stsConfig.region = region_;
+  // AWS SDK 1.11 does not pass a service name to the STS endpoint provider.
+  // Resolve its standard service-specific environment/profile override here;
+  // Braket and S3 perform this step internally.
+  stsConfig.endpointOverride = Aws::Config::EndpointResolver::EndpointSource(
+      "sts", stsConfig.profileName);
   stsClient_ = std::make_unique<Aws::STS::STSClient>(credentialsProvider_,
                                                      nullptr, stsConfig);
 
@@ -1039,64 +999,35 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::resolveS3Destination(
   S3Destination resolved{.bucket = "amazon-braket-" + region_ + "-" + accountId,
                          .prefix = "tasks"};
 
-  Aws::S3::Model::HeadBucketRequest headRequest;
-  headRequest.SetBucket(resolved.bucket);
-  const auto headOutcome = s3Client_->HeadBucket(headRequest);
-  if (!headOutcome.IsSuccess()) {
-    const auto& headError = headOutcome.GetError();
-    const bool bucketMissing =
-        headError.GetErrorType() == Aws::S3::S3Errors::NO_SUCH_BUCKET ||
-        headError.GetResponseCode() == Aws::Http::HttpResponseCode::NOT_FOUND;
-    if (!bucketMissing) {
-      return mapAwsServiceError(headError, "S3 HeadBucket");
-    }
-
-    Aws::S3::Model::CreateBucketRequest createRequest;
-    createRequest.SetBucket(resolved.bucket);
-    if (region_ != "us-east-1") {
-      Aws::S3::Model::CreateBucketConfiguration configuration;
-      configuration.SetLocationConstraint(
-          Aws::S3::Model::BucketLocationConstraintMapper::
-              GetBucketLocationConstraintForName(region_));
-      createRequest.SetCreateBucketConfiguration(configuration);
-    }
-    const auto createOutcome = s3Client_->CreateBucket(createRequest);
-    if (!createOutcome.IsSuccess()) {
-      const auto& createError = createOutcome.GetError();
-      if (createError.GetErrorType() ==
-          Aws::S3::S3Errors::BUCKET_ALREADY_EXISTS) {
-        std::cerr << "The standard Amazon Braket bucket name belongs to "
-                     "another AWS account.\n";
-        return QDMI_ERROR_PERMISSIONDENIED;
-      }
-      if (createError.GetErrorType() !=
-          Aws::S3::S3Errors::BUCKET_ALREADY_OWNED_BY_YOU) {
-        return mapAwsServiceError(createError, "S3 CreateBucket");
-      }
-    } else {
-      defaultS3BucketCreated_ = true;
-    }
+  Aws::S3::Model::CreateBucketRequest createRequest;
+  createRequest.SetBucket(resolved.bucket);
+  if (region_ != "us-east-1") {
+    Aws::S3::Model::CreateBucketConfiguration configuration;
+    configuration.SetLocationConstraint(
+        Aws::S3::Model::BucketLocationConstraintMapper::
+            GetBucketLocationConstraintForName(region_));
+    createRequest.SetCreateBucketConfiguration(configuration);
   }
-
-  if (defaultS3BucketCreated_) {
-    // Keep the created flag set until public-access blocking succeeds so a
-    // later submission can finish a partial setup. Never replace the
-    // configuration of a bucket that predates this session.
-    Aws::S3::Model::PublicAccessBlockConfiguration publicAccessBlock;
-    publicAccessBlock.SetBlockPublicAcls(true);
-    publicAccessBlock.SetIgnorePublicAcls(true);
-    publicAccessBlock.SetBlockPublicPolicy(true);
-    publicAccessBlock.SetRestrictPublicBuckets(true);
-    Aws::S3::Model::PutPublicAccessBlockRequest blockRequest;
-    blockRequest.SetBucket(resolved.bucket);
-    blockRequest.SetPublicAccessBlockConfiguration(publicAccessBlock);
-    const auto blockOutcome = s3Client_->PutPublicAccessBlock(blockRequest);
-    if (!blockOutcome.IsSuccess()) {
-      return mapAwsServiceError(blockOutcome.GetError(),
-                                "S3 PutPublicAccessBlock");
+  const auto createOutcome = s3Client_->CreateBucket(createRequest);
+  if (!createOutcome.IsSuccess()) {
+    const auto& error = createOutcome.GetError();
+    if (error.GetErrorType() == Aws::S3::S3Errors::BUCKET_ALREADY_EXISTS) {
+      logAwsServiceError(error, "S3 CreateBucket");
+      return QDMI_ERROR_PERMISSIONDENIED;
     }
-
-    defaultS3BucketCreated_ = false;
+    const std::string_view exceptionName{error.GetExceptionName().data(),
+                                         error.GetExceptionName().size()};
+    const std::string_view message{error.GetMessage().data(),
+                                   error.GetMessage().size()};
+    const bool concurrentCreation =
+        exceptionName == "OperationAborted" &&
+        message.find("conflicting conditional operation") !=
+            std::string_view::npos;
+    if (error.GetErrorType() !=
+            Aws::S3::S3Errors::BUCKET_ALREADY_OWNED_BY_YOU &&
+        !concurrentCreation) {
+      return mapS3ServiceError(error, "S3 CreateBucket");
+    }
   }
 
   defaultS3Destination_ = resolved;
@@ -1135,19 +1066,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::openDeviceJob(
   request.SetQuantumTaskArn(jobId);
   const auto outcome = client_->GetQuantumTask(request);
   if (!outcome.IsSuccess()) {
-    const auto error = outcome.GetError().GetErrorType();
-    switch (error) {
-    case Aws::Braket::BraketErrors::RESOURCE_NOT_FOUND:
-    case Aws::Braket::BraketErrors::VALIDATION:
-      return QDMI_ERROR_NOTFOUND;
-    default:
-      if (isPermissionError(error)) {
-        return QDMI_ERROR_PERMISSIONDENIED;
-      }
-      std::cerr << "Failed to open task: " << outcome.GetError().GetMessage()
-                << "\n";
-      return QDMI_ERROR_FATAL;
-    }
+    return mapBraketServiceError(outcome.GetError(), "Braket GetQuantumTask");
   }
 
   const auto& task = outcome.GetResult();
@@ -1587,7 +1506,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
     submitting_ = false;
     status_.store(QDMI_JOB_STATUS_FAILED);
-    return mapAwsServiceError(outcome.GetError(), "Braket CreateQuantumTask");
+    return mapBraketServiceError(outcome.GetError(),
+                                 "Braket CreateQuantumTask");
   }
 
   {
@@ -1661,11 +1581,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS try {
 
   auto outcome = session_->getClient()->CancelQuantumTask(request);
   if (!outcome.IsSuccess()) {
-    std::cerr << "Failed to cancel task: " << outcome.GetError().GetMessage()
-              << "\n";
-    return isPermissionError(outcome.GetError().GetErrorType())
-               ? QDMI_ERROR_PERMISSIONDENIED
-               : QDMI_ERROR_FATAL;
+    return mapBraketServiceError(outcome.GetError(),
+                                 "Braket CancelQuantumTask");
   }
 
   // Cancellation request succeeded - task is now in CANCELLING state.
@@ -1785,11 +1702,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
 
   auto outcome = session_->getClient()->GetQuantumTask(request);
   if (!outcome.IsSuccess()) {
-    std::cerr << "Failed to check task: " << outcome.GetError().GetMessage()
-              << "\n";
-    return isPermissionError(outcome.GetError().GetErrorType())
-               ? QDMI_ERROR_PERMISSIONDENIED
-               : QDMI_ERROR_FATAL;
+    return mapBraketServiceError(outcome.GetError(), "Braket GetQuantumTask");
   }
 
   return updateFromTask(outcome.GetResult(), status);
@@ -1861,7 +1774,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal() const
 
   auto outcome = session_->getS3Client()->GetObject(getRequest);
   if (!outcome.IsSuccess()) {
-    return mapAwsServiceError(outcome.GetError(), "S3 GetObject");
+    return mapS3ServiceError(outcome.GetError(), "S3 GetObject");
   }
 
   // Read response body into string

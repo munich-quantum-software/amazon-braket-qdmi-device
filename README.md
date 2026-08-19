@@ -128,9 +128,9 @@ resolves the destination in this order:
 The first two forms must contain a complete URI such as
 `s3://my-results/experiments/run-42`. They do not call STS or any S3 bucket
 management API. The automatic form resolves the account with STS. It creates the
-standard bucket when needed and blocks public access. This work starts only when
-the first job is submitted. Opening a device and querying properties do not
-require STS or S3 permissions.
+standard bucket when needed; new S3 buckets block public access by default. This
+work starts only when the first job is submitted. Opening a device and querying
+properties do not require STS or S3 permissions.
 
 ```cpp
 #include <amazon-braket-qdmi-device/constants.hpp>
@@ -148,7 +148,7 @@ AMAZON_BRAKET_QDMI_device_job_set_parameter(
 
 For a restricted HPC role, provision the bucket in advance and set the job URI
 or `AMZN_BRAKET_TASK_RESULTS_S3_URI`. This path needs object access but does not
-need STS, `CreateBucket`, or `PutPublicAccessBlock`.
+need STS or `CreateBucket`.
 
 ## Job Parameters
 
@@ -577,9 +577,9 @@ ctest --test-dir build-live -L amazon-braket-live --output-on-failure
   SV1 task and can create the standard regional bucket.
 
 The offline tests need no AWS credentials or network access. All tests that
-access AWS are excluded from the default build and CTest registration.
-The coverage workflow enables the live registry and catalogue check only when
-its AWS access key, secret key, and S3 bucket secrets are all available.
+access AWS are excluded from the default build and CTest registration. The
+coverage workflow enables the live registry and catalogue check only when its
+AWS access key, secret key, and S3 bucket secrets are all available.
 
 ## Project Structure
 
