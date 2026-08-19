@@ -20,7 +20,12 @@
 from __future__ import annotations
 
 import json
+import sys
+from importlib import import_module
+from importlib.metadata import entry_points
 from pathlib import Path
+
+import pytest
 
 from amazon.braket.qdmi import (
     AMAZON_BRAKET_QDMI_CATALOG_PATH,
@@ -111,3 +116,26 @@ def test_paths_are_absolute() -> None:
     assert AMAZON_BRAKET_QDMI_CMAKE_DIR.is_absolute()
     assert AMAZON_BRAKET_QDMI_LIBRARY_PATH.is_absolute()
     assert AMAZON_BRAKET_QDMI_CATALOG_PATH.is_absolute()
+
+
+def test_pennylane_entry_point_is_lazy_on_the_base_install() -> None:
+    """Expose the complete catalogue without importing optional dependencies."""
+    catalogue = json.loads(AMAZON_BRAKET_QDMI_CATALOG_PATH.read_text(encoding="utf-8"))
+    catalogue_ids = {device["id"] for device in catalogue["qdmi"]["devices"]}
+    amazon_entry_points = {
+        entry_point.name: entry_point
+        for entry_point in entry_points(group="pennylane.plugins")
+        if entry_point.name.startswith("amazon.braket.")
+    }
+    assert set(amazon_entry_points) == catalogue_ids
+    assert all(
+        entry_point.value.startswith("amazon.braket.qdmi._pennylane_entrypoint:AmazonBraket")
+        for entry_point in amazon_entry_points.values()
+    )
+
+    shim = import_module("amazon.braket.qdmi._pennylane_entrypoint")
+    assert "pennylane" not in shim.__dict__
+    if sys.version_info < (3, 11):
+        for entry_point in amazon_entry_points.values():
+            with pytest.raises(ImportError, match=r"Python 3\.11"):
+                entry_point.load()

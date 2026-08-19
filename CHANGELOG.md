@@ -12,6 +12,8 @@ releases may include breaking changes.
 
 ### Added
 
+- ✨ Add PennyLane support for `amazon.braket.default` and every concrete device
+  in the installed catalogue ([#168]) ([**@burgholzer**])
 - 📝 Add Sphinx and MyST documentation for installation, configuration,
   capabilities, usage, and a standalone native API generated with Doxygen
   without Breathe ([#176]) ([**@burgholzer**])
@@ -102,6 +104,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 [#173]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/173
 [#172]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/172
 [#171]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/171
+[#168]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/168
 [#167]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/167
 [#166]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/166
 [#160]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/160

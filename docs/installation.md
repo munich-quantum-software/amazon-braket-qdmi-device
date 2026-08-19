@@ -129,12 +129,13 @@ user. The [SPANK README] describes both deployment modes.
 
 ## CMake options
 
-| Option                                    | Default | Description                                         |
-| ----------------------------------------- | ------- | --------------------------------------------------- |
-| `BUILD_AMAZON_BRAKET_TESTS`               | `ON`    | Build the test suite                                |
-| `BUILD_AMAZON_BRAKET_SPANK_PLUGIN`        | `OFF`   | Build the optional Slurm SPANK plugin               |
-| `USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE` | `OFF`   | Use an installed device library when building tests |
-| `CMAKE_PREFIX_PATH`                       | --      | Search prefix for installed dependencies            |
+| Option                                    | Default | Description                                                   |
+| ----------------------------------------- | ------- | ------------------------------------------------------------- |
+| `BUILD_AMAZON_BRAKET_TESTS`               | `ON`    | Build and register the offline test suite                     |
+| `BUILD_AMAZON_BRAKET_LIVE_TESTS`          | `OFF`   | Register tests that access AWS and may submit paid tasks      |
+| `BUILD_AMAZON_BRAKET_SPANK_PLUGIN`        | `OFF`   | Build the optional Slurm SPANK plugin                         |
+| `USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE` | `OFF`   | Use an installed device library when building tests           |
+| `CMAKE_PREFIX_PATH`                       | --      | Search prefix for installed dependencies                      |
 
 [Amazon Braket service authorization reference]: https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonbraket.html
 [device access guide]: https://docs.aws.amazon.com/braket/latest/developerguide/restrict-access.html
