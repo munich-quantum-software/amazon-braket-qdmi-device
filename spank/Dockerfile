@@ -34,24 +34,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# uv supplies Python for the PEP 723 mock script, so the image does not need a
-# separately managed Python installation.
 COPY --from=ghcr.io/astral-sh/uv:0.11.29 /uv /uvx /usr/local/bin/
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
 RUN uv python install 3.12
 
-RUN userdel -r ubuntu || true
+RUN userdel -r ubuntu 2>/dev/null || true
 RUN useradd -m -u 1000 -s /bin/bash testuser && \
     echo "testuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-RUN mkdir -p /var/spool/slurmctld /var/spool/slurmd /etc/slurm/plugstack.conf.d && \
-    chown slurm:slurm /var/spool/slurmctld && \
-    chown root:root /var/spool/slurmd && \
-    chmod 755 /var/spool/slurmctld /var/spool/slurmd && \
+RUN install -d -o slurm -g slurm /var/spool/slurmctld && \
+    install -d -o root -g root /var/spool/slurmd /etc/slurm/plugstack.conf.d && \
     touch /var/log/slurmctld.log /var/log/slurmd.log && \
     chown slurm:slurm /var/log/slurmctld.log && \
-    chown root:root /var/log/slurmd.log && \
-    echo "include /etc/slurm/plugstack.conf.d/*.conf" > /etc/slurm/plugstack.conf
+    printf '%s\n' 'include /etc/slurm/plugstack.conf.d/*.conf' \
+      > /etc/slurm/plugstack.conf
 
 COPY spank/config/slurm.conf /etc/slurm/slurm.conf
 COPY spank/config/cgroup.conf /etc/slurm/cgroup.conf
@@ -59,24 +55,36 @@ COPY spank/config/cgroup.conf /etc/slurm/cgroup.conf
 RUN mkdir -p /workspace && chown testuser:testuser /workspace
 WORKDIR /workspace
 COPY --chown=testuser:testuser . /workspace
+RUN chmod 755 /workspace/spank/test/*.sh
 
-# Build and install only the self-contained plugin component. The active
-# plugstack directive is deliberately installed after CMake's disabled template.
-RUN SLURM_LIB_DIR="/usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/slurm-wlm" && \
+# Install MQT Core from the repository lock so the test uses the same driver
+# revision as the project, without introducing another dependency pin here.
+RUN UV_PROJECT_ENVIRONMENT=/opt/spank-venv \
+    uv sync --locked --only-group test --no-install-project --python 3.12
+
+# Build the standalone plugin and install the provider runtime plus its device
+# catalogue for the job-process connector probe.
+RUN --mount=type=cache,id=amazon-braket-qdmi-spank-deps,target=/workspace/build-spank-docker/_deps \
+    SLURM_LIB_DIR="/usr/lib/$(dpkg-architecture -qDEB_HOST_MULTIARCH)/slurm-wlm" && \
     cmake -S /workspace -B /workspace/build-spank-docker \
       -DCMAKE_BUILD_TYPE=Release \
       -DBUILD_AMAZON_BRAKET_TESTS=OFF \
       -DBUILD_AMAZON_BRAKET_SPANK_PLUGIN=ON \
       -DAMAZON_BRAKET_QDMI_SPANK_INSTALL_DIR="$SLURM_LIB_DIR" \
       -DAMAZON_BRAKET_QDMI_SLURM_CONF_DIR=/etc/slurm && \
-    cmake --build /workspace/build-spank-docker --target amazon-braket-qdmi-spank --parallel 2 && \
+    cmake --build /workspace/build-spank-docker \
+      --target amazon-braket-qdmi-device amazon-braket-qdmi-spank \
+      --parallel 2 && \
+    cmake --install /workspace/build-spank-docker \
+      --component amazon-braket-qdmi-device_Runtime && \
     cmake --install /workspace/build-spank-docker \
       --component amazon-braket-qdmi-spank-plugin && \
-    rm -rf /workspace/build-spank-docker && \
-    echo "required $SLURM_LIB_DIR/amazon-braket-qdmi-spank.so amazon_braket_region=us-west-2" \
+    printf '%s\n' \
+      "required $SLURM_LIB_DIR/amazon-braket-qdmi-spank.so amazon_braket_profile=administrator-default" \
       > /etc/slurm/plugstack.conf.d/amazon-braket-qdmi.conf
 
 ENV UV_OFFLINE=1
+ENV MQT_CORE_QDMI_CONFIG_FILE=/usr/local/lib/amazon-braket-qdmi-device.qdmi.json
 
 USER testuser
 

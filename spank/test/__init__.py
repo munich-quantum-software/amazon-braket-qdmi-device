@@ -16,7 +16,4 @@
 # You should have received a copy of the GNU General Public License along
 # with this program. If not, see <https://www.gnu.org/licenses/>.
 
-# The real-Slurm fixture has no init system. Permit Slurm to create its cgroup
-# scope directly if its systemd request fails.
-CgroupPlugin=autodetect
-IgnoreSystemdOnFailure=yes
+"""Test support for the optional Amazon Braket SPANK plugin."""

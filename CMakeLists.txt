@@ -79,12 +79,6 @@ if(BUILD_AMAZON_BRAKET_SPANK_PLUGIN)
   if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
     message(FATAL_ERROR "The Amazon Braket SPANK plugin is supported only on Linux")
   endif()
-  if(USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
-    message(
-      FATAL_ERROR
-        "The SPANK plugin embeds the Amazon Braket QDMI implementation and must be built from source"
-    )
-  endif()
   add_subdirectory(spank)
 endif()
 

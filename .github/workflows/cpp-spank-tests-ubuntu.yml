@@ -4,7 +4,7 @@ on:
 
 jobs:
   cpp-spank-tests-ubuntu:
-    name: 🐧 ubuntu-24.04
+    name: 🐧 Slurm 23.11 • Ubuntu 24.04
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -14,4 +14,6 @@ jobs:
         run: docker build --tag amazon-braket-qdmi-spank-tests --file spank/Dockerfile .
 
       - name: Run real-Slurm SPANK tests
-        run: docker run --rm amazon-braket-qdmi-spank-tests
+        # Slurm creates a cgroup-v2 scope for slurmstepd even when the fixture
+        # uses proctrack/pgid and task/none.
+        run: docker run --rm --privileged amazon-braket-qdmi-spank-tests

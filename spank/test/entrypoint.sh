@@ -19,36 +19,39 @@
 
 set -euo pipefail
 
+show_logs() {
+  cat /var/log/slurmctld.log /var/log/slurmd.log /tmp/mock-braket-backend.log || true
+}
+trap show_logs ERR
+
 echo "=== Starting local Amazon Braket fixture ==="
-uv run --script /workspace/spank/test/mock_braket_backend.py \
+/opt/spank-venv/bin/python /workspace/spank/test/mock_braket_backend.py \
   >/tmp/mock-braket-backend.log 2>&1 &
 mock_pid=$!
-trap 'kill "$mock_pid" 2>/dev/null || true' EXIT
+trap 'kill "${mock_pid}" 2>/dev/null || true' EXIT
 for _ in {1..50}; do
   if curl --fail --silent http://127.0.0.1:18080/health >/dev/null; then
     break
   fi
   sleep 0.1
 done
-if ! curl --fail --silent http://127.0.0.1:18080/health >/dev/null; then
-  echo "ERROR: Local Amazon Braket fixture did not start" >&2
-  cat /tmp/mock-braket-backend.log >&2
-  exit 1
-fi
+curl --fail --silent http://127.0.0.1:18080/health >/dev/null
 
 echo "=== Starting Munge and Slurm ==="
 sudo service munge start
 sudo /usr/sbin/slurmctld
-# The Slurm daemon intentionally receives no AWS credentials. The local
-# endpoint keeps all device discovery deterministic and offline.
+sudo mkdir -p /sys/fs/cgroup/system.slice
+# Provider configuration belongs to the job. Keep it out of Slurm daemons.
 sudo env \
   -u AWS_ACCESS_KEY_ID \
   -u AWS_SECRET_ACCESS_KEY \
   -u AWS_SESSION_TOKEN \
+  -u AWS_PROFILE \
+  -u AWS_CONFIG_FILE \
   -u AWS_SHARED_CREDENTIALS_FILE \
-  -u AWS_REGION \
+  -u AWS_ENDPOINT_URL_BRAKET \
+  -u MQT_CORE_QDMI_CONFIG_FILE \
   AWS_EC2_METADATA_DISABLED=true \
-  AWS_ENDPOINT_URL_BRAKET=http://127.0.0.1:18080 \
   /usr/sbin/slurmd -N localhost
 
 echo "=== Waiting for the local Slurm node ==="
@@ -59,9 +62,6 @@ for _ in {1..30}; do
   sudo scontrol update nodename=localhost state=resume 2>/dev/null || true
   sleep 1
 done
-if ! sinfo -h -n localhost -o "%t" | grep -qE "idle|alloc"; then
-  echo "ERROR: Slurm node did not become ready" >&2
-  exit 1
-fi
+sinfo -h -n localhost -o "%t" | grep -qE "idle|alloc"
 
 "$@"

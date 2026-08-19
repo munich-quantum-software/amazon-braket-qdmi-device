@@ -16,22 +16,21 @@
 # You should have received a copy of the GNU General Public License along
 # with this program. If not, see <https://www.gnu.org/licenses/>.
 
-# /// script
-# requires-python = ">=3.12,<3.13"
-# dependencies = []
-# ///
-
-"""Minimal local Amazon Braket API for the real-Slurm SPANK tests."""
+"""Minimal signed GetDevice fixture for the real-Slurm connector test."""
 
 from __future__ import annotations
 
 import argparse
 import contextlib
 import json
+from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Lock
 from typing import ClassVar
-from urllib.parse import unquote
+from urllib.parse import unquote, urlsplit
 
+ACCESS_KEY = "temporary-access-key"
+SESSION_TOKEN = "temporary-session-token"  # ruff: ignore[hardcoded-password-string]
 DEVICE_CAPABILITIES = json.dumps(
     {
         "paradigm": {"qubitCount": 2},
@@ -46,54 +45,77 @@ DEVICE_CAPABILITIES = json.dumps(
 
 
 class BraketRequestHandler(BaseHTTPRequestHandler):
-    """Serve the GetDevice response used during SPANK validation."""
+    """Serve deterministic GetDevice responses."""
 
-    request_count: ClassVar[int] = 0
+    counters: ClassVar[dict[str, int]] = {
+        "get_device": 0,
+        "signed_requests": 0,
+        "signature_failures": 0,
+    }
+    lock: ClassVar[Lock] = Lock()
 
     def do_GET(self) -> None:
-        """Return fixture health, counters, or a deterministic device."""
-        if self.path == "/health":
+        """Return fixture health, counters, or one device description."""
+        path = unquote(urlsplit(self.path).path)
+        if path == "/health":
             self._send_json({"status": "ok"})
             return
-        if self.path == "/request-count":
-            self._send_json({"count": self.request_count})
+        if path == "/state":
+            with self.lock:
+                payload = dict(self.counters)
+            self._send_json(payload)
             return
-        if self.path == "/credentials":
-            self._send_json({
-                "AccessKeyId": "container-test-access-key",
-                "SecretAccessKey": "container-test-secret-key",
-                "Token": "container-test-token",
-                "Expiration": "2030-01-01T00:00:00Z",
-            })
+        if not self._has_temporary_credentials():
+            self._send_json(
+                {
+                    "__type": "AccessDeniedException",
+                    "message": "temporary credentials required",
+                },
+                HTTPStatus.FORBIDDEN,
+            )
+            return
+        if not path.startswith("/device/"):
+            self.send_error(HTTPStatus.NOT_FOUND)
             return
 
-        decoded_path = unquote(self.path)
-        if not decoded_path.startswith("/device/"):
-            self.send_error(404)
-            return
-
-        type(self).request_count += 1
-        status = "OFFLINE" if "offline-device" in decoded_path else "ONLINE"
+        self._increment("get_device")
+        retired = path.endswith("/dm1")
         self._send_json({
-            "deviceArn": decoded_path.removeprefix("/device/"),
-            "deviceName": "Local SV1",
+            "deviceArn": path.removeprefix("/device/"),
+            "deviceName": "Local DM1" if retired else "Local SV1",
             "providerName": "Amazon Braket test fixture",
             "deviceType": "SIMULATOR",
-            "deviceStatus": status,
+            "deviceStatus": "RETIRED" if retired else "ONLINE",
             "deviceCapabilities": DEVICE_CAPABILITIES,
             "deviceQueueInfo": [],
         })
 
     def log_message(
         self,
-        format: str,  # ruff:ignore[builtin-argument-shadowing]
+        format: str,  # ruff: ignore[builtin-argument-shadowing]
         *args: object,
     ) -> None:
         """Suppress routine request logging in the test container."""
 
-    def _send_json(self, payload: object) -> None:
+    @classmethod
+    def _increment(cls, name: str) -> None:
+        with cls.lock:
+            cls.counters[name] += 1
+
+    def _has_temporary_credentials(self) -> bool:
+        authorization = self.headers.get("Authorization", "")
+        token = self.headers.get("X-Amz-Security-Token", "")
+        valid = f"Credential={ACCESS_KEY}/" in authorization and token == SESSION_TOKEN
+        self._increment("signed_requests" if valid else "signature_failures")
+        return valid
+
+    def _send_json(
+        self,
+        payload: object,
+        status: HTTPStatus = HTTPStatus.OK,
+    ) -> None:
         body = json.dumps(payload, separators=(",", ":")).encode()
-        self.send_response(200)
+        self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("x-amzn-requestid", "local-spank-test")

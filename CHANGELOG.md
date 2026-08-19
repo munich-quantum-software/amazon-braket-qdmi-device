@@ -33,6 +33,10 @@ releases may include breaking changes.
 
 ### Changed
 
+- ♻️ Refactor the optional Slurm SPANK plugin into a standalone AWS
+  configuration-reference injector for concrete catalogue licenses, and use MQT
+  Core for authenticated device preflight in the job process ([#173])
+  ([**@burgholzer**])
 - ♻️ Use the AWS SDK default credential provider chain for all AWS clients and
   resolve each quantum task's result destination from one optional S3 URI or the
   standard Amazon Braket default bucket ([#172]) ([**@burgholzer**])
@@ -46,6 +50,8 @@ releases may include breaking changes.
 
 ### Fixed
 
+- 🐛 Reject malformed or oversized SPANK job environment values instead of
+  treating them as absent ([#173]) ([**@burgholzer**])
 - 🐛 Make parameter capability probes side-effect free, preserve AWS permission
   errors, and keep all live AWS tests out of the default CTest suite ([#172])
   ([**@burgholzer**])
@@ -89,6 +95,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#173]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/173
 [#171]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/171
 [#172]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/172
 [#167]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/167

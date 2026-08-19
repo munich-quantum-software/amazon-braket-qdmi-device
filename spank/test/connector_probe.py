@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Copyright (c) 2025 - 2026 Munich Quantum Software Company GmbH
 # All rights reserved.
 #
@@ -17,25 +16,17 @@
 # You should have received a copy of the GNU General Public License along
 # with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#SBATCH --partition=debug
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --amazon-braket-device-arn=arn:aws:braket:us-east-1::device/quantum-simulator/amazon/sv1
-#SBATCH --amazon-braket-region=us-east-1
+"""Exercise MQT Core's Slurm connector from inside an allocated job."""
 
-set -euo pipefail
+from mqt.core.qdmi import slurm
 
-bell_program='OPENQASM 3.0;
-include "stdgates.inc";
-bit[2] c;
-qubit[2] q;
-h q[0];
-cnot q[0], q[1];
-c = measure q;'
 
-[[ "${AMAZON_BRAKET_DEVICE_ARN:-}" == "${AMAZON_BRAKET_TEST_DEVICE_ARN}" ]]
-[[ "${AWS_REGION:-}" == "us-east-1" ]]
-grep -Fq "h q[0];" <<<"${bell_program}"
-grep -Fq "cnot q[0], q[1];" <<<"${bell_program}"
-grep -Fq "c = measure q;" <<<"${bell_program}"
-echo "Bell circuit prepared in Slurm batch job"
+def main() -> None:
+    """Open the licensed device and verify its representative metadata."""
+    device = slurm.open_device_from_license()
+    assert device.name() == "Local SV1"
+    assert device.qubits_num() == 2
+
+
+if __name__ == "__main__":
+    main()
