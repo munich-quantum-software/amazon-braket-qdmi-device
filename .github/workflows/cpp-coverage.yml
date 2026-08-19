@@ -1,6 +1,15 @@
 name: 🇨 • Coverage
 on:
   workflow_call:
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: false
+      AWS_SECRET_ACCESS_KEY:
+        required: false
+      AWS_SESSION_TOKEN:
+        required: false
+      AWS_S3_BUCKET:
+        required: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}-cpp-coverage
@@ -17,6 +26,10 @@ jobs:
       contents: read # Required for the `actions/checkout` action
       id-token: write # Required for the `codecov/codecov-action` action
     env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
       CMAKE_BUILD_PARALLEL_LEVEL: 4
       CTEST_PARALLEL_LEVEL: 4
       FORCE_COLOR: 3
@@ -55,9 +68,13 @@ jobs:
           sudo apt-get install -y libcurl4-openssl-dev
 
       - name: Configure CMake
-        run: >-
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON
-          -DBUILD_AMAZON_BRAKET_LIVE_TESTS=OFF
+        run: |
+          live_tests=OFF
+          if [[ -n "${AWS_ACCESS_KEY_ID}" && -n "${AWS_SECRET_ACCESS_KEY}" && -n "${AWS_S3_BUCKET}" ]]; then
+            live_tests=ON
+          fi
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON \
+            "-DBUILD_AMAZON_BRAKET_LIVE_TESTS=${live_tests}"
 
       - name: Build
         run: cmake --build build --config Debug

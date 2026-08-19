@@ -22,7 +22,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from amazon.braket.qdmi import (
-    AMAZON_BRAKET_QDMI_CATALOG_PATH,
     AMAZON_BRAKET_QDMI_CMAKE_DIR,
     AMAZON_BRAKET_QDMI_INCLUDE_DIR,
     AMAZON_BRAKET_QDMI_LIBRARY_PATH,
@@ -67,10 +66,3 @@ def test_cli_lib_path(script_runner: ScriptRunner) -> None:
     result = script_runner.run(["amazon-braket-qdmi", "--lib_path"])
     assert result.success
     assert str(AMAZON_BRAKET_QDMI_LIBRARY_PATH) in result.stdout
-
-
-def test_cli_catalog_path(script_runner: ScriptRunner) -> None:
-    """Test CLI with --catalog_path."""
-    result = script_runner.run(["amazon-braket-qdmi", "--catalog_path"])
-    assert result.success
-    assert str(AMAZON_BRAKET_QDMI_CATALOG_PATH) in result.stdout

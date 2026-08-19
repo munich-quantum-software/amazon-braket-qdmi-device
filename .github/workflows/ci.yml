@@ -40,17 +40,6 @@ jobs:
       runs-on: ${{ matrix.runs-on }}
       config: ${{ matrix.config }}
 
-  cpp-tests-live:
-    name: 🇨 Live ☁️
-    needs: change-detection
-    if: fromJSON(needs.change-detection.outputs.run-cpp-tests)
-    uses: ./.github/workflows/cpp-tests-live.yml
-    secrets:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
-      AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
-
   cpp-spank-tests-ubuntu:
     name: 🇨 SPANK 🐧
     needs: change-detection
@@ -111,6 +100,11 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+      AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
 
   cpp-linter:
     name: 🇨 Lint
@@ -168,7 +162,6 @@ jobs:
     needs:
       - change-detection
       - cpp-tests-ubuntu
-      - cpp-tests-live
       - cpp-spank-tests-ubuntu
       - cpp-tests-macos
       - cpp-tests-windows
@@ -186,7 +179,7 @@ jobs:
           allowed-skips: >-
             ${{
               !fromJSON(needs.change-detection.outputs.run-cpp-tests)
-              && 'cpp-tests-ubuntu,cpp-tests-live,cpp-spank-tests-ubuntu,cpp-tests-macos,cpp-tests-windows,cpp-install-tests,cpp-coverage,' || ''
+              && 'cpp-tests-ubuntu,cpp-spank-tests-ubuntu,cpp-tests-macos,cpp-tests-windows,cpp-install-tests,cpp-coverage,' || ''
             }}
             ${{
               !fromJSON(needs.change-detection.outputs.run-cpp-linter)

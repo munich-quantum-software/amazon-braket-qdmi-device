@@ -29,7 +29,7 @@
  *  - AmazonBraketQDMILocalJobTest  : session initialised with fake credentials
  */
 
-#include "CapabilitySnapshots.hpp"
+#include "CapabilityFixtures.hpp"
 #include "amazon-braket-qdmi-device/Device.hpp"
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
 #include "amazon-braket-qdmi-device/Queue.hpp"
@@ -2020,7 +2020,7 @@ auto siteNames(const ParsedDeviceProperties& properties)
   return names;
 }
 
-struct CapabilitySnapshotCase {
+struct CapabilityFixtureCase {
   std::string_view name;
   std::string_view json;
   Aws::Braket::Model::DeviceType type;
@@ -2064,10 +2064,10 @@ TEST(DeviceParserOfflineTest, RejectsMalformedCapabilityDocuments) {
       QDMI_ERROR_FATAL);
 }
 
-TEST(DeviceParserOfflineTest, ParsesSanitizedCapabilitySnapshots) {
+TEST(DeviceParserOfflineTest, ParsesRepresentativeCapabilityFixtures) {
   using Aws::Braket::Model::DeviceType;
   using namespace amazon::braket::qdmi::test;
-  const std::vector<CapabilitySnapshotCase> snapshots{
+  const std::vector<CapabilityFixtureCase> fixtures{
       {"AQT IBEX-Q1",
        AQT_IBEX_Q1,
        DeviceType::QPU,
@@ -2119,25 +2119,25 @@ TEST(DeviceParserOfflineTest, ParsesSanitizedCapabilitySnapshots) {
        6},
   };
 
-  for (const auto& snapshot : snapshots) {
-    SCOPED_TRACE(snapshot.name);
+  for (const auto& fixture : fixtures) {
+    SCOPED_TRACE(fixture.name);
     std::vector<GateModelCapabilityParser::CalibrationEnricher> enrichers;
-    if (snapshot.name == "IQM Garnet") {
+    if (fixture.name == "IQM Garnet") {
       enrichers.emplace_back(GateModelCapabilityParser::enrichIqmCalibration);
     }
     const GateModelCapabilityParser parser{std::move(enrichers)};
     ParsedDeviceProperties properties;
-    ASSERT_EQ(parser.parseProperties(snapshot.type, std::string{snapshot.json},
+    ASSERT_EQ(parser.parseProperties(fixture.type, std::string{fixture.json},
                                      properties),
               QDMI_SUCCESS);
-    EXPECT_EQ(properties.qubitCount, snapshot.sites.size());
-    EXPECT_EQ(siteNames(properties), snapshot.sites);
-    EXPECT_EQ(properties.connectivity.size(), snapshot.directedEdges * 2);
+    EXPECT_EQ(properties.qubitCount, fixture.sites.size());
+    EXPECT_EQ(siteNames(properties), fixture.sites);
+    EXPECT_EQ(properties.connectivity.size(), fixture.directedEdges * 2);
     EXPECT_EQ(operationNames(properties.operationsPtr),
-              snapshot.nativeOperations);
+              fixture.nativeOperations);
     EXPECT_EQ(operationNames(properties.supportedOperationsPtr),
-              snapshot.supportedOperations);
-    if (snapshot.type == DeviceType::QPU) {
+              fixture.supportedOperations);
+    if (fixture.type == DeviceType::QPU) {
       for (auto* operation : properties.operationsPtr) {
         EXPECT_TRUE(operation->numQubits_.has_value());
         EXPECT_TRUE(operation->numParams_.has_value());

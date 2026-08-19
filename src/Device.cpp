@@ -111,6 +111,7 @@
 #include <optional>
 #include <span>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -1913,31 +1914,15 @@ bool gAWSInitialized = false;
 std::mutex gAWSInitMutex;
 
 template <class Function>
-auto guardCFunction(const char* functionName, Function&& function) noexcept
-    -> int {
+auto translateExceptions(Function&& function) noexcept -> int {
   try {
     return std::forward<Function>(function)();
   } catch (const std::bad_alloc&) {
-    std::cerr << functionName << " failed: out of memory\n";
     return QDMI_ERROR_OUTOFMEM;
-  } catch (const std::exception& error) {
-    std::cerr << functionName << " failed: " << error.what() << "\n";
-    return QDMI_ERROR_FATAL;
+  } catch (const std::invalid_argument&) {
+    return QDMI_ERROR_INVALIDARGUMENT;
   } catch (...) {
-    std::cerr << functionName << " failed with an unknown exception\n";
     return QDMI_ERROR_FATAL;
-  }
-}
-
-template <class Function>
-auto guardCVoidFunction(const char* functionName, Function&& function) noexcept
-    -> void {
-  try {
-    std::forward<Function>(function)();
-  } catch (const std::exception& error) {
-    std::cerr << functionName << " failed: " << error.what() << "\n";
-  } catch (...) {
-    std::cerr << functionName << " failed with an unknown exception\n";
   }
 }
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
@@ -1954,7 +1939,7 @@ auto guardCVoidFunction(const char* functionName, Function&& function) noexcept
  * @return QDMI_SUCCESS on successful initialization
  */
 int AMAZON_BRAKET_QDMI_device_initialize() {
-  return guardCFunction(__func__, [] {
+  return translateExceptions([] {
     const std::scoped_lock lock(gAWSInitMutex);
     if (!gAWSInitialized) {
       Aws::InitAPI(gAWSOptions);
@@ -1979,7 +1964,7 @@ int AMAZON_BRAKET_QDMI_device_initialize() {
  * @return QDMI_SUCCESS on successful finalization
  */
 int AMAZON_BRAKET_QDMI_device_finalize() {
-  return guardCFunction(__func__, [] {
+  return translateExceptions([] {
     const std::scoped_lock lock(gAWSInitMutex);
     if (gAWSInitialized) {
       amazon::braket::qdmi::Device::get().clear();
@@ -2002,7 +1987,7 @@ int AMAZON_BRAKET_QDMI_device_finalize() {
  */
 int AMAZON_BRAKET_QDMI_device_session_alloc(
     AMAZON_BRAKET_QDMI_Device_Session* session) {
-  return guardCFunction(__func__, [session] {
+  return translateExceptions([session] {
     return amazon::braket::qdmi::Device::get().sessionAlloc(session);
   });
 }
@@ -2010,8 +1995,9 @@ int AMAZON_BRAKET_QDMI_device_session_alloc(
 /**
  * Initialize a device session.
  *
- * Establishes connection to Amazon Braket and fetches device properties.
- * The session must be configured with a device ARN using
+ * Configures the Amazon Braket client. Device properties are fetched lazily on
+ * the first property query or job submission. The session must be configured
+ * with a device ARN using
  * AMAZON_BRAKET_QDMI_device_session_set_parameter() before initialization.
  *
  * @param session The session handle to initialize
@@ -2019,7 +2005,7 @@ int AMAZON_BRAKET_QDMI_device_session_alloc(
  */
 int AMAZON_BRAKET_QDMI_device_session_init(
     AMAZON_BRAKET_QDMI_Device_Session session) {
-  return guardCFunction(__func__, [session] {
+  return translateExceptions([session] {
     return session == nullptr ? QDMI_ERROR_INVALIDARGUMENT : session->init();
   });
 }
@@ -2039,9 +2025,11 @@ int AMAZON_BRAKET_QDMI_device_session_init(
  */
 void AMAZON_BRAKET_QDMI_device_session_free(
     AMAZON_BRAKET_QDMI_Device_Session session) {
-  guardCVoidFunction(__func__, [session] {
+  try {
     amazon::braket::qdmi::Device::get().sessionFree(session);
-  });
+  } catch (...) {
+    // A void C API cannot report cleanup failures.
+  }
 }
 
 /**
@@ -2096,7 +2084,7 @@ void AMAZON_BRAKET_QDMI_device_session_free(
 int AMAZON_BRAKET_QDMI_device_session_set_parameter(
     AMAZON_BRAKET_QDMI_Device_Session session,
     QDMI_Device_Session_Parameter param, const size_t size, const void* value) {
-  return guardCFunction(__func__, [=] {
+  return translateExceptions([=] {
     return session == nullptr ? QDMI_ERROR_INVALIDARGUMENT
                               : session->setParameter(param, size, value);
   });
@@ -2122,7 +2110,7 @@ int AMAZON_BRAKET_QDMI_device_session_set_parameter(
 int AMAZON_BRAKET_QDMI_device_session_query_device_property(
     AMAZON_BRAKET_QDMI_Device_Session session, const QDMI_Device_Property prop,
     const size_t size, void* value, size_t* sizeRet) {
-  return guardCFunction(__func__, [=] {
+  return translateExceptions([=] {
     return session == nullptr
                ? QDMI_ERROR_INVALIDARGUMENT
                : session->queryDeviceProperty(prop, size, value, sizeRet);
@@ -2144,7 +2132,7 @@ int AMAZON_BRAKET_QDMI_device_session_query_device_property(
 int AMAZON_BRAKET_QDMI_device_session_create_device_job(
     AMAZON_BRAKET_QDMI_Device_Session session,
     AMAZON_BRAKET_QDMI_Device_Job* job) {
-  return guardCFunction(__func__, [=] {
+  return translateExceptions([=] {
     return session == nullptr ? QDMI_ERROR_INVALIDARGUMENT
                               : session->createDeviceJob(job);
   });
@@ -2153,7 +2141,7 @@ int AMAZON_BRAKET_QDMI_device_session_create_device_job(
 int AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
     AMAZON_BRAKET_QDMI_Device_Session session, const char* jobId,
     AMAZON_BRAKET_QDMI_Device_Job* job) {
-  return guardCFunction(__func__, [=] {
+  return translateExceptions([=] {
     return session == nullptr ? QDMI_ERROR_INVALIDARGUMENT
                               : session->openDeviceJob(jobId, job);
   });
@@ -2174,11 +2162,13 @@ int AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
  * @param job The job handle to free
  */
 void AMAZON_BRAKET_QDMI_device_job_free(AMAZON_BRAKET_QDMI_Device_Job job) {
-  guardCVoidFunction(__func__, [job] {
+  try {
     if (job != nullptr) {
       job->getSession()->freeDeviceJob(job);
     }
-  });
+  } catch (...) {
+    // A void C API cannot report cleanup failures.
+  }
 }
 
 /**
@@ -2210,7 +2200,7 @@ void AMAZON_BRAKET_QDMI_device_job_free(AMAZON_BRAKET_QDMI_Device_Job job) {
 int AMAZON_BRAKET_QDMI_device_job_set_parameter(
     AMAZON_BRAKET_QDMI_Device_Job job, const QDMI_Device_Job_Parameter param,
     const size_t size, const void* value) {
-  return guardCFunction(__func__, [=] {
+  return translateExceptions([=] {
     return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT
                           : job->setParameter(param, size, value);
   });
@@ -2231,7 +2221,7 @@ int AMAZON_BRAKET_QDMI_device_job_set_parameter(
 int AMAZON_BRAKET_QDMI_device_job_query_property(
     AMAZON_BRAKET_QDMI_Device_Job job, const QDMI_Device_Job_Property prop,
     const size_t size, void* value, size_t* sizeRet) {
-  return guardCFunction(__func__, [=] {
+  return translateExceptions([=] {
     return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT
                           : job->queryProperty(prop, size, value, sizeRet);
   });
@@ -2250,7 +2240,7 @@ int AMAZON_BRAKET_QDMI_device_job_query_property(
  * @return QDMI_SUCCESS on successful submission, error code otherwise
  */
 int AMAZON_BRAKET_QDMI_device_job_submit(AMAZON_BRAKET_QDMI_Device_Job job) {
-  return guardCFunction(__func__, [job] {
+  return translateExceptions([job] {
     return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT : job->submit();
   });
 }
@@ -2265,7 +2255,7 @@ int AMAZON_BRAKET_QDMI_device_job_submit(AMAZON_BRAKET_QDMI_Device_Job job) {
  * @return QDMI_SUCCESS on successful cancellation, error code otherwise
  */
 int AMAZON_BRAKET_QDMI_device_job_cancel(AMAZON_BRAKET_QDMI_Device_Job job) {
-  return guardCFunction(__func__, [job] {
+  return translateExceptions([job] {
     return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT : job->cancel();
   });
 }
@@ -2282,7 +2272,7 @@ int AMAZON_BRAKET_QDMI_device_job_cancel(AMAZON_BRAKET_QDMI_Device_Job job) {
  */
 int AMAZON_BRAKET_QDMI_device_job_check(AMAZON_BRAKET_QDMI_Device_Job job,
                                         QDMI_Job_Status* status) {
-  return guardCFunction(__func__, [=] {
+  return translateExceptions([=] {
     return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT : job->check(status);
   });
 }
@@ -2300,7 +2290,7 @@ int AMAZON_BRAKET_QDMI_device_job_check(AMAZON_BRAKET_QDMI_Device_Job job,
  */
 int AMAZON_BRAKET_QDMI_device_job_wait(AMAZON_BRAKET_QDMI_Device_Job job,
                                        const size_t timeout) {
-  return guardCFunction(__func__, [=] {
+  return translateExceptions([=] {
     return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT : job->wait(timeout);
   });
 }
@@ -2325,7 +2315,7 @@ int AMAZON_BRAKET_QDMI_device_job_get_results(AMAZON_BRAKET_QDMI_Device_Job job,
                                               QDMI_Job_Result result,
                                               const size_t size, void* data,
                                               size_t* sizeRet) {
-  return guardCFunction(__func__, [=] {
+  return translateExceptions([=] {
     return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT
                           : job->getResults(result, size, data, sizeRet);
   });
@@ -2348,7 +2338,7 @@ int AMAZON_BRAKET_QDMI_device_job_get_results(AMAZON_BRAKET_QDMI_Device_Job job,
 int AMAZON_BRAKET_QDMI_device_session_query_site_property(
     AMAZON_BRAKET_QDMI_Device_Session session, AMAZON_BRAKET_QDMI_Site site,
     QDMI_Site_Property prop, const size_t size, void* value, size_t* sizeRet) {
-  return guardCFunction(__func__, [=] {
+  return translateExceptions([=] {
     if (session == nullptr) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
@@ -2381,7 +2371,7 @@ int AMAZON_BRAKET_QDMI_device_session_query_operation_property(
     const AMAZON_BRAKET_QDMI_Site* sites, size_t numParams,
     const double* params, QDMI_Operation_Property prop, size_t size,
     void* value, size_t* sizeRet) {
-  return guardCFunction(__func__, [=] {
+  return translateExceptions([=] {
     if (session == nullptr) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }

@@ -69,6 +69,8 @@ if(WIN32)
   # Add the directory containing the DLL to the test's PATH environment
   set(DLL_PATH "$<TARGET_FILE_DIR:${QDMI_TARGET_NAME}>")
 
+  # Offline AWS SDK construction must not probe the EC2 Instance Metadata Service. This keeps
+  # discovery hermetic and avoids network-dependent delays.
   gtest_discover_tests(
     ${QDMI_TEST_TARGET_NAME} TEST_FILTER "${QDMI_OFFLINE_TEST_FILTER}"
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -81,6 +83,8 @@ if(WIN32)
                DISCOVERY_MODE
                PRE_TEST)
 else()
+  # Offline AWS SDK construction must not probe the EC2 Instance Metadata Service. This keeps
+  # discovery hermetic and avoids network-dependent delays.
   gtest_discover_tests(
     ${QDMI_TEST_TARGET_NAME} TEST_FILTER "${QDMI_OFFLINE_TEST_FILTER}"
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}

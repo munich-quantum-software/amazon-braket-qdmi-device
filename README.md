@@ -44,19 +44,9 @@ QuantumTasks (pure quantum circuit execution).
 ### Supported Amazon Braket Devices
 
 This implementation supports Amazon Braket gate-model QPUs and on-demand
-gate-model simulators. The installed example catalog contains these devices:
-
-| Stable QDMI ID                                  | Region       |
-| ----------------------------------------------- | ------------ |
-| `amazon.braket.aqt.ibex-q1`                     | `eu-north-1` |
-| `amazon.braket.ionq.forte-1`                    | `us-east-1`  |
-| `amazon.braket.ionq.forte-enterprise-1`         | `us-east-1`  |
-| `amazon.braket.iqm.garnet`                      | `eu-north-1` |
-| `amazon.braket.iqm.emerald`                     | `eu-north-1` |
-| `amazon.braket.rigetti.ankaa-3`                 | `us-west-1`  |
-| `amazon.braket.rigetti.cepheus-1-108q`          | `us-west-1`  |
-| `amazon.braket.sv1`                             | `us-east-1`  |
-| `amazon.braket.dm1`                             | `us-east-1`  |
+gate-model simulators. It exposes the stable QDMI ID `amazon.braket.default`;
+each new session must be configured with a concrete device ARN and, when needed,
+an AWS Region before initialization.
 
 For a QPU, `QDMI_DEVICE_PROPERTY_OPERATIONS` contains only the Braket
 `nativeGateSet`. The custom property
@@ -288,10 +278,9 @@ cmake --build build
 
 ### Using the Device with MQT Core
 
-The installed CMake target exports the `AMAZON_BRAKET` symbol prefix and a
-relocatable catalog with all nine stable device definitions. An application
-using MQT Core 3.8 or newer can copy the device library and this catalog beside
-its executable:
+The installed CMake target exports the stable device ID `amazon.braket.default`
+and the `AMAZON_BRAKET` symbol prefix. An application using MQT Core can copy
+the device library and a generated definition beside its executable:
 
 ```cmake
 find_package(mqt-core 3.8 CONFIG REQUIRED)
@@ -307,25 +296,34 @@ statically into the executable. A dynamically linked Driver searches beside its
 own shared library instead; in that case, place the generated manifest there or
 register the definition explicitly as shown below.
 
-Python consumers can use the installed catalog directly. Each definition
-contains the exact device ARN and AWS Region. The AWS SDK resolves credentials
-when MQT Core opens the selected device:
+Python consumers can register the packaged generic device and configure each
+fresh session with the desired device ARN and Region:
 
 ```python
-import os
+from amazon.braket.qdmi import (
+    AMAZON_BRAKET_QDMI_DEVICE_ID,
+    AMAZON_BRAKET_QDMI_LIBRARY_PATH,
+    AMAZON_BRAKET_QDMI_PREFIX,
+)
+from mqt.core.qdmi import driver
 
-from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_CATALOG_PATH
-from mqt.core.fomac import open_device
-
-# Set this before the first FoMaC driver operation.
-os.environ["MQT_CORE_QDMI_CONFIG_FILE"] = str(AMAZON_BRAKET_QDMI_CATALOG_PATH)
-device = open_device("amazon.braket.sv1")
+driver.register_device_if_absent(
+    driver.DeviceDefinition(
+        AMAZON_BRAKET_QDMI_DEVICE_ID,
+        AMAZON_BRAKET_QDMI_LIBRARY_PATH,
+        AMAZON_BRAKET_QDMI_PREFIX,
+    )
+)
+device = driver.open_device(
+    AMAZON_BRAKET_QDMI_DEVICE_ID,
+    base_url="arn:aws:braket:::device/quantum-simulator/amazon/sv1",
+    custom2="us-east-1",  # AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION
+)
 ```
 
-The command `amazon-braket-qdmi --catalog_path` prints the same catalog path.
-The installed `config/slurm-licenses.conf` file gives one local Slurm license to
-each QPU and four to each simulator. The simulator count is a local
-cluster-admission limit. It is not an AWS quantum-task quota.
+`register_device_if_absent` preserves a higher-precedence definition already
+registered under the stable ID. Explicit arguments to `open_device` configure
+only the newly opened session.
 
 ### CMake Options
 

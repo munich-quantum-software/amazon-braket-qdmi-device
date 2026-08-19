@@ -23,9 +23,10 @@
 
 namespace amazon::braket::qdmi::test {
 
-// Sanitized, reduced capability snapshots. They retain the common Braket
-// schema, provider site-name shapes, and current native gate sets without
-// including account data or a complete live calibration.
+// Synthetic, reduced capability fixtures for parser tests. The provider and
+// device names identify the Braket schema variants that each document models;
+// qubit counts, connectivity graphs, and calibration values are deliberately
+// invented and must not be read as specifications or snapshots of live devices.
 constexpr std::string_view AQT_IBEX_Q1 = R"({
   "paradigm": {
     "qubitCount": 4,

@@ -109,35 +109,14 @@ target_sources(
 target_link_libraries(${QDMI_TARGET_NAME} PRIVATE qdmi::qdmi_project_warnings
                                                   ${QDMI_DEVICE_OBJECTS} ${QDMI_PARSER_OBJECTS})
 
-# Generate the persistent nine-device catalog beside the shared library. The generator expression
-# keeps the relative library name correct for every platform and build configuration.
-set(AMAZON_BRAKET_QDMI_CATALOG_NAME "${QDMI_TARGET_NAME}.qdmi.json")
-set(AMAZON_BRAKET_QDMI_LIBRARY_FILE "$<TARGET_FILE_NAME:${QDMI_TARGET_NAME}>")
-configure_file("${PROJECT_SOURCE_DIR}/cmake/${QDMI_TARGET_NAME}.qdmi.json.in"
-               "${CMAKE_CURRENT_BINARY_DIR}/${QDMI_TARGET_NAME}.qdmi.json.gen.in" @ONLY)
-set(AMAZON_BRAKET_QDMI_CATALOG
-    "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/${AMAZON_BRAKET_QDMI_CATALOG_NAME}")
-file(
-  GENERATE
-  OUTPUT "${AMAZON_BRAKET_QDMI_CATALOG}"
-  INPUT "${CMAKE_CURRENT_BINARY_DIR}/${QDMI_TARGET_NAME}.qdmi.json.gen.in")
-add_custom_command(
-  TARGET ${QDMI_TARGET_NAME}
-  POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${AMAZON_BRAKET_QDMI_CATALOG}"
-          "$<TARGET_FILE_DIR:${QDMI_TARGET_NAME}>/${AMAZON_BRAKET_QDMI_CATALOG_NAME}")
-
-# Publish the stable metadata needed by MQT Core and other QDMI drivers. SV1 is the primary target
-# identifier; the manifest contains all nine definitions.
-set_target_properties(
-  ${QDMI_TARGET_NAME}
-  PROPERTIES QDMI_DEVICE_ID amazon.braket.sv1
-             QDMI_DEVICE_PREFIX ${QDMI_PREFIX}
-             QDMI_MANIFEST_NAME ${AMAZON_BRAKET_QDMI_CATALOG_NAME})
+# Publish the stable metadata needed by MQT Core and other QDMI drivers. The generic device must be
+# configured with a concrete Amazon Braket device ARN before its session is initialized.
+set_target_properties(${QDMI_TARGET_NAME} PROPERTIES QDMI_DEVICE_ID amazon.braket.default
+                                                     QDMI_DEVICE_PREFIX ${QDMI_PREFIX})
 set_property(
   TARGET ${QDMI_TARGET_NAME}
   APPEND
-  PROPERTY EXPORT_PROPERTIES QDMI_DEVICE_ID QDMI_DEVICE_PREFIX QDMI_MANIFEST_NAME)
+  PROPERTY EXPORT_PROPERTIES QDMI_DEVICE_ID QDMI_DEVICE_PREFIX)
 
 option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
 if(ENABLE_COVERAGE)
@@ -178,20 +157,6 @@ install(
           FILE_SET public_headers
           DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
           COMPONENT ${QDMI_TARGET_NAME}_Development)
-
-if(WIN32)
-  set(AMAZON_BRAKET_QDMI_CATALOG_INSTALL_DIR ${CMAKE_INSTALL_BINDIR})
-else()
-  set(AMAZON_BRAKET_QDMI_CATALOG_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR})
-endif()
-install(
-  FILES "${AMAZON_BRAKET_QDMI_CATALOG}"
-  DESTINATION ${AMAZON_BRAKET_QDMI_CATALOG_INSTALL_DIR}
-  COMPONENT ${QDMI_TARGET_NAME}_Runtime)
-install(
-  FILES "${PROJECT_SOURCE_DIR}/config/slurm-licenses.conf"
-  DESTINATION "${CMAKE_INSTALL_DATADIR}/${QDMI_TARGET_NAME}/examples"
-  COMPONENT ${QDMI_TARGET_NAME}_Runtime)
 
 install(
   EXPORT ${QDMI_TARGET_NAME}-targets

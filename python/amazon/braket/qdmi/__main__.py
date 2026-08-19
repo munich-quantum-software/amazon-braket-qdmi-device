@@ -21,13 +21,7 @@ import argparse
 import sys
 from functools import partial
 
-from . import (
-    AMAZON_BRAKET_QDMI_CATALOG_PATH,
-    AMAZON_BRAKET_QDMI_CMAKE_DIR,
-    AMAZON_BRAKET_QDMI_INCLUDE_DIR,
-    AMAZON_BRAKET_QDMI_LIBRARY_PATH,
-    __version__,
-)
+from . import AMAZON_BRAKET_QDMI_CMAKE_DIR, AMAZON_BRAKET_QDMI_INCLUDE_DIR, AMAZON_BRAKET_QDMI_LIBRARY_PATH, __version__
 
 
 def main() -> None:
@@ -37,7 +31,7 @@ def main() -> None:
 
     .. code-block:: bash
 
-        amazon-braket-qdmi [--version] [--include_dir] [--cmake_dir] [--lib_path] [--catalog_path]
+        amazon-braket-qdmi [--version] [--include_dir] [--cmake_dir] [--lib_path]
 
     It provides the following command line options:
 
@@ -45,7 +39,6 @@ def main() -> None:
     - :code:`--include_dir`: Print the path to the amazon-braket-qdmi C/C++ include directory.
     - :code:`--cmake_dir`: Print the path to the amazon-braket-qdmi CMake module directory.
     - :code:`--lib_path`: Print the path to the amazon-braket-qdmi shared library.
-    - :code:`--catalog_path`: Print the path to the persistent QDMI device catalog.
     """
     make_parser = partial(
         argparse.ArgumentParser,
@@ -77,11 +70,6 @@ def main() -> None:
         action="store_true",
         help="Print the path to the amazon-braket-qdmi shared library",
     )
-    group.add_argument(
-        "--catalog_path",
-        action="store_true",
-        help="Print the path to the persistent Amazon Braket QDMI device catalog",
-    )
 
     args = parser.parse_args()
 
@@ -91,8 +79,6 @@ def main() -> None:
         print(AMAZON_BRAKET_QDMI_CMAKE_DIR)
     elif args.lib_path:
         print(AMAZON_BRAKET_QDMI_LIBRARY_PATH)
-    elif args.catalog_path:
-        print(AMAZON_BRAKET_QDMI_CATALOG_PATH)
     else:
         parser.print_help()
 
