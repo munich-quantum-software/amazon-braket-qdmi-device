@@ -23,10 +23,7 @@ find_path(SLURM_SPANK_INCLUDE_DIR slurm/spank.h REQUIRED)
 add_library(amazon-braket-qdmi-spank MODULE spank.cpp)
 target_compile_features(amazon-braket-qdmi-spank PRIVATE cxx_std_20)
 target_include_directories(amazon-braket-qdmi-spank PRIVATE ${SLURM_SPANK_INCLUDE_DIR})
-target_link_libraries(
-  amazon-braket-qdmi-spank
-  PRIVATE amazon-braket-qdmi-device::internals amazon-braket-qdmi-device::parser-objects
-          qdmi::qdmi_project_warnings)
+target_link_libraries(amazon-braket-qdmi-spank PRIVATE qdmi::qdmi_project_warnings)
 set(AMAZON_BRAKET_QDMI_SPANK_VERSION_SCRIPT
     "${CMAKE_CURRENT_SOURCE_DIR}/amazon-braket-qdmi-spank.map")
 target_link_options(amazon-braket-qdmi-spank PRIVATE

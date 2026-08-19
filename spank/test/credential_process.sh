@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Copyright (c) 2025 - 2026 Munich Quantum Software Company GmbH
 # All rights reserved.
 #
@@ -16,7 +17,5 @@
 # You should have received a copy of the GNU General Public License along
 # with this program. If not, see <https://www.gnu.org/licenses/>.
 
-# The real-Slurm fixture has no init system. Permit Slurm to create its cgroup
-# scope directly if its systemd request fails.
-CgroupPlugin=autodetect
-IgnoreSystemdOnFailure=yes
+# This fixture returns temporary credentials in the AWS credential_process format.
+printf '%s\n' '{"Version":1,"AccessKeyId":"temporary-access-key","SecretAccessKey":"temporary-secret-key","SessionToken":"temporary-session-token","Expiration":"2030-01-01T00:00:00Z"}'

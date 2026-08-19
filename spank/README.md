@@ -1,15 +1,26 @@
-# Amazon Braket QDMI SPANK plugin
+# Optional Amazon Braket SPANK plugin
 
 [![SPANK Plugin GPLv3 License](https://img.shields.io/static/v1?logo=gnu&label=License&message=GPLv3&color=informational&style=flat-square)](https://www.gnu.org/licenses/gpl-3.0.en.html)
 
-This plugin validates a selected Amazon Braket device once per remote Slurm job
-step and exposes the resulting configuration to QDMI applications through the
-job environment.
+This optional plugin injects AWS configuration references into a Slurm job
+environment. It does not load a QDMI provider, resolve credentials, or make a
+network request in `slurmstepd`.
+
+License inspection only determines whether the plugin applies. The job process
+uses MQT Core to validate `SLURM_JOB_LICENSES`, select a persistent QDMI device
+definition, create an authenticated session, and check the device status. AWS
+IAM remains the authorization boundary.
+
+Configure Slurm licenses for concrete catalogue IDs such as `amazon.braket.sv1`.
+Do not configure `amazon.braket.default` as a license; that generic device
+intentionally requires runtime configuration. The plugin leaves jobs without a
+concrete `amazon.braket.*` license unchanged. MQT Core enforces the
+exact-one-device, local-license, and unit-count contract.
 
 ## Build and install
 
-Build the plugin on Linux against Slurm 20.02 or newer and the same SPANK ABI as
-the target cluster:
+Build the plugin on Linux against Slurm 23.02 or newer. CI tests Slurm 23.11 on
+Ubuntu 24.04. Use the same SPANK ABI as the target cluster.
 
 ```bash
 cmake -S . -B build-spank \
@@ -19,13 +30,9 @@ cmake --build build-spank --target amazon-braket-qdmi-spank --parallel
 sudo cmake --install build-spank --component amazon-braket-qdmi-spank-plugin
 ```
 
-The Amazon Braket QDMI implementation is compiled directly into the plugin.
-Deployment therefore does not require a separate device shared library,
-`ldconfig`, or a custom runtime library path.
-
-The deterministic defaults are `${CMAKE_INSTALL_FULL_LIBDIR}/slurm` for the
-plugin and `/etc/slurm` for configuration. Override them when configuring CMake
-if the target distribution uses different locations:
+The default plugin directory is `${CMAKE_INSTALL_FULL_LIBDIR}/slurm`. The
+default configuration directory is `/etc/slurm`. Set these CMake options when
+the cluster uses other paths:
 
 ```bash
 -DAMAZON_BRAKET_QDMI_SPANK_INSTALL_DIR=/usr/lib/x86_64-linux-gnu/slurm-wlm
@@ -33,117 +40,118 @@ if the target distribution uses different locations:
 ```
 
 Installation writes `amazon-braket-qdmi-spank.so` and a disabled
-`plugstack.conf.d` template. Enable the plugin on clients that run `srun` or
-`sbatch` and on compute nodes:
+`plugstack.conf.d` template. Enable the plugin on submission hosts and compute
+nodes:
 
 ```text
-required /usr/lib/x86_64-linux-gnu/slurm-wlm/amazon-braket-qdmi-spank.so
+optional /usr/lib/x86_64-linux-gnu/slurm-wlm/amazon-braket-qdmi-spank.so
 ```
 
-Administrator defaults can be added to the same line:
-
-```text
-required /usr/lib/x86_64-linux-gnu/slurm-wlm/amazon-braket-qdmi-spank.so amazon_braket_region=us-east-1
-```
-
-## Job example
-
-Selecting a device ARN opts the job into Amazon Braket validation. Explicit
-credentials are optional; without a credentials file, the AWS SDK default
-credential provider chain is used.
-
-```bash
-#!/bin/bash
-#SBATCH --amazon-braket-device-arn=arn:aws:braket:::device/quantum-simulator/amazon/sv1
-#SBATCH --amazon-braket-region=us-east-1
-
-exec ./submit_bell_state
-```
-
-The injected environment lets the application initialize its QDMI session
-without repeating the scheduler configuration. This complete example submits a
-two-qubit Bell circuit:
-
-```cpp
-#include <amazon-braket-qdmi-device/constants.hpp>
-#include <amazon_braket_qdmi/device.h>
-
-#include <cstring>
-
-int main() {
-  AMAZON_BRAKET_QDMI_device_initialize();
-
-  AMAZON_BRAKET_QDMI_Device_Session session = nullptr;
-  AMAZON_BRAKET_QDMI_device_session_alloc(&session);
-  AMAZON_BRAKET_QDMI_device_session_init(session);
-
-  AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
-  AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job);
-
-  const char* program = R"(OPENQASM 3.0;
-include "stdgates.inc";
-bit[2] c;
-qubit[2] q;
-h q[0];
-cx q[0], q[1];
-c = measure q;
-)";
-  const char* s3Uri = "s3://my-amazon-braket-results/tasks";
-
-  AMAZON_BRAKET_QDMI_device_job_set_parameter(
-      job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM, std::strlen(program) + 1,
-      program);
-  AMAZON_BRAKET_QDMI_device_job_set_parameter(
-      job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
-      std::strlen(s3Uri) + 1, s3Uri);
-  AMAZON_BRAKET_QDMI_device_job_submit(job);
-
-  AMAZON_BRAKET_QDMI_device_job_free(job);
-  AMAZON_BRAKET_QDMI_device_session_free(session);
-  AMAZON_BRAKET_QDMI_device_finalize();
-}
-```
+Use `required` if all nodes have the plugin and a configuration failure must
+reject the job.
 
 ## Configuration
 
-Values use the following precedence: job option, submitted environment, then the
-`plugstack.conf` administrator default.
+The precedence is SPANK option, submitted job environment, then plugstack
+default.
 
-| Job option                         | Plugstack key                    | Job environment                 | QDMI session parameter                                        |
-| ---------------------------------- | -------------------------------- | ------------------------------- | ------------------------------------------------------------- |
-| `--amazon-braket-device-arn`       | `amazon_braket_device_arn`       | `AMAZON_BRAKET_DEVICE_ARN`      | `AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN`       |
-| `--amazon-braket-region`           | `amazon_braket_region`           | `AWS_REGION`                    | `AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION`          |
-| `--amazon-braket-reservation-arn`  | `amazon_braket_reservation_arn`  | `AMAZON_BRAKET_RESERVATION_ARN` | `AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN` |
-| `--amazon-braket-credentials-file` | `amazon_braket_credentials_file` | `AWS_SHARED_CREDENTIALS_FILE`   | AWS SDK default credential provider chain                     |
+| SPANK option                                     | Plugstack key                                | Job environment                    |
+| ------------------------------------------------ | -------------------------------------------- | ---------------------------------- |
+| `--amazon-braket-profile`                        | `amazon_braket_profile`                      | `AWS_PROFILE`                      |
+| `--amazon-braket-config-file`                    | `amazon_braket_config_file`                  | `AWS_CONFIG_FILE`                  |
+| `--amazon-braket-shared-credentials-file`        | `amazon_braket_shared_credentials_file`      | `AWS_SHARED_CREDENTIALS_FILE`      |
+| `--amazon-braket-task-results-s3-uri`            | `amazon_braket_task_results_s3_uri`          | `AMZN_BRAKET_TASK_RESULTS_S3_URI`  |
+| `--amazon-braket-reservation-arn`                | `amazon_braket_reservation_arn`              | `AMAZON_BRAKET_RESERVATION_ARN`    |
 
-The device ARN is the only required value. Region defaults to the ARN region or
-`us-east-1`. Reservation and credentials file are optional. Standard AWS
-credential sources such as `AWS_ACCESS_KEY_ID`, web identity, container
-credentials, profiles, and instance roles remain available through the SDK
-provider chain. During validation, the plugin mirrors these settings from the
-submitted job environment instead of inheriting the Slurm daemon environment.
+The plugin calls only the SPANK environment API for these values. It does not
+change the `slurmd` environment. It does not accept an access key, a secret key,
+or a session token as an option. It does not log configuration values.
 
-## Validation and failure behavior
+An administrator can define defaults on the plugstack line. The plugin applies a
+default only to a job that requests one local Braket license.
 
-1. `user_init` injects the effective configuration after privileges are dropped.
-   A job without a device ARN leaves the plugin inactive.
-2. Active jobs initialize a QDMI session and require the selected device status
-   to be `IDLE` or `BUSY`.
-3. The validation result is cached once per remote job step. `task_init` rejects
-   a failed job immediately before execution without reporting a compute-node
-   failure to Slurm.
+```text
+optional /usr/lib/x86_64-linux-gnu/slurm-wlm/amazon-braket-qdmi-spank.so amazon_braket_profile=hpc-quantum amazon_braket_task_results_s3_uri=s3://site-braket-results/tasks
+```
 
-The repository exercises these paths against a real single-node Slurm setup in
-Docker:
+A plugstack default or profile reference must not grant access that the job user
+does not already have. Protect referenced files with operating-system access
+controls. Apply least-privilege IAM policies to profiles, workload identities,
+and node roles. The plugin transports names and paths; it is not a credential
+broker.
+
+Configure only the concrete devices that the cluster should schedule. Counts are
+cluster admission policy, not device metadata:
+
+```ini
+Licenses=amazon.braket.sv1:2,amazon.braket.iqm.garnet:1
+```
+
+## Use without SPANK
+
+Use this mode when the node already has a suitable instance role or workload
+identity. An AWS profile and `sbatch --export` also work. The QDMI provider uses
+the AWS SDK default credential provider chain.
+
+```bash
+sbatch \
+  --licenses=amazon.braket.sv1:1 \
+  --export=ALL,AWS_PROFILE=hpc-quantum,AMZN_BRAKET_TASK_RESULTS_S3_URI=s3://site-braket-results/tasks \
+  run-sv1.sh
+```
+
+The MQT Core Slurm adapter uses the local license environment value to select
+`amazon.braket.sv1`. The persistent catalogue definition supplies the device ARN
+and AWS Region. This selection does not prove the allocation or authorize AWS
+access.
+
+## Use with SPANK
+
+Use SPANK when an administrator wants consistent names for credential sources,
+the result destination, or a reservation. The plugin transports references. It
+does not distribute credentials.
+
+```bash
+sbatch \
+  --licenses=amazon.braket.sv1:1 \
+  --amazon-braket-profile=hpc-quantum \
+  --amazon-braket-task-results-s3-uri=s3://site-braket-results/tasks \
+  run-sv1.sh
+```
+
+The AWS profile can use `credential_process`, web identity, container
+credentials, or another source that the AWS SDK supports. Prefer temporary
+credentials for cluster jobs.
+
+At application startup, open the licensed device through MQT Core before doing
+other work:
+
+```python
+from mqt.core.qdmi import slurm
+
+device = slurm.open_device_from_license()
+```
+
+This performs the authenticated Amazon Braket `GetDevice` request and rejects a
+device that is unavailable. It is an application-start preflight after Slurm has
+launched the job, not scheduler-side authorization.
+
+## Validation
+
+The repository test uses Slurm 23.11 and Munge in an Ubuntu 24.04 container. It
+checks option precedence, temporary credentials from `credential_process`, an
+MQT Core device preflight against a minimal local `GetDevice` endpoint, and the
+absence of configuration references in daemon environments. The container needs
+`--privileged` only so Slurm can create its required cgroup-v2 scope; it does
+not run systemd or mount the host cgroup namespace.
 
 ```bash
 docker build -t amazon-braket-spank-tests -f spank/Dockerfile .
-docker run --rm amazon-braket-spank-tests
+docker run --rm --privileged amazon-braket-spank-tests
 ```
 
 ## License
 
-Only this SPANK plugin is licensed under GPL-3.0-or-later because it links
-against Slurm's GPL-licensed interface. The Amazon Braket QDMI core remains
-licensed under Apache-2.0 with LLVM exceptions. The install component includes
-both license texts in separate directories.
+Only this plugin is licensed under GPL-3.0-or-later because it links against
+Slurm's GPL-licensed interface. The Amazon Braket QDMI provider remains licensed
+under Apache-2.0 with LLVM exceptions.

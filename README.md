@@ -75,7 +75,7 @@ operation set.
 - **C++20** compatible compiler
 - **CMake** 3.24 or later
 - **AWS credentials** available to the AWS SDK (see Configuration below)
-- **Slurm** 20.02 or later (only for optional SPANK plugin)
+- **Slurm** 23.02 or later (only for the optional SPANK plugin; CI tests 23.11)
 
 **Note**: Dependencies (AWS SDK for C++, QDMI) are automatically downloaded and
 built by CMake during the configuration step. Further information on the SPANK

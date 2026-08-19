@@ -20,24 +20,20 @@
 
 /**
  * @file spank.cpp
- * @brief Slurm SPANK integration for Amazon Braket QDMI.
+ * @brief Optional Slurm environment injection for Amazon Braket jobs.
  *
- * Configuration precedence is:
- * 1. `srun`/`sbatch` options,
- * 2. the submitted job environment,
- * 3. administrator defaults in `plugstack.conf`.
- *
- * A device ARN opts a job into validation. Explicit credentials are optional;
- * when no credentials file is configured, the Amazon Braket QDMI device uses
- * the AWS SDK default credential provider chain.
+ * The plugin transports references to AWS configuration. It does not select a
+ * device, resolve credentials, or contact AWS. The process-mutable Slurm
+ * license environment only determines whether injection applies. MQT Core
+ * validates the license and opens the device in the job process. Neither step
+ * attests an allocation or authorizes AWS access. AWS IAM remains the
+ * access-control boundary.
  */
 
-#include "amazon-braket-qdmi-device/constants.hpp"
-#include "amazon_braket_qdmi/device.h"
-
+#include <algorithm>
 #include <array>
 #include <cstddef>
-#include <cstdlib>
+#include <cstdint>
 #include <exception>
 #include <optional>
 #include <string>
@@ -49,11 +45,8 @@ extern "C" {
 #include <slurm/spank.h>
 }
 
-// POSIX setenv and unsetenv are declared by stdlib.h.
-#include <stdlib.h> // NOLINT(modernize-deprecated-headers)
-
-static_assert(SLURM_VERSION_NUMBER >= SLURM_VERSION_NUM(20, 2, 0),
-              "The Amazon Braket SPANK plugin requires Slurm 20.02 or newer");
+static_assert(SLURM_VERSION_NUMBER >= SLURM_VERSION_NUM(23, 2, 0),
+              "The Amazon Braket SPANK plugin requires Slurm 23.02 or newer");
 
 // These names are fixed by the Slurm plugin ABI.
 // NOLINTBEGIN(readability-identifier-naming)
@@ -66,94 +59,64 @@ extern const unsigned int spank_plugin_version = 1;
 // NOLINTEND(readability-identifier-naming)
 
 namespace {
+constexpr std::string_view BRAKET_LICENSE_PREFIX = "amazon.braket.";
+constexpr std::string_view GENERIC_BRAKET_LICENSE = "amazon.braket.default";
+constexpr auto LICENSE_ENVIRONMENT = "SLURM_JOB_LICENSES";
+// slurmstepd treats only a negative task-init return as fatal. ESPANK_ERROR is
+// positive and would log an error without preventing the workload from running.
+constexpr auto TASK_REJECTED = -1;
 
 struct ConfigMapping {
   std::string_view plugstackKey;
-  const char* environment;
-  const char* optionName;
-  const char* argumentName;
-  const char* usage;
-  QDMI_Device_Session_Parameter parameter;
-  bool validateAsSessionParameter;
+  const char* environment = nullptr;
+  const char* optionName = nullptr;
+  const char* argumentName = nullptr;
+  const char* usage = nullptr;
 };
 
-constexpr std::array<ConfigMapping, 4> CONFIG_MAPPINGS = {{
-    {.plugstackKey = "amazon_braket_device_arn",
-     .environment = AMAZON_BRAKET_QDMI_DEVICE_ENV_DEVICE_ARN,
-     .optionName = "amazon-braket-device-arn",
-     .argumentName = "ARN",
-     .usage = "Amazon Braket device ARN",
-     .parameter = AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
-     .validateAsSessionParameter = true},
-    {.plugstackKey = "amazon_braket_region",
-     .environment = AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION,
-     .optionName = "amazon-braket-region",
-     .argumentName = "REGION",
-     .usage = "AWS region",
-     .parameter = AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_REGION,
-     .validateAsSessionParameter = true},
-    {.plugstackKey = "amazon_braket_reservation_arn",
-     .environment = AMAZON_BRAKET_QDMI_DEVICE_ENV_RESERVATION_ARN,
-     .optionName = "amazon-braket-reservation-arn",
-     .argumentName = "ARN",
-     .usage = "Amazon Braket reservation ARN",
-     .parameter = AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_RESERVATION_ARN,
-     .validateAsSessionParameter = true},
-    {.plugstackKey = "amazon_braket_credentials_file",
-     .environment = "AWS_SHARED_CREDENTIALS_FILE",
-     .optionName = "amazon-braket-credentials-file",
-     .argumentName = "PATH",
-     .usage = "AWS shared credentials file",
-     .parameter = QDMI_DEVICE_SESSION_PARAMETER_AUTHFILE,
-     .validateAsSessionParameter = false},
-}};
+constexpr std::array CONFIG_MAPPINGS{
+    ConfigMapping{.plugstackKey = "amazon_braket_profile",
+                  .environment = "AWS_PROFILE",
+                  .optionName = "amazon-braket-profile",
+                  .argumentName = "PROFILE",
+                  .usage = "AWS profile name"},
+    ConfigMapping{.plugstackKey = "amazon_braket_config_file",
+                  .environment = "AWS_CONFIG_FILE",
+                  .optionName = "amazon-braket-config-file",
+                  .argumentName = "PATH",
+                  .usage = "AWS config file"},
+    ConfigMapping{.plugstackKey = "amazon_braket_shared_credentials_file",
+                  .environment = "AWS_SHARED_CREDENTIALS_FILE",
+                  .optionName = "amazon-braket-shared-credentials-file",
+                  .argumentName = "PATH",
+                  .usage = "AWS shared credentials file"},
+    ConfigMapping{.plugstackKey = "amazon_braket_task_results_s3_uri",
+                  .environment = "AMZN_BRAKET_TASK_RESULTS_S3_URI",
+                  .optionName = "amazon-braket-task-results-s3-uri",
+                  .argumentName = "S3_URI",
+                  .usage = "Amazon Braket task result destination"},
+    ConfigMapping{.plugstackKey = "amazon_braket_reservation_arn",
+                  .environment = "AMAZON_BRAKET_RESERVATION_ARN",
+                  .optionName = "amazon-braket-reservation-arn",
+                  .argumentName = "ARN",
+                  .usage = "Amazon Braket reservation ARN"},
+};
 
-/**
- * Process-environment inputs consumed by the AWS SDK credential and endpoint
- * provider chains.
- *
- * A remote SPANK hook runs in slurmstepd, whose process environment is not the
- * submitted job environment exposed by spank_getenv(). Mirror these values
- * while validating so the SDK sees the job's configuration and never inherits
- * credentials from the daemon.
- */
-constexpr std::array<const char*, 30> AWS_PROVIDER_ENVIRONMENT = {{
-    "AWS_ACCESS_KEY_ID",
-    "AWS_SECRET_ACCESS_KEY",
-    "AWS_SESSION_TOKEN",
-    "AWS_ACCOUNT_ID",
-    "AWS_PROFILE",
-    "AWS_DEFAULT_PROFILE",
-    "AWS_CONFIG_FILE",
-    "AWS_SHARED_CREDENTIALS_FILE",
-    "AWS_DEFAULT_REGION",
-    "AWS_ROLE_ARN",
-    "AWS_IAM_ROLE_ARN",
-    "AWS_ROLE_SESSION_NAME",
-    "AWS_IAM_ROLE_SESSION_NAME",
-    "AWS_WEB_IDENTITY_TOKEN_FILE",
-    "AWS_LOGIN_CACHE_DIRECTORY",
-    "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
-    "AWS_CONTAINER_CREDENTIALS_FULL_URI",
-    "AWS_CONTAINER_AUTHORIZATION_TOKEN",
-    "AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE",
-    "AWS_EC2_METADATA_DISABLED",
-    "AWS_EC2_METADATA_V1_DISABLED",
-    "AWS_EC2_METADATA_SERVICE_ENDPOINT",
-    "AWS_EC2_METADATA_SERVICE_ENDPOINT_MODE",
-    "AWS_METADATA_SERVICE_TIMEOUT",
-    "AWS_METADATA_SERVICE_NUM_ATTEMPTS",
-    "AWS_DEFAULTS_MODE",
-    "AWS_ENDPOINT_URL",
-    "AWS_ENDPOINT_URL_BRAKET",
-    "AWS_IGNORE_CONFIGURED_ENDPOINT_URLS",
-    "HOME",
-}};
+enum class BraketLicenseContext : std::uint8_t {
+  NotApplicable,
+  Applicable,
+  Invalid,
+};
 
-struct ValidationState {
-  bool active = false;
-  bool complete = false;
-  bool successful = false;
+enum class JobEnvironmentState : std::uint8_t {
+  Missing,
+  Valid,
+  Invalid,
+};
+
+struct JobEnvironmentValue {
+  JobEnvironmentState state = JobEnvironmentState::Missing;
+  std::string value;
 };
 
 auto mutableText(const char* text) -> char* {
@@ -163,7 +126,7 @@ auto mutableText(const char* text) -> char* {
 }
 
 auto validValue(const char* value) -> bool {
-  if (value == nullptr || value[0] == '\0') {
+  if (value == nullptr || *value == '\0') {
     return false;
   }
   for (const char* current = value; *current != '\0'; ++current) {
@@ -174,15 +137,30 @@ auto validValue(const char* value) -> bool {
   return true;
 }
 
-auto getJobEnvironment(spank_t spank, const char* name)
-    -> std::optional<std::string> {
-  std::array<char, 4096> buffer{};
-  if (spank_getenv(spank, name, buffer.data(),
-                   static_cast<int>(buffer.size())) != ESPANK_SUCCESS ||
-      !validValue(buffer.data())) {
-    return std::nullopt;
+auto trim(std::string_view value) -> std::string_view {
+  constexpr std::string_view whitespace = " \t";
+  const auto begin = value.find_first_not_of(whitespace);
+  if (begin == std::string_view::npos) {
+    return {};
   }
-  return std::string{buffer.data()};
+  const auto end = value.find_last_not_of(whitespace);
+  return value.substr(begin, end - begin + 1);
+}
+
+auto getJobEnvironment(spank_t spank, const char* name) -> JobEnvironmentValue {
+  std::array<char, 4096> buffer{};
+  const auto result =
+      spank_getenv(spank, name, buffer.data(), static_cast<int>(buffer.size()));
+  if (result == ESPANK_NOSPACE) {
+    return {.state = JobEnvironmentState::Invalid, .value = {}};
+  }
+  if (result != ESPANK_SUCCESS) {
+    return {.state = JobEnvironmentState::Missing, .value = {}};
+  }
+  if (!validValue(buffer.data())) {
+    return {.state = JobEnvironmentState::Invalid, .value = {}};
+  }
+  return {.state = JobEnvironmentState::Valid, .value = buffer.data()};
 }
 
 auto logFailure(const char* message) -> void {
@@ -191,118 +169,31 @@ auto logFailure(const char* message) -> void {
   slurm_spank_log("amazon-braket-qdmi: %s", message);
 }
 
-auto logHook(const char* hook) -> void {
-  // Slurm exposes logging through a variadic C ABI.
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-  slurm_spank_log("amazon-braket-qdmi: hook=%s", hook);
+auto classifyBraketLicense(const std::string_view expression)
+    -> BraketLicenseContext {
+  auto context = BraketLicenseContext::NotApplicable;
+  size_t tokenBegin = 0;
+  while (tokenBegin <= expression.size()) {
+    const auto tokenEnd = expression.find_first_of(",|", tokenBegin);
+    const auto token =
+        trim(expression.substr(tokenBegin, tokenEnd == std::string_view::npos
+                                               ? std::string_view::npos
+                                               : tokenEnd - tokenBegin));
+    const auto nameEnd = token.find_first_of(":@");
+    const auto name = token.substr(0, nameEnd);
+    if (name == GENERIC_BRAKET_LICENSE) {
+      return BraketLicenseContext::Invalid;
+    }
+    if (name.starts_with(BRAKET_LICENSE_PREFIX)) {
+      context = BraketLicenseContext::Applicable;
+    }
+    if (tokenEnd == std::string_view::npos) {
+      return context;
+    }
+    tokenBegin = tokenEnd + 1;
+  }
+  return context;
 }
-
-/**
- * Isolate the daemon environment while validating the submitted job.
- *
- * Effective plugin configuration is passed directly to the QDMI session.
- * Those fallback variables are hidden, while AWS SDK provider inputs mirror
- * the values exposed by spank_getenv(). This prevents slurmstepd service
- * credentials from leaking into a job and preserves job-scoped provider-chain
- * sources such as web identity and container credentials.
- */
-class ScopedSessionEnvironment final {
-public:
-  explicit ScopedSessionEnvironment(spank_t spank) {
-    try {
-      for (const auto& mapping : CONFIG_MAPPINGS) {
-        if (!replace(mapping.environment, std::nullopt)) {
-          valid_ = false;
-          return;
-        }
-      }
-      for (const auto* name : AWS_PROVIDER_ENVIRONMENT) {
-        if (!replace(name, getJobEnvironment(spank, name))) {
-          valid_ = false;
-          return;
-        }
-      }
-    } catch (...) {
-      restoreChanges();
-      throw;
-    }
-  }
-
-  ScopedSessionEnvironment(const ScopedSessionEnvironment&) = delete;
-  auto operator=(const ScopedSessionEnvironment&)
-      -> ScopedSessionEnvironment& = delete;
-  ScopedSessionEnvironment(ScopedSessionEnvironment&&) = delete;
-  auto operator=(ScopedSessionEnvironment&&)
-      -> ScopedSessionEnvironment& = delete;
-
-  ~ScopedSessionEnvironment() { restoreChanges(); }
-
-  [[nodiscard]] auto valid() const -> bool { return valid_; }
-
-private:
-  void restoreChanges() noexcept {
-    while (changedValues_ > 0) {
-      --changedValues_;
-      const auto& change = changes_[changedValues_];
-      if (restore(change.name, change.originalValue) != 0) {
-        logFailure("failed to restore the process environment");
-      }
-    }
-  }
-
-  struct EnvironmentChange {
-    const char* name = nullptr;
-    std::optional<std::string> originalValue;
-  };
-
-  static auto restore(const char* name, const std::optional<std::string>& value)
-      -> int {
-    if (value.has_value()) {
-      return setenv(name, value->c_str(), 1);
-    }
-    return unsetenv(name);
-  }
-
-  auto replace(const char* name, const std::optional<std::string>& replacement)
-      -> bool {
-    auto& change = changes_[changedValues_];
-    change.name = name;
-    if (const char* value = std::getenv(name); value != nullptr) {
-      change.originalValue = value;
-    }
-    if (restore(name, replacement) != 0) {
-      return false;
-    }
-    ++changedValues_;
-    return true;
-  }
-
-  std::array<EnvironmentChange,
-             CONFIG_MAPPINGS.size() + AWS_PROVIDER_ENVIRONMENT.size()>
-      changes_{};
-  size_t changedValues_ = 0;
-  bool valid_ = true;
-};
-
-struct QdmiGuard {
-  AMAZON_BRAKET_QDMI_Device_Session session = nullptr;
-  bool finalizeDevice = false;
-
-  QdmiGuard() = default;
-  QdmiGuard(const QdmiGuard&) = delete;
-  auto operator=(const QdmiGuard&) -> QdmiGuard& = delete;
-  QdmiGuard(QdmiGuard&&) = delete;
-  auto operator=(QdmiGuard&&) -> QdmiGuard& = delete;
-
-  ~QdmiGuard() {
-    if (session != nullptr) {
-      AMAZON_BRAKET_QDMI_device_session_free(session);
-    }
-    if (finalizeDevice) {
-      AMAZON_BRAKET_QDMI_device_finalize();
-    }
-  }
-};
 
 class BraketSpankConfig final {
 public:
@@ -310,18 +201,15 @@ public:
     plugstackValues_ = {};
     optionValues_ = {};
     for (int index = 0; index < count; ++index) {
-      if (arguments[index] == nullptr) {
-        continue;
-      }
-      if (!validValue(arguments[index])) {
-        logMalformedArgument(arguments[index]);
+      if (arguments[index] == nullptr || !validValue(arguments[index])) {
+        logFailure("ignoring a malformed plugstack argument");
         continue;
       }
       const std::string_view argument{arguments[index]};
       const auto separator = argument.find('=');
       if (separator == std::string_view::npos || separator == 0 ||
           separator + 1 >= argument.size()) {
-        logMalformedArgument(arguments[index]);
+        logFailure("ignoring a malformed plugstack argument");
         continue;
       }
 
@@ -331,17 +219,13 @@ public:
       for (size_t mappingIndex = 0; mappingIndex < CONFIG_MAPPINGS.size();
            ++mappingIndex) {
         if (key == CONFIG_MAPPINGS[mappingIndex].plugstackKey) {
-          plugstackValues_[mappingIndex] = std::string{value};
+          plugstackValues_[mappingIndex] = value;
           matched = true;
           break;
         }
       }
       if (!matched) {
-        // Slurm exposes logging through a variadic C ABI.
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-        slurm_spank_log(
-            "amazon-braket-qdmi: ignoring unknown plugstack argument '%.*s'",
-            static_cast<int>(key.size()), key.data());
+        logFailure("ignoring an unknown plugstack argument");
       }
     }
   }
@@ -366,133 +250,53 @@ public:
     return ESPANK_SUCCESS;
   }
 
+  [[nodiscard]] auto optionsPresent() const -> bool {
+    return std::ranges::any_of(
+        optionValues_, [](const auto& value) { return value.has_value(); });
+  }
+
+  // The referenced profiles, files, roles, and destinations must already be
+  // available to the job user. Setting their names does not grant access.
   auto injectEnvironment(spank_t spank) const -> bool {
     for (size_t index = 0; index < CONFIG_MAPPINGS.size(); ++index) {
-      const std::string* value = nullptr;
-      int overwrite = 0;
+      const auto& mapping = CONFIG_MAPPINGS[index];
       if (optionValues_[index].has_value()) {
-        value = &optionValues_[index].value();
-        overwrite = 1;
-      } else if (plugstackValues_[index].has_value()) {
-        value = &plugstackValues_[index].value();
-      }
-      if (value == nullptr) {
-        continue;
-      }
-
-      const auto result = spank_setenv(
-          spank, CONFIG_MAPPINGS[index].environment, value->c_str(), overwrite);
-      if (result != ESPANK_SUCCESS && result != ESPANK_ENV_EXISTS) {
-        logFailure("failed to inject the Amazon Braket job environment");
-        return false;
-      }
-    }
-    return true;
-  }
-
-  [[nodiscard]] static auto isActive(spank_t spank) -> bool {
-    return getJobEnvironment(spank, CONFIG_MAPPINGS.front().environment)
-        .has_value();
-  }
-
-  [[nodiscard]] static auto validateBackend(spank_t spank) noexcept -> bool {
-    try {
-      const ScopedSessionEnvironment environmentScope{spank};
-      if (!environmentScope.valid()) {
-        logFailure("failed to isolate the QDMI job environment");
-        return false;
-      }
-
-      QdmiGuard guard;
-      guard.finalizeDevice = true;
-      if (AMAZON_BRAKET_QDMI_device_initialize() != QDMI_SUCCESS) {
-        guard.finalizeDevice = false;
-        logFailure("failed to initialize the Amazon Braket QDMI device");
-        return false;
-      }
-
-      if (AMAZON_BRAKET_QDMI_device_session_alloc(&guard.session) !=
-          QDMI_SUCCESS) {
-        logFailure("failed to allocate an Amazon Braket QDMI session");
-        return false;
-      }
-
-      for (const auto& mapping : CONFIG_MAPPINGS) {
-        if (!mapping.validateAsSessionParameter) {
-          continue;
-        }
-        const auto value = getJobEnvironment(spank, mapping.environment);
-        if (!value.has_value()) {
-          continue;
-        }
-        if (AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                guard.session, mapping.parameter, value->size() + 1,
-                value->c_str()) != QDMI_SUCCESS) {
-          logFailure("invalid Amazon Braket session parameter");
+        if (spank_setenv(spank, mapping.environment,
+                         optionValues_[index]->c_str(), 1) != ESPANK_SUCCESS) {
+          logFailure("failed to inject an Amazon Braket job option");
           return false;
         }
+        continue;
       }
-
-      if (AMAZON_BRAKET_QDMI_device_session_init(guard.session) !=
-          QDMI_SUCCESS) {
-        logFailure("Amazon Braket session validation failed");
+      const auto submittedValue = getJobEnvironment(spank, mapping.environment);
+      if (submittedValue.state == JobEnvironmentState::Invalid) {
+        logFailure(
+            "Amazon Braket job environment value is malformed or too long");
         return false;
       }
-
-      QDMI_Device_Status status = QDMI_DEVICE_STATUS_OFFLINE;
-      if (AMAZON_BRAKET_QDMI_device_session_query_device_property(
-              guard.session, QDMI_DEVICE_PROPERTY_STATUS, sizeof(status),
-              &status, nullptr) != QDMI_SUCCESS ||
-          (status != QDMI_DEVICE_STATUS_IDLE &&
-           status != QDMI_DEVICE_STATUS_BUSY)) {
-        logFailure("Amazon Braket device is not available");
+      if (submittedValue.state == JobEnvironmentState::Valid ||
+          !plugstackValues_[index].has_value()) {
+        continue;
+      }
+      const auto result = spank_setenv(spank, mapping.environment,
+                                       plugstackValues_[index]->c_str(), 0);
+      if (result != ESPANK_SUCCESS && result != ESPANK_ENV_EXISTS) {
+        logFailure("failed to inject an Amazon Braket administrator default");
         return false;
       }
-    } catch (const std::exception& error) {
-      // Slurm exposes logging through a variadic C ABI.
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-      slurm_spank_log("amazon-braket-qdmi: validation raised an exception: %s",
-                      error.what());
-      return false;
-    } catch (...) {
-      logFailure("validation raised an unknown exception");
-      return false;
     }
     return true;
-  }
-
-  void resetValidation() { validation_ = {}; }
-
-  void skipValidation() {
-    validation_ = {.active = false, .complete = true, .successful = true};
-  }
-
-  void finishValidation(const bool successful) {
-    validation_ = {.active = true, .complete = true, .successful = successful};
-  }
-
-  [[nodiscard]] auto validation() const -> ValidationState {
-    return validation_;
   }
 
 private:
   static auto optionCallback(int value, const char* argument, int remote)
       -> int;
 
-  static void logMalformedArgument(const char* argument) {
-    // Slurm exposes logging through a variadic C ABI.
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-    slurm_spank_log(
-        "amazon-braket-qdmi: ignoring malformed plugstack argument '%s'",
-        argument);
-  }
-
   std::array<std::optional<std::string>, CONFIG_MAPPINGS.size()>
       plugstackValues_{};
   std::array<std::optional<std::string>, CONFIG_MAPPINGS.size()>
       optionValues_{};
   std::array<spank_option, CONFIG_MAPPINGS.size()> optionDefinitions_{};
-  ValidationState validation_{};
 };
 
 BraketSpankConfig
@@ -507,28 +311,15 @@ auto BraketSpankConfig::optionCallback(const int value, const char* argument,
   }
   try {
     config.optionValues_[static_cast<size_t>(value)] = argument;
-  } catch (const std::exception& error) {
-    // Slurm exposes logging through a variadic C ABI.
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-    slurm_spank_log(
-        "amazon-braket-qdmi: option processing raised an exception: %s",
-        error.what());
+  } catch (const std::exception&) {
+    logFailure("Amazon Braket option processing failed");
     return -1;
   } catch (...) {
-    logFailure("option processing raised an unknown exception");
+    logFailure("Amazon Braket option processing failed");
     return -1;
   }
   return 0;
 }
-
-auto isPrimaryTask(spank_t spank) -> bool {
-  int taskId = 0;
-  // Slurm exposes item queries through a variadic C ABI.
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-  return spank_get_item(spank, S_TASK_ID, &taskId) != ESPANK_SUCCESS ||
-         taskId == 0;
-}
-
 } // namespace
 
 // These names and signatures are required by the Slurm SPANK ABI.
@@ -536,78 +327,51 @@ auto isPrimaryTask(spank_t spank) -> bool {
 //             cppcoreguidelines-avoid-c-arrays)
 extern "C" {
 int slurm_spank_init(spank_t spank, const int count, char* arguments[]) {
-  logHook("slurm_spank_init");
   try {
     config.parsePlugstackArguments(count, arguments);
-    if (spank_remote(spank) == 1) {
-      config.resetValidation();
-    }
     return config.registerOptions(spank);
-  } catch (const std::exception& error) {
-    // Slurm exposes logging through a variadic C ABI.
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-    slurm_spank_log(
-        "amazon-braket-qdmi: initialization raised an exception: %s",
-        error.what());
+  } catch (const std::exception&) {
+    logFailure("Amazon Braket SPANK initialization failed");
   } catch (...) {
-    logFailure("initialization raised an unknown exception");
+    logFailure("Amazon Braket SPANK initialization failed");
   }
   return ESPANK_ERROR;
-}
-
-int slurm_spank_init_post_opt(spank_t /*spank*/, int /*count*/,
-                              char* /*arguments*/[]) {
-  logHook("slurm_spank_init_post_opt");
-  return ESPANK_SUCCESS;
-}
-
-int slurm_spank_user_init(spank_t spank, int /*count*/, char* /*arguments*/[]) {
-  logHook("slurm_spank_user_init");
-  if (spank_remote(spank) != 1 || config.validation().complete) {
-    return ESPANK_SUCCESS;
-  }
-
-  try {
-    if (!config.injectEnvironment(spank)) {
-      config.finishValidation(false);
-      return ESPANK_SUCCESS;
-    }
-    if (!config.isActive(spank)) {
-      config.skipValidation();
-      return ESPANK_SUCCESS;
-    }
-
-    config.finishValidation(config.validateBackend(spank));
-  } catch (const std::exception& error) {
-    config.finishValidation(false);
-    // Slurm exposes logging through a variadic C ABI.
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-    slurm_spank_log(
-        "amazon-braket-qdmi: user initialization raised an exception: %s",
-        error.what());
-  } catch (...) {
-    config.finishValidation(false);
-    logFailure("user initialization raised an unknown exception");
-  }
-  return ESPANK_SUCCESS;
 }
 
 int slurm_spank_task_init(spank_t spank, int /*count*/, char* /*arguments*/[]) {
   if (spank_remote(spank) != 1) {
     return ESPANK_SUCCESS;
   }
-  const auto state = config.validation();
-  if (!state.active) {
-    return ESPANK_SUCCESS;
-  }
-  if (!state.complete || !state.successful) {
-    if (isPrimaryTask(spank)) {
-      logFailure("job rejected because Amazon Braket validation failed");
+  try {
+    // SLURM_JOB_LICENSES is process-mutable. It controls plugin applicability
+    // and consistency checks only; it is not allocation attestation or AWS
+    // authorization.
+    const auto licenses = getJobEnvironment(spank, LICENSE_ENVIRONMENT);
+    if (licenses.state == JobEnvironmentState::Invalid) {
+      logFailure("SLURM_JOB_LICENSES is malformed or too long to validate");
+      return TASK_REJECTED;
     }
-    // slurmstepd treats only a negative task-init result as fatal.
-    return -1;
+    const auto context = classifyBraketLicense(
+        licenses.state == JobEnvironmentState::Valid ? licenses.value : "");
+    if (context == BraketLicenseContext::Invalid) {
+      logFailure("amazon.braket.default is not a Slurm device license");
+      return TASK_REJECTED;
+    }
+    if (context == BraketLicenseContext::NotApplicable) {
+      if (config.optionsPresent()) {
+        logFailure(
+            "Amazon Braket options require a concrete amazon.braket.* license");
+        return TASK_REJECTED;
+      }
+      return ESPANK_SUCCESS;
+    }
+    return config.injectEnvironment(spank) ? ESPANK_SUCCESS : TASK_REJECTED;
+  } catch (const std::exception&) {
+    logFailure("Amazon Braket environment injection failed");
+  } catch (...) {
+    logFailure("Amazon Braket environment injection failed");
   }
-  return ESPANK_SUCCESS;
+  return TASK_REJECTED;
 }
 } // extern "C"
 
