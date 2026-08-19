@@ -18,7 +18,7 @@
  */
 
 /**
- * @file device_parser.cpp
+ * @file DeviceParser.cpp
  * @brief Implementation of the common gate-model capability parser.
  *
  * The common Amazon Braket paradigm and OpenQASM schemas define sites,

@@ -1,0 +1,51 @@
+# Copyright (c) 2025 - 2026 Munich Quantum Software Company GmbH
+# All rights reserved.
+#
+# Licensed under the Apache License v2.0 with LLVM Exceptions (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# https://llvm.org/LICENSE.txt
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations under
+# the License.
+#
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+PROJECT_NAME           = "Amazon Braket QDMI Device"
+PROJECT_BRIEF          = "Native C++ and QDMI implementation reference"
+OUTPUT_DIRECTORY       = _build/doxygen
+INPUT                  = ../build/src/include/amazon_braket_qdmi/device.h \
+                         ../build/src/include/amazon_braket_qdmi/constants.h \
+                         ../build/src/include/amazon_braket_qdmi/types.h \
+                         ../build/src/include/amazon_braket_qdmi/export.h \
+                         ../include/amazon-braket-qdmi-device/constants.hpp
+FILE_PATTERNS          = *.h *.hpp
+RECURSIVE              = NO
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = NO
+SOURCE_BROWSER         = NO
+INLINE_SOURCES         = NO
+STRIP_FROM_PATH        = ..
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+GENERATE_TREEVIEW      = YES
+DISABLE_INDEX          = NO
+GENERATE_XML           = NO
+GENERATE_LATEX         = NO
+GENERATE_MAN           = NO
+GENERATE_RTF           = NO
+GENERATE_TAGFILE       =
+QUIET                  = YES
+WARNINGS               = YES
+WARN_AS_ERROR          = NO
+WARN_IF_UNDOCUMENTED   = NO
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = YES
+JAVADOC_AUTOBRIEF      = YES
+MARKDOWN_SUPPORT       = YES
+USE_MDFILE_AS_MAINPAGE =

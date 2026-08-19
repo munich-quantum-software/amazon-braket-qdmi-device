@@ -24,6 +24,7 @@
 
 from __future__ import annotations
 
+import argparse
 import contextlib
 import os
 import shutil
@@ -132,6 +133,53 @@ def minimums(session: nox.Session) -> None:
         )
         env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location}
         session.run("uv", "tree", "--frozen", env=env)
+
+
+@nox.session(python="3.14", reuse_venv=True)
+def docs(session: nox.Session) -> None:
+    """Build the documentation. Pass ``-b linkcheck`` to check links."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-b", dest="builder", default="html", help="Build target (default: html)")
+    args, posargs = parser.parse_known_args(session.posargs)
+
+    env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location}
+    if shutil.which("cmake") is None and shutil.which("cmake3") is None:
+        session.install("cmake")
+    if shutil.which("ninja") is None:
+        session.install("ninja")
+    session.run(
+        "uv",
+        "sync",
+        "--inexact",
+        "--only-group",
+        "build",
+        "--only-group",
+        "docs",
+        env=env,
+    )
+    session.run(
+        "uv",
+        "sync",
+        "--inexact",
+        "--no-dev",
+        "--no-build-isolation-package",
+        "amazon-braket-qdmi",
+        env=env,
+    )
+    session.run(
+        "uv",
+        "run",
+        "--no-sync",
+        "sphinx-build",
+        "-n",
+        "-T",
+        "-W",
+        f"-b={args.builder}",
+        "docs",
+        f"docs/_build/{args.builder}",
+        *posargs,
+        env=env,
+    )
 
 
 if __name__ == "__main__":
