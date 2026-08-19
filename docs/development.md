@@ -11,17 +11,24 @@ ctest --test-dir build --output-on-failure
 ```
 
 The hermetic tests use injected AWS clients and need no credentials or network
-access. Live tests are disabled unless their explicit opt-in environment
-variables are present.
+access. CMake does not register tests that access AWS unless
+`BUILD_AMAZON_BRAKET_LIVE_TESTS=ON` is set explicitly.
 
 When live Amazon Braket tests are intentionally required, select an AWS SDK
 credential source and a pre-provisioned result destination before configuring
 the test-specific opt-in:
 
 ```console
-export AWS_PROFILE=hpc-quantum
 export AMZN_BRAKET_TASK_RESULTS_S3_URI=s3://my-braket-results/tasks
+cmake -S . -B build-live -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_AMAZON_BRAKET_LIVE_TESTS=ON
+cmake --build build-live --config Release
+ctest --test-dir build-live -L amazon-braket-live --output-on-failure
 ```
+
+The example relies on an already selected AWS SDK credential source, such as
+`AWS_PROFILE=hpc-quantum` or a workload role. Temporary environment credentials
+must include `AWS_SESSION_TOKEN`.
 
 The test configuration has the following boundaries:
 
@@ -36,7 +43,9 @@ The test configuration has the following boundaries:
   `AMZN_BRAKET_TASK_RESULTS_S3_URI` unset, enables a separate SV1 test that can
   create and secure the standard regional bucket.
 
-The final two modes make live AWS calls and must be enabled deliberately.
+The final two modes make additional live AWS calls and must be enabled
+deliberately. The older SV1 and IQM integration fixtures are registered under
+the same `amazon-braket-live` label only in the live CMake configuration.
 
 ## Python tests
 
@@ -53,7 +62,9 @@ uvx nox -s minimums-3.14
 ```
 
 The regular Python tests build the native package through the repository's nox
-session. The full supported Python matrix is available as `uvx nox -s tests`.
+session. Python 3.11 and newer also exercise the optional PennyLane integration;
+Python 3.10 verifies the base package without PennyLane. The full supported
+Python matrix is available as `uvx nox -s tests`.
 
 ## Documentation
 
