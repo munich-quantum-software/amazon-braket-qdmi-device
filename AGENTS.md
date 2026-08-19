@@ -37,6 +37,8 @@ the Amazon Braket QDMI Device.
   OpenQASM, AWS, S3, and SPANK.
 - Add or update automated tests for every behavioral code change. Run the
   narrowest relevant test first and the complete lint suite before handoff.
+- Before auditing tests for spec debt, read `.agent/AUDITS.md` in full and use
+  `.agent/audits/TEMPLATE.md`. Keep audit evidence separate from remediation.
 - Update `CHANGELOG.md` for user-facing, breaking, or otherwise noteworthy
   changes.
 - Never commit or print credentials, access keys, session tokens, account IDs,
