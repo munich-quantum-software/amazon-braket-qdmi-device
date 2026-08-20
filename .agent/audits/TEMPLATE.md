@@ -19,7 +19,9 @@ or private device details.
 - **Promise boundary:** `<external, published, and requested sources searched>`
 
 Every `file:line` citation below was read in the detached evidence worktree at
-`E`. The PR-authoring worktree changes only this audit file.
+`E`. Through the signed audit-only commit `A`, the PR-authoring worktree changes
+only this audit file. Accepted resolutions may follow in later commits under
+`.agent/AUDITS.md`; they do not change `B`, `E`, or the evidence below.
 
 ## Scope and ownership
 
@@ -101,7 +103,7 @@ surviving tests. Write Not run for a T1 or T2-only verdict. -->
 assertion failed, state that the mutant proved no verdict. A contract-free
 result also requires no rung 1, 2, or 3 promise. -->
 
-**Remedy.** `<later test change; no implementation in this audit>`
+**Remedy.** `<proposed test or production change after maintainer acceptance>`
 
 **Unlock.**
 `<assertion constraint lifted and production change enabled, or none>`
@@ -115,14 +117,20 @@ result also requires no rung 1, 2, or 3 promise. -->
 
 **Resolution state.** `Not started`
 
+**Resolution SHA R.** `Not assigned.`
+
+**Resolution evidence.** `Not run.`
+
 **Closure evidence.** `Open; no resolving change.`
 
 <!--
-After this audit merges, a maintainer changes the decision to Accepted,
-Rejected, or Deferred and writes a reason. Decision and resolution are separate.
-Only an accepted finding may later become Applied, Narrowed, or Superseded.
-Preserve the original evidence and append the resolving change, revalidation,
-and closure result.
+After the completed audit-only commit is reviewed, a maintainer changes the
+decision to Accepted, Rejected, or Deferred and writes a reason. Commit that
+decision record before resolution. Decision and resolution are separate. Only
+an accepted finding may later become Applied, Narrowed, or Superseded. Preserve
+the original evidence and append the exact resolution SHA, resolving change,
+revalidation, and closure result. A fresh resolver may do this in the same pull
+request or a separate one but may not revise the verdict.
 -->
 
 ## Anchors confirmed
@@ -147,7 +155,7 @@ and closure result.
 - **Campaign baseline B:** `<full SHA>`
 - **Evidence SHA E:** `<full exact main SHA>`
 - **Evidence worktree:** `detached at E; no branch or commits`
-- **Authoring worktree:** `<audit branch; audit file only>`
+- **Authoring worktree:** `<audit branch; audit file only through commit A>`
 - **Platform:** `<portable platform facts; no local paths or account data>`
 - **Build mode:** `<C++ Debug coverage, nox session, or SPANK Docker>`
 - **AWS mode:** `offline`
@@ -191,6 +199,20 @@ test -z "$(git symbolic-ref --quiet HEAD)"
 <!-- Preserve every original experiment. Append new citations and experiments
 at M; never rewrite evidence from B. -->
 
+### Resolution evidence
+
+<!--
+Keep this section as "Not applicable; no accepted finding was resolved in this
+pull request." until resolution occurs. Otherwise record the signed audit-only
+commit A, signed decision-record commit, exact resolution SHA R, resolving
+commits, fresh-role boundary, replacement-oracle evidence, targeted and affected
+commands, coverage effects, and sanitized outcomes. Do not rewrite baseline
+experiments. State the non-squash merge condition when audit and resolution
+share a pull request.
+-->
+
+`Not applicable; no accepted finding was resolved in this pull request.`
+
 ## Residual risk
 
 - `<Remaining risk.>`
@@ -206,9 +228,9 @@ behavior. Distinguish severity from confidence. -->
 
 ## Reconciliation
 
-| Date           | Exact main SHA | Finding | Decision                       | Decision reason       | Resolution                                                 | Resolving change, revalidation, and closure |
-| :------------- | :------------- | :------ | :----------------------------- | :-------------------- | :--------------------------------------------------------- | :------------------------------------------ |
-| `<YYYY-MM-DD>` | `<full SHA>`   | `<V1>`  | `<Accepted|Rejected|Deferred>` | `<maintainer reason>` | `<Not started|Applied|Narrowed|Superseded|Not applicable>` | `<link, evidence, and open or closed>`      |
+| Date           | Exact evidence SHA | Finding | Decision                       | Decision reason       | Resolution                                                 | Resolving change, revalidation, and closure |
+| :------------- | :----------------- | :------ | :----------------------------- | :-------------------- | :--------------------------------------------------------- | :------------------------------------------ |
+| `<YYYY-MM-DD>` | `<E, R, or main>`  | `<V1>`  | `<Accepted|Rejected|Deferred>` | `<maintainer reason>` | `<Not started|Applied|Narrowed|Superseded|Not applicable>` | `<link, evidence, and open or closed>`      |
 
 ## Progress
 
@@ -229,3 +251,15 @@ behavior. Distinguish severity from confidence. -->
       original evidence preserved.
 - [ ] (`<YYYY-MM-DD>`) Post-command clean, detached-at-E checks passed.
 - [ ] (`<YYYY-MM-DD>`) Audit evidence and `uvx nox -s lint` passed.
+- [ ] (`<YYYY-MM-DD>`) Signed audit-only commit A was verified before any
+      decision or resolution commit.
+- [ ] (`<YYYY-MM-DD or N/A>`) Maintainer decisions and reasons were recorded
+      before resolution began.
+- [ ] (`<YYYY-MM-DD or N/A>`) Fresh resolution agents implemented accepted
+      findings without taking an audit role.
+- [ ] (`<YYYY-MM-DD or N/A>`) Replacement assertions were proved before later
+      commits narrowed or removed old assertions.
+- [ ] (`<YYYY-MM-DD or N/A>`) Resolution evidence at exact R was appended in a
+      separate signed reconciliation commit without rewriting evidence at E.
+- [ ] (`<YYYY-MM-DD or N/A>`) The selected merge strategy preserves every signed
+      audit, decision, resolution, and reconciliation commit.

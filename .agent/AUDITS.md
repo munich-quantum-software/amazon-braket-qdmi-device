@@ -31,9 +31,10 @@ scope at `.agent/audits/<scope-slug>.md`, based on `.agent/audits/TEMPLATE.md`.
 Reconcile an existing audit instead of replacing its history.
 
 A SpecAudit produces an assertion census, a spec ledger, and ranked verdicts
-with reproducible evidence. It never applies its own verdicts. A maintainer
-records a decision and reason first; production and test changes happen in later
-pull requests.
+with reproducible evidence. Audit roles do not apply their verdicts. Complete
+and commit the audit against immutable `B` and `E` before a maintainer records a
+decision and reason. Fresh resolution agents may then apply accepted findings in
+later commits in the same pull request or in separate pull requests.
 
 The pre-release campaign proceeds in four stages:
 
@@ -42,11 +43,13 @@ The pre-release campaign proceeds in four stages:
    as the campaign baseline. It must descend from
    `8c2d17eaba1ee4dc87a8da7a751527c451da0086` and contain both changes.
 2. Audit each of the seven scopes below in an independent pull request from the
-   same baseline.
+   same baseline. Once its audit-only commit and maintainer decisions are
+   recorded, that pull request may also resolve scope-local accepted findings.
 3. After all audits merge, run a fresh cross-scope architecture and release
    review.
-4. After a maintainer decides every finding and records the reasons, use fresh
-   agents to resolve accepted findings and reconcile the living audits.
+4. Use fresh agents to resolve accepted findings that were deferred for the
+   architecture review or otherwise remain open, then reconcile every living
+   audit and architecture finding.
 
 ## Non-negotiable requirements
 
@@ -64,9 +67,16 @@ The pre-release campaign proceeds in four stages:
 - Preserve assertions that defend an external contract, a safety property, or a
   resource-lifetime property unless equally strong evidence proves a safe
   replacement.
-- Keep audit and remediation separate. An audit branch changes only its audit
-  file. It does not change production code, tests, dependencies, or generated
-  files.
+- Keep audit evidence, decisions, and remediation separate by role, phase, and
+  signed commit. Through the completed audit commit, the branch changes only its
+  audit file. Do not amend or replace that commit when later decisions or
+  resolutions share the pull request.
+- Record every maintainer decision and reason before resolution begins. Use
+  fresh agents for resolution; they do not retroactively prosecute, defend, or
+  adjudicate the assertions they change.
+- Preserve the original evidence at `B` and `E`. Append resolution evidence at
+  an exact resolution SHA `R`; never rewrite an original experiment to describe
+  the resolved state.
 - Make every audit self-contained. A reader with the audit file and a clean
   checkout must be able to reproduce each experiment.
 - Abort on a dirty worktree or an evidence-SHA mismatch. Give each scope an
@@ -319,11 +329,13 @@ For the first audit, the exact evidence SHA `E` equals campaign baseline `B`.
 Keep one evidence worktree detached at `E`; never commit, rebase, or change its
 base. "Immutable" means its recorded base and tracked state never persistently
 change. The probe may make a temporary edit that it owns, but it must restore
-that edit before returning. Write the audit only in the separate authoring
-worktree.
+that edit before returning.
 
-After every evidence command, including a failed or interrupted command, verify
-all three conditions:
+Through the signed audit-only commit, write only the audit in the authoring
+worktree. Later resolution commits may use that worktree or a separate one, but
+they do not change the pinned audit baseline or evidence SHA. After every
+baseline evidence command, including a failed or interrupted command, verify all
+three conditions:
 
 ```sh
 test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -516,7 +528,11 @@ Run these waves in order:
 
 If subagents are unavailable, use separate fresh sessions and pass only the
 inputs for that wave. Never let one context prosecute, defend, and adjudicate
-the same assertion.
+the same assertion. After adjudication and a maintainer decision, give accepted
+findings to fresh resolution agents. A resolver implements the recorded
+decision; it does not retroactively serve as prosecutor, defender, or
+adjudicator. Route a substantive challenge to the verdict back through a fresh
+defender, red-team role, or scope lead before changing the audit conclusion.
 
 ## Guardrails
 
@@ -526,11 +542,14 @@ the same assertion.
    only after the surviving oracle has been proved.
 3. No verdict is valid without an executed experiment.
 4. No role both prosecutes and adjudicates an assertion.
-5. An audit records findings and stops. It does not apply them.
+5. The audit phase records findings and ends in a signed audit-only commit. A
+   fresh resolution phase may follow in the same pull request.
 6. A dirty worktree, attached evidence branch, or unpinned evidence SHA aborts
    the run.
-7. Assertion changes and the production changes they unlock use separate commits
-   during remediation.
+7. Replacement assertions must be proved before a later commit narrows or
+   removes the old assertion. Assertion changes, production simplifications, and
+   audit, documentation, or changelog reconciliation use separate signed commits
+   when those categories are present.
 8. Audit one bounded scope at a time.
 9. State every coverage consequence plainly. Record line and branch deltas and
    any effect on project or patch coverage; never hide a decrease behind an
@@ -552,7 +571,8 @@ For every scope, create two worktrees from `B`:
 - an evidence worktree detached at exact evidence SHA `E=B`, with no branch,
   commits, or persistent tracked edits; and
 - a PR-authoring worktree on `codex/audit-<scope-slug>`, used only to edit
-  `.agent/audits/<scope-slug>.md`.
+  `.agent/audits/<scope-slug>.md` through the completed audit commit. Accepted
+  resolution work may follow there after the decision gate below.
 
 Before every PR update, fetch `origin/main` and record its exact full SHA as
 `M`. Compare `B..M` across the scope's production sources, tests, and promise
@@ -563,12 +583,39 @@ relevant content drifted, record `M` and the exact diff paths checked. A rebase
 and evidence from a PR head do not satisfy this rule.
 
 Run the scope evidence and `uvx nox -s lint`. Inspect the diff and worktree.
-Sign each commit and run `git verify-commit HEAD`. After explicit authorization,
+Create a signed audit-only commit, record its exact SHA as `A`, and run
+`git verify-commit "${A}"`. Do not amend, replace, or rewrite `A` when the pull
+request later carries decisions or resolutions. After explicit authorization,
 open an independent draft pull request targeting `main`; do not stack audit pull
 requests. Include the required AI disclosure, assign `@burgholzer`, and apply
 `documentation` plus `c++` or `python` where applicable. Use the existing
 pull-request template without adding checklist items. Follow `AGENTS.md` for
 remote-state authorization.
+
+A pull request may stop after the audit record and leave resolution to one or
+more separate pull requests. It may instead carry one or more coherent accepted
+findings through resolution. Do not mechanically create one pull request per
+finding, and do not combine findings that have unrelated ownership or unsafe
+file overlap. For same-pull-request resolution, use this order:
+
+1. The scope lead completes adjudication and the signed audit-only commit `A`.
+2. The maintainer reviews the audit and records a decision and reason for every
+   finding that will be acted on. Commit that decision record before resolution
+   begins.
+3. Fresh resolution agents receive the branch at that decision commit, the
+   accepted IDs, and repository instructions. They do not receive an audit role
+   or authority to revise the verdicts.
+4. Add and prove replacement assertions before a later signed commit narrows or
+   removes the superseded assertions. Keep assertion changes separate from any
+   production simplification they unlock.
+5. At an exact resolution SHA `R`, run targeted and affected validation. Append
+   that evidence and the disposition to the audit in a separate signed
+   reconciliation commit without changing the evidence recorded at `B` or `E`.
+
+Defer a finding to a separate pull request when its ownership is unclear, its
+files overlap another scope's unresolved work, or its correct remedy depends on
+the cross-scope architecture review. Scope-local findings with no such
+dependency do not have to wait for all seven audits or that review.
 
 Do not rewrite a remote audit branch by default. If a rewrite becomes necessary,
 fetch that branch immediately before the push and record its full remote SHA as
@@ -591,9 +638,16 @@ If the fetched SHA changes before authorization or push, stop, refresh the
 backup and lease, and request authorization again.
 
 Route review feedback to the original scope lead. A defender, red-team role, or
-fresh agent adjudicates substantive objections. The prosecutor does not defend
-its own finding. The maintainer resolves review threads and accepts the audit
-record before merge. Merging an audit record does not accept its findings.
+fresh agent adjudicates substantive objections. The prosecutor and resolver do
+not defend or re-adjudicate the finding. The maintainer accepts the completed
+audit record and records decisions before resolution starts. The maintainer
+resolves review threads before merge. Committing or merging an audit record does
+not by itself accept its findings.
+
+Every audit, decision, resolution, and reconciliation commit must be signed and
+verified. Merge with a strategy that preserves those commits and their
+signatures; do not squash or replace them. This applies whether resolution
+shares the audit pull request or uses a later pull request.
 
 ## Cross-scope architecture review
 
@@ -621,49 +675,65 @@ graph that later orders remediation.
 ## Reconciliation and remediation
 
 Every verdict and architecture finding starts with maintainer decision `Pending`
-and resolution state `Not started`. After the audit and architecture records
-merge, a maintainer chooses exactly one decision and records a reason:
+and resolution state `Not started`. After the completed audit-only commit or
+architecture-review commit has been reviewed, a maintainer chooses exactly one
+decision and records a reason before resolution begins:
 
 - `Accepted`: remediation is authorized. Its resolution may become `Applied`,
-  `Narrowed`, or `Superseded` only after evidence is merged and reconciled.
+  `Narrowed`, or `Superseded` only after the resolving change exists at an exact
+  SHA `R`, evidence has been run there, and the audit has been reconciled.
 - `Rejected`: no remediation follows. Set resolution to `Not applicable` and
   preserve the reason.
 - `Deferred`: remediation is postponed. Keep resolution `Not started`, record
   the remaining risk and release effect, and preserve the reason.
 
 Decision and resolution are distinct. Never encode `Deferred` as a resolution
-state or treat a merged audit as an `Accepted` decision.
+state or treat a committed or merged audit as an `Accepted` decision.
 
-A rejected finding closes when the decision and reason are recorded. An accepted
-finding closes when its resolving change is merged, its resolution state and
-link are recorded, and its original experiment is rerun or superseded by equally
-strong evidence at an exact `main` SHA. `Narrowed` closes only when the
-maintainer records that the narrowed result fully satisfies the accepted part;
-otherwise the remainder stays open. `Superseded` closes only when an executed
-experiment proves another merged change removed the concern. A deferred finding
-remains open in the living record, even when its documented low risk permits
-this release.
+A rejected finding closes when the decision and reason are recorded and the
+record is merged. An accepted finding closes when its resolving and
+reconciliation commits are merged, its resolution state and link are recorded,
+and its original experiment is rerun or superseded by equally strong evidence at
+exact `R`. When resolution shares the audit pull request, write conditional
+closure evidence that identifies that pull request and the signed commits that
+its non-squash merge must preserve. `Narrowed` closes only when the maintainer
+records that the narrowed result fully satisfies the accepted part; otherwise
+the remainder stays open. `Superseded` closes only when an executed experiment
+proves another resolving change removed the concern. A deferred finding remains
+open in the living record, even when its documented low risk permits this
+release.
 
-Do not remediate until all audit and architecture pull requests merge and every
-finding has an `Accepted`, `Rejected`, or `Deferred` decision with a reason.
-Fresh resolution agents receive only current `main`, the merged records,
-accepted verdict and architecture IDs, and the repository instructions.
+Scope-local remediation may begin after its audit-only commit and recorded
+maintainer decision; it need not wait for unrelated audits. Architecture
+findings and audit findings whose ownership, dependencies, compatibility, or
+file overlap require the cross-scope review remain gated until that review is
+merged and the maintainer records their decisions. Fresh resolution agents
+receive only the applicable branch or current `main`, the completed audit and
+decision record, accepted verdict or architecture IDs, and the repository
+instructions.
 
-Group accepted findings by coherent ownership and file overlap. Serialize the
-overlapping native sequence: ABI and session, capabilities, AWS and storage,
-then jobs and results. Order distribution, PennyLane, and SPANK work from the
-architecture dependency graph.
+Group accepted findings by coherent ownership and file overlap. Multiple
+findings may share one pull request, including their audit pull request, when
+the resulting commits remain reviewable and the findings have one coherent
+ownership boundary. Serialize the overlapping native sequence: ABI and session,
+capabilities, AWS and storage, then jobs and results. Order architecture-gated
+distribution, PennyLane, and SPANK work from the dependency graph.
 
 Keep separate signed commits for assertion narrowing or removal, production
-simplification, and audit, documentation, or changelog reconciliation. Preserve
-those commits with merge commits. Regenerate `uv.lock` from declarations when a
-dependency changes.
+simplification, and audit, documentation, or changelog reconciliation whenever
+those categories are present. Commit and prove a replacement assertion before a
+later commit narrows or removes the old one. Preserve all audit, decision,
+resolution, and reconciliation commits with merge commits; do not squash.
+Regenerate `uv.lock` from declarations when a dependency changes.
 
-Re-derive each living audit against an exact current `main` SHA. Preserve its
-original IDs, evidence, decision, and reason. Append the resolution state,
-resolving pull request or commit, revalidation evidence, and closure result. Do
-not rewrite old experiments. A partial application narrows a finding; it does
-not close the remainder without the maintainer decision described above.
+Re-derive each living audit against exact resolution SHA `R`. For a separate
+post-merge resolution pull request, start from current `main`; for resolution in
+the audit pull request, retain `B`, `E`, and the audit-only commit `A` in its
+history. Preserve the original IDs, evidence, decision, and reason. Append the
+resolution state, resolving pull request and commit, revalidation evidence, and
+closure result. Do not rewrite old experiments. A partial application narrows a
+finding; it does not close the remainder without the maintainer decision
+described above.
 
 Run targeted offline tests first, then every affected offline C++, Python,
 documentation, SPANK, and lint suite. Run live evidence only when an accepted
