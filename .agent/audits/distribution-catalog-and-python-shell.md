@@ -3760,8 +3760,8 @@ evidence checkout clean, detached, and exactly at E.
    top-level absence with internal `ImportError`. Split base-only and declared
    integration sessions before narrowing.
 10. **Medium - public CMake locator.** S20 does not yet say whether the Python
-   value is a prefix, exact CONFIG directory, or module parent. Define and
-   exercise its documented `find_package` use before changing it.
+value is a prefix, exact CONFIG directory, or module parent. Define and exercise
+its documented `find_package` use before changing it.
 11. **Intentional exclusion - live AWS.** No conclusion covers credentials,
    service availability, task submission, result storage, or live devices.
 
