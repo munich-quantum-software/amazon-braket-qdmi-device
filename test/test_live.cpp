@@ -18,6 +18,7 @@
  */
 
 #include "amazon-braket-qdmi-device/constants.hpp"
+#include "amazon_braket_qdmi/device.h"
 
 #include <array>
 #include <cstddef>
