@@ -19,7 +19,9 @@
 
 #include "amazon_braket_qdmi/device.h"
 
-int amazonBraketQdmiGeneratedDeviceHeaderConsumer(void) {
-  int (*initializeDevice)(void) = &AMAZON_BRAKET_QDMI_device_initialize;
-  return initializeDevice == 0;
-}
+#ifdef __cplusplus
+static_assert(sizeof(&AMAZON_BRAKET_QDMI_device_initialize) > 0);
+#else
+_Static_assert(sizeof(&AMAZON_BRAKET_QDMI_device_initialize) > 0,
+               "generated device header declares initialize");
+#endif
