@@ -446,8 +446,14 @@ reachability assertion used a suspicious `sizeof` idiom. The final source
 follow-up uses a zero-runtime signature check for the generated
 `AMAZON_BRAKET_QDMI_device_initialize` declaration. This preserves direct header
 reachability without a runtime call, helper linkage, lint suppression, generated
-header change, or live behavior change. Closure remains conditional on the
-non-squash merge described in Reconciliation.
+header change, or live behavior change. Commit
+`1d51b78a0b7b515440b53d31cc9ce4ff6d9ae3e9` contains that final signature check.
+At final resolution head `466185511c4e98501a4721934458f111d16b87f7`, hosted C++
+lint rerun job `96517071398` reported zero format and zero clang-tidy findings.
+V3 therefore remains Accepted/Narrowed: the three direct includes stay under
+include-cleaner ownership, while the standalone C consumer non-vacuously checks
+the generated declaration. Closure remains conditional on the non-squash merge
+described in Reconciliation.
 
 ### V4. Nox pins an internal build-isolation mechanism - Over-specified
 
@@ -780,9 +786,19 @@ relocated catalogue parsing. Commit `30269f5ea8aaf6c524c583685038b2fc8129bf4d`
 made the relocated native load a fresh `python -I` process with no package
 import. Commit `454c203191dc3517e838079a0f90ac6d2656ce28` removed only the three
 lexical assertions; production layout and names did not change. The local Linux
-aarch64 exact-R consumer matrix passed. Cross-platform repaired-wheel evidence
-remains CI work if required. Closure remains conditional on the non-squash merge
-described in Reconciliation.
+aarch64 exact-R consumer matrix passed. Commits
+`1f7d258510038bcc1392df927a4eecf56a65bc19` and
+`89f76dd29a597571242dbcbd7165955519bdcfab` then made the installed consumer use
+the available CMake generator and relocate only this distribution's repaired
+Linux sidecars. At final resolution head
+`466185511c4e98501a4721934458f111d16b87f7`, hosted repaired-wheel jobs
+`96509742873` on x86_64 and `96509742840` on ARM64 passed the complete installed
+Python suite on Python 3.10-3.14. Every wheel test run selected both semantic
+distribution consumers. The isolated loader used the relocated library and only
+relocated, distribution-owned sidecar directories; it admitted no original wheel
+path or package import. V8 remains Applied with no production layout or filename
+change. Closure remains conditional on the non-squash merge described in
+Reconciliation.
 
 ### V9. License enforcement should not freeze one author - Over-specified
 
@@ -1157,9 +1173,12 @@ or filename change.
 
 ### Live Amazon Braket behavior
 
-The opt-in target was configured and compiled only. No discovery, CTest, test
-binary, credential lookup, AWS API, task, S3 object, or live device action was
-run or authorized.
+The original audit and local resolution evidence configured and compiled the
+opt-in target only. They ran no discovery, CTest, test binary, credential
+lookup, AWS API, task, S3 object, or live device action. A separately approved
+hosted CI batch later ran the cost-capped SV1 smoke test at the final resolution
+head; its exact sanitized result is recorded in Reconciliation. No local or
+agent-triggered live AWS action occurred.
 
 ### Release configuration and external workflows
 
@@ -4137,11 +4156,11 @@ cmake -E remove_directory "$root"
    v1.1.0 version coherence, released MQT Core dependency, regenerated lock,
    artifact digests, and final-SHA CI correspondence remain cross-scope release
    work.
-2. **Medium - cross-platform wheel consumers.** V8 now proves C-header,
+2. **Medium - remaining wheel platform consumers.** V8 now proves C-header,
    `find_package`, native symbol, runtime-copy, relocated catalogue, and
-   isolated relocated-load behavior on Linux aarch64 at exact R. Windows
-   repaired-wheel DLL behavior and macOS install names still await CI if those
-   platform classes are required. No production layout or filename changed.
+   isolated repaired-wheel loading on Linux x86_64 and ARM64 at the final
+   resolution head. Windows repaired-wheel DLL behavior and macOS install names
+   remain separate platform evidence. No production layout or filename changed.
 3. **Medium - optional import masking.** A0063/A0065 still conflate true
    top-level absence with internal `ImportError`. Split base-only and declared
    integration sessions before narrowing.
@@ -4153,8 +4172,11 @@ cmake -E remove_directory "$root"
    V9 retains the single-author and split-license policy, A0072 retains
    `ImportError`, and V11 retains the documented fatal contradictory-option
    policy without `CACHE FORCE`.
-6. **Intentional exclusion - live AWS.** No conclusion covers credentials,
-   service availability, task submission, result storage, or live devices.
+6. **Bounded live evidence.** Only the separately approved hosted SV1 smoke test
+   is covered. Its committed cap is 20 jobs with 100 shots per job. The hosted
+   log reported the test result, not an exact task count. No conclusion covers
+   broader credentials, service availability, result storage, or other live
+   devices, and no local or agent-triggered AWS action occurred.
 
 ## Found along the way, not blocked by an assertion
 
@@ -4167,9 +4189,10 @@ cmake -E remove_directory "$root"
   directory, nox environment, temp directory, coverage file, and
   exact-environment artifact coupling per arm. This is a framework/architecture
   handoff, not a product verdict.
-- The exact-R installed consumer now covers the Python CMake locator,
+- The final-resolution installed consumer now covers the Python CMake locator,
   `mqt_copy_qdmi_runtime`, relocation, catalogue parsing, and native symbol
-  loading on Linux aarch64. Other release platforms remain CI work.
+  loading from repaired Linux wheels on x86_64 and ARM64. Windows and macOS
+  loader behavior remain separate release-platform work.
 - Release review should inspect the pinned external workflows and establish one
   release-version/dependency/artifact authority at the final candidate SHA.
 - The resolution tests now exercise the public CMake locator through
@@ -4183,28 +4206,96 @@ The maintainer decisions were recorded against branch head
 decision-record base, not B, E, or a resolution SHA. The signed decision commit
 is `e934b6249c49f63cbf0bb04d352c24c5c8fd03c3`. Resolution was then applied
 linearly through the signed commits recorded above and revalidated at exact R.
+The final hosted resolution head is `466185511c4e98501a4721934458f111d16b87f7`;
+it retains B, E, A, and every decision while adding only signed resolution and
+living-audit follow-ups.
 
-| Finding/assertion | Decision | Resolution     | Resolving change and exact-R evidence                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| :---------------- | :------- | :------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `V1`              | Accepted | Applied        | `454c203191dc3517e838079a0f90ac6d2656ce28`; retained type and non-empty oracles; exact-R Python matrix passed.                                                                                                                                                                                                                                                                                                                                                           |
-| `V2`              | Accepted | Applied        | `e08d323f40eb38dd6ba629dcabcdb42feff075b5` then `454c203191dc3517e838079a0f90ac6d2656ce28`; semantic option inventory passed.                                                                                                                                                                                                                                                                                                                                            |
-| `V3`              | Accepted | Narrowed       | `fa98c4d8b016fcce45495e7d9896cd6d36451b84` added the standalone generated-header consumer; `2232c69e2dce7aae515e0864b7c49ada91552dbb` removed the three direct test-TU includes; hosted C++ lint job `96476973181` then proved include-cleaner requires those direct providers in `test/test_device.cpp`, so the CI follow-up restores the direct includes and makes `test/test_generated_device_header.c` validate the generated initializer signature at compile time. |
-| `V4`              | Rejected | Not applicable | Intentional persistent-build and explicit-uv-isolation policy retained; no resolving change.                                                                                                                                                                                                                                                                                                                                                                             |
-| `V5`              | Accepted | Applied        | `e08d323f40eb38dd6ba629dcabcdb42feff075b5` then `454c203191dc3517e838079a0f90ac6d2656ce28`; shared pre-import floor gate passed on all supported Pythons.                                                                                                                                                                                                                                                                                                                |
-| `V6`              | Accepted | Applied        | `e08d323f40eb38dd6ba629dcabcdb42feff075b5` then `8b1c42aa0aab02045be45c7c6c1c9dbdcc82e232`; exact-R behavioral oracle killed the eager-import mutant.                                                                                                                                                                                                                                                                                                                    |
-| `V7`              | Accepted | Applied        | `e08d323f40eb38dd6ba629dcabcdb42feff075b5` then `454c203191dc3517e838079a0f90ac6d2656ce28`; shipped default accepts absent/empty and rejects non-empty session values.                                                                                                                                                                                                                                                                                                   |
-| `V8`              | Accepted | Applied        | `e08d323f40eb38dd6ba629dcabcdb42feff075b5`, `99d7c510689365e024f8912a72560288e96d0e7e`, `454c203191dc3517e838079a0f90ac6d2656ce28`, and `30269f5ea8aaf6c524c583685038b2fc8129bf4d`; Linux aarch64 semantic consumer matrix passed with no layout change.                                                                                                                                                                                                                 |
-| `V9`              | Rejected | Not applicable | Intentional single-author, Apache/LLVM-exception, and separately excluded GPL SPANK policy retained; no resolving change.                                                                                                                                                                                                                                                                                                                                                |
-| `V10/A0072`       | Rejected | Not applicable | Stable `ImportError` domain retained and revalidated at exact R.                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `V10/A0073`       | Accepted | Applied        | `e08d323f40eb38dd6ba629dcabcdb42feff075b5` then `8b1c42aa0aab02045be45c7c6c1c9dbdcc82e232`; ten-target sentinel oracle killed the floor-bypass mutant without message matching.                                                                                                                                                                                                                                                                                          |
-| `V11`             | Accepted | Applied        | `4e1beface7e11ed22663ac6949eaa0ec0b631130`; fatal policy retained and documented, no `CACHE FORCE`; exact-R refusal and PRE_TEST compile evidence passed.                                                                                                                                                                                                                                                                                                                |
+| Finding/assertion | Decision | Resolution     | Resolving change and exact-R evidence                                                                                                                                                                                                                                                                                                     |
+| :---------------- | :------- | :------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `V1`              | Accepted | Applied        | `454c203191dc3517e838079a0f90ac6d2656ce28`; retained type and non-empty oracles; exact-R Python matrix passed.                                                                                                                                                                                                                            |
+| `V2`              | Accepted | Applied        | `e08d323f40eb38dd6ba629dcabcdb42feff075b5` then `454c203191dc3517e838079a0f90ac6d2656ce28`; semantic option inventory passed.                                                                                                                                                                                                             |
+| `V3`              | Accepted | Narrowed       | The direct test-TU includes are retained under include-cleaner ownership. `1d51b78a0b7b515440b53d31cc9ce4ff6d9ae3e9` gives the standalone C consumer a zero-runtime generated-signature check; final-head hosted C++ lint rerun `96517071398` passed with zero findings.                                                                  |
+| `V4`              | Rejected | Not applicable | Intentional persistent-build and explicit-uv-isolation policy retained; no resolving change.                                                                                                                                                                                                                                              |
+| `V5`              | Accepted | Applied        | `e08d323f40eb38dd6ba629dcabcdb42feff075b5` then `454c203191dc3517e838079a0f90ac6d2656ce28`; shared pre-import floor gate passed on all supported Pythons.                                                                                                                                                                                 |
+| `V6`              | Accepted | Applied        | `e08d323f40eb38dd6ba629dcabcdb42feff075b5` then `8b1c42aa0aab02045be45c7c6c1c9dbdcc82e232`; exact-R behavioral oracle killed the eager-import mutant.                                                                                                                                                                                     |
+| `V7`              | Accepted | Applied        | `e08d323f40eb38dd6ba629dcabcdb42feff075b5` then `454c203191dc3517e838079a0f90ac6d2656ce28`; shipped default accepts absent/empty and rejects non-empty session values.                                                                                                                                                                    |
+| `V8`              | Accepted | Applied        | The exact-R semantic consumer matrix and final-head repaired-wheel jobs `96509742873` (x86_64) and `96509742840` (ARM64) passed. The consumer is generator-independent, relocates only distribution-owned Linux repair sidecars, and excludes original wheel paths from the isolated load. Production layout and filenames are unchanged. |
+| `V9`              | Rejected | Not applicable | Intentional single-author, Apache/LLVM-exception, and separately excluded GPL SPANK policy retained; no resolving change.                                                                                                                                                                                                                 |
+| `V10/A0072`       | Rejected | Not applicable | Stable `ImportError` domain retained and revalidated at exact R.                                                                                                                                                                                                                                                                          |
+| `V10/A0073`       | Accepted | Applied        | `e08d323f40eb38dd6ba629dcabcdb42feff075b5` then `8b1c42aa0aab02045be45c7c6c1c9dbdcc82e232`; ten-target sentinel oracle killed the floor-bypass mutant without message matching.                                                                                                                                                           |
+| `V11`             | Accepted | Applied        | `4e1beface7e11ed22663ac6949eaa0ec0b631130`; fatal policy retained and documented, no `CACHE FORCE`; exact-R refusal and PRE_TEST compile evidence passed.                                                                                                                                                                                 |
+
+### Final hosted exact-head evidence
+
+The final hosted evidence ran against exact resolution head
+`466185511c4e98501a4721934458f111d16b87f7` in workflow run
+[`32394997194`](https://github.com/munich-quantum-software/amazon-braket-qdmi-device/actions/runs/32394997194).
+The run concluded successfully after the targeted lint rerun. GitHub reported
+that exact `head_sha` for every job below. The head and its two immediate
+resolution follow-ups, `1d51b78a0b7b515440b53d31cc9ce4ff6d9ae3e9` and
+`466185511c4e98501a4721934458f111d16b87f7`, have verified signatures. These
+hosted results supplement rather than rewrite the original B/E experiments.
+
+**V3 lint and reachability.** The final `test/test_generated_device_header.c`
+includes only generated `device.h` and uses `_Generic` in C or `requires` plus
+`static_cast` in C++ to require the exact `int(void)` initializer signature. It
+creates no helper symbol and makes no runtime call. Hosted C++ lint rerun
+[`96517071398`](https://github.com/munich-quantum-software/amazon-braket-qdmi-device/actions/runs/32394997194/job/96517071398)
+completed successfully with zero clang-format findings, zero clang-tidy
+findings, and zero total findings. Initial attempt
+[`96509742257`](https://github.com/munich-quantum-software/amazon-braket-qdmi-device/actions/runs/32394997194/job/96509742257)
+is infrastructure-only history: `apt.llvm.org` was unreachable over IPv6, its
+Release fetch exited `100`, and the action's actual cpp-linter phase was
+skipped. It produced no source diagnostic and is not V3 evidence. The successful
+rerun settles the hosted lint gate. The direct includes remain; V3 is
+Accepted/Narrowed, not a production or generated-header simplification.
+
+**V8 repaired-wheel consumers.** The pinned cibuildwheel configuration ran
+`pytest test/python` from each installed wheel. On both Linux architectures,
+Python 3.10 reported 26 passed and two collection-level module skips; Python
+3.11, 3.12, 3.13, and 3.14 each reported 49 passed and two expected skips. Every
+run selected both tests in `test/python/test_distribution_consumers.py`. ARM64
+job
+[`96509742840`](https://github.com/munich-quantum-software/amazon-braket-qdmi-device/actions/runs/32394997194/job/96509742840)
+and x86_64 job
+[`96509742873`](https://github.com/munich-quantum-software/amazon-braket-qdmi-device/actions/runs/32394997194/job/96509742873)
+both built, tested, uploaded, and passed clean-directory verification.
+
+The consumer requires CMake but adds Ninja arguments only when Ninja is
+available, so it does not make one generator part of the contract. On Linux it
+derives repair-sidecar names only from this installed distribution's file list,
+copies those `.libs` directories beside the relocated runtime, removes inherited
+`LD_LIBRARY_PATH`, and supplies only relocated sidecar directories. The isolated
+`python -I` loader asserts every loader-path entry is below the relocated tree,
+loads the relocated catalogue library, resolves
+`AMAZON_BRAKET_QDMI_device_initialize`, and confirms that no `amazon` package
+was imported. No original wheel library or sidecar path is admitted. This is the
+hosted repaired-wheel evidence required for V8 on Linux x86_64 and ARM64; it
+does not claim a production layout change or settle Windows/macOS loader rules.
+
+**Approved hosted SV1 smoke test.** Hosted job
+[`96509739998`](https://github.com/munich-quantum-software/amazon-braket-qdmi-device/actions/runs/32394997194/job/96509739998)
+ran the repository command:
+
+```sh
+uvx nox -s tests-3.14 -- \
+  test/python/test_pennylane_qaoa.py -k cost_capped_on_sv1
+```
+
+It passed its single selected test in 36.37 seconds. The committed test fixes
+100 shots per job and asserts a maximum of 20 submitted jobs. The sanitized
+hosted log did not report an exact task count, so this audit records only the
+enforced cap and passing test. This was the separately approved hosted lane. The
+audit agent issued no local AWS command, accessed no credential, submitted no
+task, and performed no S3 action during reconciliation.
 
 These dispositions are conditionally closed only if PR `#185` is merged without
 squashing and preserves the signed audit A, audit formatting, resolution policy,
 maintainer decision, replacement-oracle, header-consumer, lazy-import,
 installed-consumer, assertion-narrowing, include-cleanup, policy-documentation,
-isolated-relocation, and signed reconciliation commits. Until that merge, this
-audit records complete exact-R evidence but not final merged closure.
+isolated-relocation, hosted-evidence, and signed reconciliation commits. Until
+that merge, this audit records complete exact-R and exact-final-head evidence
+but not final merged closure.
 
 ## Progress
 
@@ -4238,10 +4329,14 @@ audit records complete exact-R evidence but not final merged closure.
       Markdown formatting completed.
 - [x] (`2026-08-20`) All accepted assertion changes and replacement oracles were
       applied in signed commits after the signed decision record.
-- [x] (`2026-08-20`) Exact-R Linux aarch64 lint, supported Python, non-live C++,
-      documentation, V3 reachability, V6/V10 mutant, V8 consumer, and V11 policy
-      evidence passed without live AWS activity.
+- [x] (`2026-08-20`) Exact-R local Linux aarch64 lint, supported Python,
+      non-live C++, documentation, V3 reachability, V6/V10 mutant, V8 consumer,
+      and V11 policy evidence passed without local live AWS activity.
 - [x] (`2026-08-20`) The living audit was reconciled without changing B, E,
       assertion IDs, original experiments, decisions, or rejected mechanisms.
+- [x] (`2026-08-20`) Final-head hosted C++ lint and repaired-wheel Linux x86_64
+      and ARM64 consumers passed at `466185511c4e98501a4721934458f111d16b87f7`;
+      the separately approved, cost-capped hosted SV1 smoke test also passed. No
+      local or agent-triggered AWS action occurred.
 - [ ] PR `#185` merged without squashing and preserving every signed audit,
       policy, decision, resolution, and reconciliation commit required above.
