@@ -75,7 +75,6 @@ def test_cmake_consumer_copies_relocatable_qdmi_runtime(tmp_path: Path) -> None:
     cmake = shutil.which("cmake")
     ninja = shutil.which("ninja")
     assert cmake is not None
-    assert ninja is not None
 
     source_dir = tmp_path / "source"
     build_dir = tmp_path / "build"
@@ -115,18 +114,18 @@ int main(void) {
 
     mqt_core_cmake_dir = distribution("mqt-core").locate_file("mqt/core/share/cmake")
     cmake_prefix_path = f"{AMAZON_BRAKET_QDMI_CMAKE_DIR};{mqt_core_cmake_dir}"
-    _run([
+    configure_command = [
         cmake,
         "-S",
         str(source_dir),
         "-B",
         str(build_dir),
-        "-G",
-        "Ninja",
         "-DCMAKE_BUILD_TYPE=Release",
-        f"-DCMAKE_MAKE_PROGRAM={ninja}",
         f"-DCMAKE_PREFIX_PATH={cmake_prefix_path}",
-    ])
+    ]
+    if ninja is not None:
+        configure_command.extend(["-G", "Ninja", f"-DCMAKE_MAKE_PROGRAM={ninja}"])
+    _run(configure_command)
     _run([cmake, "--build", str(build_dir), "--config", "Release"])
 
     executable_name = (
