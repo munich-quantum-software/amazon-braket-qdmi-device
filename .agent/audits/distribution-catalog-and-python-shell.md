@@ -224,7 +224,7 @@ verdict is an evidence-backed proposal, not a maintainer decision.
 | :------ | :------------------ | :------------- | :---------------------------------------------------------------------------------------------------------- | :---: | :--------------------------------------------------------------------------------- | :----- | :----------------------------- | :-------------------------------------- |
 | `V1`    | `A0015`             | Redundant      | Delete truthiness check; retain A0016/A0017.                                                                |  T3   | One duplicate test predicate; no production change.                                | Low    | Accepted                       | Applied                                 |
 | `V2`    | `A0050`             | Over-specified | Replace one prose phrase with semantic help inventory.                                                      |  T2   | CLI prose editing only.                                                            | Low    | Accepted                       | Applied                                 |
-| `V3`    | `A0067,A0069,A0071` | Over-specified | Retain now; add explicit standalone header consumers and a reaching pair before any direct-include removal. | T1/T2 | No removal is cleared; exact test-TU include inventory is not the public contract. | Medium | Accepted                       | Applied                                 |
+| `V3`    | `A0067,A0069,A0071` | Over-specified | Retain direct test-TU includes; add explicit standalone header consumers and a reaching pair.              | T1/T2 | Standalone reachability is covered without fighting include-cleaner ownership.     | Medium | Accepted                       | Narrowed                                |
 | `V4`    | `A0010`             | Over-specified | Keep installed-wheel testing; stop requiring one uv isolation switch.                                       |  T2   | Nox mechanism simplification only.                                                 | Medium | Rejected                       | Not applicable                          |
 | `V5`    | `A0062,A0064`       | Over-specified | Preserve pre-import version gates; stop pinning local reason text.                                          |  T2   | Reason wording only; no floor change.                                              | Medium | Accepted                       | Applied                                 |
 | `V6`    | `A0047`             | Over-specified | Add a base-wheel import blocker, then replace the dictionary proxy.                                         |  T2   | Private shim namespace only.                                                       | High   | Accepted                       | Applied                                 |
@@ -423,7 +423,7 @@ Keep resolution bounded to the three local include lines and the minimum
 replacement and reaching evidence. Do not add a general header framework or
 change generated headers, public headers, production layout, or live behavior.
 
-**Resolution state.** `Applied`
+**Resolution state.** `Narrowed`
 
 **Closure evidence.** Commit `fa98c4d8b016fcce45495e7d9896cd6d36451b84` added
 the dedicated generated C header consumer; commit
@@ -434,8 +434,13 @@ reject the same generated-header sentinel through the retained transitive
 include. The dedicated source and installed C consumer also rejected the
 sentinel; `test_measurement.cpp` remained the negative control. Baseline and
 recovery compiles passed. No test discovery, binary, live behavior, network, or
-AWS action ran. Closure remains conditional on the non-squash merge described in
-Reconciliation.
+AWS action ran. Hosted C++ lint job `96476973181` then proved the source cleanup
+conflicted with the repository's include-cleaner policy: `test/test_device.cpp`
+uses QDMI symbols and must directly include the generated public header that
+provides them. The resolution is therefore narrowed to keep the standalone
+source and installed generated-header consumers while restoring the three direct
+test-TU includes. Closure remains conditional on the non-squash merge described
+in Reconciliation.
 
 ### V4. Nox pins an internal build-isolation mechanism - Over-specified
 
@@ -4176,7 +4181,7 @@ linearly through the signed commits recorded above and revalidated at exact R.
 | :---------------- | :------- | :------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `V1`              | Accepted | Applied        | `454c203191dc3517e838079a0f90ac6d2656ce28`; retained type and non-empty oracles; exact-R Python matrix passed.                                                                                                                                           |
 | `V2`              | Accepted | Applied        | `e08d323f40eb38dd6ba629dcabcdb42feff075b5` then `454c203191dc3517e838079a0f90ac6d2656ce28`; semantic option inventory passed.                                                                                                                            |
-| `V3`              | Accepted | Applied        | `fa98c4d8b016fcce45495e7d9896cd6d36451b84` then `2232c69e2dce7aae515e0864b7c49ada91552dbb`; exact-R reaching and recovery compiles passed.                                                                                                               |
+| `V3`              | Accepted | Narrowed       | `fa98c4d8b016fcce45495e7d9896cd6d36451b84` added the standalone generated-header consumer; `2232c69e2dce7aae515e0864b7c49ada91552dbb` removed the three direct test-TU includes; hosted C++ lint job `96476973181` then proved include-cleaner requires those direct providers in `test/test_device.cpp`, so the CI follow-up restores the direct includes and keeps the standalone reachability coverage. |
 | `V4`              | Rejected | Not applicable | Intentional persistent-build and explicit-uv-isolation policy retained; no resolving change.                                                                                                                                                             |
 | `V5`              | Accepted | Applied        | `e08d323f40eb38dd6ba629dcabcdb42feff075b5` then `454c203191dc3517e838079a0f90ac6d2656ce28`; shared pre-import floor gate passed on all supported Pythons.                                                                                                |
 | `V6`              | Accepted | Applied        | `e08d323f40eb38dd6ba629dcabcdb42feff075b5` then `8b1c42aa0aab02045be45c7c6c1c9dbdcc82e232`; exact-R behavioral oracle killed the eager-import mutant.                                                                                                    |
