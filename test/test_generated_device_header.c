@@ -20,8 +20,12 @@
 #include "amazon_braket_qdmi/device.h"
 
 #ifdef __cplusplus
-static_assert(sizeof(&AMAZON_BRAKET_QDMI_device_initialize) > 0);
+static_assert(requires {
+  static_cast<int (*)()>(&AMAZON_BRAKET_QDMI_device_initialize);
+});
 #else
-_Static_assert(sizeof(&AMAZON_BRAKET_QDMI_device_initialize) > 0,
-               "generated device header declares initialize");
+_Static_assert(_Generic(&AMAZON_BRAKET_QDMI_device_initialize,
+                   int (*)(void): 1,
+                   default: 0),
+               "generated initializer declaration must be usable");
 #endif
