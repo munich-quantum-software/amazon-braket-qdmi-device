@@ -14,6 +14,12 @@ The hermetic tests use injected AWS clients and need no credentials or network
 access. CMake does not register tests that access AWS unless
 `BUILD_AMAZON_BRAKET_LIVE_TESTS=ON` is set explicitly.
 
+Live tests depend on the ordinary test infrastructure. Configuring
+`BUILD_AMAZON_BRAKET_LIVE_TESTS=ON` together with
+`BUILD_AMAZON_BRAKET_TESTS=OFF` therefore fails instead of silently omitting the
+requested tests. Parent projects must enable both options explicitly; this
+project does not override an explicit `BUILD_AMAZON_BRAKET_TESTS=OFF` setting.
+
 When live Amazon Braket tests are intentionally required, select an AWS SDK
 credential source and a pre-provisioned result destination before configuring
 the test-specific opt-in:
