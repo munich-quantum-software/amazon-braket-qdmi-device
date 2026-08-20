@@ -18,3 +18,8 @@
  */
 
 #include "amazon_braket_qdmi/device.h"
+
+int amazonBraketQdmiGeneratedDeviceHeaderConsumer(void) {
+  int (*initializeDevice)(void) = &AMAZON_BRAKET_QDMI_device_initialize;
+  return initializeDevice == 0;
+}
