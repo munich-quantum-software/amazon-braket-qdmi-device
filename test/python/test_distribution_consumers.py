@@ -163,5 +163,26 @@ int main(void) {
         env=mqt_environment,
     )
 
-    library = _load_native_library(relocated_library)
-    assert getattr(library, INITIALIZE_SYMBOL) is not None
+    _run([
+        sys.executable,
+        "-I",
+        "-c",
+        """\
+import ctypes
+import os
+import sys
+
+library_path = os.fsdecode(sys.argv[1])
+symbol = sys.argv[2]
+if sys.platform == "win32":
+    with os.add_dll_directory(os.path.dirname(library_path)):
+        library = ctypes.CDLL(library_path)
+        assert getattr(library, symbol) is not None
+else:
+    library = ctypes.CDLL(library_path)
+    assert getattr(library, symbol) is not None
+assert not any(name == "amazon" or name.startswith("amazon.") for name in sys.modules)
+""",
+        str(relocated_library),
+        INITIALIZE_SYMBOL,
+    ])
