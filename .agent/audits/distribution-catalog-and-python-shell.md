@@ -3857,17 +3857,266 @@ Python 3.10 passed 26 tests with two modules skipped during collection. Each of
 Python 3.11, 3.12, 3.13, and 3.14 passed 49 tests with two expected skips. The
 non-live C++ selection passed 116/116 tests. Documentation and lint passed.
 
-The exact-R V3 compile record
-`amazon-braket-specaudit-2026-08-19-v3-reachability-30269f5.md` used a fresh
-detached worktree and direct compiler commands from `compile_commands.json`. The
-three narrowed TUs and the dedicated C consumer rejected the generated header
-sentinel, the unrelated TU survived, and all recovery compiles passed. The V6
-eager-import and V10 version-gate-bypass mutants were independently killed by
-the fresh replacement resolver. The V11 contradictory configure and the parent
-PRE_TEST target-only compile produced the documented refusal and live-TU/link
-reachability, respectively; only later Python-test drift occurred. No live test,
-test binary, AWS call, task, credential, or network mutation was part of
-resolution evidence.
+#### V3 generated-header reachability
+
+The full exact-R record
+`amazon-braket-specaudit-2026-08-19-v3-reachability-30269f5.md` is summarized
+here so it is not the sole reproduction source. It used a fresh detached
+worktree and external build/install directories. QDMI was pinned at
+`e80020f7ace5c0a716142378c812f30f86263c4e`; AWS SDK was pinned at
+`444d1f7ce155a9e7ca33f4f28c511a5934c9e4b3`. A clean checkout can first let the
+repository configure acquire those pinned sources, then run the evidence
+configure fully disconnected:
+
+```sh
+R=30269f5ea8aaf6c524c583685038b2fc8129bf4d
+root=$(mktemp -d)
+wt=$root/worktree
+prep=$root/prep
+build=$root/build
+install=$root/install
+git worktree add --detach "$wt" "$R"
+test -z "$(git -C "$wt" status --porcelain=v1 --untracked-files=all)"
+test "$(git -C "$wt" rev-parse HEAD)" = "$R"
+test -z "$(git -C "$wt" symbolic-ref --quiet HEAD)"
+
+cmake -S "$wt" -B "$prep" -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_AMAZON_BRAKET_TESTS=ON \
+  -DBUILD_AMAZON_BRAKET_LIVE_TESTS=ON \
+  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+cmake -S "$wt" -B "$build" -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_AMAZON_BRAKET_TESTS=ON \
+  -DBUILD_AMAZON_BRAKET_LIVE_TESTS=ON \
+  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+  -DFETCHCONTENT_FULLY_DISCONNECTED=ON \
+  -DFETCHCONTENT_SOURCE_DIR_QDMI="$prep/_deps/qdmi-src" \
+  -DFETCHCONTENT_SOURCE_DIR_AWSSDK="$prep/_deps/awssdk-src" \
+  -DFETCHCONTENT_SOURCE_DIR_GOOGLETEST="$prep/_deps/googletest-src"
+```
+
+The executed record used already cached copies of the same pinned sources for
+the three `FETCHCONTENT_SOURCE_DIR_*` values. It selected each exact command
+from the generated compilation database and ran the compiler directly, so Ninja
+could not discover, link, or execute a test:
+
+```sh
+compdb=$build/compile_commands.json
+for file in \
+  test_device.cpp \
+  test_device_unit.cpp \
+  test_generated_device_header.c \
+  test_live.cpp \
+  test_measurement.cpp
+do
+  command=$(jq -er --arg suffix "/test/$file" \
+    '.[] | select(.file | endswith($suffix)) | .command' "$compdb")
+  (cd "$build" && bash -c "$command")
+done
+```
+
+All five baseline compiler commands exited `0`. The exact build-tree mutation
+inserted `#error V3_REACHABILITY_SENTINEL` into
+`$build/src/include/amazon_braket_qdmi/device.h`:
+
+```sh
+sed -i '26i#error V3_REACHABILITY_SENTINEL' \
+  "$build/src/include/amazon_braket_qdmi/device.h"
+```
+
+Repeating the identical five commands produced this complete tuple:
+
+| Translation unit                 | Exit | Sentinel diagnostic |
+| :------------------------------- | ---: | :------------------ |
+| `test_device.cpp`                |    1 | yes                 |
+| `test_device_unit.cpp`           |    1 | yes                 |
+| `test_generated_device_header.c` |    1 | yes                 |
+| `test_live.cpp`                  |    1 | yes                 |
+| `test_measurement.cpp`           |    0 | no                  |
+
+The exact restoration command was:
+
+```sh
+sed -i '/^#error V3_REACHABILITY_SENTINEL$/d' \
+  "$build/src/include/amazon_braket_qdmi/device.h"
+```
+
+All five recovery compiles then exited `0`. The installed standalone arm used
+only the production target and public C consumer:
+
+```sh
+cmake --build "$build" --target amazon-braket-qdmi-device
+cmake --install "$build" --prefix "$install"
+/usr/bin/cc -I"$install/include" \
+  -c "$wt/test/test_generated_device_header.c" \
+  -o "$install/standalone-generated-header-consumer.o"
+```
+
+The baseline compile exited `0`. Adding only
+`#error V3_INSTALLED_REACHABILITY_SENTINEL` to installed
+`include/amazon_braket_qdmi/device.h` made the identical compile exit `1` with
+that sentinel. The mutation and restoration commands were:
+
+```sh
+sed -i '26i#error V3_INSTALLED_REACHABILITY_SENTINEL' \
+  "$install/include/amazon_braket_qdmi/device.h"
+sed -i '/^#error V3_INSTALLED_REACHABILITY_SENTINEL$/d' \
+  "$install/include/amazon_braket_qdmi/device.h"
+```
+
+The recovery compile exited `0`. Before removal, the worktree was clean,
+detached, and exactly at R. The build, install, and worktree directories were
+removed, `git worktree prune` succeeded, and no registry entry remained.
+
+```sh
+test -z "$(git -C "$wt" status --porcelain=v1 --untracked-files=all)"
+test "$(git -C "$wt" rev-parse HEAD)" = "$R"
+test -z "$(git -C "$wt" symbolic-ref --quiet HEAD)"
+git worktree remove "$wt"
+git worktree prune
+cmake -E remove_directory "$root"
+```
+
+#### V6 eager-import replacement
+
+The resolver used two fresh detached worktrees at R and the supported installed
+Python 3.14 nox path. Python was `3.14.7`. This path-independent setup was used
+for the baseline and fault arms:
+
+```sh
+R=30269f5ea8aaf6c524c583685038b2fc8129bf4d
+root=$(mktemp -d)
+git worktree add --detach "$root/baseline" "$R"
+git worktree add --detach "$root/fault" "$R"
+for wt in "$root/baseline" "$root/fault"; do
+  test -z "$(git -C "$wt" status --porcelain=v1 --untracked-files=all)"
+  test "$(git -C "$wt" rev-parse HEAD)" = "$R"
+  test -z "$(git -C "$wt" symbolic-ref --quiet HEAD)"
+done
+```
+
+From the corresponding worktree, the exact command was:
+
+```sh
+uvx nox -s tests-3.14 -- \
+  test/python/test_init.py::test_base_install_does_not_import_optional_pennylane
+```
+
+The baseline exited `0` with the one selected node passed. The fault added only
+a blank line and `from . import pennylane` immediately after the final cleanup
+line in `python/amazon/braket/qdmi/__init__.py`:
+
+```diff
+ del dist, located_include_dir, resolved_include_dir
++
++from . import pennylane
+```
+
+The identical nox command exited `1` and failed exactly
+`test_base_install_does_not_import_optional_pennylane`. The uncaught injected
+root-package import entered `pennylane.py:27` and ended with
+`ImportError: blocked optional import: mqt.core`. There were no other selected
+nodes. Removing exactly the blank line and import restored the original file;
+`git diff --exit-code` passed, and the baseline command again exited `0`.
+
+#### V10 Python-floor sentinel
+
+The resolver used a separate fresh pair created and checked with the V6 setup,
+but selected Python 3.10. This exact command selected only the committed
+ten-target semantic oracle:
+
+```sh
+uvx nox -s tests-3.10 -- \
+  test/python/test_init.py::test_python_floor_precedes_available_optional_plugin
+```
+
+The baseline exited `0` with that node passed. The fault removed only these
+three guard lines from `python/amazon/braket/qdmi/_pennylane_entrypoint.py`:
+
+```python
+if sys.version_info < (3, 11):
+    msg = "The Amazon Braket PennyLane integration requires Python 3.11 or newer."
+    raise ImportError(msg)
+```
+
+The identical command exited `1` and failed exactly
+`test_python_floor_precedes_available_optional_plugin` with
+`DID NOT RAISE <class 'ImportError'>`; the supplied ten sentinel targets made
+the unsupported load succeed, so missing PennyLane could not mask the fault.
+There were no other selected nodes. Restoring the exact three lines made the
+same command exit `0`, and `git diff --exit-code` passed.
+
+For both V6 and V10, the final cleanup was:
+
+```sh
+for wt in "$root/baseline" "$root/fault"; do
+  test -z "$(git -C "$wt" status --porcelain=v1 --untracked-files=all)"
+  test "$(git -C "$wt" rev-parse HEAD)" = "$R"
+  test -z "$(git -C "$wt" symbolic-ref --quiet HEAD)"
+  git worktree remove "$wt"
+done
+git worktree prune
+cmake -E remove_directory "$root"
+```
+
+#### V11 retained contradictory-option policy
+
+No source mutation was applied. The native resolver ran at
+`4e1beface7e11ed22663ac6949eaa0ec0b631130`, the policy-documentation parent; the
+only later change through R is the Python-only relocated-consumer test. It used
+this fresh detached setup:
+
+```sh
+R=4e1beface7e11ed22663ac6949eaa0ec0b631130
+root=$(mktemp -d)
+wt=$root/worktree
+git worktree add --detach "$wt" "$R"
+test -z "$(git -C "$wt" status --porcelain=v1 --untracked-files=all)"
+test "$(git -C "$wt" rev-parse HEAD)" = "$R"
+test -z "$(git -C "$wt" symbolic-ref --quiet HEAD)"
+```
+
+The exact contradictory configure was:
+
+```sh
+cmake -S "$wt" -B "$root/refusal" -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_AMAZON_BRAKET_TESTS=OFF \
+  -DBUILD_AMAZON_BRAKET_LIVE_TESTS=ON
+```
+
+It exited `1` during configure with
+`BUILD_AMAZON_BRAKET_LIVE_TESTS requires BUILD_AMAZON_BRAKET_TESTS`; no later
+command ran. The positive policy arm used a new build directory:
+
+```sh
+cmake -S "$wt" -B "$root/positive" -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_AMAZON_BRAKET_TESTS=ON \
+  -DBUILD_AMAZON_BRAKET_LIVE_TESTS=ON \
+  -DCMAKE_GTEST_DISCOVER_TESTS_DISCOVERY_MODE=PRE_TEST
+cmake --build "$root/positive" \
+  --target amazon-braket-qdmi-device-live-test --parallel 4
+```
+
+Configure and target-only build both exited `0`; `test_live.cpp` compiled and
+the named target linked. Counts for test-discovery commands, CTest commands,
+direct test-binary execution, frozen live-environment markers, and AWS-action
+text were all zero. The native tuple is therefore unchanged at R. The worktree
+was clean, detached at its exact SHA, removed, and absent from the registry. No
+live test, live-AWS binary, credential lookup, network mutation, or external
+action occurred in any of these resolution experiments.
+
+```sh
+test -z "$(git -C "$wt" status --porcelain=v1 --untracked-files=all)"
+test "$(git -C "$wt" rev-parse HEAD)" = "$R"
+test -z "$(git -C "$wt" symbolic-ref --quiet HEAD)"
+git worktree remove "$wt"
+git worktree prune
+cmake -E remove_directory "$root"
+```
 
 ## Residual risk
 
