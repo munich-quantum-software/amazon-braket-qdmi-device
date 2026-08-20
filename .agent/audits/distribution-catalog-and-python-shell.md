@@ -222,17 +222,17 @@ verdict is an evidence-backed proposal, not a maintainer decision.
 
 | Verdict | Assertion IDs       | Class          | Remedy                                                                                                      | Tier  | Unlock                                                                             | Risk   | Decision                       | Resolution                              |
 | :------ | :------------------ | :------------- | :---------------------------------------------------------------------------------------------------------- | :---: | :--------------------------------------------------------------------------------- | :----- | :----------------------------- | :-------------------------------------- |
-| `V1`    | `A0015`             | Redundant      | Delete truthiness check; retain A0016/A0017.                                                                |  T3   | One duplicate test predicate; no production change.                                | Low    | Accepted                       | Not started                             |
-| `V2`    | `A0050`             | Over-specified | Replace one prose phrase with semantic help inventory.                                                      |  T2   | CLI prose editing only.                                                            | Low    | Accepted                       | Not started                             |
-| `V3`    | `A0067,A0069,A0071` | Over-specified | Retain now; add explicit standalone header consumers and a reaching pair before any direct-include removal. | T1/T2 | No removal is cleared; exact test-TU include inventory is not the public contract. | Medium | Accepted                       | Not started                             |
+| `V1`    | `A0015`             | Redundant      | Delete truthiness check; retain A0016/A0017.                                                                |  T3   | One duplicate test predicate; no production change.                                | Low    | Accepted                       | Applied                                 |
+| `V2`    | `A0050`             | Over-specified | Replace one prose phrase with semantic help inventory.                                                      |  T2   | CLI prose editing only.                                                            | Low    | Accepted                       | Applied                                 |
+| `V3`    | `A0067,A0069,A0071` | Over-specified | Retain now; add explicit standalone header consumers and a reaching pair before any direct-include removal. | T1/T2 | No removal is cleared; exact test-TU include inventory is not the public contract. | Medium | Accepted                       | Applied                                 |
 | `V4`    | `A0010`             | Over-specified | Keep installed-wheel testing; stop requiring one uv isolation switch.                                       |  T2   | Nox mechanism simplification only.                                                 | Medium | Rejected                       | Not applicable                          |
-| `V5`    | `A0062,A0064`       | Over-specified | Preserve pre-import version gates; stop pinning local reason text.                                          |  T2   | Reason wording only; no floor change.                                              | Medium | Accepted                       | Not started                             |
-| `V6`    | `A0047`             | Over-specified | Add a base-wheel import blocker, then replace the dictionary proxy.                                         |  T2   | Private shim namespace only.                                                       | High   | Accepted                       | Not started                             |
-| `V7`    | `A0023`             | Over-specified | Assert the promised forbidden defaults, not member absence.                                                 |  T3   | Catalogue representation only after parser evidence.                               | High   | Accepted                       | Not started                             |
-| `V8`    | `A0028,A0033,A0036` | Over-specified | Replace lexical substrings with real installed consumers.                                                   | T2/T3 | Test-only lexical freedom; no layout or filename change.                           | High   | Accepted                       | Not started                             |
+| `V5`    | `A0062,A0064`       | Over-specified | Preserve pre-import version gates; stop pinning local reason text.                                          |  T2   | Reason wording only; no floor change.                                              | Medium | Accepted                       | Applied                                 |
+| `V6`    | `A0047`             | Over-specified | Add a base-wheel import blocker, then replace the dictionary proxy.                                         |  T2   | Private shim namespace only.                                                       | High   | Accepted                       | Applied                                 |
+| `V7`    | `A0023`             | Over-specified | Assert the promised forbidden defaults, not member absence.                                                 |  T3   | Catalogue representation only after parser evidence.                               | High   | Accepted                       | Applied                                 |
+| `V8`    | `A0028,A0033,A0036` | Over-specified | Replace lexical substrings with real installed consumers.                                                   | T2/T3 | Test-only lexical freedom; no layout or filename change.                           | High   | Accepted                       | Applied                                 |
 | `V9`    | `A0003`             | Over-specified | Retain license enforcement; stop forcing one author only after a license-only fault.                        |  T2   | Authorship-policy flexibility only.                                                | Medium | Rejected                       | Not applicable                          |
-| `V10`   | `A0072,A0073`       | Over-specified | Add exact S25 mapping and sentinel Python-floor oracles before narrowing exception type or wording.         |  T2   | No gate/type/text change is cleared yet.                                           | High   | A0072 Rejected; A0073 Accepted | A0072 Not applicable; A0073 Not started |
-| `V11`   | `A0074`             | Over-specified | Preserve no silent omission; choose and test a documented superproject-safe option policy.                  |  T2   | Fatal refusal is not the only possible mechanism; CACHE FORCE is not approved.     | High   | Accepted                       | Not started                             |
+| `V10`   | `A0072,A0073`       | Over-specified | Add exact S25 mapping and sentinel Python-floor oracles before narrowing exception type or wording.         |  T2   | No gate/type/text change is cleared yet.                                           | High   | A0072 Rejected; A0073 Accepted | A0072 Not applicable; A0073 Applied     |
+| `V11`   | `A0074`             | Over-specified | Preserve no silent omission; choose and test a documented superproject-safe option policy.                  |  T2   | Fatal refusal is not the only possible mechanism; CACHE FORCE is not approved.     | High   | Accepted                       | Applied                                 |
 
 ## Verdicts
 
@@ -289,9 +289,12 @@ after the retained tests pass.
 **Decision reason.** The truthiness predicate duplicates the retained explicit
 non-empty check. Remove only A0015 and keep A0016 and A0017.
 
-**Resolution state.** `Not started`
+**Resolution state.** `Applied`
 
-**Closure evidence.** `Open; no resolving change.`
+**Closure evidence.** Commit `454c203191dc3517e838079a0f90ac6d2656ce28` removed
+only A0015. A0016 and A0017 remain at R. The exact-R Python matrix and lint
+passed. Closure remains conditional on the non-squash merge described in
+Reconciliation.
 
 ### V2. CLI help should not freeze one sentence - Over-specified
 
@@ -346,9 +349,13 @@ so review help text as user documentation. No production API is removed.
 check with semantic public-option coverage while retaining successful help
 behavior.
 
-**Resolution state.** `Not started`
+**Resolution state.** `Applied`
 
-**Closure evidence.** `Open; no resolving change.`
+**Closure evidence.** Commit `e08d323f40eb38dd6ba629dcabcdb42feff075b5` added
+the complete semantic option inventory before commit
+`454c203191dc3517e838079a0f90ac6d2656ce28` removed the prose assertion. The
+exact-R Python matrix passed. Closure remains conditional on the non-squash
+merge described in Reconciliation.
 
 ### V3. Test TUs pin a direct generated-header include mechanism - Over-specified
 
@@ -416,9 +423,19 @@ Keep resolution bounded to the three local include lines and the minimum
 replacement and reaching evidence. Do not add a general header framework or
 change generated headers, public headers, production layout, or live behavior.
 
-**Resolution state.** `Not started`
+**Resolution state.** `Applied`
 
-**Closure evidence.** `Open; no resolving change.`
+**Closure evidence.** Commit `fa98c4d8b016fcce45495e7d9896cd6d36451b84` added
+the dedicated generated C header consumer; commit
+`2232c69e2dce7aae515e0864b7c49ada91552dbb` then removed only the three direct
+test-TU includes. At exact R, fresh compile-only evidence made
+`test_device.cpp`, `test_device_unit.cpp`, and `test_live.cpp` all reach and
+reject the same generated-header sentinel through the retained transitive
+include. The dedicated source and installed C consumer also rejected the
+sentinel; `test_measurement.cpp` remained the negative control. Baseline and
+recovery compiles passed. No test discovery, binary, live behavior, network, or
+AWS action ran. Closure remains conditional on the non-squash merge described in
+Reconciliation.
 
 ### V4. Nox pins an internal build-isolation mechanism - Over-specified
 
@@ -476,8 +493,9 @@ mechanism.
 
 **Resolution state.** `Not applicable`
 
-**Closure evidence.**
-`Rejected; closes when this decision record is merged; no resolving change.`
+**Closure evidence.** The intentional mechanism remains unchanged. The rejected
+decision is recorded in `e934b6249c49f63cbf0bb04d352c24c5c8fd03c3`; closure
+remains conditional on the non-squash merge described in Reconciliation.
 
 ### V5. Optional-module gates pin local reason text - Over-specified
 
@@ -534,9 +552,13 @@ break supported Python-3.10 base installs; that change remains blocked.
 **Decision reason.** Skip reason text is not stable. Keep both pre-import
 Python-floor gates and narrow only the wording assertions.
 
-**Resolution state.** `Not started`
+**Resolution state.** `Applied`
 
-**Closure evidence.** `Open; no resolving change.`
+**Closure evidence.** Commit `e08d323f40eb38dd6ba629dcabcdb42feff075b5` added
+one shared semantic floor and reason owner. Commit
+`454c203191dc3517e838079a0f90ac6d2656ce28` moved both pre-import module gates to
+that owner without weakening the Python floor. The exact-R Python matrix passed.
+Closure remains conditional on the non-squash merge described in Reconciliation.
 
 ### V6. Lazy import is tested through a private dictionary key - Over-specified
 
@@ -593,9 +615,14 @@ replacement experiment.
 contract. Add and prove the base-wheel behavioral import blocker before
 replacing the proxy.
 
-**Resolution state.** `Not started`
+**Resolution state.** `Applied`
 
-**Closure evidence.** `Open; no resolving change.`
+**Closure evidence.** Commit `e08d323f40eb38dd6ba629dcabcdb42feff075b5` first
+added an isolated base-wheel import blocker covering all ten entry points.
+Commit `8b1c42aa0aab02045be45c7c6c1c9dbdcc82e232` then replaced the private
+dictionary assertion with that behavioral boundary. The exact-R test passed, and
+a fresh eager-import mutant was killed by the replacement oracle. Closure
+remains conditional on the non-squash merge described in Reconciliation.
 
 ### V7. Generic catalogue member absence is too strict - Over-specified
 
@@ -656,9 +683,16 @@ session object, but repository-owned defaults must reject dangerous values. This
 decision does not constrain externally managed HPC-centre catalogues, which may
 carry site-chosen sensitive values.
 
-**Resolution state.** `Not started`
+**Resolution state.** `Applied`
 
-**Closure evidence.** `Open; no resolving change.`
+**Closure evidence.** Commit `e08d323f40eb38dd6ba629dcabcdb42feff075b5` added
+catalogue-relative library validation. Commit
+`454c203191dc3517e838079a0f90ac6d2656ce28` then replaced member absence with
+`get("session", {}) == {}`. The device-shipped default therefore accepts an
+absent or empty session and rejects every non-empty value. This repository
+assertion does not constrain externally managed HPC-centre catalogues, which may
+carry site-chosen sensitive values. The exact-R Python matrix passed. Closure
+remains conditional on the non-squash merge described in Reconciliation.
 
 ### V8. Artifact path substrings are not consumer contracts - Over-specified
 
@@ -724,9 +758,19 @@ release blockers for any production layout change.
 with semantic installed consumers. Do not change production paths, filenames,
 wheel layout, or locator design.
 
-**Resolution state.** `Not started`
+**Resolution state.** `Applied`
 
-**Closure evidence.** `Open; no resolving change.`
+**Closure evidence.** Commit `e08d323f40eb38dd6ba629dcabcdb42feff075b5` added
+semantic installed C-header and package-file oracles. Commit
+`99d7c510689365e024f8912a72560288e96d0e7e` added a Python-locator `find_package`
+consumer, direct `ctypes` symbol resolution, `mqt_copy_qdmi_runtime`, and
+relocated catalogue parsing. Commit `30269f5ea8aaf6c524c583685038b2fc8129bf4d`
+made the relocated native load a fresh `python -I` process with no package
+import. Commit `454c203191dc3517e838079a0f90ac6d2656ce28` removed only the three
+lexical assertions; production layout and names did not change. The local Linux
+aarch64 exact-R consumer matrix passed. Cross-platform repaired-wheel evidence
+remains CI work if required. Closure remains conditional on the non-squash merge
+described in Reconciliation.
 
 ### V9. License enforcement should not freeze one author - Over-specified
 
@@ -787,8 +831,10 @@ enforcement.
 
 **Resolution state.** `Not applicable`
 
-**Closure evidence.**
-`Rejected; closes when this decision record is merged; no resolving change.`
+**Closure evidence.** The single-author and split-license policy remains
+unchanged. The rejected decision is recorded in
+`e934b6249c49f63cbf0bb04d352c24c5c8fd03c3`; closure remains conditional on the
+non-squash merge described in Reconciliation.
 
 ### V10. Python-floor test pins exception class and diagnostic wording - Over-specified
 
@@ -865,10 +911,18 @@ A0073 is accepted because diagnostic wording is not stable. Retain the
 `ImportError` assertion and add the exact S25 mapping plus sentinel floor oracle
 before relaxing only message matching.
 
-**Resolution states.** A0072: `Not applicable`. A0073: `Not started`.
+**Resolution states.** A0072: `Not applicable`. A0073: `Applied`.
 
-**Closure evidence.** A0072 is rejected and closes when this decision record is
-merged. A0073 remains open; no resolving change.
+**Closure evidence.** A0072 remains asserted as the stable `ImportError` failure
+domain; its rejected decision is recorded in
+`e934b6249c49f63cbf0bb04d352c24c5c8fd03c3`. Commit
+`e08d323f40eb38dd6ba629dcabcdb42feff075b5` added exact S25 mapping and a
+ten-target Python-3.10 sentinel oracle. Commit
+`8b1c42aa0aab02045be45c7c6c1c9dbdcc82e232` then removed only message matching.
+At exact R the retained type oracle and sentinel test passed, and a fresh
+version-gate-bypass mutant was killed by the sentinel resolver. Both
+assertion-level dispositions remain conditionally closed on the non-squash merge
+described in Reconciliation.
 
 ### V11. Live-test no-omission policy pins fatal refusal - Over-specified
 
@@ -935,9 +989,17 @@ dependencies, targets, and CTest state despite an explicit parent policy.
 fatal LIVE=ON/TESTS=OFF policy and no-silent-omission behavior. `CACHE FORCE` is
 forbidden.
 
-**Resolution state.** `Not started`
+**Resolution state.** `Applied`
 
-**Closure evidence.** `Open; no resolving change.`
+**Closure evidence.** Commit `4e1beface7e11ed22663ac6949eaa0ec0b631130`
+documented and retained the fatal LIVE=ON/TESTS=OFF policy; it did not use
+`CACHE FORCE` or alter CMake behavior. At exact R the contradictory
+configuration still failed with the documented diagnostic. Native resolver
+evidence also configured the parent with tests and live tests enabled under
+`PRE_TEST`, reached and linked `test_live.cpp`, and ran no discovery, CTest,
+test binary, live behavior, network, or AWS action. A later Python test drift
+did not affect that native policy evidence. Closure remains conditional on the
+non-squash merge described in Reconciliation.
 
 ## Anchors confirmed
 
@@ -1076,9 +1138,10 @@ This audit neither reclassifies nor remediates them.
 ### Production layout and library naming
 
 V8 classifies only lexical test predicates. CMake destinations, Python locator
-logic, catalogue library values, target `OUTPUT_NAME`, and wheel layout remain
-unchanged until real MQT runtime-copy, parser, native-load, PennyLane, and
-release-platform evidence exists.
+logic, catalogue library values, target `OUTPUT_NAME`, and wheel layout remained
+unchanged. Resolution added real CMake, MQT runtime-copy, relocated parser, and
+native-load consumers on Linux aarch64; it did not authorize or apply a layout
+or filename change.
 
 ### Live Amazon Braket behavior
 
@@ -3701,10 +3764,10 @@ T3: groups=7/7; IDs=7/7; missing_groups=none; duplicate_groups=none; selector/ta
   ledger rows; 11 verdict, ten anchor, and 24 closed result-key headings; exact
   23/44/7 group and 23/52/7 ID dispatch; 11 Commands shell fences extracted to
   2,252 lines; `bash -n`, ShellCheck warning, seven invalid- selector, fence,
-  privacy/local-path, whitespace-diff, and only-file checks passed. A read-only
-  rumdl check reported 302 MD013/MD060 formatting findings; no formatter or full
-  lint was run pending substantive review. The canonical reconstruction recipes
-  were not run and are not represented as the commands that produced R01-R24.
+  privacy/local-path, whitespace-diff, and only-file checks passed. Markdown was
+  then formatted and the complete lint session passed before the decision
+  record. The canonical reconstruction recipes were not run and are not
+  represented as the commands that produced R01-R24.
 
 ### Live evidence
 
@@ -3749,88 +3812,138 @@ evidence checkout clean, detached, and exactly at E.
 - **Revalidation:** not required. PRs #183 and #184 are represented in the
   pinned main/evidence SHA supplied for this audit.
 
+### Resolution evidence at exact R
+
+The original campaign baseline B, evidence SHA E, assertion IDs, experiments,
+and decisions above remain unchanged. Resolution was derived at exact SHA
+`R = 30269f5ea8aaf6c524c583685038b2fc8129bf4d` through this linear signed commit
+chain:
+
+| Role                    | Exact signed commit                        | Subject                                          |
+| :---------------------- | :----------------------------------------- | :----------------------------------------------- |
+| Audit A                 | `e8be21c3ce65bc0633454a34b2f0779c91223147` | Document distribution and Python shell SpecAudit |
+| Audit formatting        | `3cec314c6ce62f1f68950cee31dee4b29b21f35a` | Apply audit formatting                           |
+| Resolution policy       | `f11351db141f310590d507185ffd2a527d67aa97` | Allow audit resolutions in audit pull requests   |
+| Maintainer decision     | `e934b6249c49f63cbf0bb04d352c24c5c8fd03c3` | Record distribution audit maintainer decisions   |
+| Replacement oracles     | `e08d323f40eb38dd6ba629dcabcdb42feff075b5` | Add semantic distribution test oracles           |
+| Header consumer         | `fa98c4d8b016fcce45495e7d9896cd6d36451b84` | Add a generated-header consumer                  |
+| Lazy-import replacement | `8b1c42aa0aab02045be45c7c6c1c9dbdcc82e232` | Decouple lazy-import oracle from diagnostics     |
+| Installed consumers     | `99d7c510689365e024f8912a72560288e96d0e7e` | Add installed distribution consumer tests        |
+| Assertion narrowing     | `454c203191dc3517e838079a0f90ac6d2656ce28` | Narrow over-specified distribution assertions    |
+| Include cleanup         | `2232c69e2dce7aae515e0864b7c49ada91552dbb` | Remove redundant generated-header includes       |
+| Policy documentation    | `4e1beface7e11ed22663ac6949eaa0ec0b631130` | Document the live-test option policy             |
+| Isolated relocation     | `30269f5ea8aaf6c524c583685038b2fc8129bf4d` | Test relocated runtime in an isolated process    |
+
+`git verify-commit` passed for every commit in this table. The following offline
+project entry points passed at R:
+
+```sh
+uvx nox -s lint
+uvx nox -s tests-3.10
+uvx nox -s tests-3.11
+uvx nox -s tests-3.12
+uvx nox -s tests-3.13
+uvx nox -s tests-3.14
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_AMAZON_BRAKET_TESTS=ON \
+  -DBUILD_AMAZON_BRAKET_LIVE_TESTS=OFF
+cmake --build build --config Release
+ctest -C Release --test-dir build --output-on-failure \
+  -E '^(AmazonBraketQDMISpecificationTest|AmazonBraketQDMIJobSpecificationTest|AmazonBraketQDMIPerJobS3Test|DeviceParsingTestFixture)\.|^AmazonBraketQDMIWaitTimeoutTest\.JobWaitTimeout$'
+uvx nox --non-interactive -s docs
+```
+
+Python 3.10 passed 26 tests with two modules skipped during collection. Each of
+Python 3.11, 3.12, 3.13, and 3.14 passed 49 tests with two expected skips. The
+non-live C++ selection passed 116/116 tests. Documentation and lint passed.
+
+The exact-R V3 compile record
+`amazon-braket-specaudit-2026-08-19-v3-reachability-30269f5.md` used a fresh
+detached worktree and direct compiler commands from `compile_commands.json`. The
+three narrowed TUs and the dedicated C consumer rejected the generated header
+sentinel, the unrelated TU survived, and all recovery compiles passed. The V6
+eager-import and V10 version-gate-bypass mutants were independently killed by
+the fresh replacement resolver. The V11 contradictory configure and the parent
+PRE_TEST target-only compile produced the documented refusal and live-TU/link
+reachability, respectively; only later Python-test drift occurred. No live test,
+test binary, AWS call, task, credential, or network mutation was part of
+resolution evidence.
+
 ## Residual risk
 
-1. **High - runtime and release layout.** V8 does not prove MQT
-   `mqt_copy_qdmi_runtime`, relocated catalogue parsing, `dlopen`/`LoadLibrary`,
-   mandatory symbol resolution, PennyLane registration/construction, repaired
-   wheels, Windows DLLs, or macOS install names. No production rename/layout
-   change is authorized.
-2. **High - release readiness.** External reusable workflows, complete
+1. **High - release readiness.** External reusable workflows, complete
    wheel/sdist metadata and contents, tags, Runtime/Development manifests,
    v1.1.0 version coherence, released MQT Core dependency, regenerated lock,
-   artifact digests, and final-SHA CI correspondence were not executed here.
-3. **High - generic session.** V7 proves only empty-object representation.
-   Supported non-empty key classes need an explicit promise decision and actual
-   pinned-MQT parser/bridge fault before narrowing is applied.
-4. **High - lazy base wheel.** V6 has no executed behavioral replacement. A
-   Python-3.10/3.11 base-wheel import blocker must kill an eager-import mutant.
-5. **Medium-high - license preservation.** V9 needs an SPDX/license-only fault
-   under `force_author=false` plus built-artifact license inspection.
-6. **High - Python-floor sentinel ownership.** V10 proves that exact exception
-   class and wording are observed by the complete offline Python suite, but it
-   does not supply a safe replacement. Keep A0072/A0073 unchanged until a
-   sentinel semantic gate exercises every exact S25 entry-point mapping at the
-   supported Python floor and distinguishes an unsupported floor from a broken
-   internal import.
-7. **High - CMake option policy.** V11 preserves S29's no-silent-omission
-   requirement but does not choose a replacement mechanism. In particular,
-   forcing the parent tests option ON can violate a superproject's explicit
-   policy. Require a documented option-ownership decision and a standalone plus
-   `add_subdirectory` matrix before changing the refusal.
-8. **Medium-high - live-header semantics.** T3-006R2 and T3-007 fail before
-   `test_live.cpp`; `T3-008` is non-adjudicable. A0067/A0069/A0071 therefore
-   remain unchanged despite their lexical over-specification. Any removal needs
-   a standalone installed-header consumer and a paired fault that reaches the
-   selected translation units. A0070 remains anchored; any alias/value refactor
-   needs a selected-TU semantic fault. Live behavior needs new human approval.
-9. **Medium - optional import masking.** A0063/A0065 still conflate true
+   artifact digests, and final-SHA CI correspondence remain cross-scope release
+   work.
+2. **Medium - cross-platform wheel consumers.** V8 now proves C-header,
+   `find_package`, native symbol, runtime-copy, relocated catalogue, and
+   isolated relocated-load behavior on Linux aarch64 at exact R. Windows
+   repaired-wheel DLL behavior and macOS install names still await CI if those
+   platform classes are required. No production layout or filename changed.
+3. **Medium - optional import masking.** A0063/A0065 still conflate true
    top-level absence with internal `ImportError`. Split base-only and declared
    integration sessions before narrowing.
-10. **Medium - public CMake locator.** S20 does not yet say whether the Python
-value is a prefix, exact CONFIG directory, or module parent. Define and exercise
-its documented `find_package` use before changing it.
-11. **Intentional exclusion - live AWS.** No conclusion covers credentials,
+4. **Scoped catalogue policy.** V7 applies only to the device-shipped default:
+   absent or empty `session` is accepted and every non-empty value is rejected.
+   Externally managed HPC-centre catalogues remain outside this repository
+   assertion and may carry site-chosen sensitive values.
+5. **Intentional retained mechanisms.** V4 retains persistent build isolation,
+   V9 retains the single-author and split-license policy, A0072 retains
+   `ImportError`, and V11 retains the documented fatal contradictory-option
+   policy without `CACHE FORCE`.
+6. **Intentional exclusion - live AWS.** No conclusion covers credentials,
    service availability, task submission, result storage, or live devices.
 
 ## Found along the way, not blocked by an assertion
 
 - CMake/scikit-build, the catalogue, and Python locator are three authorities
   for one installed layout. A later architecture review should consider one
-  build-generated installed-resource description. V8 is not that redesign.
+  build-generated installed-resource description. V8 added semantic consumers;
+  it is not that redesign and changed no production layout.
 - The audit probe's shared local-project cache allowed stale installed catalogue
   artifacts. Future framework runs must isolate UV cache, scikit-build
   directory, nox environment, temp directory, coverage file, and
   exact-environment artifact coupling per arm. This is a framework/architecture
   handoff, not a product verdict.
-- Add an offline pinned-MQT bundle consumer covering exported properties,
-  runtime-copy, relocation, actual catalogue parse, and native load.
+- The exact-R installed consumer now covers the Python CMake locator,
+  `mqt_copy_qdmi_runtime`, relocation, catalogue parsing, and native symbol
+  loading on Linux aarch64. Other release platforms remain CI work.
 - Release review should inspect the pinned external workflows and establish one
   release-version/dependency/artifact authority at the final candidate SHA.
-- Public CMake locator meaning and complete PennyLane name-to-class mapping need
-  explicit architecture/public-surface decisions.
+- The resolution tests now exercise the public CMake locator through
+  `find_package` and the complete PennyLane name-to-class mapping through ten
+  entry points.
 
 ## Reconciliation
 
 The maintainer decisions were recorded against branch head
 `f11351db141f310590d507185ffd2a527d67aa97` before resolution work. This is the
-decision-record base, not B, E, or a resolution SHA. No remediation or
-resolution evidence exists yet.
+decision-record base, not B, E, or a resolution SHA. The signed decision commit
+is `e934b6249c49f63cbf0bb04d352c24c5c8fd03c3`. Resolution was then applied
+linearly through the signed commits recorded above and revalidated at exact R.
 
-| Date         | Decision-record base SHA                   | Finding/assertion | Decision | Decision reason                                                                                                                | Resolution     | Resolving change, revalidation, and closure                                           |
-| :----------- | :----------------------------------------- | :---------------- | :------- | :----------------------------------------------------------------------------------------------------------------------------- | :------------- | :------------------------------------------------------------------------------------ |
-| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V1`              | Accepted | A0015 duplicates retained A0017.                                                                                               | Not started    | Open; no resolving change.                                                            |
-| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V2`              | Accepted | Exact help prose is not stable.                                                                                                | Not started    | Open; no resolving change.                                                            |
-| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V3`              | Accepted | Bounded local cleanup only; no overengineering.                                                                                | Not started    | Open; replacement and reaching evidence required; no resolving change.                |
-| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V4`              | Rejected | Incremental-rebuild performance design is intentional.                                                                         | Not applicable | Rejected; closes when decision record is merged; no resolving change.                 |
-| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V5`              | Accepted | Skip wording is not stable; pre-import gates remain.                                                                           | Not started    | Open; no resolving change.                                                            |
-| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V6`              | Accepted | Private dictionary shape is not the lazy-load contract.                                                                        | Not started    | Open; behavioral replacement required; no resolving change.                           |
-| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V7`              | Accepted | Allow an empty shipped default session; reject dangerous repository defaults; external HPC-centre catalogues are out of scope. | Not started    | Open; no resolving change.                                                            |
-| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V8`              | Accepted | Use semantic consumers; make no production layout change.                                                                      | Not started    | Open; no resolving change.                                                            |
-| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V9`              | Rejected | The intentional single-author and split-license policy remains.                                                                | Not applicable | Rejected; closes when decision record is merged; no resolving change.                 |
-| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V10/A0072`       | Rejected | `ImportError` is stable and remains asserted.                                                                                  | Not applicable | Rejected; closes when decision record is merged; no resolving change.                 |
-| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V10/A0073`       | Accepted | Diagnostic wording is not stable.                                                                                              | Not started    | Open; exact S25 mapping and sentinel semantic-gate prerequisite; no resolving change. |
-| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V11`             | Accepted | Document and retain fatal policy; forbid `CACHE FORCE`.                                                                        | Not started    | Open; no resolving change.                                                            |
+| Finding/assertion | Decision | Resolution     | Resolving change and exact-R evidence                                                                                                                                                                                                                    |
+| :---------------- | :------- | :------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `V1`              | Accepted | Applied        | `454c203191dc3517e838079a0f90ac6d2656ce28`; retained type and non-empty oracles; exact-R Python matrix passed.                                                                                                                                           |
+| `V2`              | Accepted | Applied        | `e08d323f40eb38dd6ba629dcabcdb42feff075b5` then `454c203191dc3517e838079a0f90ac6d2656ce28`; semantic option inventory passed.                                                                                                                            |
+| `V3`              | Accepted | Applied        | `fa98c4d8b016fcce45495e7d9896cd6d36451b84` then `2232c69e2dce7aae515e0864b7c49ada91552dbb`; exact-R reaching and recovery compiles passed.                                                                                                               |
+| `V4`              | Rejected | Not applicable | Intentional persistent-build and explicit-uv-isolation policy retained; no resolving change.                                                                                                                                                             |
+| `V5`              | Accepted | Applied        | `e08d323f40eb38dd6ba629dcabcdb42feff075b5` then `454c203191dc3517e838079a0f90ac6d2656ce28`; shared pre-import floor gate passed on all supported Pythons.                                                                                                |
+| `V6`              | Accepted | Applied        | `e08d323f40eb38dd6ba629dcabcdb42feff075b5` then `8b1c42aa0aab02045be45c7c6c1c9dbdcc82e232`; exact-R behavioral oracle killed the eager-import mutant.                                                                                                    |
+| `V7`              | Accepted | Applied        | `e08d323f40eb38dd6ba629dcabcdb42feff075b5` then `454c203191dc3517e838079a0f90ac6d2656ce28`; shipped default accepts absent/empty and rejects non-empty session values.                                                                                   |
+| `V8`              | Accepted | Applied        | `e08d323f40eb38dd6ba629dcabcdb42feff075b5`, `99d7c510689365e024f8912a72560288e96d0e7e`, `454c203191dc3517e838079a0f90ac6d2656ce28`, and `30269f5ea8aaf6c524c583685038b2fc8129bf4d`; Linux aarch64 semantic consumer matrix passed with no layout change. |
+| `V9`              | Rejected | Not applicable | Intentional single-author, Apache/LLVM-exception, and separately excluded GPL SPANK policy retained; no resolving change.                                                                                                                                |
+| `V10/A0072`       | Rejected | Not applicable | Stable `ImportError` domain retained and revalidated at exact R.                                                                                                                                                                                         |
+| `V10/A0073`       | Accepted | Applied        | `e08d323f40eb38dd6ba629dcabcdb42feff075b5` then `8b1c42aa0aab02045be45c7c6c1c9dbdcc82e232`; ten-target sentinel oracle killed the floor-bypass mutant without message matching.                                                                          |
+| `V11`             | Accepted | Applied        | `4e1beface7e11ed22663ac6949eaa0ec0b631130`; fatal policy retained and documented, no `CACHE FORCE`; exact-R refusal and PRE_TEST compile evidence passed.                                                                                                |
+
+These dispositions are conditionally closed only if PR `#185` is merged without
+squashing and preserves the signed audit A, audit formatting, resolution policy,
+maintainer decision, replacement-oracle, header-consumer, lazy-import,
+installed-consumer, assertion-narrowing, include-cleanup, policy-documentation,
+isolated-relocation, and signed reconciliation commits. Until that merge, this
+audit records complete exact-R evidence but not final merged closure.
 
 ## Progress
 
@@ -3862,3 +3975,12 @@ resolution evidence exists yet.
       executed during authoring.
 - [x] (`2026-08-20`) Full `uvx nox -s lint` passed after audit authoring and
       Markdown formatting completed.
+- [x] (`2026-08-20`) All accepted assertion changes and replacement oracles were
+      applied in signed commits after the signed decision record.
+- [x] (`2026-08-20`) Exact-R Linux aarch64 lint, supported Python, non-live C++,
+      documentation, V3 reachability, V6/V10 mutant, V8 consumer, and V11 policy
+      evidence passed without live AWS activity.
+- [x] (`2026-08-20`) The living audit was reconciled without changing B, E,
+      assertion IDs, original experiments, decisions, or rejected mechanisms.
+- [ ] PR `#185` merged without squashing and preserving every signed audit,
+      policy, decision, resolution, and reconciliation commit required above.
