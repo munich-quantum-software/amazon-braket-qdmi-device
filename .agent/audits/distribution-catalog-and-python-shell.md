@@ -220,19 +220,19 @@ Contract-free, and zero Coverage-driven assertions.
 Verdicts are ranked by useful simplification per unit of consumer risk. A
 verdict is an evidence-backed proposal, not a maintainer decision.
 
-| Verdict | Assertion IDs       | Class          | Remedy                                                                                                      | Tier  | Unlock                                                                             | Risk   | Decision | Resolution  |
-| :------ | :------------------ | :------------- | :---------------------------------------------------------------------------------------------------------- | :---- | :--------------------------------------------------------------------------------- | :----- | :------- | :---------- |
-| `V1`    | `A0015`             | Redundant      | Delete truthiness check; retain A0016/A0017.                                                                | T3    | One duplicate test predicate; no production change.                                | Low    | Pending  | Not started |
-| `V2`    | `A0050`             | Over-specified | Replace one prose phrase with semantic help inventory.                                                      | T2    | CLI prose editing only.                                                            | Low    | Pending  | Not started |
-| `V3`    | `A0067,A0069,A0071` | Over-specified | Retain now; add explicit standalone header consumers and a reaching pair before any direct-include removal. | T1/T2 | No removal is cleared; exact test-TU include inventory is not the public contract. | Medium | Pending  | Not started |
-| `V4`    | `A0010`             | Over-specified | Keep installed-wheel testing; stop requiring one uv isolation switch.                                       | T2    | Nox mechanism simplification only.                                                 | Medium | Pending  | Not started |
-| `V5`    | `A0062,A0064`       | Over-specified | Preserve pre-import version gates; stop pinning local reason text.                                          | T2    | Reason wording only; no floor change.                                              | Medium | Pending  | Not started |
-| `V6`    | `A0047`             | Over-specified | Add a base-wheel import blocker, then replace the dictionary proxy.                                         | T2    | Private shim namespace only.                                                       | High   | Pending  | Not started |
-| `V7`    | `A0023`             | Over-specified | Assert the promised forbidden defaults, not member absence.                                                 | T3    | Catalogue representation only after parser evidence.                               | High   | Pending  | Not started |
-| `V8`    | `A0028,A0033,A0036` | Over-specified | Replace lexical substrings with real installed consumers.                                                   | T2/T3 | Test-only lexical freedom; no layout or filename change.                           | High   | Pending  | Not started |
-| `V9`    | `A0003`             | Over-specified | Retain license enforcement; stop forcing one author only after a license-only fault.                        | T2    | Authorship-policy flexibility only.                                                | Medium | Pending  | Not started |
-| `V10`   | `A0072,A0073`       | Over-specified | Add exact S25 mapping and sentinel Python-floor oracles before narrowing exception type or wording.         | T2    | No gate/type/text change is cleared yet.                                           | High   | Pending  | Not started |
-| `V11`   | `A0074`             | Over-specified | Preserve no silent omission; choose and test a documented superproject-safe option policy.                  | T2    | Fatal refusal is not the only possible mechanism; CACHE FORCE is not approved.     | High   | Pending  | Not started |
+| Verdict | Assertion IDs       | Class          | Remedy                                                                                                      | Tier  | Unlock                                                                             | Risk   | Decision                       | Resolution                              |
+| :------ | :------------------ | :------------- | :---------------------------------------------------------------------------------------------------------- | :---: | :--------------------------------------------------------------------------------- | :----- | :----------------------------- | :-------------------------------------- |
+| `V1`    | `A0015`             | Redundant      | Delete truthiness check; retain A0016/A0017.                                                                |  T3   | One duplicate test predicate; no production change.                                | Low    | Accepted                       | Not started                             |
+| `V2`    | `A0050`             | Over-specified | Replace one prose phrase with semantic help inventory.                                                      |  T2   | CLI prose editing only.                                                            | Low    | Accepted                       | Not started                             |
+| `V3`    | `A0067,A0069,A0071` | Over-specified | Retain now; add explicit standalone header consumers and a reaching pair before any direct-include removal. | T1/T2 | No removal is cleared; exact test-TU include inventory is not the public contract. | Medium | Accepted                       | Not started                             |
+| `V4`    | `A0010`             | Over-specified | Keep installed-wheel testing; stop requiring one uv isolation switch.                                       |  T2   | Nox mechanism simplification only.                                                 | Medium | Rejected                       | Not applicable                          |
+| `V5`    | `A0062,A0064`       | Over-specified | Preserve pre-import version gates; stop pinning local reason text.                                          |  T2   | Reason wording only; no floor change.                                              | Medium | Accepted                       | Not started                             |
+| `V6`    | `A0047`             | Over-specified | Add a base-wheel import blocker, then replace the dictionary proxy.                                         |  T2   | Private shim namespace only.                                                       | High   | Accepted                       | Not started                             |
+| `V7`    | `A0023`             | Over-specified | Assert the promised forbidden defaults, not member absence.                                                 |  T3   | Catalogue representation only after parser evidence.                               | High   | Accepted                       | Not started                             |
+| `V8`    | `A0028,A0033,A0036` | Over-specified | Replace lexical substrings with real installed consumers.                                                   | T2/T3 | Test-only lexical freedom; no layout or filename change.                           | High   | Accepted                       | Not started                             |
+| `V9`    | `A0003`             | Over-specified | Retain license enforcement; stop forcing one author only after a license-only fault.                        |  T2   | Authorship-policy flexibility only.                                                | Medium | Rejected                       | Not applicable                          |
+| `V10`   | `A0072,A0073`       | Over-specified | Add exact S25 mapping and sentinel Python-floor oracles before narrowing exception type or wording.         |  T2   | No gate/type/text change is cleared yet.                                           | High   | A0072 Rejected; A0073 Accepted | A0072 Not applicable; A0073 Not started |
+| `V11`   | `A0074`             | Over-specified | Preserve no silent omission; choose and test a documented superproject-safe option policy.                  |  T2   | Fatal refusal is not the only possible mechanism; CACHE FORCE is not approved.     | High   | Accepted                       | Not started                             |
 
 ## Verdicts
 
@@ -284,9 +284,10 @@ format change.
 contract-breaking empty version remains killed. This does not block a release
 after the retained tests pass.
 
-**Maintainer decision.** `Pending`
+**Maintainer decision.** `Accepted`
 
-**Decision reason.** `Pending`
+**Decision reason.** The truthiness predicate duplicates the retained explicit
+non-empty check. Remove only A0015 and keep A0016 and A0017.
 
 **Resolution state.** `Not started`
 
@@ -339,9 +340,11 @@ remain fixed.
 **Risk and release impact.** Low. A token-only check can admit unhelpful prose,
 so review help text as user documentation. No production API is removed.
 
-**Maintainer decision.** `Pending`
+**Maintainer decision.** `Accepted`
 
-**Decision reason.** `Pending`
+**Decision reason.** Exact help prose is not a contract. Replace only the phrase
+check with semantic public-option coverage while retaining successful help
+behavior.
 
 **Resolution state.** `Not started`
 
@@ -406,9 +409,12 @@ may permit local test-source include cleanup only.
 admissible fault proves that the retained transitive route catches the same
 contract break in all three selected TUs and installed mode.
 
-**Maintainer decision.** `Pending`
+**Maintainer decision.** `Accepted`
 
-**Decision reason.** `Pending`
+**Decision reason.** The direct includes are test-source mechanism constraints.
+Keep resolution bounded to the three local include lines and the minimum
+replacement and reaching evidence. Do not add a general header framework or
+change generated headers, public headers, production layout, or live behavior.
 
 **Resolution state.** `Not started`
 
@@ -462,13 +468,16 @@ wheel contents and installed-resource behavior do not change.
 minimum sessions to prove build dependencies are complete and the installed
 wheel, not the source tree, is selected.
 
-**Maintainer decision.** `Pending`
+**Maintainer decision.** `Rejected`
 
-**Decision reason.** `Pending`
+**Decision reason.** The persistent build directory and explicit uv isolation
+are an intentional incremental-rebuild performance design. Retain this
+mechanism.
 
-**Resolution state.** `Not started`
+**Resolution state.** `Not applicable`
 
-**Closure evidence.** `Open; no resolving change.`
+**Closure evidence.**
+`Rejected; closes when this decision record is merged; no resolving change.`
 
 ### V5. Optional-module gates pin local reason text - Over-specified
 
@@ -520,9 +529,10 @@ integration floor or authorize an untested shared-gate refactor.
 **Risk and release impact.** Medium. A gate moved after optional imports can
 break supported Python-3.10 base installs; that change remains blocked.
 
-**Maintainer decision.** `Pending`
+**Maintainer decision.** `Accepted`
 
-**Decision reason.** `Pending`
+**Decision reason.** Skip reason text is not stable. Keep both pre-import
+Python-floor gates and narrow only the wording assertions.
 
 **Resolution state.** `Not started`
 
@@ -577,9 +587,11 @@ Eager loading remains forbidden.
 wheel or CLI require the optional extra. Remediation is blocked on the
 replacement experiment.
 
-**Maintainer decision.** `Pending`
+**Maintainer decision.** `Accepted`
 
-**Decision reason.** `Pending`
+**Decision reason.** Private module-dictionary shape is not the lazy-loading
+contract. Add and prove the base-wheel behavioral import blocker before
+replacing the proxy.
 
 **Resolution state.** `Not started`
 
@@ -637,9 +649,12 @@ non-empty generic default is authorized by this verdict.
 reservation, or configuration default could change generic-device behavior. Keep
 the current assertion until the replacement and harmful-key oracle land.
 
-**Maintainer decision.** `Pending`
+**Maintainer decision.** `Accepted`
 
-**Decision reason.** `Pending`
+**Decision reason.** The device-shipped default catalogue may use an empty
+session object, but repository-owned defaults must reject dangerous values. This
+decision does not constrain externally managed HPC-centre catalogues, which may
+carry site-chosen sensitive values.
 
 **Resolution state.** `Not started`
 
@@ -703,9 +718,11 @@ consumer is load-free. MQT Core runtime-copy, dynamic loading, repaired wheels,
 Windows DLL behavior, macOS install names, and PennyLane construction remain
 release blockers for any production layout change.
 
-**Maintainer decision.** `Pending`
+**Maintainer decision.** `Accepted`
 
-**Decision reason.** `Pending`
+**Decision reason.** Path spelling is not the contract. Replace lexical checks
+with semantic installed consumers. Do not change production paths, filenames,
+wheel layout, or locator design.
 
 **Resolution state.** `Not started`
 
@@ -761,13 +778,17 @@ SPANK's GPL boundary, and package license metadata do not change.
 until the retained-license fault passes; classification alone authorizes no
 configuration edit.
 
-**Maintainer decision.** `Pending`
+**Maintainer decision.** `Rejected`
 
-**Decision reason.** `Pending`
+**Decision reason.** This package intentionally has and enforces one author.
+Non-SPANK content is Apache-2.0 WITH LLVM-exception. The separately GPL-licensed
+SPANK content is excluded from wheels and the Python package. Retain the current
+enforcement.
 
-**Resolution state.** `Not started`
+**Resolution state.** `Not applicable`
 
-**Closure evidence.** `Open; no resolving change.`
+**Closure evidence.**
+`Rejected; closes when this decision record is merged; no resolving change.`
 
 ### V10. Python-floor test pins exception class and diagnostic wording - Over-specified
 
@@ -836,13 +857,18 @@ domain need not be frozen by this mixed test.
 weakening the test without exact mapping and sentinel evidence can admit an
 unsupported Python 3.10 adapter load or mask it with the missing-extra branch.
 
-**Maintainer decision.** `Pending`
+**Maintainer decisions.** A0072: `Rejected`. A0073: `Accepted`.
 
-**Decision reason.** `Pending`
+**Decision reasons.** A0072 is rejected because `ImportError` is the stable
+entry-point loading failure domain at the Python floor and must remain asserted.
+A0073 is accepted because diagnostic wording is not stable. Retain the
+`ImportError` assertion and add the exact S25 mapping plus sentinel floor oracle
+before relaxing only message matching.
 
-**Resolution state.** `Not started`
+**Resolution states.** A0072: `Not applicable`. A0073: `Not started`.
 
-**Closure evidence.** `Open; no resolving change.`
+**Closure evidence.** A0072 is rejected and closes when this decision record is
+merged. A0073 remains open; no resolving change.
 
 ### V11. Live-test no-omission policy pins fatal refusal - Over-specified
 
@@ -903,9 +929,11 @@ availability.
 **Risk and release impact.** High. `CACHE FORCE` can expand a superproject's
 dependencies, targets, and CTest state despite an explicit parent policy.
 
-**Maintainer decision.** `Pending`
+**Maintainer decision.** `Accepted`
 
-**Decision reason.** `Pending`
+**Decision reason.** Treat this as a documentation gap. Retain and document the
+fatal LIVE=ON/TESTS=OFF policy and no-silent-omission behavior. `CACHE FORCE` is
+forbidden.
 
 **Resolution state.** `Not started`
 
@@ -3784,21 +3812,25 @@ its documented `find_package` use before changing it.
 
 ## Reconciliation
 
-No maintainer decision or remediation exists yet.
+The maintainer decisions were recorded against branch head
+`f11351db141f310590d507185ffd2a527d67aa97` before resolution work. This is the
+decision-record base, not B, E, or a resolution SHA. No remediation or
+resolution evidence exists yet.
 
-| Date         | Exact main SHA                             | Finding | Decision | Decision reason | Resolution  | Resolving change, revalidation, and closure                                            |
-| :----------- | :----------------------------------------- | :------ | :------- | :-------------- | :---------- | :------------------------------------------------------------------------------------- |
-| `2026-08-20` | `d9c95021451c10614ce2b0c6348480ca96742b9c` | `V1`    | Pending  | Pending         | Not started | Open; no resolving change.                                                             |
-| `2026-08-20` | `d9c95021451c10614ce2b0c6348480ca96742b9c` | `V2`    | Pending  | Pending         | Not started | Open; no resolving change.                                                             |
-| `2026-08-20` | `d9c95021451c10614ce2b0c6348480ca96742b9c` | `V3`    | Pending  | Pending         | Not started | Open; no resolving change.                                                             |
-| `2026-08-20` | `d9c95021451c10614ce2b0c6348480ca96742b9c` | `V4`    | Pending  | Pending         | Not started | Open; no resolving change.                                                             |
-| `2026-08-20` | `d9c95021451c10614ce2b0c6348480ca96742b9c` | `V5`    | Pending  | Pending         | Not started | Open; no resolving change.                                                             |
-| `2026-08-20` | `d9c95021451c10614ce2b0c6348480ca96742b9c` | `V6`    | Pending  | Pending         | Not started | Open; no resolving change.                                                             |
-| `2026-08-20` | `d9c95021451c10614ce2b0c6348480ca96742b9c` | `V7`    | Pending  | Pending         | Not started | Open; no resolving change.                                                             |
-| `2026-08-20` | `d9c95021451c10614ce2b0c6348480ca96742b9c` | `V8`    | Pending  | Pending         | Not started | Open; no resolving change.                                                             |
-| `2026-08-20` | `d9c95021451c10614ce2b0c6348480ca96742b9c` | `V9`    | Pending  | Pending         | Not started | Open; no resolving change.                                                             |
-| `2026-08-20` | `d9c95021451c10614ce2b0c6348480ca96742b9c` | `V10`   | Pending  | Pending         | Not started | Open; exact S25 mapping plus sentinel semantic-gate prerequisite; no resolving change. |
-| `2026-08-20` | `d9c95021451c10614ce2b0c6348480ca96742b9c` | `V11`   | Pending  | Pending         | Not started | Open; option-policy and superproject-matrix prerequisite; no resolving change.         |
+| Date         | Decision-record base SHA                   | Finding/assertion | Decision | Decision reason                                                                                                                | Resolution     | Resolving change, revalidation, and closure                                           |
+| :----------- | :----------------------------------------- | :---------------- | :------- | :----------------------------------------------------------------------------------------------------------------------------- | :------------- | :------------------------------------------------------------------------------------ |
+| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V1`              | Accepted | A0015 duplicates retained A0017.                                                                                               | Not started    | Open; no resolving change.                                                            |
+| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V2`              | Accepted | Exact help prose is not stable.                                                                                                | Not started    | Open; no resolving change.                                                            |
+| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V3`              | Accepted | Bounded local cleanup only; no overengineering.                                                                                | Not started    | Open; replacement and reaching evidence required; no resolving change.                |
+| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V4`              | Rejected | Incremental-rebuild performance design is intentional.                                                                         | Not applicable | Rejected; closes when decision record is merged; no resolving change.                 |
+| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V5`              | Accepted | Skip wording is not stable; pre-import gates remain.                                                                           | Not started    | Open; no resolving change.                                                            |
+| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V6`              | Accepted | Private dictionary shape is not the lazy-load contract.                                                                        | Not started    | Open; behavioral replacement required; no resolving change.                           |
+| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V7`              | Accepted | Allow an empty shipped default session; reject dangerous repository defaults; external HPC-centre catalogues are out of scope. | Not started    | Open; no resolving change.                                                            |
+| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V8`              | Accepted | Use semantic consumers; make no production layout change.                                                                      | Not started    | Open; no resolving change.                                                            |
+| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V9`              | Rejected | The intentional single-author and split-license policy remains.                                                                | Not applicable | Rejected; closes when decision record is merged; no resolving change.                 |
+| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V10/A0072`       | Rejected | `ImportError` is stable and remains asserted.                                                                                  | Not applicable | Rejected; closes when decision record is merged; no resolving change.                 |
+| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V10/A0073`       | Accepted | Diagnostic wording is not stable.                                                                                              | Not started    | Open; exact S25 mapping and sentinel semantic-gate prerequisite; no resolving change. |
+| `2026-08-20` | `f11351db141f310590d507185ffd2a527d67aa97` | `V11`             | Accepted | Document and retain fatal policy; forbid `CACHE FORCE`.                                                                        | Not started    | Open; no resolving change.                                                            |
 
 ## Progress
 
@@ -3823,7 +3855,8 @@ No maintainer decision or remediation exists yet.
 - [x] (`2026-08-20`) Drift checked against exact current main; original evidence
       preserved.
 - [x] (`2026-08-20`) Evidence restoration and detached-at-E checks passed.
-- [ ] (`2026-08-20`) Maintainer decisions recorded.
+- [x] (`2026-08-20`) Maintainer decisions recorded against exact branch head
+      `f11351db141f310590d507185ffd2a527d67aa97` before resolution.
 - [x] (`2026-08-20`) Self-contained canonical recipes and targeted
       shell/markdown/mapping/diff checks passed; the recipes themselves were not
       executed during authoring.
