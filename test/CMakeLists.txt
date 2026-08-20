@@ -37,6 +37,9 @@ else()
   target_link_libraries(${QDMI_TEST_TARGET_NAME} PRIVATE ${QDMI_TARGET_NAME}-parser-objects)
 endif()
 
+# Keep one direct C consumer of the generated public header in source and installed builds.
+target_sources(${QDMI_TEST_TARGET_NAME} PRIVATE test_generated_device_header.c)
+
 # link the Google test infrastructure to the test executable.
 target_link_libraries(
   ${QDMI_TEST_TARGET_NAME} PRIVATE GTest::gtest_main GTest::gmock ${QDMI_TARGET_NAME} qdmi::qdmi
