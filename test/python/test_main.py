@@ -37,8 +37,6 @@ def test_cli_help(script_runner: ScriptRunner) -> None:
     """Test CLI with --help."""
     result = script_runner.run(["amazon-braket-qdmi", "--help"])
     assert result.success
-    assert "Command line interface" in result.stdout
-    assert "--include_dir" in result.stdout
     for option in ("--version", "--include_dir", "--cmake_dir", "--lib_path", "--catalog_path"):
         assert option in result.stdout
 

@@ -19,13 +19,16 @@
 
 from __future__ import annotations
 
-import sys
 from typing import TYPE_CHECKING
 
 import pytest
+from pennylane_test_support import (
+    PENNYLANE_PYTHON_SUPPORTED,
+    PENNYLANE_SKIP_REASON,
+)
 
-if sys.version_info < (3, 11):
-    pytest.skip("PennyLane requires Python 3.11 or newer.", allow_module_level=True)
+if not PENNYLANE_PYTHON_SUPPORTED:
+    pytest.skip(PENNYLANE_SKIP_REASON, allow_module_level=True)
 
 try:
     import pennylane as qp
