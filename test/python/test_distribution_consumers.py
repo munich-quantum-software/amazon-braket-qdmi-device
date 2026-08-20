@@ -52,6 +52,44 @@ def _load_native_library(path: Path) -> ctypes.CDLL:
     return ctypes.CDLL(str(path))
 
 
+def _copy_repaired_wheel_sidecars(relocated_runtime: Path) -> list[Path]:
+    """Copy this wheel's repaired sidecar libraries into the relocated runtime.
+
+    Returns:
+        Relocated repair-sidecar directories that were copied.
+    """
+    if sys.platform != "linux":
+        return []
+
+    dist = distribution("amazon-braket-qdmi")
+    sidecar_names = sorted({
+        path.parts[0] for path in (dist.files or ()) if path.parts and path.parts[0].endswith(".libs")
+    })
+    relocated_sidecars: list[Path] = []
+    for sidecar_name in sidecar_names:
+        sidecar_dir = Path(str(dist.locate_file(sidecar_name)))
+        if not sidecar_dir.is_dir():
+            continue
+        relocated_sidecar = relocated_runtime / sidecar_dir.name
+        shutil.copytree(sidecar_dir, relocated_sidecar)
+        assert any(path.is_file() for path in relocated_sidecar.iterdir())
+        relocated_sidecars.append(relocated_sidecar)
+    return relocated_sidecars
+
+
+def _relocated_native_loader_environment(relocated_sidecars: list[Path]) -> dict[str, str]:
+    """Return an isolated environment for the relocated native loader.
+
+    Returns:
+        The child process environment.
+    """
+    environment = os.environ.copy()
+    environment.pop("LD_LIBRARY_PATH", None)
+    if relocated_sidecars:
+        environment["LD_LIBRARY_PATH"] = os.pathsep.join(str(path) for path in relocated_sidecars)
+    return environment
+
+
 def _run(command: list[str], *, env: Mapping[str, str] | None = None) -> None:
     """Run a trusted local consumer command with useful failure output."""
     result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true]
@@ -136,6 +174,7 @@ int main(void) {
 
     relocated_runtime = tmp_path / "relocated-runtime"
     shutil.copytree(executables[0].parent, relocated_runtime)
+    relocated_sidecars = _copy_repaired_wheel_sidecars(relocated_runtime)
     catalogues = list(relocated_runtime.glob("*.qdmi.json"))
     assert len(catalogues) == 1
     catalogue = json.loads(catalogues[0].read_text(encoding="utf-8"))
@@ -162,17 +201,23 @@ int main(void) {
         env=mqt_environment,
     )
 
-    _run([
-        sys.executable,
-        "-I",
-        "-c",
-        """\
+    _run(
+        [
+            sys.executable,
+            "-I",
+            "-c",
+            """\
 import ctypes
 import os
+from pathlib import Path
 import sys
 
 library_path = os.fsdecode(sys.argv[1])
 symbol = sys.argv[2]
+relocated_runtime = Path(os.fsdecode(sys.argv[3])).resolve()
+for entry in os.environ.get("LD_LIBRARY_PATH", "").split(os.pathsep):
+    if entry:
+        assert Path(entry).resolve().is_relative_to(relocated_runtime)
 if sys.platform == "win32":
     with os.add_dll_directory(os.path.dirname(library_path)):
         library = ctypes.CDLL(library_path)
@@ -182,6 +227,9 @@ else:
     assert getattr(library, symbol) is not None
 assert not any(name == "amazon" or name.startswith("amazon.") for name in sys.modules)
 """,
-        str(relocated_library),
-        INITIALIZE_SYMBOL,
-    ])
+            str(relocated_library),
+            INITIALIZE_SYMBOL,
+            str(relocated_runtime),
+        ],
+        env=_relocated_native_loader_environment(relocated_sidecars),
+    )
