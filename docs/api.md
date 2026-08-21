@@ -80,8 +80,9 @@ Querying `QDMI_DEVICE_JOB_PROPERTY_QUEUEPOSITION` performs a fresh
 returns `QDMI_ERROR_BADSTATE` unless the refreshed task status is `QUEUED`, and
 `QDMI_ERROR_NOTSUPPORTED` if AWS does not provide a trustworthy position.
 
-Querying `AMAZON_BRAKET_QDMI_DEVICE_JOB_PROPERTY_OUTPUTS3URI` also refreshes the
-task metadata and returns its recorded `s3://bucket/directory`. It returns
+Querying `AMAZON_BRAKET_QDMI_DEVICE_JOB_PROPERTY_OUTPUTS3URI` refreshes the task
+metadata and lets external tooling find its recorded `s3://bucket/directory`,
+including for an automatically created default bucket. It returns
 `QDMI_ERROR_BADSTATE` until Amazon Braket provides the result location.
 
 An existing QuantumTask can be opened from its ARN. The opened handle exposes
