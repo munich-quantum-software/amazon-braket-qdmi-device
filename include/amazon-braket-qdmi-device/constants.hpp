@@ -98,3 +98,11 @@
  */
 #define AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN                \
   QDMI_DEVICE_JOB_PARAMETER_CUSTOM3
+
+/**
+ * @brief `char*` (string) resolved S3 directory for this job's results.
+ * @details The value is available after Amazon Braket returns the task metadata
+ * and has the form `s3://bucket/directory`.
+ */
+#define AMAZON_BRAKET_QDMI_DEVICE_JOB_PROPERTY_OUTPUTS3URI                     \
+  QDMI_DEVICE_JOB_PROPERTY_CUSTOM1
