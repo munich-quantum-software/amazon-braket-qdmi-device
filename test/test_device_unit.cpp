@@ -624,6 +624,8 @@ static_assert(AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI ==
               QDMI_DEVICE_JOB_PARAMETER_CUSTOM1);
 static_assert(AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN ==
               QDMI_DEVICE_JOB_PARAMETER_CUSTOM3);
+static_assert(AMAZON_BRAKET_QDMI_DEVICE_JOB_PROPERTY_OUTPUTS3URI ==
+              QDMI_DEVICE_JOB_PROPERTY_CUSTOM1);
 
 // NOLINTBEGIN(misc-include-cleaner)
 class ScopedEnvironment {
@@ -1696,6 +1698,58 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobQueryPropertyShotsNum) {
                 &shots, nullptr),
             QDMI_SUCCESS);
   EXPECT_EQ(shots, 100U);
+  AMAZON_BRAKET_QDMI_device_job_free(freshJob);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, JobQueryPropertyOutputS3Uri) {
+  constexpr auto* taskArn =
+      "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
+  Aws::Braket::Model::GetQuantumTaskResult task;
+  task.WithQuantumTaskArn(taskArn)
+      .WithDeviceArn("arn:aws:braket:::device/quantum-simulator/amazon/sv1")
+      .WithStatus(Aws::Braket::Model::QuantumTaskStatus::RUNNING)
+      .WithShots(42)
+      .WithOutputS3Bucket("results")
+      .WithOutputS3Directory("tasks/task-id");
+  auto client = std::make_unique<StubBraketClient>(std::move(task));
+  const auto* clientPtr = client.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                          std::move(client));
+
+  AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                session, taskArn, &job),
+            QDMI_SUCCESS);
+  ASSERT_NE(job, nullptr);
+
+  size_t uriSize = 0;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PROPERTY_OUTPUTS3URI, 0,
+                nullptr, &uriSize),
+            QDMI_SUCCESS);
+  ASSERT_GT(uriSize, 0U);
+
+  std::string uri(uriSize - 1, '\0');
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PROPERTY_OUTPUTS3URI,
+                uriSize, uri.data(), nullptr),
+            QDMI_SUCCESS);
+  EXPECT_EQ(uri, "s3://results/tasks/task-id");
+  EXPECT_EQ(clientPtr->calls(), 3U);
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       JobQueryPropertyOutputS3UriRequiresResolvedLocation) {
+  AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
+  ASSERT_EQ(
+      AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
+      QDMI_SUCCESS);
+  size_t uriSize = 0;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                freshJob, AMAZON_BRAKET_QDMI_DEVICE_JOB_PROPERTY_OUTPUTS3URI, 0,
+                nullptr, &uriSize),
+            QDMI_ERROR_BADSTATE);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
