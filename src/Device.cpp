@@ -1348,7 +1348,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
     const QDMI_Device_Job_Property prop, const size_t size, void* value,
-    size_t* sizeRet) const -> QDMI_STATUS {
+    size_t* sizeRet) const -> QDMI_STATUS try {
   if ((value != nullptr && size == 0) || prop == QDMI_DEVICE_JOB_PROPERTY_MAX) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -1374,6 +1374,22 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
                               *queuePosition, prop, size, value, sizeRet)
   }
 
+  if (prop == AMAZON_BRAKET_QDMI_DEVICE_JOB_PROPERTY_OUTPUTS3URI) {
+    QDMI_Job_Status refreshedStatus = QDMI_JOB_STATUS_CREATED;
+    if (const auto result = check(&refreshedStatus); result != QDMI_SUCCESS) {
+      return result;
+    }
+
+    const std::scoped_lock<std::mutex> lock(jobMutex_);
+    if (outputS3Bucket_.empty() || outputS3Directory_.empty()) {
+      return QDMI_ERROR_BADSTATE;
+    }
+    const std::string outputS3Uri =
+        "s3://" + outputS3Bucket_ + "/" + outputS3Directory_;
+    ADD_STRING_PROPERTY(AMAZON_BRAKET_QDMI_DEVICE_JOB_PROPERTY_OUTPUTS3URI,
+                        outputS3Uri.c_str(), prop, size, value, sizeRet)
+  }
+
   const std::scoped_lock<std::mutex> lock(jobMutex_);
   if (!taskArn_.empty()) {
     ADD_STRING_PROPERTY(QDMI_DEVICE_JOB_PROPERTY_ID, taskArn_.c_str(), prop,
@@ -1393,6 +1409,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
                             prop, size, value, sizeRet)
 
   return QDMI_ERROR_NOTSUPPORTED;
+} catch (...) {
+  return statusFromCurrentException();
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
@@ -1599,6 +1617,11 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::updateFromTask(
     QDMI_Job_Status* status) const -> QDMI_STATUS {
   const std::scoped_lock<std::mutex> lock(jobMutex_);
   queuePosition_.reset();
+  if (!task.GetOutputS3Bucket().empty() &&
+      !task.GetOutputS3Directory().empty()) {
+    outputS3Bucket_ = task.GetOutputS3Bucket();
+    outputS3Directory_ = task.GetOutputS3Directory();
+  }
   switch (task.GetStatus()) {
   case Aws::Braket::Model::QuantumTaskStatus::CREATED:
     *status = QDMI_JOB_STATUS_SUBMITTED;
@@ -1616,8 +1639,6 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::updateFromTask(
     break;
   case Aws::Braket::Model::QuantumTaskStatus::COMPLETED:
     *status = QDMI_JOB_STATUS_DONE;
-    outputS3Bucket_ = task.GetOutputS3Bucket();
-    outputS3Directory_ = task.GetOutputS3Directory();
     break;
   case Aws::Braket::Model::QuantumTaskStatus::FAILED:
     *status = QDMI_JOB_STATUS_FAILED;
