@@ -17,7 +17,7 @@ permissions:
 jobs:
   change-detection:
     name: 🔍 Change
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-change-detection.yml@579203ef22082fa5d5483412f442e50d0c5ff4a7 # v2.2.2
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-change-detection.yml@f33c11c5cf68957b3074fff11ae43cfce2aaf593 # v2.2.3
     with:
       additional-cpp-files: |
         spank/**
@@ -123,7 +123,7 @@ jobs:
     name: 🐍 Lint
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-python-linter)
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-linter.yml@579203ef22082fa5d5483412f442e50d0c5ff4a7 # v2.2.2
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-linter.yml@f33c11c5cf68957b3074fff11ae43cfce2aaf593 # v2.2.3
     with:
       check-stubs: false
       enable-ty: true
@@ -133,7 +133,7 @@ jobs:
     name: 🚀 CD
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cd)
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-sdist.yml@579203ef22082fa5d5483412f442e50d0c5ff4a7 # v2.2.2
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-sdist.yml@f33c11c5cf68957b3074fff11ae43cfce2aaf593 # v2.2.3
 
   build-wheel:
     name: 🚀 CD
@@ -150,7 +150,7 @@ jobs:
             macos-15,
             windows-2025,
           ]
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-cibuildwheel.yml@579203ef22082fa5d5483412f442e50d0c5ff4a7 # v2.2.2
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-cibuildwheel.yml@f33c11c5cf68957b3074fff11ae43cfce2aaf593 # v2.2.3
     with:
       runs-on: ${{ matrix.runs-on }}
 
@@ -177,7 +177,7 @@ jobs:
             -o Acquire::https::Timeout=30 \
             install -y libcurl4-openssl-dev
       - name: Install the latest version of uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           python-version: "3.14"
       - name: Test Python
@@ -212,7 +212,7 @@ jobs:
             -o Acquire::https::Timeout=30 \
             install -y libcurl4-openssl-dev
       - name: Install the latest version of uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           python-version: "3.14"
       - name: Run the cost-capped SV1 smoke test
