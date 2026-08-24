@@ -146,10 +146,21 @@ program on SV1. Remote execution creates paid Amazon Braket QuantumTasks. Shot
 counts, parameter-shift evaluations, and optimizer iterations should therefore
 be selected explicitly before execution.
 
-The PennyLane adapter currently opens a device by catalogue ID. MQT Core 3.9
-does not yet let a PennyLane device reuse the QDMI handle selected from a Slurm
-license. Use the {doc}`slurm` Qiskit workflow for license-selected jobs; direct
-PennyLane jobs remain supported through the catalogue names shown above.
+MQT Core 3.9.1 and later also accept the QDMI handle selected from a Slurm
+license. Construct the generic adapter from that existing session; no second
+device lookup is needed:
+
+```python
+from mqt.core.plugins.pennylane import QDMIDevice
+from mqt.core.qdmi import slurm
+
+remote_device = QDMIDevice(
+    device=slurm.open_device_from_license(),
+    shots=1_000,
+)
+```
+
+See {doc}`slurm` for the complete image, plugin, and batch-job setup.
 
 ## Execution boundary
 

@@ -45,17 +45,17 @@ sudo cmake --install build-spank \
   --component amazon-braket-qdmi-device_Development
 ```
 
-Create the Python environment in the image as a separate step. Qiskit is the
-recommended adapter for license-selected jobs:
+Create the Python environment in the image as a separate step. Select the
+application adapters that the image needs:
 
 ```console
 uv venv /opt/amazon-braket-qdmi
 uv pip install --python /opt/amazon-braket-qdmi/bin/python \
-  --only-binary=:all: "amazon-braket-qdmi[qiskit]"
+  --only-binary=:all: "amazon-braket-qdmi[qiskit,pennylane]"
 ```
 
-Use the `pennylane` extra instead for direct PennyLane workloads. Install both
-extras only when the image needs both application stacks.
+Use only the `qiskit` or `pennylane` extra when the image needs one application
+stack. Both extras install binary wheels from PyPI; neither builds MQT Core.
 
 ## Enable the plugin
 
@@ -162,9 +162,35 @@ requested, opens the catalogue entry, and performs the authenticated Amazon
 Braket device check in the job process. The Slurm license controls local
 admission; it neither proves allocation to AWS nor authorizes a QuantumTask.
 
-MQT Core 3.9 does not yet let a PennyLane device reuse the QDMI handle returned
-by `open_device_from_license()`. Use Qiskit for this Slurm workflow. Direct
-PennyLane execution by catalogue ID remains documented in {doc}`pennylane`.
+## Run PennyLane instead
+
+MQT Core 3.9.1 and later let PennyLane reuse the same Slurm-selected handle.
+Replace `bell.py` with the following program and submit the same batch script:
+
+```python
+import pennylane as qp
+from mqt.core.plugins.pennylane import QDMIDevice
+from mqt.core.qdmi import slurm
+
+device = QDMIDevice(
+    device=slurm.open_device_from_license(),
+    wires=2,
+    shots=100,
+)
+
+
+@qp.qnode(device)
+def bell():
+    qp.Hadamard(0)
+    qp.CNOT(wires=[0, 1])
+    return qp.counts(wires=[0, 1])
+
+
+print(bell())
+```
+
+The {doc}`pennylane` guide also documents direct catalogue-ID execution outside
+Slurm.
 
 ## Validate a custom build
 
