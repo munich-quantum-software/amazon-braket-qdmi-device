@@ -15,10 +15,8 @@ PennyLane results. The integration uses the packaged native device directly; it
 does not depend on the Amazon Braket Python SDK or the direct PennyLane-Braket
 plugin.
 
-The integration requires Python 3.11 or newer:
-
 ```console
-uv pip install "amazon-braket-qdmi[pennylane]"
+uv pip install --only-binary=:all: "amazon-braket-qdmi[pennylane]"
 ```
 
 ## Local execution of the QAOA program
@@ -147,6 +145,11 @@ Substituting `remote_device` for `device` in the QNodes above executes the same
 program on SV1. Remote execution creates paid Amazon Braket QuantumTasks. Shot
 counts, parameter-shift evaluations, and optimizer iterations should therefore
 be selected explicitly before execution.
+
+The PennyLane adapter currently opens a device by catalogue ID. MQT Core 3.9
+does not yet let a PennyLane device reuse the QDMI handle selected from a Slurm
+license. Use the {doc}`slurm` Qiskit workflow for license-selected jobs; direct
+PennyLane jobs remain supported through the catalogue names shown above.
 
 ## Execution boundary
 

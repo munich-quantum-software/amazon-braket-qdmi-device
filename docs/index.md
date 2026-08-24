@@ -26,8 +26,11 @@ not exposed by this implementation.
   and S3 result destinations.
 - {doc}`device_catalog` lists the installed device catalogue and explains the
   operation capability model.
+- {doc}`qiskit` shows local and live Amazon Braket execution with Qiskit.
 - {doc}`pennylane` describes PennyLane execution and the Amazon Braket
   specialization.
+- {doc}`slurm` is the authoritative deployment and job guide for Slurm and the
+  optional SPANK plugin.
 - {doc}`usage` gives a complete direct-QDMI execution example.
 <!-- rumdl-disable MD033 -->
 - {doc}`api` records the supported QDMI properties, results, and lifecycle
@@ -45,7 +48,9 @@ not exposed by this implementation.
 installation
 configuration
 device_catalog
+qiskit
 pennylane
+slurm
 usage
 api
 ```

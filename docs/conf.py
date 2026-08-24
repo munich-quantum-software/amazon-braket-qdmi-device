@@ -67,7 +67,7 @@ html_theme_options = {
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
-    "mqt-core": ("https://mqt.readthedocs.io/projects/core/en/latest", None),
+    "mqt-core": ("https://mqt.readthedocs.io/projects/core/en/stable", None),
 }
 
 myst_enable_extensions = [

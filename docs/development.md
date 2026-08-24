@@ -62,9 +62,9 @@ uvx nox -s minimums-3.14
 ```
 
 The regular Python tests build the native package through the repository's nox
-session. Python 3.11 and newer also exercise the optional PennyLane integration;
-Python 3.10 verifies the base package without PennyLane. The full supported
-Python matrix is available as `uvx nox -s tests`.
+session and exercise the optional PennyLane and Qiskit integrations. The tested
+Python 3.11 through 3.14 matrix is available as `uvx nox -s tests`. Python 3.15
+is advertised for forward compatibility but is not tested yet.
 
 ## Documentation
 

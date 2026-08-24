@@ -10,8 +10,15 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-24
+
 ### Added
 
+- ✨ Add a Qiskit backend and optional dependency for catalogue and generic
+  Amazon Braket devices.
+- 📝 Add an authoritative Slurm and SPANK deployment guide, a minimal
+  license-selected Qiskit workload, and an opt-in live SV1 documentation
+  example.
 - ✨ Add PennyLane support for `amazon.braket.default` and every concrete device
   in the installed catalogue ([#168]) ([**@burgholzer**])
 - 📝 Add Sphinx and MyST documentation for installation, configuration,
@@ -38,6 +45,10 @@ releases may include breaking changes.
 
 ### Changed
 
+- ⬆️ Update QDMI to version 1.3.3 and the AWS SDK for C++ to version 1.11.876.
+- ⬆️ Use released MQT Core 3.9 wheels for the Qiskit and PennyLane extras.
+- 💥 Require Python 3.11 or newer, advertise Python 3.15 compatibility, and
+  modernize scikit-build-core and cibuildwheel configuration.
 - ♻️ Refactor the optional Slurm SPANK plugin into a standalone AWS
   configuration-reference injector for concrete catalogue licenses, and use MQT
   Core for authenticated device preflight in the job process ([#173])
@@ -55,6 +66,11 @@ releases may include breaking changes.
 
 ### Fixed
 
+- 🐛 Fix Read the Docs builds by installing the curl development package and
+  using the published MQT Core inventory.
+- 🐛 Inject the installed QDMI device catalogue into concrete Amazon Braket
+  Slurm jobs so MQT Core discovers the provider without manual environment
+  configuration.
 - 🐛 Reject malformed or oversized SPANK job environment values instead of
   treating them as absent ([#173]) ([**@burgholzer**])
 - 🐛 Make parameter capability probes side-effect free, preserve AWS permission
@@ -94,7 +110,8 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- Version links -->
 
-[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.0.1...HEAD
+[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/releases/tag/v1.0.1
 [1.0.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/releases/tag/v1.0.0
 

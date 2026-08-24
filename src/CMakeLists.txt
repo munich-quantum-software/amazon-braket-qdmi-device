@@ -129,15 +129,14 @@ add_custom_command(
 
 # Publish the generic device metadata used by MQT Core and other QDMI drivers. Concrete catalogue
 # entries provide their ARN and Region through the manifest.
-set_target_properties(
-  ${QDMI_TARGET_NAME}
-  PROPERTIES QDMI_DEVICE_ID amazon.braket.default
-             QDMI_DEVICE_PREFIX ${QDMI_PREFIX}
-             QDMI_MANIFEST_NAME ${AMAZON_BRAKET_QDMI_CATALOG_NAME})
+configure_qdmi_device_target(TARGET ${QDMI_TARGET_NAME} ID amazon.braket.default PREFIX
+                             ${QDMI_PREFIX})
+set_target_properties(${QDMI_TARGET_NAME} PROPERTIES QDMI_MANIFEST_NAME
+                                                     ${AMAZON_BRAKET_QDMI_CATALOG_NAME})
 set_property(
   TARGET ${QDMI_TARGET_NAME}
   APPEND
-  PROPERTY EXPORT_PROPERTIES QDMI_DEVICE_ID QDMI_DEVICE_PREFIX QDMI_MANIFEST_NAME)
+  PROPERTY EXPORT_PROPERTIES QDMI_MANIFEST_NAME)
 
 option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
 if(ENABLE_COVERAGE)

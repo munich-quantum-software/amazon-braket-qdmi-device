@@ -40,12 +40,16 @@ echo "=== Verifying ordinary jobs remain untouched ==="
 run /bin/true
 ordinary_environment=$(run --licenses=ordinary.one /usr/bin/env)
 ! grep -Fq "AWS_PROFILE=" <<<"${ordinary_environment}"
+! grep -Fq "MQT_CORE_QDMI_CONFIG_FILE=" <<<"${ordinary_environment}"
 
 echo "=== Verifying concrete catalogue licenses activate injection ==="
 for license in amazon.braket.sv1 amazon.braket.dm1; do
   job_environment=$(run --licenses="${license}" /usr/bin/env)
   grep -Eq "^SLURM_JOB_LICENSES=${license}(:1)?$" <<<"${job_environment}"
   grep -Fxq "AWS_PROFILE=administrator-default" <<<"${job_environment}"
+  grep -Fxq \
+    "MQT_CORE_QDMI_CONFIG_FILE=/usr/local/lib/amazon-braket-qdmi-device.qdmi.json" \
+    <<<"${job_environment}"
 done
 
 echo "=== Verifying option, submitted environment, and default precedence ==="
@@ -53,6 +57,7 @@ job_environment=$(
   AWS_PROFILE=submitted-profile \
     run \
       --licenses=amazon.braket.sv1 \
+      --amazon-braket-qdmi-config-file=/tmp/option-catalogue.json \
       --amazon-braket-profile=option-profile \
       --amazon-braket-config-file=/workspace/spank/test/aws_config \
       --amazon-braket-shared-credentials-file=/tmp/reference-only \
@@ -60,6 +65,8 @@ job_environment=$(
       --amazon-braket-reservation-arn="${reservation_arn}" \
       /usr/bin/env
 )
+grep -Fxq "MQT_CORE_QDMI_CONFIG_FILE=/tmp/option-catalogue.json" \
+  <<<"${job_environment}"
 grep -Fxq "AWS_PROFILE=option-profile" <<<"${job_environment}"
 grep -Fxq "AWS_CONFIG_FILE=/workspace/spank/test/aws_config" <<<"${job_environment}"
 grep -Fxq "AWS_SHARED_CREDENTIALS_FILE=/tmp/reference-only" <<<"${job_environment}"

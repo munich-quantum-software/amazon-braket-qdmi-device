@@ -11,8 +11,7 @@ A source build requires:
 
 Slurm 23.02 or later is required only for the optional SPANK plugin. CI tests
 the plugin against Slurm 23.11 on Ubuntu 24.04. Its build and deployment are
-documented separately in the
-[SPANK README](https://github.com/munich-quantum-software/amazon-braket-qdmi-device/blob/main/spank/README.md).
+documented in the authoritative {doc}`slurm` guide.
 
 ## Python package
 
@@ -21,6 +20,15 @@ configuration, and the installed device catalogue:
 
 ```console
 uv pip install amazon-braket-qdmi
+```
+
+Install an adapter extra when the environment will execute Qiskit or PennyLane
+payloads. Released wheels provide the native Amazon Braket device and MQT Core;
+neither needs a source checkout.
+
+```console
+uv pip install --only-binary=:all: "amazon-braket-qdmi[qiskit]"
+uv pip install --only-binary=:all: "amazon-braket-qdmi[pennylane]"
 ```
 
 The command-line entry point reports the installed catalogue path:
@@ -46,6 +54,20 @@ configuration into a selected prefix:
 ```console
 cmake --install build --prefix /path/to/install
 ```
+
+The full installation contains runtime and development files. Component-based
+installations split them as follows:
+
+| Component                                      | Contents                                      |
+| ---------------------------------------------- | --------------------------------------------- |
+| `amazon-braket-qdmi-device_Runtime`            | Shared library and QDMI device catalogue      |
+| `amazon-braket-qdmi-device_Development`        | Headers, library link, and CMake package files|
+| `amazon-braket-qdmi-spank-plugin`              | Optional SPANK module and plugstack template  |
+
+A job node needs the Runtime component. Install the Development component only
+when software on that image must compile against the provider. In particular,
+`amazon-braket-qdmi-device-config.cmake` belongs to the Development component;
+its absence after a Runtime-only installation is expected.
 
 A consuming CMake project can import the installed target:
 
@@ -122,10 +144,11 @@ device ARN. Also restrict task inspection and result-bucket access to the
 required resources. See the [Amazon Braket service authorization reference] and
 the [device access guide].
 
-The optional SPANK plugin only injects configuration references. It does not
-distribute credentials or grant AWS permissions. A profile, file, workload
-identity, or node role that it references must already be available to the job
-user. The [SPANK README] describes both deployment modes.
+The optional SPANK plugin injects the installed QDMI catalogue path and optional
+AWS configuration references. It does not distribute credentials or grant AWS
+permissions. A profile, file, workload identity, or node role that it references
+must already be available to the job user. See {doc}`slurm` for the complete
+installation and job workflow.
 
 ## CMake options
 
@@ -139,4 +162,3 @@ user. The [SPANK README] describes both deployment modes.
 
 [Amazon Braket service authorization reference]: https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonbraket.html
 [device access guide]: https://docs.aws.amazon.com/braket/latest/developerguide/restrict-access.html
-[SPANK README]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/blob/main/spank/README.md

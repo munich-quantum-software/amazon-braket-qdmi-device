@@ -29,9 +29,6 @@ from dataclasses import dataclass
 
 import pytest
 
-if sys.version_info < (3, 11):
-    pytest.skip("PennyLane requires Python 3.11 or newer.", allow_module_level=True)
-
 try:
     import pennylane as qp
 except ImportError:
