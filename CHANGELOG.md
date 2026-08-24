@@ -71,6 +71,9 @@ releases may include breaking changes.
 - 🐛 Inject the installed QDMI device catalogue into concrete Amazon Braket
   Slurm jobs so MQT Core discovers the provider without manual environment
   configuration.
+- 🐛 Advertise OpenQASM measurement through QDMI, map Amazon Braket operation
+  names into the Qiskit target, and emit the self-contained OpenQASM accepted by
+  Amazon Braket.
 - 🐛 Reject malformed or oversized SPANK job environment values instead of
   treating them as absent ([#173]) ([**@burgholzer**])
 - 🐛 Make parameter capability probes side-effect free, preserve AWS permission

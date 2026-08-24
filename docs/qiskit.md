@@ -14,8 +14,8 @@ uv pip install --only-binary=:all: "amazon-braket-qdmi[qiskit]"
 ```
 
 The adapter exposes the selected Amazon Braket device as a Qiskit `BackendV2`.
-It uses MQT Core to transpile to a format advertised by the QDMI device;
-Amazon Braket devices use OpenQASM 3.
+It uses MQT Core to serialize circuits to OpenQASM 3 and maps Qiskit operations
+to the names accepted by Amazon Braket.
 
 ## Select a catalogue device
 
@@ -56,17 +56,17 @@ live = os.environ.get("READTHEDOCS") == "True" and all(
 )
 
 if live:
-    from qiskit import QuantumCircuit, transpile
+    from qiskit import QuantumCircuit
 
     from amazon.braket.qdmi.qiskit import AmazonBraketBackend
 
-    circuit = QuantumCircuit(2)
+    circuit = QuantumCircuit(2, 2)
     circuit.h(0)
     circuit.cx(0, 1)
-    circuit.measure_all()
+    circuit.measure([0, 1], [0, 1])
 
     backend = AmazonBraketBackend("amazon.braket.sv1")
-    counts = backend.run(transpile(circuit, backend), shots=10).result().get_counts()
+    counts = backend.run(circuit, shots=10).result().get_counts()
     assert sum(counts.values()) == 10
     counts
 else:
@@ -81,23 +81,22 @@ these values as private:
 | `AWS_ACCESS_KEY_ID`     | Amazon Braket access key ID |
 | `AWS_SECRET_ACCESS_KEY` | Matching secret access key  |
 
-Never mark the AWS values public. Private values are withheld from external
-pull request builds. The device uses the standard regional result bucket when
+Never mark the AWS values public. Private values are withheld from external pull
+request builds. The device uses the standard regional result bucket when
 `AMZN_BRAKET_TASK_RESULTS_S3_URI` is unset; see {doc}`configuration` for its
 name and the required STS and S3 permissions. Every trusted documentation build
 with both variables submits one paid SV1 QuantumTask.
 
 ## Use a Slurm-selected device
 
-The Slurm adapter returns an already-open QDMI device. Pass it directly to MQT
-Core's Qiskit backend; no second device lookup or provider-specific adapter is
-needed.
+The Slurm adapter returns an already-open QDMI device. Pass it directly to the
+Amazon Braket backend; no second device lookup is needed.
 
 ```python
-from mqt.core.plugins.qiskit.backend import QDMIBackend
+from amazon.braket.qdmi.qiskit import AmazonBraketBackend
 from mqt.core.qdmi import slurm
 
-backend = QDMIBackend(slurm.open_device_from_license())
+backend = AmazonBraketBackend(device=slurm.open_device_from_license())
 ```
 
 See {doc}`slurm` for the complete AMI and job setup.

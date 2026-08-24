@@ -9,9 +9,9 @@ license. The source runtime and the Python execution environment are separate:
 2. The Python package installs the same provider plus MQT Core and the selected
    application adapter from PyPI. No MQT Core source build is required.
 
-The duplicate native provider is harmless: the Slurm job uses the catalogue
-path injected by SPANK, while the Python wheel supplies the matching Python
-bindings and adapter dependencies.
+The duplicate native provider is harmless: the Slurm job uses the catalogue path
+injected by SPANK, while the Python wheel supplies the matching Python bindings
+and adapter dependencies.
 
 ## Bake the cluster image
 
@@ -59,9 +59,9 @@ extras only when the image needs both application stacks.
 
 ## Enable the plugin
 
-Installation creates a disabled
-`plugstack.conf.d/amazon-braket-qdmi.conf`. The generated directive contains the
-installed provider catalogue path. Uncomment it on submission and compute nodes:
+Installation creates a disabled `plugstack.conf.d/amazon-braket-qdmi.conf`. The
+generated directive contains the installed provider catalogue path. Uncomment it
+on submission and compute nodes:
 
 ```text
 required /usr/local/lib/slurm/amazon-braket-qdmi-spank.so amazon_braket_qdmi_config_file=/usr/local/lib/amazon-braket-qdmi-device.qdmi.json
@@ -116,17 +116,17 @@ log an access key, secret key, or session token.
 Save the following as `bell.py` in the image or a shared filesystem:
 
 ```python
-from mqt.core.plugins.qiskit.backend import QDMIBackend
+from amazon.braket.qdmi.qiskit import AmazonBraketBackend
 from mqt.core.qdmi import slurm
-from qiskit import QuantumCircuit, transpile
+from qiskit import QuantumCircuit
 
-backend = QDMIBackend(slurm.open_device_from_license())
-circuit = QuantumCircuit(2)
+backend = AmazonBraketBackend(device=slurm.open_device_from_license())
+circuit = QuantumCircuit(2, 2)
 circuit.h(0)
 circuit.cx(0, 1)
-circuit.measure_all()
+circuit.measure([0, 1], [0, 1])
 
-result = backend.run(transpile(circuit, backend), shots=100).result()
+result = backend.run(circuit, shots=100).result()
 print(result.get_counts())
 ```
 
@@ -141,7 +141,8 @@ set -euo pipefail
 /opt/amazon-braket-qdmi/bin/python /path/to/bell.py
 ```
 
-With an instance or workload role and a plugstack S3 default, submit it directly:
+With an instance or workload role and a plugstack S3 default, submit it
+directly:
 
 ```console
 sbatch bell.sbatch
