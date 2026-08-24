@@ -16,7 +16,7 @@ does not depend on the Amazon Braket Python SDK or the direct PennyLane-Braket
 plugin.
 
 ```console
-uv pip install --only-binary=:all: "amazon-braket-qdmi[pennylane]"
+uv pip install "amazon-braket-qdmi[pennylane]"
 ```
 
 ## Local execution of the QAOA program
@@ -160,7 +160,7 @@ remote_device = QDMIDevice(
 )
 ```
 
-See {doc}`slurm` for the complete image, plugin, and batch-job setup.
+See {doc}`slurm` for the complete installation, plugin, and batch-job setup.
 
 ## Execution boundary
 

@@ -27,8 +27,8 @@ payloads. Released wheels provide the native Amazon Braket device and MQT Core;
 neither needs a source checkout.
 
 ```console
-uv pip install --only-binary=:all: "amazon-braket-qdmi[qiskit]"
-uv pip install --only-binary=:all: "amazon-braket-qdmi[pennylane]"
+uv pip install "amazon-braket-qdmi[qiskit]"
+uv pip install "amazon-braket-qdmi[pennylane]"
 ```
 
 The command-line entry point reports the installed catalogue path:
@@ -65,7 +65,7 @@ installations split them as follows:
 | `amazon-braket-qdmi-spank-plugin`              | Optional SPANK module and plugstack template  |
 
 A job node needs the Runtime component. Install the Development component only
-when software on that image must compile against the provider. In particular,
+when other software must compile against the provider. In particular,
 `amazon-braket-qdmi-device-config.cmake` belongs to the Development component;
 its absence after a Runtime-only installation is expected.
 
@@ -92,11 +92,11 @@ cmake --build build
 
 The installed CMake target exports the `AMAZON_BRAKET` symbol prefix and a
 relocatable catalogue with all stable device definitions. An application using
-MQT Core 3.9.0 or newer can copy the device library and catalogue beside its
+MQT Core 3.9.1 or newer can copy the device library and catalogue beside its
 executable:
 
 ```cmake
-find_package(mqt-core 3.9.0 CONFIG REQUIRED)
+find_package(mqt-core 3.9.1 CONFIG REQUIRED)
 find_package(amazon-braket-qdmi-device CONFIG REQUIRED)
 
 add_executable(my_app main.cpp)

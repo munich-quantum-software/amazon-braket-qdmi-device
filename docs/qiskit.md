@@ -7,10 +7,10 @@ kernelspec:
 
 # Qiskit execution through QDMI
 
-Install the package with the Qiskit adapter and binary-only dependencies:
+Install the package with the Qiskit adapter:
 
 ```console
-uv pip install --only-binary=:all: "amazon-braket-qdmi[qiskit]"
+uv pip install "amazon-braket-qdmi[qiskit]"
 ```
 
 The adapter exposes the selected Amazon Braket device as a Qiskit `BackendV2`.
@@ -43,49 +43,37 @@ standard Amazon Braket result bucket should not be used.
 
 ## Run a circuit on SV1
 
-The following cell submits one 10-shot QuantumTask only on Read the Docs builds
-that have both private AWS credential variables configured. Local and pull
-request documentation builds skip the paid task.
+Running the following example submits one 10-shot QuantumTask to SV1. The AWS
+SDK uses any credentials available through its default provider chain. Without
+permission to access Amazon Braket, the example reports that live execution is
+unavailable.
 
 ```{code-cell} python
-import os
+:tags: [remove-stderr]
 
-live = os.environ.get("READTHEDOCS") == "True" and all(
-    os.environ.get(name)
-    for name in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY")
-)
+from qiskit import QuantumCircuit, transpile
 
-if live:
-    from qiskit import QuantumCircuit
+from amazon.braket.qdmi.qiskit import AmazonBraketBackend
 
-    from amazon.braket.qdmi.qiskit import AmazonBraketBackend
-
-    circuit = QuantumCircuit(2, 2)
+try:
+    backend = AmazonBraketBackend("amazon.braket.sv1")
+    circuit = QuantumCircuit(2)
     circuit.h(0)
     circuit.cx(0, 1)
-    circuit.measure([0, 1], [0, 1])
+    circuit.measure_all()
 
-    backend = AmazonBraketBackend("amazon.braket.sv1")
-    counts = backend.run(circuit, shots=10).result().get_counts()
+    counts = backend.run(transpile(circuit, backend), shots=10).result().get_counts()
     assert sum(counts.values()) == 10
-    counts
-else:
-    print("Live SV1 execution skipped; Read the Docs credentials are not configured.")
+    print(counts)
+except RuntimeError as error:
+    if "Permission denied" not in str(error):
+        raise
+    print("Live SV1 execution requires AWS credentials with Amazon Braket access.")
 ```
 
-In **Admin → Environment variables** for the Read the Docs project, configure
-these values as private:
-
-| Name                    | Value                       |
-| ----------------------- | --------------------------- |
-| `AWS_ACCESS_KEY_ID`     | Amazon Braket access key ID |
-| `AWS_SECRET_ACCESS_KEY` | Matching secret access key  |
-
-Never mark the AWS values public. Private values are withheld from external pull
-request builds. The device uses the standard regional result bucket when
-`AMZN_BRAKET_TASK_RESULTS_S3_URI` is unset; see {doc}`configuration` for its
-name and the required STS and S3 permissions. Every trusted documentation build
-with both variables submits one paid SV1 QuantumTask.
+The device uses the standard regional result bucket when
+`AMZN_BRAKET_TASK_RESULTS_S3_URI` is unset. See {doc}`configuration` for its
+name and the required Braket, STS, and S3 permissions.
 
 ## Use a Slurm-selected device
 
@@ -99,4 +87,4 @@ from mqt.core.qdmi import slurm
 backend = AmazonBraketBackend(device=slurm.open_device_from_license())
 ```
 
-See {doc}`slurm` for the complete AMI and job setup.
+See {doc}`slurm` for the complete cluster and job setup.

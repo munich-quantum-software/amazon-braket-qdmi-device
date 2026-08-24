@@ -24,7 +24,8 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 from mqt.core.plugins.qiskit.backend import QDMIBackend
-from qiskit import QuantumCircuit
+from qiskit import QuantumCircuit, transpile
+from qiskit.transpiler import CouplingMap, Target
 
 from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_DEVICE_ID
 from amazon.braket.qdmi import qiskit as braket_qiskit
@@ -162,18 +163,49 @@ def test_maps_braket_operation_names(operation_name: str, gate_name: str) -> Non
 
 def test_serializes_openqasm_without_includes() -> None:
     """Emit self-contained OpenQASM because Amazon Braket rejects includes."""
-    circuit = QuantumCircuit(2, 2)
+    circuit = QuantumCircuit(2)
     circuit.h(0)
     circuit.cx(0, 1)
-    circuit.measure([0, 1], [0, 1])
+    circuit.measure_all()
+    circuit = transpile(circuit, basis_gates=["h", "cx"], coupling_map=CouplingMap.from_full(4))
+    assert circuit.layout is not None
 
-    program = braket_qiskit._serialize_to_braket_qasm3(  # ruff: ignore[private-member-access]
-        circuit,
-        {"cnot", "h", "measure"},
-        AmazonBraketBackend._QISKIT_TO_QDMI_GATE_MAP,  # ruff: ignore[private-member-access]
+    backend = object.__new__(AmazonBraketBackend)
+    backend._device = cast(  # ruff: ignore[private-member-access]
+        "QDMIDeviceHandle",
+        SimpleNamespace(
+            operations=lambda: tuple(SimpleNamespace(name=lambda name=name: name) for name in ("cnot", "h", "measure"))
+        ),
     )
+    program = backend._serialize_to_braket_qasm3(circuit)  # ruff: ignore[private-member-access]
 
     assert "include" not in program
+    assert "$" not in program
+    assert "qubit[2] q;" in program
     assert "gate " not in program
     assert "cnot q[0], q[1]" in program
+    assert "barrier q[0], q[1]" in program
     assert "measure q[0]" in program
+
+
+def test_adds_variable_width_barrier_to_target(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Expose Qiskit's backend-level barrier without claiming native reset support."""
+    monkeypatch.setattr(QDMIBackend, "_build_target", lambda _backend: Target(num_qubits=3))
+
+    target = object.__new__(AmazonBraketBackend)._build_target()  # ruff: ignore[private-member-access]
+
+    assert target.instruction_supported("barrier", (0,))
+    assert target.instruction_supported("barrier", (0, 1, 2))
+    assert "reset" not in target.operation_names
+
+
+def test_reports_all_to_all_target_without_connectivity_constraint(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Let Qiskit transpile native multi-qubit gates on an all-to-all device."""
+    monkeypatch.setattr(QDMIBackend, "coupling_map", property(lambda _backend: CouplingMap.from_full(3)))
+
+    backend = object.__new__(AmazonBraketBackend)
+    assert backend.coupling_map is None
+
+    line = CouplingMap.from_line(3)
+    monkeypatch.setattr(QDMIBackend, "coupling_map", property(lambda _backend: line))
+    assert backend.coupling_map is line

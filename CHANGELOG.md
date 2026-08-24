@@ -10,15 +10,15 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
-## [1.1.0] - 2026-08-24
+## [1.1.0] - 2026-08-25
 
 ### Added
 
 - ✨ Add a Qiskit backend and optional dependency for catalogue and generic
-  Amazon Braket devices.
+  Amazon Braket devices, including operation-name mappings, barrier support, and
+  self-contained OpenQASM 3 serialization.
 - 📝 Add an authoritative Slurm and SPANK deployment guide, a minimal
-  license-selected Qiskit workload, and an opt-in live SV1 documentation
-  example.
+  license-selected Qiskit workload, and a live SV1 documentation example.
 - ✨ Add PennyLane support for `amazon.braket.default` and every concrete device
   in the installed catalogue ([#168]) ([**@burgholzer**])
 - 📝 Add Sphinx and MyST documentation for installation, configuration,
@@ -26,8 +26,8 @@ releases may include breaking changes.
   without Breathe ([#176]) ([**@burgholzer**])
 - ✨ Install a relocatable catalogue containing `amazon.braket.default` and
   convenient definitions for supported backends, and expose each device's
-  broader OpenQASM operation set through a custom QDMI property ([#171])
-  ([**@burgholzer**])
+  broader OpenQASM operation set, including measurement, through a custom QDMI
+  property ([#171]) ([**@burgholzer**])
 - ✨ Retrieve existing Amazon Braket QuantumTasks by their QDMI job IDs ([#160])
   ([**@burgholzer**])
 - ✨ Expose current device queue length and queued job position through QDMI,
@@ -46,13 +46,13 @@ releases may include breaking changes.
 ### Changed
 
 - ⬆️ Update QDMI to version 1.3.3 and the AWS SDK for C++ to version 1.11.876.
-- ⬆️ Use released MQT Core 3.9 wheels for the Qiskit and PennyLane extras.
+- ⬆️ Use MQT Core 3.9.1 for the Qiskit and PennyLane extras.
 - 💥 Require Python 3.11 or newer, advertise Python 3.15 compatibility, and
   modernize scikit-build-core and cibuildwheel configuration.
 - ♻️ Refactor the optional Slurm SPANK plugin into a standalone AWS
-  configuration-reference injector for concrete catalogue licenses, and use MQT
-  Core for authenticated device preflight in the job process ([#173])
-  ([**@burgholzer**])
+  configuration-reference injector for concrete catalogue licenses, inject the
+  installed catalogue into jobs, and use MQT Core for authenticated device
+  preflight in the job process ([#173]) ([**@burgholzer**])
 - ♻️ Use the AWS SDK default credential provider chain for all AWS clients and
   resolve each quantum task's result destination from one optional S3 URI or the
   standard Amazon Braket default bucket ([#172]) ([**@burgholzer**])
@@ -66,14 +66,6 @@ releases may include breaking changes.
 
 ### Fixed
 
-- 🐛 Fix Read the Docs builds by installing the curl development package and
-  using the published MQT Core inventory.
-- 🐛 Inject the installed QDMI device catalogue into concrete Amazon Braket
-  Slurm jobs so MQT Core discovers the provider without manual environment
-  configuration.
-- 🐛 Advertise OpenQASM measurement through QDMI, map Amazon Braket operation
-  names into the Qiskit target, and emit the self-contained OpenQASM accepted by
-  Amazon Braket.
 - 🐛 Reject malformed or oversized SPANK job environment values instead of
   treating them as absent ([#173]) ([**@burgholzer**])
 - 🐛 Make parameter capability probes side-effect free, preserve AWS permission
@@ -91,8 +83,6 @@ releases may include breaking changes.
   through QDMI ([#158]) ([**@burgholzer**])
 - 🐛 Interpret QDMI job wait timeouts in seconds ([#156]) ([**@burgholzer**])
 - 🐛 Normalize histogram keys as a comma-separated QDMI string ([#159])
-  ([**@burgholzer**])
-- 🐛 Isolate scikit-build output from the direct CMake build tree ([#147])
   ([**@burgholzer**])
 
 ## [1.0.1] - 2026-06-26
