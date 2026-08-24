@@ -14,7 +14,7 @@ uv pip install "amazon-braket-qdmi[qiskit]"
 ```
 
 The adapter exposes the selected Amazon Braket device as a Qiskit `BackendV2`.
-It uses MQT Core to serialize circuits to OpenQASM 3 and maps Qiskit operations
+It serializes circuits to self-contained OpenQASM 3 and maps Qiskit operations
 to the names accepted by Amazon Braket.
 
 ## Select a catalogue device
@@ -37,9 +37,7 @@ backend = AmazonBraketBackend(
 )
 ```
 
-AWS credentials come from the AWS SDK default credential provider chain. Set
-`AMZN_BRAKET_TASK_RESULTS_S3_URI` to an existing `s3://bucket/prefix` when the
-standard Amazon Braket result bucket should not be used.
+AWS credentials come from the AWS SDK default credential provider chain.
 
 ## Run a circuit on SV1
 
@@ -71,9 +69,45 @@ except RuntimeError as error:
     print("Live SV1 execution requires AWS credentials with Amazon Braket access.")
 ```
 
-The device uses the standard regional result bucket when
-`AMZN_BRAKET_TASK_RESULTS_S3_URI` is unset. See {doc}`configuration` for its
-name and the required Braket, STS, and S3 permissions.
+The device uses the standard regional result bucket when submitting the task.
+See {doc}`configuration` for its name and the required Braket, STS, and S3
+permissions.
+
+## Use Qiskit primitives
+
+MQT Core exposes the Qiskit `SamplerV2` and `EstimatorV2` interfaces directly
+from the backend:
+
+```python
+from qiskit import QuantumCircuit
+from qiskit.quantum_info import SparsePauliOp
+
+sample_circuit = QuantumCircuit(2)
+sample_circuit.h(0)
+sample_circuit.cx(0, 1)
+sample_circuit.measure_all()
+
+sampler = backend.sampler(default_shots=100)
+sampled = sampler.run([sample_circuit]).result()
+counts = sampled[0].data.meas.get_counts()
+
+estimator_circuit = QuantumCircuit(2)
+estimator_circuit.h(0)
+estimator_circuit.cx(0, 1)
+
+estimator = backend.estimator(default_shots=100)
+estimated = estimator.run([(estimator_circuit, SparsePauliOp("ZZ"))]).result()
+expectation_value = estimated[0].data.evs
+```
+
+Both primitives submit Amazon Braket QuantumTasks. Choose shot counts
+deliberately because each primitive run can submit multiple circuits.
+
+## Override the result destination
+
+Jobs use the standard regional result bucket automatically. Set
+`AMZN_BRAKET_TASK_RESULTS_S3_URI` to an existing `s3://bucket/prefix` only when
+a pre-provisioned destination is required.
 
 ## Use a Slurm-selected device
 

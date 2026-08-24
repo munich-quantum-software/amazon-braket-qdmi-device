@@ -104,7 +104,6 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
-      AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
 
   cpp-linter:
     name: 🇨 Lint
@@ -191,7 +190,6 @@ jobs:
     env:
       AMAZON_BRAKET_PENNYLANE_LIVE: "1"
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
     steps:

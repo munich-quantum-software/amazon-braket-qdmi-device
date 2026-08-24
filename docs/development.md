@@ -15,11 +15,9 @@ access. CMake does not register tests that access AWS unless
 `BUILD_AMAZON_BRAKET_LIVE_TESTS=ON` is set explicitly.
 
 When live Amazon Braket tests are intentionally required, select an AWS SDK
-credential source and a pre-provisioned result destination before configuring
-the test-specific opt-in:
+credential source before configuring the test-specific opt-in:
 
 ```console
-export AMZN_BRAKET_TASK_RESULTS_S3_URI=s3://my-braket-results/tasks
 cmake -S . -B build-live -DCMAKE_BUILD_TYPE=Release \
   -DBUILD_AMAZON_BRAKET_LIVE_TESTS=ON
 cmake --build build-live --config Release
@@ -35,17 +33,17 @@ The test configuration has the following boundaries:
 - Device ARNs are public identifiers and are stored directly in test code.
 - Credentials are resolved and refreshed by the AWS SDK; tests do not pass them
   through QDMI parameters.
-- QuantumTask tests use `AMZN_BRAKET_TASK_RESULTS_S3_URI` so they do not create
-  AWS resources.
+- QuantumTask tests use the automatic standard regional result bucket.
 - `AMAZON_BRAKET_QDMI_RUN_LIVE_CATALOG=1` queries all nine concrete devices. The
   test is serial and does not submit paid QPU tasks.
-- `AMAZON_BRAKET_QDMI_TEST_ALLOW_BUCKET_CREATION=1`, with
-  `AMZN_BRAKET_TASK_RESULTS_S3_URI` unset, enables a separate SV1 test that can
-  create and secure the standard regional bucket.
 
-The final two modes make additional live AWS calls and must be enabled
-deliberately. The older SV1 and IQM integration fixtures are registered under
+The catalogue mode makes additional live AWS calls and must be enabled
+deliberately. The older SV1 and device integration fixtures are registered under
 the same `amazon-braket-live` label only in the live CMake configuration.
+
+To test a pre-provisioned destination instead, set
+`AMZN_BRAKET_TASK_RESULTS_S3_URI`. The dedicated per-job S3 fixture exercises
+the job-parameter override.
 
 ## Python tests
 

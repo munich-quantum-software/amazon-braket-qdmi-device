@@ -14,11 +14,10 @@ releases may include breaking changes.
 
 ### Added
 
-- ✨ Add a Qiskit backend and optional dependency for catalogue and generic
-  Amazon Braket devices, including operation-name mappings, barrier support, and
-  self-contained OpenQASM 3 serialization.
-- 📝 Add an authoritative Slurm and SPANK deployment guide, a minimal
-  license-selected Qiskit workload, and a live SV1 documentation example.
+- ✨ Add a Qiskit backend with Amazon Braket operation mappings, barriers, and
+  self-contained OpenQASM 3 ([#192]) ([**@burgholzer**])
+- 📝 Document Slurm and SPANK deployment, license-selected workloads, and live
+  SV1 execution ([#192]) ([**@burgholzer**])
 - ✨ Add PennyLane support for `amazon.braket.default` and every concrete device
   in the installed catalogue ([#168]) ([**@burgholzer**])
 - 📝 Add Sphinx and MyST documentation for installation, configuration,
@@ -45,17 +44,16 @@ releases may include breaking changes.
 
 ### Changed
 
-- ⬆️ Update QDMI to version 1.3.3 and the AWS SDK for C++ to version 1.11.876.
-- ⬆️ Use MQT Core 3.9.1 for the Qiskit and PennyLane extras.
-- 💥 Require Python 3.11 or newer, advertise Python 3.15 compatibility, and
-  modernize scikit-build-core and cibuildwheel configuration.
-- ♻️ Refactor the optional Slurm SPANK plugin into a standalone AWS
-  configuration-reference injector for concrete catalogue licenses, inject the
-  installed catalogue into jobs, and use MQT Core for authenticated device
-  preflight in the job process ([#173]) ([**@burgholzer**])
+- ⬆️ Update QDMI to 1.3.3, the AWS SDK for C++ to 1.11.876, and MQT Core to
+  3.9.1 ([#192]) ([**@burgholzer**])
+- 💥 Require Python 3.11, advertise Python 3.15, and update scikit-build-core
+  and cibuildwheel configuration ([#192]) ([**@burgholzer**])
+- ♻️ Make the optional Slurm SPANK plugin inject the installed catalogue and AWS
+  configuration references, with MQT Core performing device preflight ([#173])
+  ([**@burgholzer**])
 - ♻️ Use the AWS SDK default credential provider chain for all AWS clients and
-  resolve each quantum task's result destination from one optional S3 URI or the
-  standard Amazon Braket default bucket ([#172]) ([**@burgholzer**])
+  automatic regional result bucket, with optional process and per-job overrides
+  ([#172]) ([**@burgholzer**])
 - ♻️ Parse all gate-model capability documents through one schema-driven
   pipeline while preserving provider-specific calibration enrichment ([#171])
   ([**@burgholzer**])
@@ -110,7 +108,9 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#192]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/192
 [#176]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/176
+[#175]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/175
 [#173]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/173
 [#172]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/172
 [#171]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/171
@@ -128,7 +128,6 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 [#134]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/134
 [#130]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/130
 [#117]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/117
-[#175]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/175
 
 <!-- Contributor -->
 

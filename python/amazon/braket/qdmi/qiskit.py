@@ -23,7 +23,6 @@ from typing import TYPE_CHECKING, ClassVar
 
 try:
     from mqt.core.plugins.qiskit.backend import QDMIBackend
-    from mqt.core.plugins.qiskit.exceptions import UnsupportedFormatError
     from mqt.core.qdmi import Device as QDMIDeviceHandle
     from mqt.core.qdmi import ProgramFormat
     from mqt.core.qdmi.driver import open_device
@@ -119,12 +118,17 @@ class AmazonBraketBackend(QDMIBackend):
             return None
         return coupling_map
 
-    def _serialize_to_braket_qasm3(self, circuit: QuantumCircuit) -> str:
+    def _serialize_circuit(
+        self,
+        circuit: QuantumCircuit,
+        supported_program_formats: Iterable[ProgramFormat],
+    ) -> tuple[str, ProgramFormat]:
         """Serialize a circuit to Amazon Braket's self-contained OpenQASM 3 dialect.
 
         Returns:
-            The serialized OpenQASM 3 program.
+            The serialized program and its format.
         """
+        assert ProgramFormat.QASM3 in supported_program_formats
         available = {operation.name().lower() for operation in self.device.operations()}
         dag = circuit_to_dag(circuit)
         dag.remove_qubits(*(set(dag.idle_wires()) & set(dag.qubits)))
@@ -140,25 +144,7 @@ class AmazonBraketBackend(QDMIBackend):
                 basis_gates.add(translated_name)
             if translated_name != name:
                 translated.data[index] = instruction.replace(operation=instruction.operation.copy(name=translated_name))
-        return qasm3.dumps(translated, includes=(), basis_gates=sorted(basis_gates))
-
-    def _serialize_circuit(
-        self,
-        circuit: QuantumCircuit,
-        supported_program_formats: Iterable[ProgramFormat],
-    ) -> tuple[str, ProgramFormat]:
-        """Serialize a circuit with the current MQT Core adapter interface.
-
-        Returns:
-            The Amazon Braket program and its format.
-
-        Raises:
-            UnsupportedFormatError: If the QDMI device does not advertise OpenQASM 3.
-        """
-        if ProgramFormat.QASM3 not in supported_program_formats:
-            msg = "The Amazon Braket QDMI device does not advertise OpenQASM 3."
-            raise UnsupportedFormatError(msg)
-        return self._serialize_to_braket_qasm3(circuit), ProgramFormat.QASM3
+        return qasm3.dumps(translated, includes=(), basis_gates=sorted(basis_gates)), ProgramFormat.QASM3
 
     def __init__(
         self,

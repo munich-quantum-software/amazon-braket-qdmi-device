@@ -107,8 +107,11 @@ example:
 ```bash
 set +x
 eval "$(aws configure export-credentials --profile braket --format env)"
-export AWS_S3_BUCKET="<dedicated-test-results-bucket>"
 ```
+
+Tests use the automatic regional result bucket. Set
+`AMZN_BRAKET_TASK_RESULTS_S3_URI` only when testing an explicit destination
+override.
 
 Run the SV1, job, S3, and timeout fixtures in `us-east-1`. Run the three IQM
 Garnet metadata fixtures in `eu-north-1`, matching the ARN embedded in those

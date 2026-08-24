@@ -117,11 +117,6 @@ TEST(AmazonBraketQDMILiveTest, OpensInstalledCatalog) {
 }
 
 TEST(AmazonBraketQDMILiveTest, UsesAutomaticDefaultS3Destination) {
-  if (!isEnabled("AMAZON_BRAKET_QDMI_TEST_ALLOW_BUCKET_CREATION")) {
-    // NOLINTNEXTLINE(readability-implicit-bool-conversion)
-    GTEST_SKIP() << "Set AMAZON_BRAKET_QDMI_TEST_ALLOW_BUCKET_CREATION=1 to "
-                    "authorize an SV1 task and possible S3 bucket creation.";
-  }
   if (const auto* uri =
           std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI);
       uri != nullptr && *uri != '\0') {

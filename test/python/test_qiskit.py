@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 from mqt.core.plugins.qiskit.backend import QDMIBackend
+from mqt.core.qdmi import ProgramFormat
 from qiskit import QuantumCircuit, transpile
 from qiskit.transpiler import CouplingMap, Target
 
@@ -177,8 +178,11 @@ def test_serializes_openqasm_without_includes() -> None:
             operations=lambda: tuple(SimpleNamespace(name=lambda name=name: name) for name in ("cnot", "h", "measure"))
         ),
     )
-    program = backend._serialize_to_braket_qasm3(circuit)  # ruff: ignore[private-member-access]
+    program, program_format = backend._serialize_circuit(  # ruff: ignore[private-member-access]
+        circuit, [ProgramFormat.QASM3]
+    )
 
+    assert program_format is ProgramFormat.QASM3
     assert "include" not in program
     assert "$" not in program
     assert "qubit[2] q;" in program

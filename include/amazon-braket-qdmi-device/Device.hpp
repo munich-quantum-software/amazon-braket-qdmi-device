@@ -322,8 +322,8 @@ private:
   std::string taskArn_;
   bool retrieved_ = false;
 
-  // Optional per-job S3 destination. The environment and the standard Braket
-  // default bucket are used when it is empty.
+  /// Optional per-job S3 override. Automatic destination resolution applies
+  /// when this is empty.
   std::string jobS3Uri_;
   std::string reservationArn_; // Optional - dedicate task to a reserved window
 

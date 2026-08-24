@@ -85,7 +85,7 @@
  * @brief `char*` (string) S3 destination for this job's results.
  * @details Optional complete URI, for example `s3://bucket/prefix`. If it is
  * not set, the provider uses `AMZN_BRAKET_TASK_RESULTS_S3_URI`, then the
- * standard regional Braket default bucket with the prefix `tasks`.
+ * standard regional result bucket with the prefix `tasks`.
  */
 #define AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI                    \
   QDMI_DEVICE_JOB_PARAMETER_CUSTOM1

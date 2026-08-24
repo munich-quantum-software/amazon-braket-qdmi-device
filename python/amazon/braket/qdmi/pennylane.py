@@ -85,7 +85,7 @@ class AmazonBraketDevice(QDMIDevice):
         wires: PennyLane wire labels or number of wires.
         shots: Default shot configuration.
         s3_destination_folder: Optional S3 ``(bucket, prefix)``. If omitted,
-            the native device applies its configured Amazon Braket S3 fallback.
+            the native device uses the automatic regional result bucket.
         region: Optional AWS region override.
         reservation_arn: Optional Braket reservation ARN.
     """
@@ -141,7 +141,7 @@ class AmazonBraketDevice(QDMIDevice):
 
     @property
     def s3_destination_folder(self) -> tuple[str, str] | None:
-        """Explicit S3 bucket and prefix, or ``None`` for native fallback resolution."""
+        """Explicit S3 override, or ``None`` for automatic result-bucket resolution."""
         return self._s3_destination_folder
 
 

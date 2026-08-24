@@ -21,14 +21,12 @@
  * @file test_device.cpp
  * @brief Integration tests for the Amazon Braket QDMI device adapter.
  *
- * These tests make real AWS API calls. They require:
- *   - AWS credentials available to the AWS SDK default provider chain, and
- *   - an S3 destination (via AMZN_BRAKET_TASK_RESULTS_S3_URI) for
- *     job-submission tests.
+ * These tests make real AWS API calls. They require AWS credentials available
+ * to the AWS SDK default provider chain. Job-submission tests use the automatic
+ * standard result bucket unless they explicitly test an override.
  *
  * Run configuration (example):
  *   AWS_PROFILE=my-profile \
- *   AMZN_BRAKET_TASK_RESULTS_S3_URI=s3://amazon-braket-my-bucket/tasks \
  *   ./build/test/amazon-braket-qdmi-device-aws-test
  *
  * Fixtures:
@@ -223,15 +221,6 @@ protected:
     size_t shots = 100;
     AMAZON_BRAKET_QDMI_device_job_set_parameter(
         sharedJob, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(shots), &shots);
-
-    const char* s3Uri =
-        std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI);
-    if (s3Uri == nullptr || strlen(s3Uri) == 0) {
-      GTEST_SKIP()
-          << "AMZN_BRAKET_TASK_RESULTS_S3_URI is not set; skipping job "
-             "submission tests";
-      return;
-    }
 
     if (const auto submitStatus =
             AMAZON_BRAKET_QDMI_device_job_submit(sharedJob);
@@ -1309,12 +1298,6 @@ TEST_F(DeviceParsingTestFixture, IQMDeviceStatus) {
 // finishes unusually quickly.
 // The test accepts QDMI_SUCCESS too, in case SV1 is unusually fast on the day.
 TEST(AmazonBraketQDMIWaitTimeoutTest, JobWaitTimeout) {
-  const char* s3Uri =
-      std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI);
-  if (s3Uri == nullptr || strlen(s3Uri) == 0) {
-    GTEST_SKIP() << "AMZN_BRAKET_TASK_RESULTS_S3_URI is not set";
-  }
-
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
 
   struct Guard {
@@ -1361,11 +1344,6 @@ TEST(AmazonBraketQDMIWaitTimeoutTest, JobWaitTimeout) {
       AMAZON_BRAKET_QDMI_device_job_set_parameter(
           guard.job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(shots), &shots),
       QDMI_SUCCESS);
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                guard.job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
-                strlen(s3Uri) + 1, s3Uri),
-            QDMI_SUCCESS);
-
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(guard.job), QDMI_SUCCESS)
       << "Job submission must succeed before testing wait timeout";
 

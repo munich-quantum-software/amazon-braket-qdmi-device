@@ -92,8 +92,7 @@ cmake --build build
 
 The installed CMake target exports the `AMAZON_BRAKET` symbol prefix and a
 relocatable catalogue with all stable device definitions. An application using
-MQT Core 3.9.1 or newer can copy the device library and catalogue beside its
-executable:
+MQT Core can copy the device library and catalogue beside its executable:
 
 ```cmake
 find_package(mqt-core 3.9.1 CONFIG REQUIRED)

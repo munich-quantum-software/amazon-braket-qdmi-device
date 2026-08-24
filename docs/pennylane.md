@@ -112,7 +112,6 @@ remote_device = qp.device(
     "amazon.braket.sv1",
     wires=4,
     shots=1_000,
-    s3_destination_folder=("my-results-bucket", "experiments/maxcut"),
 )
 ```
 
@@ -126,16 +125,16 @@ other_device = qp.device(
     device_arn="arn:aws:braket:::device/quantum-simulator/amazon/sv1",
     wires=4,
     shots=1_000,
-    s3_destination_folder=("my-results-bucket", "experiments/maxcut"),
     region="us-east-1",
 )
 ```
 
-The S3 tuple is converted to the complete QDMI job URI
-`s3://my-results-bucket/experiments/maxcut`. If it is omitted, the native device
-uses `AMZN_BRAKET_TASK_RESULTS_S3_URI` and then the standard regional Amazon
-Braket bucket. See {doc}`configuration` for the complete authentication and S3
-resolution contract.
+The native device uses the standard regional Amazon Braket result bucket
+automatically. To use a pre-provisioned destination instead, pass
+`s3_destination_folder=("my-results-bucket", "experiments/maxcut")`. The tuple
+becomes the complete QDMI job URI `s3://my-results-bucket/experiments/maxcut`.
+See {doc}`configuration` for the complete authentication and S3 resolution
+contract.
 
 The concrete PennyLane names are generated from release-time package metadata.
 New catalogue entries become available as PennyLane names with the release that
@@ -146,9 +145,9 @@ program on SV1. Remote execution creates paid Amazon Braket QuantumTasks. Shot
 counts, parameter-shift evaluations, and optimizer iterations should therefore
 be selected explicitly before execution.
 
-MQT Core 3.9.1 and later also accept the QDMI handle selected from a Slurm
-license. Construct the generic adapter from that existing session; no second
-device lookup is needed:
+MQT Core also accepts the QDMI handle selected from a Slurm license. Construct
+the generic adapter from that existing session; no second device lookup is
+needed:
 
 ```python
 from mqt.core.plugins.pennylane import QDMIDevice

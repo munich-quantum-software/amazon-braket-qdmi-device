@@ -98,7 +98,7 @@ authorization boundary for Braket, STS, and S3.
 Administrator defaults can be appended to the plugstack directive:
 
 ```text
-amazon_braket_profile=hpc-quantum amazon_braket_task_results_s3_uri=s3://RESULT_BUCKET/jobs
+amazon_braket_profile=hpc-quantum
 ```
 
 Jobs can override each value with a SPANK option. Precedence is SPANK option,
@@ -116,6 +116,10 @@ submitted job environment, then plugstack default.
 Protect referenced files with operating-system access controls. Apply
 least-privilege policies to profiles and roles. The plugin does not accept or
 log an access key, secret key, or session token.
+
+The device uses the standard regional result bucket automatically. Set the S3
+option, plugstack key, or environment variable only when a job must use a
+pre-provisioned destination.
 
 ## Run a minimal Qiskit job
 
@@ -147,8 +151,7 @@ set -euo pipefail
 /opt/amazon-braket-qdmi/bin/python /path/to/bell.py
 ```
 
-With an instance or workload role and a plugstack S3 default, submit it
-directly:
+With an instance or workload role, submit it directly:
 
 ```console
 sbatch bell.sbatch
@@ -159,7 +162,6 @@ Otherwise pass references that are already accessible to the job user:
 ```console
 sbatch \
   --amazon-braket-profile=hpc-quantum \
-  --amazon-braket-task-results-s3-uri=s3://RESULT_BUCKET/jobs \
   bell.sbatch
 ```
 
@@ -170,8 +172,8 @@ admission; it neither proves allocation to AWS nor authorizes a QuantumTask.
 
 ## Run PennyLane instead
 
-MQT Core 3.9.1 and later let PennyLane reuse the same Slurm-selected handle.
-Replace `bell.py` with the following program and submit the same batch script:
+MQT Core lets PennyLane reuse the same Slurm-selected handle. Replace `bell.py`
+with the following program and submit the same batch script:
 
 ```python
 import pennylane as qp

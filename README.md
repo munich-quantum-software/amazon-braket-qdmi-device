@@ -30,8 +30,8 @@ from S3.
 - An installed catalogue of stable IDs for supported Amazon Braket devices.
 - Native gate sets, connectivity, calibration data, queue information, and job
   results through QDMI.
-- AWS SDK credential-provider support, configurable S3 result destinations, and
-  optional Slurm integration.
+- AWS SDK credential-provider support, automatic S3 result buckets with optional
+  overrides, and optional Slurm integration.
 - Qiskit and PennyLane adapters backed by MQT Core.
 
 ## Getting Started
