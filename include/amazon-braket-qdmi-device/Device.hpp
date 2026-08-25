@@ -73,13 +73,17 @@
 #include "amazon-braket-qdmi-device/Wait.hpp"
 #include "amazon_braket_qdmi/device.h"
 
+#include <array>
 #include <atomic>
 #include <aws/braket/BraketClient.h>
 #include <aws/braket/model/DeviceType.h>
 #include <aws/core/auth/AWSCredentialsProvider.h>
+#include <aws/core/client/ClientConfiguration.h>
 #include <aws/s3/S3Client.h>
 #include <aws/sts/STSClient.h>
 #include <cstddef>
+#include <cstdlib>
+#include <fstream>
 #include <future>
 #include <limits>
 #include <map>
@@ -98,6 +102,34 @@ struct AMAZON_BRAKET_QDMI_Device_Job_TestAccess;
 struct AMAZON_BRAKET_QDMI_Device_Session_TestAccess;
 
 namespace amazon::braket::qdmi {
+
+namespace detail {
+inline auto configureCaBundle(Aws::Client::ClientConfiguration& configuration)
+    -> void {
+  for (const auto* variable : {"AWS_CA_BUNDLE", "SSL_CERT_FILE"}) {
+    if (const auto* value = std::getenv(variable);
+        value != nullptr && value[0] != '\0') {
+      configuration.caFile = value;
+      return;
+    }
+  }
+
+#ifdef __linux__
+  constexpr std::array bundles{
+      "/etc/ssl/certs/ca-certificates.crt",
+      "/etc/pki/tls/certs/ca-bundle.crt",
+      "/etc/ssl/ca-bundle.pem",
+      "/etc/ssl/cert.pem",
+  };
+  for (const auto* bundle : bundles) {
+    if (std::ifstream file{bundle}; file.good()) {
+      configuration.caFile = bundle;
+      return;
+    }
+  }
+#endif
+}
+} // namespace detail
 
 /**
  * @brief Device architecture data.

@@ -10,6 +10,20 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-08-26
+
+### Changed
+
+- 📝 Clarify the roles and installation boundaries of the native Runtime,
+  optional SPANK plugin, Python adapters, and MQT Core on Slurm clusters
+  ([#193]) ([**@burgholzer**])
+
+### Fixed
+
+- 🐛 Make repaired Linux wheels use the host CA trust store for AWS requests and
+  include actionable AWS error messages in diagnostics ([#193])
+  ([**@burgholzer**])
+
 ## [1.1.0] - 2026-08-25
 
 ### Added
@@ -101,13 +115,15 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- Version links -->
 
-[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.1.0...HEAD
+[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/releases/tag/v1.0.1
 [1.0.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/releases/tag/v1.0.0
 
 <!-- PR links -->
 
+[#193]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/193
 [#192]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/192
 [#176]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/176
 [#175]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/175
