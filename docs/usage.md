@@ -36,13 +36,6 @@ int main() {
     AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
     AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job);
 
-    // An explicit URI is optional when the environment or automatic default
-    // is suitable.
-    const char* s3Uri = "s3://my-amazon-braket-bucket/tasks";
-    AMAZON_BRAKET_QDMI_device_job_set_parameter(
-        job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
-        strlen(s3Uri) + 1, s3Uri);
-
     size_t shots = 1000;
     AMAZON_BRAKET_QDMI_device_job_set_parameter(
         job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(shots), &shots);

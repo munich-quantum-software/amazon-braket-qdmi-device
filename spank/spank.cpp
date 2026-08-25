@@ -75,6 +75,11 @@ struct ConfigMapping {
 };
 
 constexpr std::array CONFIG_MAPPINGS{
+    ConfigMapping{.plugstackKey = "amazon_braket_qdmi_config_file",
+                  .environment = "MQT_CORE_QDMI_CONFIG_FILE",
+                  .optionName = "amazon-braket-qdmi-config-file",
+                  .argumentName = "PATH",
+                  .usage = "MQT Core QDMI device catalogue"},
     ConfigMapping{.plugstackKey = "amazon_braket_profile",
                   .environment = "AWS_PROFILE",
                   .optionName = "amazon-braket-profile",

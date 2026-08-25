@@ -79,12 +79,11 @@ RUN --mount=type=cache,id=amazon-braket-qdmi-spank-deps,target=/workspace/build-
       --component amazon-braket-qdmi-device_Runtime && \
     cmake --install /workspace/build-spank-docker \
       --component amazon-braket-qdmi-spank-plugin && \
-    printf '%s\n' \
-      "required $SLURM_LIB_DIR/amazon-braket-qdmi-spank.so amazon_braket_profile=administrator-default" \
-      > /etc/slurm/plugstack.conf.d/amazon-braket-qdmi.conf
+    sed -i \
+      '/^# required / { s/^# //; s/$/ amazon_braket_profile=administrator-default/; }' \
+      /etc/slurm/plugstack.conf.d/amazon-braket-qdmi.conf
 
 ENV UV_OFFLINE=1
-ENV MQT_CORE_QDMI_CONFIG_FILE=/usr/local/lib/amazon-braket-qdmi-device.qdmi.json
 
 USER testuser
 

@@ -2183,13 +2183,15 @@ void AMAZON_BRAKET_QDMI_device_job_free(AMAZON_BRAKET_QDMI_Device_Job job) {
  *
  * Required parameters:
  * - QDMI_DEVICE_JOB_PARAMETER_PROGRAM: OpenQASM circuit string
+ *
+ * Optional parameters:
  * - QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT: Format (QASM2 or QASM3)
  * - QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM: Number of measurement shots (default:
  * 100)
  * - AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI: Complete S3 result
  *   destination, for example "s3://my-bucket/my-prefix". If omitted, the
  *   provider uses AMZN_BRAKET_TASK_RESULTS_S3_URI and then the standard Braket
- *   default bucket with the "tasks" prefix.
+ *   regional result bucket with the "tasks" prefix.
  *
  * @param job The job handle
  * @param param The parameter to set

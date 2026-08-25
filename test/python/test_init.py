@@ -20,12 +20,9 @@
 from __future__ import annotations
 
 import json
-import sys
 from importlib import import_module
 from importlib.metadata import entry_points
 from pathlib import Path
-
-import pytest
 
 from amazon.braket.qdmi import (
     AMAZON_BRAKET_QDMI_CATALOG_PATH,
@@ -135,7 +132,3 @@ def test_pennylane_entry_point_is_lazy_on_the_base_install() -> None:
 
     shim = import_module("amazon.braket.qdmi._pennylane_entrypoint")
     assert "pennylane" not in shim.__dict__
-    if sys.version_info < (3, 11):
-        for entry_point in amazon_entry_points.values():
-            with pytest.raises(ImportError, match=r"Python 3\.11"):
-                entry_point.load()

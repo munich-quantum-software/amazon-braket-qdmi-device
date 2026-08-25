@@ -15,11 +15,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Lazy PennyLane entry point for the Python 3.10-compatible base wheel."""
+"""Load the optional PennyLane dependency only when its entry point is used."""
 
 from __future__ import annotations
 
-import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -47,13 +46,10 @@ def __getattr__(name: str) -> type[AmazonBraketDevice]:
 
     Raises:
         AttributeError: If an unknown module attribute is requested.
-        ImportError: If the interpreter or optional dependencies are unsupported.
+        ImportError: If the optional dependencies are unavailable.
     """
     if name not in _DEVICE_CLASSES:
         raise AttributeError(name)
-    if sys.version_info < (3, 11):
-        msg = "The Amazon Braket PennyLane integration requires Python 3.11 or newer."
-        raise ImportError(msg)
     try:
         from . import pennylane  # ruff: ignore[import-outside-top-level]
     except ImportError as error:

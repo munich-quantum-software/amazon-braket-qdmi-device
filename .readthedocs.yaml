@@ -10,6 +10,7 @@ build:
   os: ubuntu-24.04
   apt_packages:
     - doxygen
+    - libcurl4-openssl-dev
   tools:
     python: "3.14"
   jobs:

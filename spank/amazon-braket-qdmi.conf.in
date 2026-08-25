@@ -21,6 +21,7 @@
 # Uncomment this directive to activate the plugin. Optional administrator
 # defaults use amazon_braket_profile, amazon_braket_config_file,
 # amazon_braket_shared_credentials_file, amazon_braket_task_results_s3_uri,
-# and amazon_braket_reservation_arn.
+# and amazon_braket_reservation_arn. The installed device catalogue is passed
+# to Braket jobs by default.
 
-# required @AMAZON_BRAKET_QDMI_SPANK_INSTALL_DIR@/amazon-braket-qdmi-spank.so
+# required @AMAZON_BRAKET_QDMI_SPANK_INSTALL_DIR@/amazon-braket-qdmi-spank.so amazon_braket_qdmi_config_file=@CMAKE_INSTALL_FULL_LIBDIR@/@QDMI_TARGET_NAME@.qdmi.json

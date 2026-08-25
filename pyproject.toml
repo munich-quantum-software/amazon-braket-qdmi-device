@@ -16,19 +16,19 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 [build-system]
-requires = ["scikit-build-core>=0.11.6"]
+requires = ["scikit-build-core>=1.0.3"]
 build-backend = "scikit_build_core.build"
 
 [project]
 name = "amazon-braket-qdmi"
-version = "1.0.1"
-requires-python = ">=3.10"
+version = "1.1.0"
+requires-python = ">=3.11"
 
 description = "Amazon Braket QDMI Device Implementation"
 readme = "README.md"
 authors = [
-  { name = "Patrick Hopf", email = "patrick@munichquantum.software" },
-  { name = "Lukas Burgholzer", email = "lukas@munichquantum.software" }
+  { name = "Patrick Hopf", email = "patrick@mq.sc" },
+  { name = "Lukas Burgholzer", email = "lukas@mq.sc" }
 ]
 
 license = "Apache-2.0 WITH LLVM-exception"
@@ -46,11 +46,11 @@ classifiers = [
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3 :: Only",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: 3.15",
   "Topic :: Scientific/Engineering :: Quantum Computing",
   "Typing :: Typed",
 ]
@@ -65,7 +65,10 @@ amazon-braket-qdmi = "amazon.braket.qdmi.__main__:main"
 
 [project.optional-dependencies]
 pennylane = [
-  "mqt-core[pennylane] @ git+https://github.com/munich-quantum-toolkit/core.git@0fe651210c52dbcf67e49e567ef67e1c9a33d809 ; python_version >= '3.11'",
+  "mqt-core[pennylane]~=3.9.1",
+]
+qiskit = [
+  "mqt-core[qiskit]~=3.9.1",
 ]
 
 [project.entry-points."pennylane.plugins"]
@@ -82,34 +85,33 @@ pennylane = [
 
 [dependency-groups]
 build = [
-  "scikit-build-core>=0.11.6"
+  "scikit-build-core>=1.0.3"
 ]
 test = [
-  "pytest>=9.0.2",
+  "pytest>=9.1.1",
   "pytest-console-scripts>=1.4.1",
   "pytest-cov>=7.1.0",
   "pytest-sugar>=1.1.1",
   "pytest-xdist>=3.8.0",
-  "mqt-core[pennylane] @ git+https://github.com/munich-quantum-toolkit/core.git@0fe651210c52dbcf67e49e567ef67e1c9a33d809",
+  "mqt-core[pennylane,qiskit]~=3.9.1",
 ]
 typecheck = [
   {include-group = "test"},
   {include-group = "docs"},
-  "nox>=2026.02.09",
+  "nox>=2026.8.10",
 ]
 docs = [
-  "furo>=2025.9.25",
-  "mqt-core[pennylane] @ git+https://github.com/munich-quantum-toolkit/core.git@0fe651210c52dbcf67e49e567ef67e1c9a33d809",
-  "myst-nb>=1.3.0",
+  "furo>=2025.12.19",
+  "mqt-core[pennylane,qiskit]~=3.9.1",
+  "myst-nb>=1.4.0",
   "sphinx-copybutton>=0.5.2",
-  "sphinx-design>=0.6.1",
-  "sphinx>=8.1.3; python_version < '3.11'",
-  "sphinx>=9.0; python_version >= '3.11'",
+  "sphinx-design>=0.7.0",
+  "sphinx>=9.0",
 ]
 dev = [
   {include-group = "build"},
   {include-group = "test"},
-  "nox>=2026.02.09",
+  "nox>=2026.8.10",
 ]
 
 
@@ -119,7 +121,7 @@ cmake.version = "CMakeLists.txt"
 ninja.make-fallback = true
 build-dir = "build"
 build.targets = ["amazon-braket-qdmi-device"]
-wheel.py-api = "py310"
+wheel.py-api = "py311"
 wheel.expand-macos-universal-tags = true
 wheel.packages = ["python/amazon"]
 wheel.install-dir = "amazon/braket/qdmi/data"
@@ -241,20 +243,15 @@ PC170 = "We do not use rST files anymore"
 
 [tool.cibuildwheel]
 build = "cp3*"
-skip = ["cp3??t-*", "cp315-*", "*-win_arm64"]
+skip = ["*-musllinux_*", "cp3??t-*", "cp315-*", "*-win_arm64"]
 archs = "auto64"
 test-groups = ["test"]
 test-sources = ["test/python"]
 test-command = "pytest test/python"
-test-skip = ["*-musllinux_*"] # MQT Core does not provide musllinux wheels
 build-frontend = "uv"
 
 [tool.cibuildwheel.linux]
 before-all = "yum install -y curl-devel openssl-devel"
-
-[[tool.cibuildwheel.overrides]]
-select = "*-musllinux*"
-before-all = "apk add curl-dev openssl-dev"
 
 [tool.cibuildwheel.macos]
 environment = { MACOSX_DEPLOYMENT_TARGET = "11.0" }

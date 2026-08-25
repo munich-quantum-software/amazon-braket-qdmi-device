@@ -148,6 +148,7 @@ auto getOperationSignature(const std::string& operationName)
       std::pair{"h"sv, OperationSignature{1, 0}},
       std::pair{"i"sv, OperationSignature{1, 0}},
       std::pair{"iswap"sv, OperationSignature{2, 0}},
+      std::pair{"measure"sv, OperationSignature{1, 0}},
       std::pair{"measure_ff"sv, OperationSignature{1, std::nullopt}},
       std::pair{"ms"sv, OperationSignature{2, 3}},
       std::pair{"phaseshift"sv, OperationSignature{1, 1}},
@@ -374,8 +375,11 @@ auto GateModelCapabilityParser::parseOperations(
     return names;
   };
 
-  const auto supportedNames =
+  auto supportedNames =
       readOperationNames(openqasm.GetArray("supportedOperations"));
+  if (std::ranges::find(supportedNames, "measure") == supportedNames.end()) {
+    supportedNames.emplace_back("measure");
+  }
   std::vector<std::string> nativeNames;
   if (deviceType == Aws::Braket::Model::DeviceType::QPU) {
     const auto paradigm = propertiesJson.GetObject("paradigm");
@@ -384,6 +388,9 @@ auto GateModelCapabilityParser::parseOperations(
       return QDMI_ERROR_FATAL;
     }
     nativeNames = readOperationNames(paradigm.GetArray("nativeGateSet"));
+    if (std::ranges::find(nativeNames, "measure") == nativeNames.end()) {
+      nativeNames.emplace_back("measure");
+    }
   } else {
     nativeNames = supportedNames;
   }

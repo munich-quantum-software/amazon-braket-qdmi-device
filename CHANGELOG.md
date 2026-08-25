@@ -10,8 +10,14 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-25
+
 ### Added
 
+- ✨ Add a Qiskit backend with Amazon Braket operation mappings, barriers, and
+  self-contained OpenQASM 3 ([#192]) ([**@burgholzer**])
+- 📝 Document Slurm and SPANK deployment, license-selected workloads, and live
+  SV1 execution ([#192]) ([**@burgholzer**])
 - ✨ Add PennyLane support for `amazon.braket.default` and every concrete device
   in the installed catalogue ([#168]) ([**@burgholzer**])
 - 📝 Add Sphinx and MyST documentation for installation, configuration,
@@ -19,8 +25,8 @@ releases may include breaking changes.
   without Breathe ([#176]) ([**@burgholzer**])
 - ✨ Install a relocatable catalogue containing `amazon.braket.default` and
   convenient definitions for supported backends, and expose each device's
-  broader OpenQASM operation set through a custom QDMI property ([#171])
-  ([**@burgholzer**])
+  broader OpenQASM operation set, including measurement, through a custom QDMI
+  property ([#171]) ([**@burgholzer**])
 - ✨ Retrieve existing Amazon Braket QuantumTasks by their QDMI job IDs ([#160])
   ([**@burgholzer**])
 - ✨ Expose current device queue length and queued job position through QDMI,
@@ -38,13 +44,16 @@ releases may include breaking changes.
 
 ### Changed
 
-- ♻️ Refactor the optional Slurm SPANK plugin into a standalone AWS
-  configuration-reference injector for concrete catalogue licenses, and use MQT
-  Core for authenticated device preflight in the job process ([#173])
+- ⬆️ Update QDMI to 1.3.3, the AWS SDK for C++ to 1.11.876, and MQT Core to
+  3.9.1 ([#192]) ([**@burgholzer**])
+- 💥 Require Python 3.11, advertise Python 3.15, and update scikit-build-core
+  and cibuildwheel configuration ([#192]) ([**@burgholzer**])
+- ♻️ Make the optional Slurm SPANK plugin inject the installed catalogue and AWS
+  configuration references, with MQT Core performing device preflight ([#173])
   ([**@burgholzer**])
 - ♻️ Use the AWS SDK default credential provider chain for all AWS clients and
-  resolve each quantum task's result destination from one optional S3 URI or the
-  standard Amazon Braket default bucket ([#172]) ([**@burgholzer**])
+  automatic regional result bucket, with optional process and per-job overrides
+  ([#172]) ([**@burgholzer**])
 - ♻️ Parse all gate-model capability documents through one schema-driven
   pipeline while preserving provider-specific calibration enrichment ([#171])
   ([**@burgholzer**])
@@ -73,8 +82,6 @@ releases may include breaking changes.
 - 🐛 Interpret QDMI job wait timeouts in seconds ([#156]) ([**@burgholzer**])
 - 🐛 Normalize histogram keys as a comma-separated QDMI string ([#159])
   ([**@burgholzer**])
-- 🐛 Isolate scikit-build output from the direct CMake build tree ([#147])
-  ([**@burgholzer**])
 
 ## [1.0.1] - 2026-06-26
 
@@ -94,13 +101,16 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- Version links -->
 
-[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.0.1...HEAD
+[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/releases/tag/v1.0.1
 [1.0.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/releases/tag/v1.0.0
 
 <!-- PR links -->
 
+[#192]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/192
 [#176]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/176
+[#175]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/175
 [#173]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/173
 [#172]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/172
 [#171]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/171
@@ -118,7 +128,6 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 [#134]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/134
 [#130]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/130
 [#117]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/117
-[#175]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/175
 
 <!-- Contributor -->
 

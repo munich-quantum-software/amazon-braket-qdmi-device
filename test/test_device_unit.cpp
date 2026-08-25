@@ -2648,56 +2648,57 @@ TEST(DeviceParserOfflineTest, ParsesRepresentativeCapabilityFixtures) {
        DeviceType::QPU,
        {"0", "1", "2", "3"},
        {0, 1, 2, 3},
-       {"prx", "xx", "rz"},
-       {"prx", "xx", "rz", "h", "cnot", "swap"},
+       {"prx", "xx", "rz", "measure"},
+       {"prx", "xx", "rz", "h", "cnot", "swap", "measure"},
        12},
       {"IonQ Forte",
        IONQ_FORTE,
        DeviceType::QPU,
        {"0", "1", "2"},
        {0, 1, 2},
-       {"gpi", "gpi2", "zz"},
-       {"x", "y", "z", "rx", "ry", "rz", "h", "cnot", "gpi", "gpi2", "zz"},
+       {"gpi", "gpi2", "zz", "measure"},
+       {"x", "y", "z", "rx", "ry", "rz", "h", "cnot", "gpi", "gpi2", "zz",
+        "measure"},
        6},
       {"IQM Garnet",
        IQM_GARNET,
        DeviceType::QPU,
        {"1", "2", "5"},
        {1, 2, 5},
-       {"cz", "prx"},
-       {"h", "cnot", "cz", "prx", "rx", "rz"},
+       {"cz", "prx", "measure"},
+       {"h", "cnot", "cz", "prx", "rx", "rz", "measure"},
        3},
       {"Rigetti Ankaa-3",
        RIGETTI_ANKAA_3,
        DeviceType::QPU,
        {"0", "1", "2"},
        {0, 1, 2},
-       {"rx", "rz", "iswap"},
-       {"rx", "rz", "iswap", "cz", "xy", "h", "cnot"},
+       {"rx", "rz", "iswap", "measure"},
+       {"rx", "rz", "iswap", "cz", "xy", "h", "cnot", "measure"},
        2},
       {"Rigetti 12-site ordering",
        RIGETTI_ANKAA_12,
        DeviceType::QPU,
        {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"},
        {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},
-       {"rx", "rz", "cz"},
-       {"rx", "rz", "cz"},
+       {"rx", "rz", "cz", "measure"},
+       {"rx", "rz", "cz", "measure"},
        11},
       {"SV1",
        SV1,
        DeviceType::SIMULATOR,
        {"0", "1", "2", "3"},
        {0, 1, 2, 3},
-       {"h", "cnot", "rx", "ry", "rz", "unitary", "gphase"},
-       {"h", "cnot", "rx", "ry", "rz", "unitary", "gphase"},
+       {"h", "cnot", "rx", "ry", "rz", "unitary", "gphase", "measure"},
+       {"h", "cnot", "rx", "ry", "rz", "unitary", "gphase", "measure"},
        12},
       {"DM1",
        DM1,
        DeviceType::SIMULATOR,
        {"0", "1", "2"},
        {0, 1, 2},
-       {"x", "cnot", "kraus", "bit_flip", "gphase"},
-       {"x", "cnot", "kraus", "bit_flip", "gphase"},
+       {"x", "cnot", "kraus", "bit_flip", "gphase", "measure"},
+       {"x", "cnot", "kraus", "bit_flip", "gphase", "measure"},
        6},
   };
 
@@ -2816,7 +2817,7 @@ TEST(DeviceParserOfflineTest, PreservesMergedOperationSignatureRegistry) {
           properties),
       QDMI_SUCCESS);
 
-  ASSERT_EQ(properties.operationsMap.size(), 8U);
+  ASSERT_EQ(properties.operationsMap.size(), 9U);
   EXPECT_EQ(properties.operationsMap.at("ms")->numQubits_, 2U);
   EXPECT_EQ(properties.operationsMap.at("ms")->numParams_, 3U);
   EXPECT_EQ(properties.operationsMap.at("gphase")->numQubits_, 0U);
@@ -2836,6 +2837,10 @@ TEST(DeviceParserOfflineTest, PreservesMergedOperationSignatureRegistry) {
     EXPECT_TRUE(operation->applicableSites_.empty());
   }
   EXPECT_EQ(properties.operationsMap.at("ccnot")->applicableSites_.size(), 18U);
+  EXPECT_EQ(properties.operationsMap.at("measure")->numQubits_, 1U);
+  EXPECT_EQ(properties.operationsMap.at("measure")->numParams_, 0U);
+  EXPECT_EQ(properties.operationsMap.at("measure")->applicableSites_.size(),
+            3U);
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest,
@@ -3196,8 +3201,8 @@ TEST_F(AmazonBraketQDMILocalJobTest,
                 supportedSize, static_cast<void*>(supported.data()), nullptr),
             QDMI_SUCCESS);
 
-  ASSERT_EQ(native.size(), 2U);
-  ASSERT_EQ(supported.size(), 6U);
+  ASSERT_EQ(native.size(), 3U);
+  ASSERT_EQ(supported.size(), 7U);
   EXPECT_EQ(native.front(), supported[2]); // Canonical CZ handle.
   size_t nameSize = 0;
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
@@ -3223,7 +3228,7 @@ TEST_F(AmazonBraketQDMILocalJobTest,
                                                           std::move(stub));
 
   const auto queryNative = [this] {
-    std::array<AMAZON_BRAKET_QDMI_Operation, 2> operations{};
+    std::array<AMAZON_BRAKET_QDMI_Operation, 3> operations{};
     const auto status = static_cast<QDMI_STATUS>(
         AMAZON_BRAKET_QDMI_device_session_query_device_property(
             session, QDMI_DEVICE_PROPERTY_OPERATIONS, sizeof(operations),

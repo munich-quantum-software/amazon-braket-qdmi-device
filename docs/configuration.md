@@ -44,20 +44,19 @@ manually.
 
 ## S3 result destination
 
-Amazon Braket requires an S3 destination for every QuantumTask. The device
-resolves the destination in this order:
+Amazon Braket requires an S3 destination for every QuantumTask. By default, the
+device uses `amazon-braket-<region>-<account-id>` with the prefix `tasks`. It
+resolves the account with STS and creates and secures this standard bucket when
+needed. This work starts only when the first job is submitted; opening a device
+and querying properties do not require STS or S3 permissions.
+
+An explicit destination overrides the automatic one in this order:
 
 1. `AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI` on the job.
 2. `AMZN_BRAKET_TASK_RESULTS_S3_URI` in the process environment.
-3. The standard bucket `amazon-braket-<region>-<account-id>` with the prefix
-   `tasks`.
 
-The first two forms contain a complete URI such as
-`s3://my-results/experiments/run-42`. They do not call STS or an S3 bucket
-management API. The automatic form resolves the account with STS. It creates the
-standard bucket when needed; newly created S3 buckets block public access by
-default. This work starts only when the first job is submitted; opening a device
-and querying properties do not require STS or S3 permissions.
+Both forms contain a complete URI such as `s3://my-results/experiments/run-42`.
+They do not call STS or an S3 bucket management API.
 
 ```cpp
 #include <amazon-braket-qdmi-device/constants.hpp>

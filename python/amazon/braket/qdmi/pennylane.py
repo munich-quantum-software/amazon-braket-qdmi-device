@@ -19,20 +19,16 @@
 
 from __future__ import annotations
 
-import json
 import re
 import unicodedata
 from typing import TYPE_CHECKING, ClassVar
 
 from mqt.core.plugins.pennylane import PennyLaneConfigurationError, QDMIDevice
-from mqt.core.qdmi import driver
 
 from . import (
-    AMAZON_BRAKET_QDMI_CATALOG_PATH,
     AMAZON_BRAKET_QDMI_DEVICE_ID,
-    AMAZON_BRAKET_QDMI_LIBRARY_PATH,
-    AMAZON_BRAKET_QDMI_PREFIX,
 )
+from ._catalogue import register_device
 
 if TYPE_CHECKING:
     from collections.abc import Hashable, Sequence
@@ -54,57 +50,6 @@ __all__ = [
 ]
 
 _S3_BUCKET_NAME = re.compile(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]")
-
-
-def _catalogue_session(device_id: str) -> dict[str, str]:
-    """Read the packaged session defaults for one stable device ID.
-
-    Returns:
-        The QDMI session values stored in the packaged catalogue.
-
-    Raises:
-        RuntimeError: If the packaged catalogue is malformed or lacks the device.
-    """
-    try:
-        catalogue = json.loads(AMAZON_BRAKET_QDMI_CATALOG_PATH.read_text(encoding="utf-8"))
-        devices = catalogue["qdmi"]["devices"]
-        definition = next(device for device in devices if device["id"] == device_id)
-        session = definition.get("session", {})
-    except (KeyError, OSError, StopIteration, TypeError, ValueError) as error:
-        msg = f"The packaged Amazon Braket QDMI catalogue has no valid definition for {device_id!r}."
-        raise RuntimeError(msg) from error
-
-    if not isinstance(session, dict) or not all(
-        isinstance(key, str) and isinstance(value, str) for key, value in session.items()
-    ):
-        msg = f"The packaged Amazon Braket QDMI session for {device_id!r} is invalid."
-        raise RuntimeError(msg)
-    return session
-
-
-def _register_device(device_id: str) -> None:
-    """Register one packaged definition without replacing user configuration."""
-    session = _catalogue_session(device_id)
-    driver.register_device_if_absent(
-        driver.DeviceDefinition(
-            device_id,
-            AMAZON_BRAKET_QDMI_LIBRARY_PATH,
-            AMAZON_BRAKET_QDMI_PREFIX,
-            base_url=session.get("base-url"),
-            token=session.get("token"),
-            auth_file=session.get("auth-file"),
-            auth_url=session.get("auth-url"),
-            username=session.get("username"),
-            password=session.get("password"),
-            device_config=session.get("device-config"),
-            device_config_file=session.get("device-config-file"),
-            custom1=session.get("custom1"),
-            custom2=session.get("custom2"),
-            custom3=session.get("custom3"),
-            custom4=session.get("custom4"),
-            custom5=session.get("custom5"),
-        )
-    )
 
 
 def _s3_destination_uri(value: tuple[str, str] | None) -> str | None:
@@ -140,7 +85,7 @@ class AmazonBraketDevice(QDMIDevice):
         wires: PennyLane wire labels or number of wires.
         shots: Default shot configuration.
         s3_destination_folder: Optional S3 ``(bucket, prefix)``. If omitted,
-            the native device applies its configured Amazon Braket S3 fallback.
+            the native device uses the automatic regional result bucket.
         region: Optional AWS region override.
         reservation_arn: Optional Braket reservation ARN.
     """
@@ -178,7 +123,7 @@ class AmazonBraketDevice(QDMIDevice):
         s3_uri = _s3_destination_uri(s3_destination_folder)
         job_parameters: QDMIJobParameters = {} if s3_uri is None else {"custom1": s3_uri}
 
-        _register_device(self.qdmi_device_id)
+        register_device(self.qdmi_device_id)
         self._device_arn = device_arn
         self._s3_destination_folder = s3_destination_folder
         super().__init__(
@@ -196,7 +141,7 @@ class AmazonBraketDevice(QDMIDevice):
 
     @property
     def s3_destination_folder(self) -> tuple[str, str] | None:
-        """Explicit S3 bucket and prefix, or ``None`` for native fallback resolution."""
+        """Explicit S3 override, or ``None`` for automatic result-bucket resolution."""
         return self._s3_destination_folder
 
 

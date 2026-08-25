@@ -30,8 +30,9 @@ from S3.
 - An installed catalogue of stable IDs for supported Amazon Braket devices.
 - Native gate sets, connectivity, calibration data, queue information, and job
   results through QDMI.
-- AWS SDK credential-provider support, configurable S3 result destinations, and
-  optional Slurm integration.
+- AWS SDK credential-provider support, automatic S3 result buckets with optional
+  overrides, and optional Slurm integration.
+- Qiskit and PennyLane adapters backed by MQT Core.
 
 ## Getting Started
 
@@ -56,8 +57,10 @@ cmake --install build --prefix /path/to/install
 | install the package or build from source   | [Installation](https://amazon-braket-qdmi-device.readthedocs.io/en/latest/installation.html)                   |
 | configure AWS, devices, and S3             | [Configuration](https://amazon-braket-qdmi-device.readthedocs.io/en/latest/configuration.html)                 |
 | inspect the installed device catalogue     | [Device catalogue](https://amazon-braket-qdmi-device.readthedocs.io/en/latest/device_catalog.html)             |
+| execute Qiskit circuits                    | [Qiskit](https://amazon-braket-qdmi-device.readthedocs.io/en/latest/qiskit.html)                               |
+| execute PennyLane programs                 | [PennyLane](https://amazon-braket-qdmi-device.readthedocs.io/en/latest/pennylane.html)                         |
 | use the QDMI API and retrieve results      | [Usage](https://amazon-braket-qdmi-device.readthedocs.io/en/latest/usage.html)                                 |
-| integrate the optional Slurm SPANK plugin  | [SPANK plugin](spank/README.md)                                                                                |
+| run through Slurm and the SPANK plugin     | [Slurm and SPANK](https://amazon-braket-qdmi-device.readthedocs.io/en/latest/slurm.html)                       |
 | develop and test the provider              | [Development](https://amazon-braket-qdmi-device.readthedocs.io/en/latest/development.html)                     |
 
 ## Contributors and Support

@@ -29,9 +29,6 @@ from dataclasses import dataclass
 
 import pytest
 
-if sys.version_info < (3, 11):
-    pytest.skip("PennyLane requires Python 3.11 or newer.", allow_module_level=True)
-
 try:
     import pennylane as qp
 except ImportError:
@@ -141,7 +138,7 @@ def test_qaoa_end_to_end_on_ddsim() -> None:
 
 def test_qaoa_cost_capped_on_sv1() -> None:
     """Run one low-shot optimizer step only in the secret-enabled release lane."""
-    required_environment = ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_S3_BUCKET")
+    required_environment = ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY")
     live_lane = (
         os.environ.get("AMAZON_BRAKET_PENNYLANE_LIVE") == "1"
         and sys.version_info[:2] == (3, 14)
@@ -152,13 +149,10 @@ def test_qaoa_cost_capped_on_sv1() -> None:
     if not live_lane:
         pytest.skip("SV1 smoke test is restricted to CPython 3.14 manylinux x86-64 with AWS secrets.")
 
-    bucket = os.environ["AWS_S3_BUCKET"]
-    run_id = os.environ.get("GITHUB_RUN_ID", "smoke")
     device = qp.device(
         "amazon.braket.sv1",
         wires=4,
         shots=100,
-        s3_destination_folder=(bucket, f"mqt-pennylane/{run_id}"),
     )
     assert isinstance(device, QDMIDevice)
 
