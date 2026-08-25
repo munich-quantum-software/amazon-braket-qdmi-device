@@ -19,6 +19,13 @@ Do not store access keys or session tokens in a QDMI device definition. The
 generic QDMI `AUTHFILE`, `USERNAME`, `PASSWORD`, and `TOKEN` session parameters
 return `QDMI_ERROR_NOTSUPPORTED`.
 
+Linux wheels contain their HTTP and TLS libraries but use the host's CA trust
+store. The provider discovers the standard system CA bundle automatically. Set
+`AWS_CA_BUNDLE` to an explicit PEM bundle when the host uses a private CA or a
+nonstandard location. `SSL_CERT_FILE` is also supported when `AWS_CA_BUNDLE` is
+not set. An invalid explicit path is reported by the AWS client; certificate
+verification is never disabled.
+
 ## Device session
 
 Set the Amazon Braket device ARN before initializing a direct QDMI session:

@@ -463,11 +463,17 @@ template <class Error> auto isAwsPermissionError(const Error& error) -> bool {
 
 template <class Error>
 void logAwsServiceError(const Error& error, const std::string_view operation) {
-  std::cerr << operation << " failed (" << error.GetExceptionName();
-  if (!error.GetRequestId().empty()) {
-    std::cerr << ", request ID " << error.GetRequestId();
+  std::cerr << operation << " failed";
+  if (!error.GetExceptionName().empty()) {
+    std::cerr << " (" << error.GetExceptionName() << ")";
   }
-  std::cerr << ").\n";
+  if (!error.GetMessage().empty()) {
+    std::cerr << ": " << error.GetMessage();
+  }
+  if (!error.GetRequestId().empty()) {
+    std::cerr << " [request ID " << error.GetRequestId() << "]";
+  }
+  std::cerr << ".\n";
 }
 
 template <class Error>
@@ -877,6 +883,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS try {
 
   Aws::Braket::BraketClientConfiguration config;
   config.region = region_;
+  amazon::braket::qdmi::detail::configureCaBundle(config);
 
   credentialsProvider_ =
       Aws::MakeShared<Aws::Auth::DefaultAWSCredentialsProviderChain>(
@@ -886,10 +893,12 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS try {
                                                         nullptr, config);
   Aws::S3::S3ClientConfiguration s3Config;
   s3Config.region = region_;
+  amazon::braket::qdmi::detail::configureCaBundle(s3Config);
   s3Client_ = std::make_unique<Aws::S3::S3Client>(credentialsProvider_, nullptr,
                                                   s3Config);
   Aws::STS::STSClientConfiguration stsConfig;
   stsConfig.region = region_;
+  amazon::braket::qdmi::detail::configureCaBundle(stsConfig);
   // AWS SDK 1.11 does not pass a service name to the STS endpoint provider.
   // Resolve its standard service-specific environment/profile override here;
   // Braket and S3 perform this step internally.

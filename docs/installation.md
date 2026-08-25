@@ -22,14 +22,15 @@ configuration, and the installed device catalogue:
 uv pip install amazon-braket-qdmi
 ```
 
-Install an adapter extra when the environment will execute Qiskit or PennyLane
-payloads. Released wheels provide the native Amazon Braket device and MQT Core;
-neither needs a source checkout.
+Install the adapter extras needed by the environment. Released wheels provide
+the native Amazon Braket device and MQT Core; neither needs a source checkout.
 
 ```console
-uv pip install "amazon-braket-qdmi[qiskit]"
-uv pip install "amazon-braket-qdmi[pennylane]"
+uv pip install "amazon-braket-qdmi[qiskit,pennylane]"
 ```
+
+Use only the `qiskit` or `pennylane` extra when the environment needs one
+application stack.
 
 The command-line entry point reports the installed catalogue path:
 
@@ -64,7 +65,8 @@ installations split them as follows:
 | `amazon-braket-qdmi-device_Development`        | Headers, library link, and CMake package files|
 | `amazon-braket-qdmi-spank-plugin`              | Optional SPANK module and plugstack template  |
 
-A job node needs the Runtime component. Install the Development component only
+A node that uses the centrally installed provider needs the Runtime component.
+Python wheel-only deployments do not. Install the Development component only
 when other software must compile against the provider. In particular,
 `amazon-braket-qdmi-device-config.cmake` belongs to the Development component;
 its absence after a Runtime-only installation is expected.
@@ -122,6 +124,10 @@ os.environ["MQT_CORE_QDMI_CONFIG_FILE"] = str(AMAZON_BRAKET_QDMI_CATALOG_PATH)
 device = driver.open_device("amazon.braket.sv1")
 ```
 
+MQT Core resolves the catalogue's relative library path from the directory that
+contains the catalogue. An explicit catalogue augments built-in MQT Core device
+definitions and overrides only definitions with the same ID.
+
 Cluster administrators may configure local Slurm licenses for concrete catalogue
 IDs such as `amazon.braket.sv1`. Do not configure `amazon.braket.default` as a
 license because that generic device still requires runtime configuration.
@@ -143,11 +149,11 @@ device ARN. Also restrict task inspection and result-bucket access to the
 required resources. See the [Amazon Braket service authorization reference] and
 the [device access guide].
 
-The optional SPANK plugin injects the installed QDMI catalogue path and optional
-AWS configuration references. It does not distribute credentials or grant AWS
-permissions. A profile, file, workload identity, or node role that it references
-must already be available to the job user. See {doc}`slurm` for the complete
-installation and job workflow.
+The optional SPANK plugin injects the system QDMI catalogue path and optional
+AWS configuration references. It does not distribute credentials, load the
+provider, or grant AWS permissions. A profile, file, workload identity, or node
+role that it references must already be available to the job user. See
+{doc}`slurm` for the complete managed-cluster and non-SPANK workflows.
 
 ## CMake options
 

@@ -39,6 +39,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <aws/braket/BraketClient.h>
 #include <aws/braket/BraketErrors.h>
 #include <aws/braket/BraketServiceClientModel.h>
@@ -53,6 +54,7 @@
 #include <aws/braket/model/GetQuantumTaskRequest.h>
 #include <aws/braket/model/GetQuantumTaskResult.h>
 #include <aws/braket/model/QuantumTaskStatus.h>
+#include <aws/core/Aws.h>
 #include <aws/core/client/AWSError.h>
 #include <aws/core/client/ClientConfiguration.h>
 #include <aws/core/http/HttpResponse.h>
@@ -68,10 +70,6 @@
 #include <aws/sts/STSErrors.h>
 #include <aws/sts/STSServiceClientModel.h>
 #include <aws/sts/model/GetCallerIdentityResult.h>
-#ifdef _WIN32
-#include <aws/core/Aws.h>
-#endif
-#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
@@ -406,12 +404,16 @@ public:
   explicit StubGetDeviceClient(
       Aws::Braket::Model::GetDeviceResult result,
       const std::optional<Aws::Braket::BraketErrors> error = std::nullopt,
-      const bool failAfterFirstCall = false)
+      const bool failAfterFirstCall = false,
+      std::string exceptionName = "StubError",
+      std::string errorMessage = "stubbed GetDevice failure")
       : Aws::Braket::BraketClient(
             Aws::Auth::AWSCredentials{"access-key", "secret-key"},
             clientConfiguration()),
         result_(std::move(result)), error_(error),
-        failAfterFirstCall_(failAfterFirstCall) {}
+        failAfterFirstCall_(failAfterFirstCall),
+        exceptionName_(std::move(exceptionName)),
+        errorMessage_(std::move(errorMessage)) {}
 
   auto GetDevice(const Aws::Braket::Model::GetDeviceRequest& request) const
       -> Aws::Braket::Model::GetDeviceOutcome override {
@@ -419,7 +421,7 @@ public:
     ++calls_;
     if (error_.has_value() && (!failAfterFirstCall_ || calls_ > 1U)) {
       Aws::Client::AWSError<Aws::Braket::BraketErrors> error{
-          *error_, "StubError", "stubbed GetDevice failure", false};
+          *error_, exceptionName_, errorMessage_, false};
       return Aws::Braket::BraketError{std::move(error)};
     }
     return result_;
@@ -440,6 +442,8 @@ private:
   Aws::Braket::Model::GetDeviceResult result_;
   std::optional<Aws::Braket::BraketErrors> error_;
   bool failAfterFirstCall_;
+  std::string exceptionName_;
+  std::string errorMessage_;
   mutable size_t calls_ = 0;
   mutable std::string requestedArn_;
 };
@@ -683,6 +687,47 @@ TEST(ScopedEnvironmentTest, RestoresExistingEmptyValue) {
   const auto* restored = std::getenv(variable);
   ASSERT_NE(restored, nullptr);
   EXPECT_STREQ(restored, "");
+}
+#endif
+
+class AwsClientConfigurationTest : public testing::Test {
+protected:
+  void SetUp() override { Aws::InitAPI(options_); }
+  void TearDown() override { Aws::ShutdownAPI(options_); }
+
+private:
+  Aws::SDKOptions options_;
+};
+
+TEST_F(AwsClientConfigurationTest, HonorsExplicitCaBundle) {
+  const ScopedEnvironment sslCertificateFile("SSL_CERT_FILE", "/ssl-ca.pem");
+  const ScopedEnvironment awsCaBundle("AWS_CA_BUNDLE", "/aws-ca.pem");
+  Aws::Client::ClientConfiguration configuration;
+
+  amazon::braket::qdmi::detail::configureCaBundle(configuration);
+
+  EXPECT_EQ(configuration.caFile, "/aws-ca.pem");
+}
+
+TEST_F(AwsClientConfigurationTest, HonorsOpenSslCaBundle) {
+  const ScopedEnvironment awsCaBundle("AWS_CA_BUNDLE", "");
+  const ScopedEnvironment sslCertificateFile("SSL_CERT_FILE", "/ssl-ca.pem");
+  Aws::Client::ClientConfiguration configuration;
+
+  amazon::braket::qdmi::detail::configureCaBundle(configuration);
+
+  EXPECT_EQ(configuration.caFile, "/ssl-ca.pem");
+}
+
+#ifdef __linux__
+TEST_F(AwsClientConfigurationTest, FindsLinuxCaBundle) {
+  const ScopedEnvironment awsCaBundle("AWS_CA_BUNDLE", "");
+  const ScopedEnvironment sslCertificateFile("SSL_CERT_FILE", "");
+  Aws::Client::ClientConfiguration configuration;
+
+  amazon::braket::qdmi::detail::configureCaBundle(configuration);
+
+  EXPECT_FALSE(configuration.caFile.empty());
 }
 #endif
 } // namespace
@@ -3027,10 +3072,36 @@ TEST_F(AmazonBraketQDMILocalJobTest,
                                                           std::move(stub));
 
   size_t numQubits = 0;
+  testing::internal::CaptureStderr();
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
                 session, QDMI_DEVICE_PROPERTY_QUBITSNUM, sizeof(numQubits),
                 &numQubits, nullptr),
             QDMI_ERROR_PERMISSIONDENIED);
+  EXPECT_THAT(testing::internal::GetCapturedStderr(),
+              testing::HasSubstr("Braket GetDevice failed (StubError): "
+                                 "stubbed GetDevice failure"));
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       DevicePropertyReportsUnnamedAwsFailureMessage) {
+  auto stub = std::make_unique<StubGetDeviceClient>(
+      Aws::Braket::Model::GetDeviceResult{},
+      Aws::Braket::BraketErrors::INTERNAL_FAILURE, false, "",
+      "Problem with the SSL CA cert");
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                          std::move(stub));
+
+  size_t numQubits = 0;
+  testing::internal::CaptureStderr();
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_QUBITSNUM, sizeof(numQubits),
+                &numQubits, nullptr),
+            QDMI_ERROR_FATAL);
+  const auto diagnostic = testing::internal::GetCapturedStderr();
+  EXPECT_THAT(diagnostic,
+              testing::HasSubstr(
+                  "Braket GetDevice failed: Problem with the SSL CA cert"));
+  EXPECT_THAT(diagnostic, testing::Not(testing::HasSubstr("()")));
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest,
