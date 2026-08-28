@@ -10,6 +10,12 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+### Changed
+
+- 💥 Drop support for x86 macOS and stop publishing the respective wheels
+  ([#194]) ([**@denialhaag**])
+- ⬆️ Raise the macOS deployment target to 13.3 ([#194]) ([**@denialhaag**])
+
 ## [1.1.1] - 2026-08-26
 
 ### Changed
@@ -123,6 +129,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#194]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/194
 [#193]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/193
 [#192]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/192
 [#176]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/176
