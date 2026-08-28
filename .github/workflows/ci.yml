@@ -53,10 +53,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: [macos-15-intel, macos-15]
+        runs-on: [macos-26]
         config: [Release]
         include:
-          - runs-on: macos-15
+          - runs-on: macos-26
             config: Debug
     uses: ./.github/workflows/cpp-tests-macos.yml
     with:
@@ -87,7 +87,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: [ubuntu-24.04, macos-15, windows-2025]
+        runs-on: [ubuntu-24.04, macos-26, windows-2025]
     uses: ./.github/workflows/cpp-install-tests.yml
     with:
       runs-on: ${{ matrix.runs-on }}
@@ -141,14 +141,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on:
-          [
-            ubuntu-24.04,
-            ubuntu-24.04-arm,
-            macos-15-intel,
-            macos-15,
-            windows-2025,
-          ]
+        runs-on: [ubuntu-24.04, ubuntu-24.04-arm, macos-26, windows-2025]
     uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-cibuildwheel.yml@f33c11c5cf68957b3074fff11ae43cfce2aaf593 # v2.2.3
     with:
       runs-on: ${{ matrix.runs-on }}

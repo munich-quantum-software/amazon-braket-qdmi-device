@@ -62,7 +62,7 @@ Selection options:
   --target TARGET   CMake target for the C++ suite.
   --ctest REGEX     Optional regular expression passed to ctest -R. Required
                     for live C++ probes.
-  --nox-session ID  Supported nox test session: tests or tests-3.10 through
+  --nox-session ID  Supported nox test session: tests or tests-3.11 through
                     tests-3.14 (default: tests).
 
 Temporary-edit options:
@@ -799,8 +799,8 @@ case "${lang}" in
   *) fail "--lang must be python, cpp, or spank" ;;
 esac
 case "${nox_session}" in
-  tests | tests-3.10 | tests-3.11 | tests-3.12 | tests-3.13 | tests-3.14) ;;
-  *) fail "--nox-session must be tests or tests-3.10 through tests-3.14" ;;
+  tests | tests-3.11 | tests-3.12 | tests-3.13 | tests-3.14) ;;
+  *) fail "--nox-session must be tests or tests-3.11 through tests-3.14" ;;
 esac
 case "${target}" in
   *[!A-Za-z0-9_.+-]*) fail "--target contains unsupported characters" ;;
