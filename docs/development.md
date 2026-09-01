@@ -64,6 +64,18 @@ session and exercise the optional PennyLane and Qiskit integrations. The tested
 Python 3.11 through 3.14 matrix is available as `uvx nox -s tests`. Python 3.15
 is advertised for forward compatibility but is not tested yet.
 
+The PennyLane SV1 smoke test is opt-in because it submits paid QuantumTasks. To
+run it with any credential source supported by the AWS SDK, use:
+
+```console
+AWS_PROFILE=hpc-quantum AMAZON_BRAKET_PENNYLANE_LIVE=1 \
+  uvx nox -s tests-3.14 -- \
+  test/python/test_pennylane_qaoa.py -k cost_capped_on_sv1
+```
+
+The Python version, platform, and explicit-secret restrictions apply only to the
+dedicated CI lane. Local runs use the standard AWS credential provider chain.
+
 ## Documentation
 
 Build the Sphinx and MyST documentation and standalone Doxygen native API only

@@ -14,6 +14,9 @@ releases may include breaking changes.
 
 - ⬆️ Support MQT Core 3.9.2 and 4.x in the Qiskit and PennyLane extras ([#203])
   ([**@burgholzer**])
+- 🧪 Let explicitly enabled local PennyLane SV1 tests use the standard AWS
+  credential provider chain while retaining CI-only cost controls ([#203])
+  ([**@burgholzer**])
 - 💥 Drop support for x86 macOS and stop publishing the respective wheels
   ([#194]) ([**@denialhaag**])
 - ⬆️ Raise the macOS deployment target to 13.3 ([#194]) ([**@denialhaag**])

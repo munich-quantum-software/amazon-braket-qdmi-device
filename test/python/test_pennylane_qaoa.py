@@ -137,17 +137,20 @@ def test_qaoa_end_to_end_on_ddsim() -> None:
 
 
 def test_qaoa_cost_capped_on_sv1() -> None:
-    """Run one low-shot optimizer step only in the secret-enabled release lane."""
-    required_environment = ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY")
-    live_lane = (
-        os.environ.get("AMAZON_BRAKET_PENNYLANE_LIVE") == "1"
-        and sys.version_info[:2] == (3, 14)
-        and platform.system() == "Linux"
-        and platform.machine() in {"AMD64", "x86_64"}
-        and all(os.environ.get(name) for name in required_environment)
-    )
-    if not live_lane:
-        pytest.skip("SV1 smoke test is restricted to CPython 3.14 manylinux x86-64 with AWS secrets.")
+    """Run one explicitly enabled, cost-capped optimizer step on SV1."""
+    if os.environ.get("AMAZON_BRAKET_PENNYLANE_LIVE") != "1":
+        pytest.skip("Set AMAZON_BRAKET_PENNYLANE_LIVE=1 to run the SV1 smoke test.")
+
+    if os.environ.get("CI"):
+        required_environment = ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY")
+        release_lane = (
+            sys.version_info[:2] == (3, 14)
+            and platform.system() == "Linux"
+            and platform.machine() in {"AMD64", "x86_64"}
+            and all(os.environ.get(name) for name in required_environment)
+        )
+        if not release_lane:
+            pytest.skip("The CI smoke test is restricted to the secret-enabled CPython 3.14 Linux x86-64 lane.")
 
     device = qp.device(
         "amazon.braket.sv1",
