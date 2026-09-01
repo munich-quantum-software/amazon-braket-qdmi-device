@@ -90,15 +90,15 @@ typecheck = [
 
 [package.metadata]
 requires-dist = [
-    { name = "mqt-core", extras = ["pennylane"], marker = "extra == 'pennylane'", specifier = "~=3.9.1" },
-    { name = "mqt-core", extras = ["qiskit"], marker = "extra == 'qiskit'", specifier = "~=3.9.1" },
+    { name = "mqt-core", extras = ["pennylane"], marker = "extra == 'pennylane'", specifier = ">=3.9.2,<5" },
+    { name = "mqt-core", extras = ["qiskit"], marker = "extra == 'qiskit'", specifier = ">=3.9.2,<5" },
 ]
 provides-extras = ["pennylane", "qiskit"]
 
 [package.metadata.requires-dev]
 build = [{ name = "scikit-build-core", specifier = ">=1.0.3" }]
 dev = [
-    { name = "mqt-core", extras = ["pennylane", "qiskit"], specifier = "~=3.9.1" },
+    { name = "mqt-core", extras = ["pennylane", "qiskit"], specifier = ">=3.9.2,<5" },
     { name = "nox", specifier = ">=2026.8.10" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-console-scripts", specifier = ">=1.4.1" },
@@ -109,14 +109,14 @@ dev = [
 ]
 docs = [
     { name = "furo", specifier = ">=2025.12.19" },
-    { name = "mqt-core", extras = ["pennylane", "qiskit"], specifier = "~=3.9.1" },
+    { name = "mqt-core", extras = ["pennylane", "qiskit"], specifier = ">=3.9.2,<5" },
     { name = "myst-nb", specifier = ">=1.4.0" },
     { name = "sphinx", specifier = ">=9.0" },
     { name = "sphinx-copybutton", specifier = ">=0.5.2" },
     { name = "sphinx-design", specifier = ">=0.7.0" },
 ]
 test = [
-    { name = "mqt-core", extras = ["pennylane", "qiskit"], specifier = "~=3.9.1" },
+    { name = "mqt-core", extras = ["pennylane", "qiskit"], specifier = ">=3.9.2,<5" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-console-scripts", specifier = ">=1.4.1" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
@@ -125,7 +125,7 @@ test = [
 ]
 typecheck = [
     { name = "furo", specifier = ">=2025.12.19" },
-    { name = "mqt-core", extras = ["pennylane", "qiskit"], specifier = "~=3.9.1" },
+    { name = "mqt-core", extras = ["pennylane", "qiskit"], specifier = ">=3.9.2,<5" },
     { name = "myst-nb", specifier = ">=1.4.0" },
     { name = "nox", specifier = ">=2026.8.10" },
     { name = "pytest", specifier = ">=9.1.1" },

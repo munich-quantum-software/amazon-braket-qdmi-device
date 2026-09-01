@@ -97,7 +97,7 @@ relocatable catalogue with all stable device definitions. An application using
 MQT Core can copy the device library and catalogue beside its executable:
 
 ```cmake
-find_package(mqt-core 3.9.1 CONFIG REQUIRED)
+find_package(mqt-core 3.9.2 CONFIG REQUIRED)
 find_package(amazon-braket-qdmi-device CONFIG REQUIRED)
 
 add_executable(my_app main.cpp)

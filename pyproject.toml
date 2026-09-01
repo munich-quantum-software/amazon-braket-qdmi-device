@@ -65,10 +65,10 @@ amazon-braket-qdmi = "amazon.braket.qdmi.__main__:main"
 
 [project.optional-dependencies]
 pennylane = [
-  "mqt-core[pennylane]~=3.9.1",
+  "mqt-core[pennylane]>=3.9.2,<5",
 ]
 qiskit = [
-  "mqt-core[qiskit]~=3.9.1",
+  "mqt-core[qiskit]>=3.9.2,<5",
 ]
 
 [project.entry-points."pennylane.plugins"]
@@ -93,7 +93,7 @@ test = [
   "pytest-cov>=7.1.0",
   "pytest-sugar>=1.1.1",
   "pytest-xdist>=3.8.0",
-  "mqt-core[pennylane,qiskit]~=3.9.1",
+  "mqt-core[pennylane,qiskit]>=3.9.2,<5",
 ]
 typecheck = [
   {include-group = "test"},
@@ -102,7 +102,7 @@ typecheck = [
 ]
 docs = [
   "furo>=2025.12.19",
-  "mqt-core[pennylane,qiskit]~=3.9.1",
+  "mqt-core[pennylane,qiskit]>=3.9.2,<5",
   "myst-nb>=1.4.0",
   "sphinx-copybutton>=0.5.2",
   "sphinx-design>=0.7.0",
