@@ -2693,6 +2693,38 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   AMAZON_BRAKET_QDMI_device_job_free(job);
 }
 
+TEST_F(AmazonBraketQDMILocalJobTest, PrefetchDoesNotStarveLaterCompletedJobs) {
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI,
+      "s3://explicit-results/tasks");
+  Aws::Braket::Model::GetQuantumTaskResult task;
+  task.WithStatus(Aws::Braket::Model::QuantumTaskStatus::QUEUED)
+      .WithOutputS3Bucket("returned-results")
+      .WithOutputS3Directory("returned/task");
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::make_unique<StubBraketClient>(std::move(task)));
+  auto client = std::make_unique<StubS3Client>(StubS3Client::Configuration{
+      .getObjectError = Aws::S3::S3Errors::ACCESS_DENIED});
+  const auto* s3 = client.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(session,
+                                                            std::move(client));
+  std::array<AMAZON_BRAKET_QDMI_Device_Job, 9> jobs{};
+  for (auto& job : jobs) {
+    job = createConfiguredJob(session);
+    ASSERT_NE(job, nullptr);
+    ASSERT_EQ(submitAndAwaitAcceptance(job), QDMI_SUCCESS);
+  }
+  QDMI_Job_Status status = QDMI_JOB_STATUS_CREATED;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_check(jobs.back(), &status),
+            QDMI_SUCCESS);
+  /// Model a foreground observation of completion while earlier jobs stay
+  /// queued.
+  AMAZON_BRAKET_QDMI_Device_Job_TestAccess::setStatus(jobs.back(),
+                                                      QDMI_JOB_STATUS_DONE);
+  EXPECT_TRUE(s3->waitForGets(1));
+  AMAZON_BRAKET_QDMI_device_session_free(std::exchange(session, nullptr));
+}
+
 TEST_F(AmazonBraketQDMILocalJobTest, SessionFreeStopsBackgroundPolling) {
   const ScopedEnvironment environment(
       AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI,

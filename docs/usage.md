@@ -147,13 +147,14 @@ drains pending submission requests before releasing their storage and clients.
 Freeing a handle does not cancel its remote QuantumTask.
 
 An independent pool of eight workers polls newly submitted tasks and prefetches
-their S3 results. Unfinished tasks are polled at 500-millisecond intervals.
-Successful downloads populate the same per-job cache used by explicit result
-queries. Prefetch errors leave normal foreground status and result retrieval
-available; no failed QuantumTask is resubmitted.
+their S3 results. After a poll finds unfinished work, it waits 500 milliseconds
+and requeues that job behind other pending work. Successful downloads populate
+the same per-job cache used by explicit result queries. Prefetch errors leave
+normal foreground status and result retrieval available; no failed QuantumTask
+is resubmitted.
 
-Foreground result reads do not wait for the prefetch queue. Long-running tasks
-can occupy prefetch workers, but cannot hold up results for another task that
-has already finished. Freeing a job stops its background polling and drains
-requests already in progress, without waiting for remote execution to finish.
-Jobs retrieved by ID continue to use on-demand status and result requests.
+Foreground result reads do not wait for the prefetch queue, and long-running
+tasks do not retain prefetch workers until completion. Freeing a job stops its
+background polling and drains requests already in progress, without waiting for
+remote execution to finish. Jobs retrieved by ID continue to use on-demand
+status and result requests.

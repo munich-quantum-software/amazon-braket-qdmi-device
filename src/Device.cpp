@@ -1135,7 +1135,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::startPrefetch() noexcept
   if (stopPrefetch_.stop_requested()) {
     return;
   }
-  prefetchState_ = std::make_shared<PrefetchState>();
+  if (!prefetchState_) {
+    prefetchState_ = std::make_shared<PrefetchState>();
+  }
   static_cast<void>(session_->resultExecutor_->Submit([this,
                                                        state = prefetchState_] {
     try {
@@ -1147,10 +1149,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::startPrefetch() noexcept
       }
       /// Only started work may dereference this; queued work outlives job free.
       const auto stop = stopPrefetch_.get_token();
-      /// ponytail: long jobs occupy prefetch workers; foreground reads never
-      /// wait for this queue. A timer scheduler is only needed for mixed
-      /// workloads.
-      while (!stop.stop_requested()) {
+      if (!stop.stop_requested()) {
         QDMI_Job_Status status = QDMI_JOB_STATUS_SUBMITTED;
         if (check(&status) != QDMI_SUCCESS) {
           return;
@@ -1163,9 +1162,15 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::startPrefetch() noexcept
             status == QDMI_JOB_STATUS_CANCELED) {
           return;
         }
-        std::unique_lock lock(jobMutex_);
-        prefetchChanged_.wait_for(lock, stop, std::chrono::milliseconds{500},
-                                  [] { return false; });
+        {
+          /// ponytail: polling delays occupy workers. A timer scheduler is only
+          /// needed if many long-running tasks make these waits a bottleneck.
+          std::unique_lock lock(jobMutex_);
+          prefetchChanged_.wait_for(lock, stop, std::chrono::milliseconds{500},
+                                    [] { return false; });
+        }
+        /// Yield to other jobs instead of retaining a worker until completion.
+        startPrefetch();
       }
     } catch (...) {
       /// Prefetch is optional; foreground calls retain normal error reporting.
