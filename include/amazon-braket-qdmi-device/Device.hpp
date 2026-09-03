@@ -310,6 +310,7 @@ public:
                             S3Destination& destination) -> QDMI_STATUS;
 
 private:
+  /// Cache session metadata; refresh device status and queue length on request.
   auto fetchDeviceArchitecture(bool refreshStatus) const -> QDMI_STATUS;
 
   [[nodiscard]] auto getClient() const -> Aws::Braket::BraketClient* {
@@ -363,8 +364,8 @@ private:
   std::string reservationArn_; // Optional - dedicate task to a reserved window
 
   std::shared_future<void> jobHandle_;
-  /// Holding this gate keeps the job alive during prefetch. Queued work checks
-  /// cancellation before touching the job, without requiring a separate future.
+  /// Serialize active prefetch with destruction; cancel queued work before it
+  /// accesses the job.
   struct PrefetchState {
     std::mutex mutex;
     bool canceled = false;

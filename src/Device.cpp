@@ -645,24 +645,6 @@ auto Device::setCachedArchitecture(
 // Session Implementation
 // ============================================================================
 
-/**
- * Fetches the session device architecture from Amazon Braket.
- *
- * This function queries the session device properties:
- * - Number of qubits (sites)
- * - Qubit connectivity (which qubits can interact)
- * - Available quantum operations
- * - Device operational status (ONLINE/OFFLINE/RETIRED)
- *
- * Caching strategy:
- * - Simulators: full architecture is cached globally.
- *   Cache hits only re-fetch the mutable device status.
- * - QPUs: only name/provider/deviceType are cached globally. The first query
- *   publishes one complete architecture in the session so that returned QDMI
- *   handles stay valid. Later queries refresh only mutable status data.
- *
- * @return QDMI_SUCCESS on successful fetch, error code otherwise
- */
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture(
     const bool refreshStatus) const -> QDMI_STATUS try {
   if (deviceArn_.empty() || client_ == nullptr) {
@@ -1141,13 +1123,10 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::startPrefetch() noexcept
   static_cast<void>(session_->resultExecutor_->Submit([this,
                                                        state = prefetchState_] {
     try {
-      /// Serialize active work with destruction; queued work only owns the
-      /// gate.
       const std::scoped_lock lifetimeLock(state->mutex);
       if (state->canceled) {
         return;
       }
-      /// Only started work may dereference this; queued work outlives job free.
       const auto stop = stopPrefetch_.get_token();
       if (!stop.stop_requested()) {
         QDMI_Job_Status status = QDMI_JOB_STATUS_SUBMITTED;
@@ -1163,13 +1142,13 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::startPrefetch() noexcept
           return;
         }
         {
-          /// ponytail: polling delays occupy workers. A timer scheduler is only
-          /// needed if many long-running tasks make these waits a bottleneck.
+          /// ponytail: poll delays occupy workers; use timed scheduling if this
+          /// limits throughput.
           std::unique_lock lock(jobMutex_);
           prefetchChanged_.wait_for(lock, stop, std::chrono::milliseconds{500},
                                     [] { return false; });
         }
-        /// Yield to other jobs instead of retaining a worker until completion.
+        /// Let other jobs poll before checking this job again.
         startPrefetch();
       }
     } catch (...) {
@@ -1179,8 +1158,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::startPrefetch() noexcept
     }
   }));
 } catch (...) {
-  /// Prefetch is optional; foreground status/result calls still report errors
-  /// and retry failed requests through the normal AWS SDK path.
+  /// Prefetch is optional; foreground calls report errors.
   std::fputs("Could not start result prefetch; using on-demand retrieval.\n",
              stderr);
 }

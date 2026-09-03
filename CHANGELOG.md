@@ -12,16 +12,8 @@ releases may include breaking changes.
 
 ### Changed
 
-- ⚡ Prefetch completed task results with a separate bounded worker pool,
-  overlapping status checks and S3 downloads with later submissions. Foreground
-  reads remain independent and retry through the normal path if prefetch fails.
-  Requeue unfinished polls so long-running tasks do not monopolize workers.
-- ⚡ Submit QuantumTasks asynchronously through a bounded AWS request pool.
-  Preserve AWS task IDs, report asynchronous submission errors through job
-  status/wait calls, and drain pending requests before freeing their handles.
-- ⚡ Reuse session architecture for static property queries and let
-  `CreateQuantumTask` validate submissions without redundant `GetDevice`
-  requests. Explicit device status and queue queries still refresh AWS data.
+- ⚡ Overlap QuantumTask submission and result retrieval, and cache device
+  metadata ([#205]) ([**@burgholzer**])
 - 💥 Drop support for x86 macOS and stop publishing the respective wheels
   ([#194]) ([**@denialhaag**])
 - ⬆️ Raise the macOS deployment target to 13.3 ([#194]) ([**@denialhaag**])
@@ -139,6 +131,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#205]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/205
 [#194]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/194
 [#193]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/193
 [#192]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/192

@@ -39,15 +39,8 @@ device = qp.device("mqt.ddsim.default", wires=4, shots=200)
 ```
 
 One QAOA layer is evaluated and differentiated using the parameter-shift rule.
-Each shifted circuit is submitted as a separate QDMI job. The Braket provider
-overlaps submission requests internally. Batch overlap requires
-submit-before-wait support in MQT Core; it cannot overlap circuits that an older
-Core version submits and waits for one at a time. PennyLane execution remains
-synchronous to its caller and returns results in input order.
-
-For large SV1 batches, configure the
-[AWS retry behavior](usage.md#retry-configuration-for-high-volume-workloads)
-before starting Python so throttled HTTP requests can be retried safely.
+Each shifted circuit is a separate QDMI job. PennyLane returns results
+synchronously in input order.
 
 ```{code-cell} python
 def ansatz(parameters):

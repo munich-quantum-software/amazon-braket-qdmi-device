@@ -2665,7 +2665,7 @@ TEST_F(AmazonBraketQDMILocalJobTest,
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest,
-       FailedPrefetchLeavesForegroundRetryAvailable) {
+       FailedPrefetchLeavesForegroundRetrievalAvailable) {
   const ScopedEnvironment environment(
       AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI,
       "s3://explicit-results/tasks");
