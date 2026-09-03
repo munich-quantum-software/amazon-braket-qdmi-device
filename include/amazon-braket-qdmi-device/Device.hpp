@@ -366,11 +366,7 @@ private:
   std::shared_future<void> jobHandle_;
   /// Serialize active prefetch with destruction; cancel queued work before it
   /// accesses the job.
-  struct PrefetchState {
-    std::mutex mutex;
-    bool canceled = false;
-  };
-  std::shared_ptr<PrefetchState> prefetchState_;
+  std::shared_ptr<std::mutex> prefetchMutex_;
   std::stop_source stopPrefetch_;
   std::condition_variable_any prefetchChanged_;
   std::atomic<QDMI_STATUS> submissionError_{QDMI_SUCCESS};

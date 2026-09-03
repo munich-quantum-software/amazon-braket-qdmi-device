@@ -1106,9 +1106,8 @@ AMAZON_BRAKET_QDMI_Device_Job_impl_d::~AMAZON_BRAKET_QDMI_Device_Job_impl_d() {
   if (jobHandle_.valid()) {
     jobHandle_.wait();
   }
-  if (prefetchState_) {
-    const std::scoped_lock lock(prefetchState_->mutex);
-    prefetchState_->canceled = true;
+  if (prefetchMutex_) {
+    const std::scoped_lock lock(*prefetchMutex_);
   }
 }
 
@@ -1117,46 +1116,45 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::startPrefetch() noexcept
   if (stopPrefetch_.stop_requested()) {
     return;
   }
-  if (!prefetchState_) {
-    prefetchState_ = std::make_shared<PrefetchState>();
+  if (!prefetchMutex_) {
+    prefetchMutex_ = std::make_shared<std::mutex>();
   }
-  static_cast<void>(session_->resultExecutor_->Submit([this,
-                                                       state = prefetchState_] {
-    try {
-      const std::scoped_lock lifetimeLock(state->mutex);
-      if (state->canceled) {
-        return;
-      }
-      const auto stop = stopPrefetch_.get_token();
-      if (!stop.stop_requested()) {
-        QDMI_Job_Status status = QDMI_JOB_STATUS_SUBMITTED;
-        if (check(&status) != QDMI_SUCCESS) {
-          return;
+  static_cast<void>(session_->resultExecutor_->Submit(
+      [this, mutex = prefetchMutex_, stop = stopPrefetch_.get_token()] {
+        try {
+          const std::scoped_lock lifetimeLock(*mutex);
+          if (stop.stop_requested()) {
+            return;
+          }
+          QDMI_Job_Status status = QDMI_JOB_STATUS_SUBMITTED;
+          if (check(&status) != QDMI_SUCCESS) {
+            return;
+          }
+          if (status == QDMI_JOB_STATUS_DONE) {
+            static_cast<void>(fetchResults());
+            return;
+          }
+          if (status == QDMI_JOB_STATUS_FAILED ||
+              status == QDMI_JOB_STATUS_CANCELED) {
+            return;
+          }
+          {
+            /// ponytail: poll delays occupy workers; use timed scheduling if
+            /// this limits throughput.
+            std::unique_lock lock(jobMutex_);
+            prefetchChanged_.wait_for(lock, stop,
+                                      std::chrono::milliseconds{500},
+                                      [] { return false; });
+          }
+          /// Let other jobs poll before checking this job again.
+          startPrefetch();
+        } catch (...) {
+          /// Prefetch is optional; foreground calls retain normal error
+          /// reporting.
+          std::fputs("Result prefetch failed; using on-demand retrieval.\n",
+                     stderr);
         }
-        if (status == QDMI_JOB_STATUS_DONE) {
-          static_cast<void>(fetchResults());
-          return;
-        }
-        if (status == QDMI_JOB_STATUS_FAILED ||
-            status == QDMI_JOB_STATUS_CANCELED) {
-          return;
-        }
-        {
-          /// ponytail: poll delays occupy workers; use timed scheduling if this
-          /// limits throughput.
-          std::unique_lock lock(jobMutex_);
-          prefetchChanged_.wait_for(lock, stop, std::chrono::milliseconds{500},
-                                    [] { return false; });
-        }
-        /// Let other jobs poll before checking this job again.
-        startPrefetch();
-      }
-    } catch (...) {
-      /// Prefetch is optional; foreground calls retain normal error reporting.
-      std::fputs("Result prefetch failed; using on-demand retrieval.\n",
-                 stderr);
-    }
-  }));
+      }));
 } catch (...) {
   /// Prefetch is optional; foreground calls report errors.
   std::fputs("Could not start result prefetch; using on-demand retrieval.\n",
