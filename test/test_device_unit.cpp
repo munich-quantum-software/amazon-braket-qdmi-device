@@ -94,12 +94,6 @@
 #include <vector>
 
 struct AMAZON_BRAKET_QDMI_Device_Job_TestAccess {
-  static auto awaitPrefetch(AMAZON_BRAKET_QDMI_Device_Job job) -> void {
-    if (job->prefetchHandle_.valid()) {
-      job->prefetchHandle_.wait();
-    }
-  }
-
   static auto awaitSubmission(AMAZON_BRAKET_QDMI_Device_Job job)
       -> QDMI_STATUS {
     return static_cast<QDMI_STATUS>(
@@ -2659,7 +2653,6 @@ TEST_F(AmazonBraketQDMILocalJobTest,
     if (job == nullptr) {
       continue;
     }
-    AMAZON_BRAKET_QDMI_Device_Job_TestAccess::awaitPrefetch(job);
     std::array<char, 6> shots{};
     EXPECT_EQ(
         AMAZON_BRAKET_QDMI_device_job_get_results(
@@ -2690,7 +2683,7 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   auto* const job = createConfiguredJob(session);
   ASSERT_NE(job, nullptr);
   ASSERT_EQ(submitAndAwaitAcceptance(job), QDMI_SUCCESS);
-  AMAZON_BRAKET_QDMI_Device_Job_TestAccess::awaitPrefetch(job);
+  ASSERT_TRUE(s3->waitForGets(1));
   EXPECT_EQ(s3->getObjectCalls(), 1U);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(job, 1), QDMI_SUCCESS);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(

@@ -363,11 +363,10 @@ private:
   std::string reservationArn_; // Optional - dedicate task to a reserved window
 
   std::shared_future<void> jobHandle_;
-  std::future<void> prefetchHandle_;
-  /// Queued work must be cancelable without waiting for other remote jobs.
+  /// Holding this gate keeps the job alive during prefetch. Queued work checks
+  /// cancellation before touching the job, without requiring a separate future.
   struct PrefetchState {
     std::mutex mutex;
-    bool started = false;
     bool canceled = false;
   };
   std::shared_ptr<PrefetchState> prefetchState_;

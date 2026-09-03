@@ -1124,16 +1124,9 @@ AMAZON_BRAKET_QDMI_Device_Job_impl_d::~AMAZON_BRAKET_QDMI_Device_Job_impl_d() {
   if (jobHandle_.valid()) {
     jobHandle_.wait();
   }
-  if (prefetchHandle_.valid()) {
-    bool started = false;
-    {
-      const std::scoped_lock lock(prefetchState_->mutex);
-      prefetchState_->canceled = true;
-      started = prefetchState_->started;
-    }
-    if (started) {
-      prefetchHandle_.wait();
-    }
+  if (prefetchState_) {
+    const std::scoped_lock lock(prefetchState_->mutex);
+    prefetchState_->canceled = true;
   }
 }
 
@@ -1142,44 +1135,44 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::startPrefetch() noexcept
   if (stopPrefetch_.stop_requested()) {
     return;
   }
-  auto state = std::make_shared<PrefetchState>();
-  auto prefetch = std::make_shared<std::packaged_task<void()>>([this, state] {
-    {
-      const std::scoped_lock lock(state->mutex);
+  prefetchState_ = std::make_shared<PrefetchState>();
+  static_cast<void>(session_->resultExecutor_->Submit([this,
+                                                       state = prefetchState_] {
+    try {
+      /// Serialize active work with destruction; queued work only owns the
+      /// gate.
+      const std::scoped_lock lifetimeLock(state->mutex);
       if (state->canceled) {
         return;
       }
-      state->started = true;
+      /// Only started work may dereference this; queued work outlives job free.
+      const auto stop = stopPrefetch_.get_token();
+      /// ponytail: long jobs occupy prefetch workers; foreground reads never
+      /// wait for this queue. A timer scheduler is only needed for mixed
+      /// workloads.
+      while (!stop.stop_requested()) {
+        QDMI_Job_Status status = QDMI_JOB_STATUS_SUBMITTED;
+        if (check(&status) != QDMI_SUCCESS) {
+          return;
+        }
+        if (status == QDMI_JOB_STATUS_DONE) {
+          static_cast<void>(fetchResults());
+          return;
+        }
+        if (status == QDMI_JOB_STATUS_FAILED ||
+            status == QDMI_JOB_STATUS_CANCELED) {
+          return;
+        }
+        std::unique_lock lock(jobMutex_);
+        prefetchChanged_.wait_for(lock, stop, std::chrono::milliseconds{500},
+                                  [] { return false; });
+      }
+    } catch (...) {
+      /// Prefetch is optional; foreground calls retain normal error reporting.
+      std::fputs("Result prefetch failed; using on-demand retrieval.\n",
+                 stderr);
     }
-    /// Only started work may dereference this; queued work outlives job free.
-    const auto stop = stopPrefetch_.get_token();
-    /// ponytail: long jobs occupy prefetch workers; foreground reads never
-    /// wait for this queue. A timer scheduler is only needed for mixed
-    /// workloads.
-    while (!stop.stop_requested()) {
-      QDMI_Job_Status status = QDMI_JOB_STATUS_SUBMITTED;
-      if (check(&status) != QDMI_SUCCESS) {
-        return;
-      }
-      if (status == QDMI_JOB_STATUS_DONE) {
-        static_cast<void>(fetchResults());
-        return;
-      }
-      if (status == QDMI_JOB_STATUS_FAILED ||
-          status == QDMI_JOB_STATUS_CANCELED) {
-        return;
-      }
-      std::unique_lock lock(jobMutex_);
-      prefetchChanged_.wait_for(lock, stop, std::chrono::milliseconds{500},
-                                [] { return false; });
-    }
-  });
-  const std::scoped_lock lock(jobMutex_);
-  prefetchState_ = std::move(state);
-  prefetchHandle_ = prefetch->get_future();
-  if (!session_->resultExecutor_->Submit([prefetch] { (*prefetch)(); })) {
-    prefetchHandle_ = {};
-  }
+  }));
 } catch (...) {
   /// Prefetch is optional; foreground status/result calls still report errors
   /// and retry failed requests through the normal AWS SDK path.
