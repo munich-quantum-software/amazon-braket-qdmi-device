@@ -165,6 +165,7 @@ public:
   auto GetDevice(const Aws::Braket::Model::GetDeviceRequest& request) const
       -> Aws::Braket::Model::GetDeviceOutcome override {
     static_cast<void>(request);
+    ++deviceCalls_;
     Aws::Braket::Model::GetDeviceResult result;
     result.SetDeviceName("SV1");
     result.SetProviderName("Amazon Web Services");
@@ -229,6 +230,7 @@ public:
   }
 
   [[nodiscard]] auto calls() const -> size_t { return calls_; }
+  [[nodiscard]] auto deviceCalls() const -> size_t { return deviceCalls_; }
   [[nodiscard]] auto cancelCalls() const -> size_t { return cancelCalls_; }
   [[nodiscard]] auto requestedArn() const -> const std::string& {
     return requestedArn_;
@@ -279,6 +281,7 @@ private:
   bool failGetAfterFirstCall_;
   std::optional<Aws::Braket::BraketErrors> createError_;
   mutable size_t calls_ = 0;
+  mutable std::atomic<size_t> deviceCalls_ = 0;
   mutable size_t cancelCalls_ = 0;
   mutable std::string requestedArn_;
   mutable std::string canceledArn_;
@@ -2037,6 +2040,7 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   EXPECT_EQ(s3->createCalls(), 0U);
   EXPECT_EQ(braket->outputBucket(), "explicit-results");
   EXPECT_EQ(braket->outputPrefix(), "experiments/run-42");
+  EXPECT_EQ(braket->deviceCalls(), 0U);
   AMAZON_BRAKET_QDMI_device_job_free(job);
 }
 
@@ -3059,8 +3063,20 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
                 session, QDMI_DEVICE_PROPERTY_QUBITSNUM, sizeof(numQubits),
                 &numQubits, nullptr),
+            QDMI_SUCCESS);
+  EXPECT_EQ(stubPtr->calls(), 1U);
+  QDMI_Device_Status status = QDMI_DEVICE_STATUS_OFFLINE;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_STATUS, sizeof(status), &status,
+                nullptr),
             QDMI_ERROR_FATAL);
   EXPECT_EQ(stubPtr->calls(), 2U);
+  size_t queueLength = 0;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_QUEUELENGTH, sizeof(queueLength),
+                &queueLength, nullptr),
+            QDMI_ERROR_FATAL);
+  EXPECT_EQ(stubPtr->calls(), 3U);
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest,
@@ -3281,7 +3297,7 @@ TEST_F(AmazonBraketQDMILocalJobTest,
                 QDMI_OPERATION_PROPERTY_NAME, 0, nullptr, &nameSize),
             QDMI_SUCCESS);
   EXPECT_EQ(nameSize, 2U); // "h" plus the null terminator.
-  EXPECT_GE(stubPtr->calls(), 4U);
+  EXPECT_EQ(stubPtr->calls(), 1U);
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest,

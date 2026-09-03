@@ -116,7 +116,11 @@ Amazon Braket gate-model QPU or simulator
 ```
 
 The device schema returned by `GetDevice` determines the QDMI sites,
-connectivity, operations, and available calibration data. Job submission creates
-a QuantumTask. Status and queue-position queries refresh the task, and result
-queries read the output location returned by Amazon Braket rather than
-reconstructing it from the submitted configuration.
+connectivity, operations, and available calibration data. Static properties use
+a session-local architecture snapshot; open a new session to refresh calibration
+data. Only explicit device status and queue-length queries refresh `GetDevice`.
+Job submission relies on `CreateQuantumTask` to validate availability and does
+not issue a metadata request first. Job submission creates a QuantumTask. Status
+and queue-position queries refresh the task, and result queries read the output
+location returned by Amazon Braket rather than reconstructing it from the
+submitted configuration.

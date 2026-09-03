@@ -660,8 +660,8 @@ auto Device::setCachedArchitecture(
  *
  * @return QDMI_SUCCESS on successful fetch, error code otherwise
  */
-auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
-    -> QDMI_STATUS try {
+auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture(
+    const bool refreshStatus) const -> QDMI_STATUS try {
   if (deviceArn_.empty() || client_ == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -682,6 +682,9 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
   }
 
   if (localArch != nullptr && localArch->qubitsNum > 0) {
+    if (!refreshStatus) {
+      return QDMI_SUCCESS;
+    }
     // Architecture cache hit: refresh only the mutable device status and queue
     // length. Replacing a QPU architecture here would invalidate handles that
     // the caller obtained from an earlier property query.
@@ -1119,8 +1122,10 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
     return QDMI_ERROR_BADSTATE;
   }
 
-  // fetchDeviceArchitecture() uses the internal cache
-  if (const auto ret = fetchDeviceArchitecture(); ret != QDMI_SUCCESS) {
+  const bool refreshStatus = prop == QDMI_DEVICE_PROPERTY_STATUS ||
+                             prop == QDMI_DEVICE_PROPERTY_QUEUELENGTH;
+  if (const auto ret = fetchDeviceArchitecture(refreshStatus);
+      ret != QDMI_SUCCESS) {
     return ret;
   }
 
@@ -1446,25 +1451,6 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
   //    }
   // 4. Set Output S3 Bucket and Prefix
   // 5. Call BraketClient::CreateQuantumTask()
-
-  {
-    const std::scoped_lock<std::mutex> lock(jobMutex_);
-    if (retrieved_ || status_.load() != QDMI_JOB_STATUS_CREATED) {
-      return QDMI_ERROR_BADSTATE;
-    }
-    if (program_.empty() || session_->getDeviceArn().empty()) {
-      return QDMI_ERROR_INVALIDARGUMENT;
-    }
-  }
-
-  if (const auto result = session_->fetchDeviceArchitecture();
-      result != QDMI_SUCCESS) {
-    return result;
-  }
-  if (session_->braketDeviceStatus_.load() == QDMI_DEVICE_STATUS_OFFLINE) {
-    std::cerr << "Cannot submit a task to an offline or retired device.\n";
-    return QDMI_ERROR_BADSTATE;
-  }
 
   // Capture all shared fields under jobMutex_ to prevent data races with
   // concurrent setParameter() calls

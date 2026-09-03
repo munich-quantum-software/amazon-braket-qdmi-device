@@ -45,11 +45,8 @@
  * Device_Session (MANY - one per user+device combination)
  *   ├─ Connects to specific AWS Braket device (IQM Garnet, AWS SV1, etc.)
  *   ├─ Has Braket, S3, and STS clients that share one refreshable provider
- *   ├─ Simulators: holds a shared_ptr to the singleton-cached architecture;
- *   │             only status is re-fetched per query (no second copy)
- *   ├─ QPUs: re-fetches sites/operations/connectivity on every query and
- *   │        stores the result locally until the next query overwrites it;
- *   │        only name/provider/deviceType are kept in the singleton cache
+ *   ├─ Caches architecture for the session to keep site/operation handles valid
+ *   ├─ Refreshes device status and queue length only when explicitly queried
  *   ├─ Creates and manages jobs for that user+device
  *   └─ Thread-safe job management (jobsMutex_)
  *
@@ -138,9 +135,9 @@ inline auto configureCaBundle(Aws::Client::ClientConfiguration& configuration)
  * across sessions to the same ARN (site/operation data is static).
  *
  * For QPUs: only name/provider/deviceType are stored in the global cache.
- * qubitsNum, sites, operations, and connectivity are re-fetched on every
- * query because they change with calibration cycles. The session-local
- * cachedArchitecture_ always holds the latest fetched full architecture.
+ * qubitsNum, sites, operations, and connectivity are fetched once per session
+ * because QDMI handles must remain valid for that session. Open a new session
+ * to obtain a new calibration snapshot.
  */
 struct DeviceArchitecture {
   std::string name;     // Specific device name (e.g., "Garnet")
@@ -307,7 +304,7 @@ public:
                             S3Destination& destination) -> QDMI_STATUS;
 
 private:
-  auto fetchDeviceArchitecture() const -> QDMI_STATUS;
+  auto fetchDeviceArchitecture(bool refreshStatus) const -> QDMI_STATUS;
 
   [[nodiscard]] auto getClient() const -> Aws::Braket::BraketClient* {
     return client_.get();

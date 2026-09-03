@@ -12,6 +12,9 @@ releases may include breaking changes.
 
 ### Changed
 
+- ⚡ Reuse session architecture for static property queries and let
+  `CreateQuantumTask` validate submissions without redundant `GetDevice`
+  requests. Explicit device status and queue queries still refresh AWS data.
 - 💥 Drop support for x86 macOS and stop publishing the respective wheels
   ([#194]) ([**@denialhaag**])
 - ⬆️ Raise the macOS deployment target to 13.3 ([#194]) ([**@denialhaag**])
