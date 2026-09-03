@@ -158,3 +158,27 @@ tasks do not retain prefetch workers until completion. Freeing a job stops its
 background polling and drains requests already in progress, without waiting for
 remote execution to finish. Jobs retrieved by ID continue to use on-demand
 status and result requests.
+
+### Retry configuration for high-volume workloads
+
+The bundled AWS C++ SDK supports the AWS retry configuration variables. Enable
+the
+[updated AWS retry behavior](https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html)
+before starting the process:
+
+```console
+export AWS_NEW_RETRIES_2026=true
+export AWS_RETRY_MODE=standard
+export AWS_MAX_ATTEMPTS=6
+```
+
+The SDK's legacy error mapping does not classify Braket's
+`TooManyRequestsException` as retryable. The opt-in recognizes this throttling
+response and uses the SDK's bounded retries and backoff. Setting only
+`AWS_RETRY_MODE=standard` does not enable the updated classification. The device
+does not change process-wide AWS settings on the application's behalf.
+
+Retries repeat the HTTP request with the same client token; they do not create a
+replacement for a failed QuantumTask. They can still exhaust their attempt or
+retry-quota limits. More local workers can increase throttling without reducing
+batch time; the local pool size is not the account's running-task quota.

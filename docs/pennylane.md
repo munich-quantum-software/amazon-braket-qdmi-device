@@ -45,6 +45,10 @@ submit-before-wait support in MQT Core; it cannot overlap circuits that an older
 Core version submits and waits for one at a time. PennyLane execution remains
 synchronous to its caller and returns results in input order.
 
+For large SV1 batches, configure the
+[AWS retry behavior](usage.md#retry-configuration-for-high-volume-workloads)
+before starting Python so throttled HTTP requests can be retried safely.
+
 ```{code-cell} python
 def ansatz(parameters):
     for wire in graph.nodes:
