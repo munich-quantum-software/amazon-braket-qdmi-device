@@ -94,6 +94,12 @@
 #include <vector>
 
 struct AMAZON_BRAKET_QDMI_Device_Job_TestAccess {
+  static auto awaitPrefetch(AMAZON_BRAKET_QDMI_Device_Job job) -> void {
+    if (job->prefetchHandle_.valid()) {
+      job->prefetchHandle_.wait();
+    }
+  }
+
   static auto awaitSubmission(AMAZON_BRAKET_QDMI_Device_Job job)
       -> QDMI_STATUS {
     return static_cast<QDMI_STATUS>(
@@ -191,6 +197,7 @@ public:
   auto
   GetQuantumTask(const Aws::Braket::Model::GetQuantumTaskRequest& request) const
       -> Aws::Braket::Model::GetQuantumTaskOutcome override {
+    const std::scoped_lock lock(taskMutex_);
     ++calls_;
     requestedArn_ = request.GetQuantumTaskArn();
     if (getError_.has_value() && (!failGetAfterFirstCall_ || calls_ > 1)) {
@@ -204,6 +211,7 @@ public:
   auto CancelQuantumTask(
       const Aws::Braket::Model::CancelQuantumTaskRequest& request) const
       -> Aws::Braket::Model::CancelQuantumTaskOutcome override {
+    const std::scoped_lock lock(taskMutex_);
     ++cancelCalls_;
     canceledArn_ = request.GetQuantumTaskArn();
     if (cancelError_.has_value()) {
@@ -240,13 +248,21 @@ public:
         "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id");
   }
 
-  [[nodiscard]] auto calls() const -> size_t { return calls_; }
+  [[nodiscard]] auto calls() const -> size_t {
+    const std::scoped_lock lock(taskMutex_);
+    return calls_;
+  }
   [[nodiscard]] auto deviceCalls() const -> size_t { return deviceCalls_; }
-  [[nodiscard]] auto cancelCalls() const -> size_t { return cancelCalls_; }
-  [[nodiscard]] auto requestedArn() const -> const std::string& {
+  [[nodiscard]] auto cancelCalls() const -> size_t {
+    const std::scoped_lock lock(taskMutex_);
+    return cancelCalls_;
+  }
+  [[nodiscard]] auto requestedArn() const -> std::string {
+    const std::scoped_lock lock(taskMutex_);
     return requestedArn_;
   }
-  [[nodiscard]] auto canceledArn() const -> const std::string& {
+  [[nodiscard]] auto canceledArn() const -> std::string {
+    const std::scoped_lock lock(taskMutex_);
     return canceledArn_;
   }
   [[nodiscard]] auto createCalls() const -> size_t {
@@ -293,6 +309,7 @@ private:
   bool failGetAfterFirstCall_;
   std::optional<Aws::Braket::BraketErrors> createError_;
   mutable size_t calls_ = 0;
+  mutable std::mutex taskMutex_;
   mutable std::atomic<size_t> deviceCalls_ = 0;
   mutable size_t cancelCalls_ = 0;
   mutable std::string requestedArn_;
@@ -372,7 +389,11 @@ public:
 
   auto GetObject(const Aws::S3::Model::GetObjectRequest& request) const
       -> Aws::S3::Model::GetObjectOutcome override {
-    ++getObjectCalls_;
+    std::unique_lock lock(getMutex_);
+    const auto call = ++getObjectCalls_;
+    getChanged_.notify_all();
+    getChanged_.wait(
+        lock, [this, call] { return call > blockedGets_ || releaseGets_; });
     getObjectBucket_ = request.GetBucket();
     getObjectKey_ = request.GetKey();
     if (configuration_.getObjectError.has_value()) {
@@ -394,13 +415,31 @@ public:
   }
   [[nodiscard]] auto bucket() const -> const std::string& { return bucket_; }
   [[nodiscard]] auto getObjectCalls() const -> size_t {
+    const std::scoped_lock lock(getMutex_);
     return getObjectCalls_;
   }
-  [[nodiscard]] auto getObjectBucket() const -> const std::string& {
+  [[nodiscard]] auto getObjectBucket() const -> std::string {
+    const std::scoped_lock lock(getMutex_);
     return getObjectBucket_;
   }
-  [[nodiscard]] auto getObjectKey() const -> const std::string& {
+  [[nodiscard]] auto getObjectKey() const -> std::string {
+    const std::scoped_lock lock(getMutex_);
     return getObjectKey_;
+  }
+  auto blockGets(const size_t count) -> void {
+    const std::scoped_lock lock(getMutex_);
+    blockedGets_ = count;
+  }
+  auto releaseGets() -> void {
+    const std::scoped_lock lock(getMutex_);
+    releaseGets_ = true;
+    getChanged_.notify_all();
+  }
+  [[nodiscard]] auto waitForGets(const size_t count) const -> bool {
+    std::unique_lock lock(getMutex_);
+    return getChanged_.wait_for(lock, std::chrono::seconds{5}, [this, count] {
+      return getObjectCalls_ >= count;
+    });
   }
 
 private:
@@ -409,6 +448,10 @@ private:
   mutable bool hasLocationConstraint_ = false;
   mutable std::string bucket_;
   mutable size_t getObjectCalls_ = 0;
+  mutable std::mutex getMutex_;
+  mutable std::condition_variable getChanged_;
+  size_t blockedGets_ = 0;
+  bool releaseGets_ = false;
   mutable std::string getObjectBucket_;
   mutable std::string getObjectKey_;
 };
@@ -2559,6 +2602,119 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   ASSERT_NE(job, nullptr);
   EXPECT_EQ(submitAndAwaitAcceptance(job), QDMI_ERROR_FATAL);
   AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       PrefetchIsBoundedAndForegroundResultsBypassItsQueue) {
+#ifdef _WIN32
+  GTEST_SKIP() << "The test executable and provider DLL contain separate "
+                  "static AWS SDK ResponseStream state on Windows.";
+#endif
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI,
+      "s3://explicit-results/tasks");
+  Aws::Braket::Model::GetQuantumTaskResult task;
+  task.WithStatus(Aws::Braket::Model::QuantumTaskStatus::COMPLETED)
+      .WithOutputS3Bucket("returned-results")
+      .WithOutputS3Directory("returned/task");
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::make_unique<StubBraketClient>(std::move(task)));
+  auto client = std::make_unique<StubS3Client>();
+  auto* const s3 = client.get();
+  s3->blockGets(8);
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(session,
+                                                            std::move(client));
+  std::array<AMAZON_BRAKET_QDMI_Device_Job, 9> jobs{};
+  for (auto& job : jobs) {
+    job = createConfiguredJob(session);
+    EXPECT_NE(job, nullptr);
+    EXPECT_EQ(submitAndAwaitAcceptance(job), QDMI_SUCCESS);
+  }
+  const bool overlapped = s3->waitForGets(8);
+  EXPECT_EQ(s3->getObjectCalls(), 8U);
+  QDMI_Job_Status status = QDMI_JOB_STATUS_SUBMITTED;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(jobs.back(), &status),
+            QDMI_SUCCESS);
+  EXPECT_EQ(status, QDMI_JOB_STATUS_DONE);
+  auto foreground = std::async(std::launch::async, [&jobs] {
+    return AMAZON_BRAKET_QDMI_device_job_get_results(
+        jobs.back(), QDMI_JOB_RESULT_SHOTS, 0, nullptr, nullptr);
+  });
+  const bool bypassed = s3->waitForGets(9);
+  if (!bypassed) {
+    s3->releaseGets();
+  }
+  EXPECT_EQ(foreground.get(), QDMI_SUCCESS);
+  auto freeing = std::async(std::launch::async, [&jobs] {
+    AMAZON_BRAKET_QDMI_device_job_free(jobs.back());
+  });
+  const auto freed = freeing.wait_for(std::chrono::seconds{5});
+  s3->releaseGets();
+  EXPECT_TRUE(overlapped);
+  EXPECT_TRUE(bypassed);
+  EXPECT_EQ(freed, std::future_status::ready);
+  freeing.get();
+  jobs.back() = nullptr;
+  for (auto* job : jobs) {
+    if (job == nullptr) {
+      continue;
+    }
+    AMAZON_BRAKET_QDMI_Device_Job_TestAccess::awaitPrefetch(job);
+    std::array<char, 6> shots{};
+    EXPECT_EQ(
+        AMAZON_BRAKET_QDMI_device_job_get_results(
+            job, QDMI_JOB_RESULT_SHOTS, shots.size(), shots.data(), nullptr),
+        QDMI_SUCCESS);
+    EXPECT_STREQ(shots.data(), "00,11");
+    AMAZON_BRAKET_QDMI_device_job_free(job);
+  }
+  EXPECT_EQ(s3->getObjectCalls(), jobs.size());
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       FailedPrefetchLeavesForegroundRetryAvailable) {
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI,
+      "s3://explicit-results/tasks");
+  Aws::Braket::Model::GetQuantumTaskResult task;
+  task.WithStatus(Aws::Braket::Model::QuantumTaskStatus::COMPLETED)
+      .WithOutputS3Bucket("returned-results")
+      .WithOutputS3Directory("returned/task");
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::make_unique<StubBraketClient>(std::move(task)));
+  auto client = std::make_unique<StubS3Client>(StubS3Client::Configuration{
+      .getObjectError = Aws::S3::S3Errors::ACCESS_DENIED});
+  auto* const s3 = client.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(session,
+                                                            std::move(client));
+  auto* const job = createConfiguredJob(session);
+  ASSERT_NE(job, nullptr);
+  ASSERT_EQ(submitAndAwaitAcceptance(job), QDMI_SUCCESS);
+  AMAZON_BRAKET_QDMI_Device_Job_TestAccess::awaitPrefetch(job);
+  EXPECT_EQ(s3->getObjectCalls(), 1U);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(job, 1), QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
+                job, QDMI_JOB_RESULT_SHOTS, 0, nullptr, nullptr),
+            QDMI_ERROR_PERMISSIONDENIED);
+  EXPECT_EQ(s3->getObjectCalls(), 2U);
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, SessionFreeStopsBackgroundPolling) {
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI,
+      "s3://explicit-results/tasks");
+  Aws::Braket::Model::GetQuantumTaskResult task;
+  task.WithStatus(Aws::Braket::Model::QuantumTaskStatus::QUEUED);
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::make_unique<StubBraketClient>(std::move(task)));
+  auto* const job = createConfiguredJob(session);
+  ASSERT_NE(job, nullptr);
+  ASSERT_EQ(submitAndAwaitAcceptance(job), QDMI_SUCCESS);
+  QDMI_Job_Status status = QDMI_JOB_STATUS_SUBMITTED;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(job, &status), QDMI_SUCCESS);
+  EXPECT_EQ(status, QDMI_JOB_STATUS_QUEUED);
+  AMAZON_BRAKET_QDMI_device_session_free(std::exchange(session, nullptr));
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest,

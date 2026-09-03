@@ -79,6 +79,7 @@
 #include <aws/core/utils/threading/Executor.h>
 #include <aws/s3/S3Client.h>
 #include <aws/sts/STSClient.h>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdlib>
 #include <fstream>
@@ -89,6 +90,7 @@
 #include <mutex>
 #include <optional>
 #include <random>
+#include <stop_token>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -275,6 +277,7 @@ private:
   std::unique_ptr<Aws::S3::S3Client> s3Client_;
   std::unique_ptr<Aws::STS::STSClient> stsClient_;
   std::unique_ptr<Aws::Utils::Threading::Executor> submissionExecutor_;
+  std::unique_ptr<Aws::Utils::Threading::Executor> resultExecutor_;
 
   struct S3Destination {
     std::string bucket;
@@ -360,6 +363,16 @@ private:
   std::string reservationArn_; // Optional - dedicate task to a reserved window
 
   std::shared_future<void> jobHandle_;
+  std::future<void> prefetchHandle_;
+  /// Queued work must be cancelable without waiting for other remote jobs.
+  struct PrefetchState {
+    std::mutex mutex;
+    bool started = false;
+    bool canceled = false;
+  };
+  std::shared_ptr<PrefetchState> prefetchState_;
+  std::stop_source stopPrefetch_;
+  std::condition_variable_any prefetchChanged_;
   std::atomic<QDMI_STATUS> submissionError_{QDMI_SUCCESS};
   mutable std::map<std::string, size_t> counts_;
   mutable std::string shotsString_; // Comma-separated shots: "00,11,00,..."
@@ -368,11 +381,14 @@ private:
   mutable std::string outputS3Directory_;
   mutable std::optional<size_t> queuePosition_;
   mutable std::mutex jobMutex_;
+  mutable std::mutex statusMutex_;
+  mutable std::mutex resultsMutex_;
 
+  auto startPrefetch() noexcept -> void;
   auto awaitSubmission() const -> QDMI_STATUS;
-  // Helpers to fetch and parse results from S3
-  auto fetchResults() const -> QDMI_STATUS;         // Locks and calls internal
-  auto fetchResultsInternal() const -> QDMI_STATUS; // Assumes jobMutex_ is held
+  /// Fetch and parse S3 results without holding the job's lifecycle mutex.
+  auto fetchResults() const -> QDMI_STATUS;
+  auto fetchResultsInternal() const -> QDMI_STATUS; ///< Requires resultsMutex_
   auto updateFromTask(const Aws::Braket::Model::GetQuantumTaskResult& task,
                       QDMI_Job_Status* status) const -> QDMI_STATUS;
   auto

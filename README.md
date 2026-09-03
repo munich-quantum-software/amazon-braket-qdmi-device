@@ -33,7 +33,8 @@ from S3.
 - AWS SDK credential-provider support, automatic S3 result buckets with optional
   overrides, and optional Slurm integration.
 - Qiskit and PennyLane adapters backed by MQT Core.
-- Concurrent QuantumTask submission through a bounded AWS request pool.
+- Concurrent QuantumTask submission and result prefetch through bounded AWS
+  request pools.
 
 ## Getting Started
 

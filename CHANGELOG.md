@@ -12,6 +12,9 @@ releases may include breaking changes.
 
 ### Changed
 
+- ⚡ Prefetch completed task results with a separate bounded worker pool,
+  overlapping status checks and S3 downloads with later submissions. Foreground
+  reads remain independent and retry through the normal path if prefetch fails.
 - ⚡ Submit QuantumTasks asynchronously through a bounded AWS request pool.
   Preserve AWS task IDs, report asynchronous submission errors through job
   status/wait calls, and drain pending requests before freeing their handles.

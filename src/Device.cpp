@@ -107,6 +107,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
@@ -1111,14 +1112,79 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::openDeviceJob(
 
 AMAZON_BRAKET_QDMI_Device_Session_impl_d::
     ~AMAZON_BRAKET_QDMI_Device_Session_impl_d() {
-  /// Drain submissions before destroying the executor and its AWS clients.
+  /// Stop polling and drain requests before destroying the AWS clients.
+  for (const auto& [job, storage] : jobs_) {
+    job->stopPrefetch_.request_stop();
+  }
   jobs_.clear();
 }
 
 AMAZON_BRAKET_QDMI_Device_Job_impl_d::~AMAZON_BRAKET_QDMI_Device_Job_impl_d() {
+  stopPrefetch_.request_stop();
   if (jobHandle_.valid()) {
     jobHandle_.wait();
   }
+  if (prefetchHandle_.valid()) {
+    bool started = false;
+    {
+      const std::scoped_lock lock(prefetchState_->mutex);
+      prefetchState_->canceled = true;
+      started = prefetchState_->started;
+    }
+    if (started) {
+      prefetchHandle_.wait();
+    }
+  }
+}
+
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::startPrefetch() noexcept
+    -> void try {
+  if (stopPrefetch_.stop_requested()) {
+    return;
+  }
+  auto state = std::make_shared<PrefetchState>();
+  auto prefetch = std::make_shared<std::packaged_task<void()>>([this, state] {
+    {
+      const std::scoped_lock lock(state->mutex);
+      if (state->canceled) {
+        return;
+      }
+      state->started = true;
+    }
+    /// Only started work may dereference this; queued work outlives job free.
+    const auto stop = stopPrefetch_.get_token();
+    /// ponytail: long jobs occupy prefetch workers; foreground reads never
+    /// wait for this queue. A timer scheduler is only needed for mixed
+    /// workloads.
+    while (!stop.stop_requested()) {
+      QDMI_Job_Status status = QDMI_JOB_STATUS_SUBMITTED;
+      if (check(&status) != QDMI_SUCCESS) {
+        return;
+      }
+      if (status == QDMI_JOB_STATUS_DONE) {
+        static_cast<void>(fetchResults());
+        return;
+      }
+      if (status == QDMI_JOB_STATUS_FAILED ||
+          status == QDMI_JOB_STATUS_CANCELED) {
+        return;
+      }
+      std::unique_lock lock(jobMutex_);
+      prefetchChanged_.wait_for(lock, stop, std::chrono::milliseconds{500},
+                                [] { return false; });
+    }
+  });
+  const std::scoped_lock lock(jobMutex_);
+  prefetchState_ = std::move(state);
+  prefetchHandle_ = prefetch->get_future();
+  if (!session_->resultExecutor_->Submit([prefetch] { (*prefetch)(); })) {
+    prefetchHandle_ = {};
+  }
+} catch (...) {
+  /// Prefetch is optional; foreground status/result calls still report errors
+  /// and retry failed requests through the normal AWS SDK path.
+  std::fputs("Could not start result prefetch; using on-demand retrieval.\n",
+             stderr);
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::awaitSubmission() const
@@ -1554,6 +1620,10 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
       session_->submissionExecutor_ =
           std::make_unique<Aws::Utils::Threading::PooledThreadExecutor>(8);
     }
+    if (session_->resultExecutor_ == nullptr) {
+      session_->resultExecutor_ =
+          std::make_unique<Aws::Utils::Threading::PooledThreadExecutor>(8);
+    }
   }
 
   auto submission = std::make_shared<std::packaged_task<void()>>(
@@ -1566,8 +1636,11 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
             result = mapBraketServiceError(outcome.GetError(),
                                            "Braket CreateQuantumTask");
           } else {
-            const std::scoped_lock lock(jobMutex_);
-            taskArn_ = outcome.GetResult().GetQuantumTaskArn();
+            {
+              const std::scoped_lock lock(jobMutex_);
+              taskArn_ = outcome.GetResult().GetQuantumTaskArn();
+            }
+            startPrefetch();
           }
         } catch (...) {
           result = statusFromCurrentException();
@@ -1766,25 +1839,23 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
   // AWS NOT_SET    → QDMI_ERROR_FATAL
   // AWS unknown    → QDMI_ERROR_FATAL
   //
+  /// Serialize foreground/background polls so an old response cannot overwrite
+  /// a newer terminal state. Check terminal status before locking result data.
+  const std::scoped_lock statusLock(statusMutex_);
+  const auto current = status_.load();
+  if (current == QDMI_JOB_STATUS_DONE || current == QDMI_JOB_STATUS_FAILED ||
+      current == QDMI_JOB_STATUS_CANCELED) {
+    *status = current;
+    return submissionError_.load();
+  }
   std::string localTaskArn;
   {
-    const std::scoped_lock<std::mutex> lock(jobMutex_);
+    const std::scoped_lock lock(jobMutex_);
     localTaskArn = taskArn_;
   }
   if (localTaskArn.empty()) {
     *status = status_.load();
-    return QDMI_SUCCESS;
-  }
-
-  // If already terminal, don't poll again
-  {
-    const std::scoped_lock<std::mutex> lock(jobMutex_);
-    const auto current = status_.load();
-    if (current == QDMI_JOB_STATUS_DONE || current == QDMI_JOB_STATUS_FAILED ||
-        current == QDMI_JOB_STATUS_CANCELED) {
-      *status = current;
-      return QDMI_SUCCESS;
-    }
+    return submissionError_.load();
   }
 
   Aws::Braket::Model::GetQuantumTaskRequest request;
@@ -1841,7 +1912,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
  * - counts_: {"00": 52, "11": 48} (histogram)
  */
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResults() const -> QDMI_STATUS {
-  const std::scoped_lock<std::mutex> lock(jobMutex_);
+  const std::scoped_lock lock(resultsMutex_);
   return fetchResultsInternal();
 }
 
@@ -1851,18 +1922,16 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal() const
     return QDMI_SUCCESS;
   }
 
-  if (outputS3Bucket_.empty() || outputS3Directory_.empty()) {
-    std::cerr << "S3 output location not available\n";
-    return QDMI_ERROR_FATAL;
-  }
-
-  // Download results.json from S3
-  // Key format: {outputS3Directory}/results.json
-  const std::string objectKey = outputS3Directory_ + "/results.json";
-
   Aws::S3::Model::GetObjectRequest getRequest;
-  getRequest.SetBucket(outputS3Bucket_);
-  getRequest.SetKey(objectKey);
+  {
+    const std::scoped_lock lock(jobMutex_);
+    if (outputS3Bucket_.empty() || outputS3Directory_.empty()) {
+      std::cerr << "S3 output location not available\n";
+      return QDMI_ERROR_FATAL;
+    }
+    getRequest.SetBucket(outputS3Bucket_);
+    getRequest.SetKey(outputS3Directory_ + "/results.json");
+  }
 
   auto outcome = session_->getS3Client()->GetObject(getRequest);
   if (!outcome.IsSuccess()) {
@@ -1926,9 +1995,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::getResults(
     return QDMI_ERROR_BADSTATE;
   }
 
-  const std::scoped_lock<std::mutex> lock(jobMutex_);
+  const std::scoped_lock lock(resultsMutex_);
 
-  // Fetch results from S3 if not already done
+  /// Fetch results from S3 if not already done.
   QDMI_STATUS const fetchStatus = fetchResultsInternal();
   if (fetchStatus != QDMI_SUCCESS) {
     return fetchStatus;
