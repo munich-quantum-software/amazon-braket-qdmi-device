@@ -107,7 +107,7 @@ QDMI application
 Amazon Braket QDMI Device
     device_session_init()       -> construct AWS clients
     first property query        -> BraketClient::GetDevice()
-    device_job_submit()         -> CreateQuantumTask()
+    device_job_submit()         -> queue CreateQuantumTask() on AWS worker pool
     device_job_check()          -> GetQuantumTask()
     device_job_get_results()    -> S3Client::GetObject()
     |
@@ -124,3 +124,24 @@ not issue a metadata request first. Job submission creates a QuantumTask. Status
 and queue-position queries refresh the task, and result queries read the output
 location returned by Amazon Braket rather than reconstructing it from the
 submitted configuration.
+
+### Concurrent submission
+
+`device_job_submit()` validates and prepares the request, then returns without
+waiting for AWS to accept the QuantumTask. A session uses eight submission
+workers; additional requests wait locally. This limits concurrent HTTP requests,
+not the number of QuantumTasks that AWS may run. AWS account and Region quotas
+still apply, and the SDK handles request retries using the same idempotency
+token. Failed QuantumTasks are not automatically resubmitted.
+
+Submit every job in a batch before waiting for results. Jobs are immutable after
+submission and report `SUBMITTED` while acceptance is pending. Submission errors
+appear through `device_job_check()` and `device_job_wait()`, with status
+`FAILED`. Each job retains its own request and results regardless of completion
+order.
+
+Job IDs remain AWS QuantumTask ARNs. Querying an ID or canceling a job waits for
+pending acceptance so it can use the real ARN; querying each ID immediately
+after submission can serialize a batch again. Freeing a job or session also
+drains pending submission requests before releasing their storage and clients.
+Freeing a handle does not cancel its remote QuantumTask.

@@ -76,6 +76,7 @@
 #include <aws/braket/model/DeviceType.h>
 #include <aws/core/auth/AWSCredentialsProvider.h>
 #include <aws/core/client/ClientConfiguration.h>
+#include <aws/core/utils/threading/Executor.h>
 #include <aws/s3/S3Client.h>
 #include <aws/sts/STSClient.h>
 #include <cstddef>
@@ -273,6 +274,7 @@ private:
   std::unique_ptr<Aws::Braket::BraketClient> client_;
   std::unique_ptr<Aws::S3::S3Client> s3Client_;
   std::unique_ptr<Aws::STS::STSClient> stsClient_;
+  std::unique_ptr<Aws::Utils::Threading::Executor> submissionExecutor_;
 
   struct S3Destination {
     std::string bucket;
@@ -282,6 +284,7 @@ private:
   mutable std::mutex defaultS3DestinationMutex_;
 
 public:
+  ~AMAZON_BRAKET_QDMI_Device_Session_impl_d();
   auto init() -> QDMI_STATUS;
   auto setParameter(QDMI_Device_Session_Parameter param, size_t size,
                     const void* value) -> QDMI_STATUS;
@@ -336,7 +339,7 @@ private:
   /// Quantum task execution status (lifecycle tracking)
   /// CREATED → SUBMITTED → QUEUED → RUNNING → DONE/CANCELED/FAILED
   /// - CREATED: Local job object is still configurable
-  /// - SUBMITTED: AWS accepted the task, but has not yet queued it
+  /// - SUBMITTED: Accepted locally; AWS submission may still be in flight
   /// - QUEUED: Task is waiting in the AWS device queue
   /// - RUNNING: Currently executing on quantum hardware
   /// - DONE: Execution completed successfully, results available
@@ -356,7 +359,8 @@ private:
   std::string jobS3Uri_;
   std::string reservationArn_; // Optional - dedicate task to a reserved window
 
-  std::future<void> jobHandle_;
+  std::shared_future<void> jobHandle_;
+  std::atomic<QDMI_STATUS> submissionError_{QDMI_SUCCESS};
   mutable std::map<std::string, size_t> counts_;
   mutable std::string shotsString_; // Comma-separated shots: "00,11,00,..."
   mutable bool resultsFetched_ = false;
@@ -365,6 +369,7 @@ private:
   mutable std::optional<size_t> queuePosition_;
   mutable std::mutex jobMutex_;
 
+  auto awaitSubmission() const -> QDMI_STATUS;
   // Helpers to fetch and parse results from S3
   auto fetchResults() const -> QDMI_STATUS;         // Locks and calls internal
   auto fetchResultsInternal() const -> QDMI_STATUS; // Assumes jobMutex_ is held
@@ -382,7 +387,7 @@ private:
     if (currentStatus == QDMI_JOB_STATUS_DONE ||
         currentStatus == QDMI_JOB_STATUS_FAILED ||
         currentStatus == QDMI_JOB_STATUS_CANCELED) {
-      return QDMI_SUCCESS;
+      return submissionError_.load();
     }
 
     const auto startTime = functions.now(functions.context);
@@ -418,6 +423,8 @@ public:
       AMAZON_BRAKET_QDMI_Device_Session_impl_d* session)
       : session_(session),
         id_(amazon::braket::qdmi::Device::get().generateUniqueID()) {}
+
+  ~AMAZON_BRAKET_QDMI_Device_Job_impl_d();
 
   auto getSession() -> AMAZON_BRAKET_QDMI_Device_Session_impl_d* {
     return session_;

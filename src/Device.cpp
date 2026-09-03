@@ -93,6 +93,7 @@
 #include <aws/core/utils/json/JsonSerializer.h>
 #include <aws/core/utils/memory/stl/AWSAllocator.h>
 #include <aws/core/utils/memory/stl/AWSString.h>
+#include <aws/core/utils/threading/PooledThreadExecutor.h>
 #include <aws/s3/S3Client.h>
 #include <aws/s3/S3ClientConfiguration.h>
 #include <aws/s3/S3Errors.h>
@@ -109,6 +110,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <future>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -1107,6 +1109,31 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::openDeviceJob(
   return statusFromCurrentException();
 }
 
+AMAZON_BRAKET_QDMI_Device_Session_impl_d::
+    ~AMAZON_BRAKET_QDMI_Device_Session_impl_d() {
+  /// Drain submissions before destroying the executor and its AWS clients.
+  jobs_.clear();
+}
+
+AMAZON_BRAKET_QDMI_Device_Job_impl_d::~AMAZON_BRAKET_QDMI_Device_Job_impl_d() {
+  if (jobHandle_.valid()) {
+    jobHandle_.wait();
+  }
+}
+
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::awaitSubmission() const
+    -> QDMI_STATUS {
+  std::shared_future<void> submission;
+  {
+    const std::scoped_lock lock(jobMutex_);
+    submission = jobHandle_;
+  }
+  if (submission.valid()) {
+    submission.get();
+  }
+  return submissionError_.load();
+}
+
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::freeDeviceJob(
     AMAZON_BRAKET_QDMI_Device_Job job) -> void {
   if (job != nullptr) {
@@ -1367,6 +1394,12 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
+  if (prop == QDMI_DEVICE_JOB_PROPERTY_ID) {
+    if (const auto result = awaitSubmission(); result != QDMI_SUCCESS) {
+      return result;
+    }
+  }
+
   if (prop == QDMI_DEVICE_JOB_PROPERTY_QUEUEPOSITION) {
     QDMI_Job_Status refreshedStatus = QDMI_JOB_STATUS_CREATED;
     if (const auto result = check(&refreshedStatus); result != QDMI_SUCCESS) {
@@ -1514,27 +1547,66 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
     request.AddAssociations(reservation);
   }
 
-  auto outcome = session_->getClient()->CreateQuantumTask(request);
-  if (!outcome.IsSuccess()) {
-    const std::scoped_lock<std::mutex> lock(jobMutex_);
-    submitting_ = false;
-    status_.store(QDMI_JOB_STATUS_FAILED);
-    return mapBraketServiceError(outcome.GetError(),
-                                 "Braket CreateQuantumTask");
+  {
+    const std::scoped_lock lock(session_->jobsMutex_);
+    if (session_->submissionExecutor_ == nullptr) {
+      /// Bound HTTP concurrency, not the number of remote QuantumTasks.
+      session_->submissionExecutor_ =
+          std::make_unique<Aws::Utils::Threading::PooledThreadExecutor>(8);
+    }
   }
 
+  auto submission = std::make_shared<std::packaged_task<void()>>(
+      [this, request = std::move(request)] {
+        auto result = QDMI_SUCCESS;
+        try {
+          const auto outcome =
+              session_->getClient()->CreateQuantumTask(request);
+          if (!outcome.IsSuccess()) {
+            result = mapBraketServiceError(outcome.GetError(),
+                                           "Braket CreateQuantumTask");
+          } else {
+            const std::scoped_lock lock(jobMutex_);
+            taskArn_ = outcome.GetResult().GetQuantumTaskArn();
+          }
+        } catch (...) {
+          result = statusFromCurrentException();
+        }
+        const std::scoped_lock lock(jobMutex_);
+        submissionError_.store(result);
+        if (result != QDMI_SUCCESS) {
+          status_.store(QDMI_JOB_STATUS_FAILED);
+        }
+        submitting_ = false;
+      });
   {
-    const std::scoped_lock<std::mutex> lock(jobMutex_);
-    taskArn_ = outcome.GetResult().GetQuantumTaskArn();
-    submitting_ = false;
+    const std::scoped_lock lock(jobMutex_);
+    jobHandle_ = submission->get_future().share();
     status_.store(QDMI_JOB_STATUS_SUBMITTED);
+    if (!session_->submissionExecutor_->Submit(
+            [submission] { (*submission)(); })) {
+      jobHandle_ = {};
+      submitting_ = false;
+      submissionError_.store(QDMI_ERROR_FATAL);
+      status_.store(QDMI_JOB_STATUS_FAILED);
+      return QDMI_ERROR_FATAL;
+    }
   }
   return QDMI_SUCCESS;
 } catch (...) {
-  return statusFromCurrentException();
+  const auto result = statusFromCurrentException();
+  const std::scoped_lock lock(jobMutex_);
+  submitting_ = false;
+  submissionError_.store(result);
+  status_.store(QDMI_JOB_STATUS_FAILED);
+  return result;
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS try {
+  /// A pending CreateQuantumTask must yield its ARN before it can be canceled.
+  if (const auto result = awaitSubmission(); result != QDMI_SUCCESS) {
+    return result;
+  }
   QDMI_Job_Status currentStatus = QDMI_JOB_STATUS_CREATED;
   {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
@@ -1656,6 +1728,10 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
     -> QDMI_STATUS try {
   if (status == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
+  }
+  if (const auto result = submissionError_.load(); result != QDMI_SUCCESS) {
+    *status = status_.load();
+    return result;
   }
 
   // Amazon Braket GetQuantumTask API Call

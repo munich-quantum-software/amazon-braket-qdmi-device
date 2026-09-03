@@ -12,6 +12,9 @@ releases may include breaking changes.
 
 ### Changed
 
+- ⚡ Submit QuantumTasks asynchronously through a bounded AWS request pool.
+  Preserve AWS task IDs, report asynchronous submission errors through job
+  status/wait calls, and drain pending requests before freeing their handles.
 - ⚡ Reuse session architecture for static property queries and let
   `CreateQuantumTask` validate submissions without redundant `GetDevice`
   requests. Explicit device status and queue queries still refresh AWS data.
