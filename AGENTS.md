@@ -1,195 +1,124 @@
 # Amazon Braket QDMI Device Agent Guide
 
-This file contains repository-specific instructions for coding agents working on
-the Amazon Braket QDMI Device.
+Follow this guide and the nearest scoped `AGENTS.md`. Use
+[`docs/development.md`](docs/development.md) for build, test, and documentation
+commands. Keep this file focused on repository-specific guardrails.
 
 ## Repository Layout
 
-- `include/amazon-braket-qdmi-device/` contains the public C++ headers and
-  Amazon Braket-specific QDMI constants.
-- `src/` contains the device implementation, AWS SDK integration, device parser,
-  queue handling, and wait logic.
-- `python/amazon/braket/qdmi/` contains the Python package and command-line
-  entry point. The compiled library is installed into this package by
-  scikit-build-core.
-- `test/` contains GoogleTest-based C++ tests and pytest-based Python tests.
-  Some C++ tests contact Amazon Braket and create remote quantum tasks.
-- `spank/` contains the optional Linux-only Slurm SPANK plugin and its Docker
-  tests. It is licensed separately under GPL-3.0-or-later.
-- `cmake/`, `CMakeLists.txt`, and `pyproject.toml` define native and Python
-  builds. Keep generated output in `build/` and do not commit it.
+- `include/amazon-braket-qdmi-device/` and `src/` contain the C++ implementation
+  and Amazon Braket-specific QDMI constants.
+- `python/amazon/braket/qdmi/` contains the Python package; `config/` contains
+  the installed device catalogue.
+- `test/` contains GoogleTest and pytest tests, including optional live tests.
+- `spank/` contains the optional Slurm plugin under GPL-3.0-or-later. The main
+  library uses Apache-2.0 WITH LLVM-exception; keep their source separate.
+- `cmake/`, `CMakeLists.txt`, and `pyproject.toml` define builds. Keep generated
+  output in `build/` and `docs/_build/`, never in commits.
 
 ## Working Principles
 
-- Keep changes focused on the assigned task. Do not perform unrelated cleanup,
-  broad reformatting, dependency upgrades, or refactors without explicit
-  authorization.
-- Preserve user changes and inspect the working tree before editing. Never
-  discard or overwrite changes outside the task.
-- Follow neighboring code and prefer the smallest change that fully solves the
-  problem.
-- Write comments, documentation, tests, changelog entries, diagnostics, and
-  public text for the final design. Do not preserve prompts, review chronology,
-  former names, or abandoned approaches unless they remain necessary user-facing
-  context.
-- Use short, direct sentences and active voice. Use one established term for one
-  meaning. Preserve the capitalization of QDMI, Amazon Braket, QuantumTask,
-  OpenQASM, AWS, S3, and SPANK.
-- Add or update automated tests for every behavioral code change. Run the
-  narrowest relevant test first and the complete lint suite before handoff.
-- Before auditing tests for spec debt, read `.agent/AUDITS.md` in full and use
+- Inspect the worktree before editing and preserve unrelated user changes. Do
+  not broaden a task into dependency upgrades or unrelated cleanup.
+- Prefer the smallest change that fully solves the problem. Reuse existing code,
+  C++20 facilities, and the AWS SDK before adding abstractions or settings.
+- Follow documented policy. Neighboring code shows existing practice but does
+  not override current instructions.
+- Write comments, documentation, tests, diagnostics, and public text for the
+  final design. Remove prompts, review chronology, former names, and abandoned
+  approaches unless users still need that context.
+- Use short sentences, active voice, and one established term per concept.
+  Remove words that add no meaning. Preserve the capitalization of QDMI, Amazon
+  Braket, QuantumTask, OpenQASM, AWS, S3, and SPANK.
+- Add tests for changed behavior or a concrete regression, not provisional
+  implementation choices. Keep tests in `test/` and start with focused checks.
+- Keep cleanup separate from behavior changes unless correctness requires both.
+  Remove obsolete scaffolding and suppressions; retain only narrow, justified
+  exceptions.
+- Keep documentation at its existing source of truth. Link to it instead of
+  repeating the same contract in several pages.
+- Group related changes in a concise changelog entry about user-visible
+  behavior. Include the PR and every contributing author as
+  `([#123]) ([**@username**])` and define their links at the bottom of
+  `CHANGELOG.md`.
+- Never edit generated or template-managed files. Make template changes in the
+  owning repository.
+- For test-contract audits, read `.agent/AUDITS.md` and use
   `.agent/audits/TEMPLATE.md`. Keep audit evidence separate from remediation.
-- Update `CHANGELOG.md` for user-facing, breaking, or otherwise noteworthy
-  changes.
-- Never commit or print credentials, access keys, session tokens, account IDs,
-  bucket names, private device details, or other secrets. Use the AWS SDK
-  credential provider chain or process-local environment variables.
-- Do not edit files whose headers say that they are generated from an external
-  template. Make those changes in the owning template repository instead.
 
-## Build and Test
+## C++ and QDMI Contracts
 
-### Dependency-only setup
+The project targets C++20. Use `///` for documentation comments and keep API
+documentation at the declaration. Explain only details that names and signatures
+do not convey. Use C++ casts, not C-style casts.
 
-Install development dependencies without building the compiled Python package:
+Preserve the QDMI C ABI, the `AMAZON_BRAKET_` symbol prefix, and the stable
+`amazon.braket.default` device ID. No C++ exception may cross the C boundary.
+Preserve size-query behavior, handle validation, status codes, and null checks.
 
-```bash
-uv sync --locked --only-group dev
-```
+AWS SDK initialization and shutdown are process-wide. Preserve singleton and
+request lifetimes, session isolation, credential-provider refresh, caches, and
+mutex protection. Device ARN region, client region, S3 result location, and
+reservation ARN are distinct inputs.
 
-Building the Python package also builds the native project. Do that only for an
-explicit build or test request.
+## Build and Validation
 
-### C++
+Run offline tests by default. Configure with
+`-DBUILD_AMAZON_BRAKET_LIVE_TESTS=OFF`; do not reuse a live-test configuration
+for an offline run. The development guide lists the native and Python commands.
+Use its dedicated Nox session to build documentation and the Doxygen API.
 
-Configure and build a release tree with tests:
+Nox package builds and direct CMake builds share `build/`. Do not run them
+concurrently in the same checkout. For dependency-only setup, use
+`uv sync --locked --only-group dev`.
 
-```bash
-cmake -S . -B build -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_AMAZON_BRAKET_TESTS=ON
-cmake --build build --config Release
-```
+- Run `uvx nox -s lint` after each completed batch of changes. Inspect and keep
+  only relevant formatter changes, then rerun the check.
+- For C++ changes, reproduce `.github/workflows/cpp-linter.yml` against every
+  line of each changed file. Changed-line checks alone are insufficient. Report
+  existing diagnostics; do not hide them with broad suppressions.
+- Run focused Python tests with `uvx nox -s tests-3.14 -- <test path>`. Use
+  `uvx nox -s tests minimums` for the supported Python matrix.
+- Use Google-style Python docstrings. Preserve the `amazon.braket.qdmi`
+  namespace and stable entry point. Fix Ruff and ty findings where possible.
+- Build SPANK only when it is in scope. Keep its build output separate from the
+  native library build and validate changes with its Docker tests.
 
-Run offline tests by default. The exclusion keeps every fixture that requires
-live AWS access out of the command:
+### Live AWS Access
 
-```bash
-ctest -C Release --test-dir build --output-on-failure \
-  -E '^(AmazonBraketQDMISpecificationTest|AmazonBraketQDMIJobSpecificationTest|AmazonBraketQDMIPerJobS3Test|DeviceParsingTestFixture)\.|^AmazonBraketQDMIWaitTimeoutTest\.JobWaitTimeout$'
-```
+Live tests can create paid tasks and S3 objects. Run them only with explicit
+authorization for the service, device, Region, and spending scope. Verify the
+selected credential source first. Metadata-only catalogue tests also contact AWS
+and require authorization.
 
-Run a focused C++ test with a GoogleTest filter, for example:
+Use the AWS credential provider chain and short-lived credentials. Never print
+or commit credentials, tokens, account IDs, bucket names, or private device
+details. Use the automatic regional result bucket unless an explicit destination
+override is under test. Keep live and offline test selections separate.
 
-```bash
-./build/test/amazon-braket-qdmi-device-test \
-  --gtest_filter='AmazonBraketQDMIOfflineTest.*'
-```
+## Git and GitHub
 
-The C++ code targets C++20. Preserve the public QDMI C ABI, the `AMAZON_BRAKET_`
-symbol prefix, and the stable `amazon.braket.default` device ID. Do not allow
-C++ exceptions to cross the C boundary. Keep QDMI size-query behavior, handle
-validation, status-code mapping, and null-pointer handling consistent with
-neighboring entry points.
+- Keep commits focused. Start subjects with a gitmoji and an imperative verb;
+  target 50 characters and never exceed 72. Use the body for constraints and
+  non-obvious decisions, not a description of every changed line.
+- Sign commits and annotated tags with the configured key. Verify commits with
+  `git verify-commit HEAD` before pushing; never bypass a signing failure.
+- Preserve human attribution. Use `Assisted-by` for AI assistance, never an AI
+  `Co-authored-by` trailer.
+- Push, open or merge PRs, and post public text only within the human's explicit
+  authorization. Request new authority before expanding that scope.
+- Start every agent-authored or agent-edited public text body with
+  `🤖 *AI text below* 🤖`; titles are exempt. State how AI assisted the work and
+  leave acceptance and responsibility with the human reviewer.
+- Use the PR template, appropriate labels, and the requested assignee. Do not
+  invent checklist items or attest to human review on the user's behalf.
+- Do not work on `good first issue` tasks or post repetitive reviews.
+- A push does not authorize CI monitoring. Verify the remote head, report the
+  available status, and stop unless monitoring was requested.
 
-AWS SDK initialization and shutdown are process-wide and expensive. Preserve the
-existing singleton lifetime, session isolation, credential-provider refresh
-behavior, caches, and mutex protection. Treat device ARN region, client region,
-S3 result location, and reservation ARN as distinct inputs.
+## Handoff
 
-### Online Amazon Braket tests
-
-Online tests can submit remote quantum tasks, write S3 objects, incur charges,
-and change external state. Run them only when the human explicitly requests
-online validation. Obtain temporary credentials without printing them, for
-example:
-
-```bash
-set +x
-eval "$(aws configure export-credentials --profile braket --format env)"
-```
-
-Tests use the automatic regional result bucket. Set
-`AMZN_BRAKET_TASK_RESULTS_S3_URI` only when testing an explicit destination
-override.
-
-Run the SV1, job, S3, and timeout fixtures in `us-east-1`. Run the three IQM
-Garnet metadata fixtures in `eu-north-1`, matching the ARN embedded in those
-tests. Use the repository's configured Codex action when available because it
-applies this region split.
-
-Never replace short-lived credentials with a committed credentials file. Never
-echo credential environment variables. Keep offline and online test filters
-complementary when adding or renaming fixtures.
-
-### Python
-
-- Run the supported Python test session with `uvx nox -s tests`; use
-  `uvx nox -s tests-3.14` for Python 3.14.
-- Run minimum dependency tests with `uvx nox -s minimums` or
-  `uvx nox -s minimums-3.14`.
-- Pass pytest paths or `-k` expressions after `--` while iterating.
-- Do not hand-edit generated version files or files installed into the wheel's
-  native-library data directory.
-
-Use Google-style Python docstrings. Preserve the `amazon.braket.qdmi` namespace
-package and the stable Python entry point. Prefer fixing diagnostics from Ruff
-and ty over suppressing them; document necessary suppressions.
-
-### SPANK
-
-Configure the optional SPANK plugin only for tasks that affect it:
-
-```bash
-cmake -S . -B build-spank -G Ninja \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_AMAZON_BRAKET_SPANK_PLUGIN=ON
-cmake --build build-spank --target amazon-braket-qdmi-spank --parallel
-```
-
-Run its isolated Docker tests with:
-
-```bash
-docker build -t amazon-braket-spank-tests -f spank/Dockerfile .
-docker run --rm amazon-braket-spank-tests
-```
-
-Do not mix the SPANK plugin's GPL-3.0-or-later source with the main library's
-Apache-2.0 WITH LLVM-exception license headers.
-
-## Generated Files and Validation
-
-- Do not hand-edit CMake-generated files, built libraries, wheel contents,
-  coverage output, or downloaded dependencies.
-- Run `uvx nox -s lint` after each completed batch of changes. It runs the full
-  `prek` hook set, including formatting, spelling, type, metadata, CMake, and
-  C++ checks.
-- Inspect the final diff and working-tree status. Remove generated test outputs
-  and report every check run, clearly distinguishing passes, failures, and
-  checks that could not be run.
-
-## Git and GitHub Actions
-
-- A coding agent may perform coding, Git, and GitHub workflow tasks that a human
-  explicitly delegates. Request fresh authorization before changing remote state
-  outside that scope.
-- Every public text body authored or edited by an agent, including issue and
-  pull-request descriptions, comments, and reviews, must visibly include the
-  exact disclosure `🤖 *AI text below* 🤖`. Titles are exempt.
-- Do not push, open or merge a pull request, post on GitHub, submit a Braket
-  task, or otherwise change remote state unless the human explicitly authorizes
-  that action.
-- Never use an agent to work on an issue labeled `good first issue`, and never
-  generate spam, repetitive reviews, or unreviewed contributions.
-
-## Handoff Checklist
-
-- The diff is focused and follows neighboring conventions.
-- Behavioral changes have automated coverage and targeted offline tests pass.
-- Online tests were run only with explicit authorization and are reported
-  separately.
-- `uvx nox -s lint` passes.
-- User-facing changes update `README.md` and `CHANGELOG.md` when appropriate.
-- Generated, secret, template-managed, and unrelated files are absent from the
-  diff.
-- AI assistance and validation results are reported transparently.
+Inspect the final diff and worktree. Report what changed and each check run,
+including failures or checks that could not run. Distinguish local validation,
+live AWS validation, and hosted CI for the final head. Do not describe queued
+checks or checks from an older commit as passing validation of the new head.

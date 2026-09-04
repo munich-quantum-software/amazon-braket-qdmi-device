@@ -45,11 +45,8 @@
  * Device_Session (MANY - one per user+device combination)
  *   ├─ Connects to specific AWS Braket device (IQM Garnet, AWS SV1, etc.)
  *   ├─ Has Braket, S3, and STS clients that share one refreshable provider
- *   ├─ Simulators: holds a shared_ptr to the singleton-cached architecture;
- *   │             only status is re-fetched per query (no second copy)
- *   ├─ QPUs: re-fetches sites/operations/connectivity on every query and
- *   │        stores the result locally until the next query overwrites it;
- *   │        only name/provider/deviceType are kept in the singleton cache
+ *   ├─ Caches architecture for the session to keep site/operation handles valid
+ *   ├─ Refreshes device status and queue length only when explicitly queried
  *   ├─ Creates and manages jobs for that user+device
  *   └─ Thread-safe job management (jobsMutex_)
  *
@@ -79,8 +76,10 @@
 #include <aws/braket/model/DeviceType.h>
 #include <aws/core/auth/AWSCredentialsProvider.h>
 #include <aws/core/client/ClientConfiguration.h>
+#include <aws/core/utils/threading/Executor.h>
 #include <aws/s3/S3Client.h>
 #include <aws/sts/STSClient.h>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdlib>
 #include <fstream>
@@ -91,6 +90,7 @@
 #include <mutex>
 #include <optional>
 #include <random>
+#include <stop_token>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -138,9 +138,9 @@ inline auto configureCaBundle(Aws::Client::ClientConfiguration& configuration)
  * across sessions to the same ARN (site/operation data is static).
  *
  * For QPUs: only name/provider/deviceType are stored in the global cache.
- * qubitsNum, sites, operations, and connectivity are re-fetched on every
- * query because they change with calibration cycles. The session-local
- * cachedArchitecture_ always holds the latest fetched full architecture.
+ * qubitsNum, sites, operations, and connectivity are fetched once per session
+ * because QDMI handles must remain valid for that session. Open a new session
+ * to obtain a new calibration snapshot.
  */
 struct DeviceArchitecture {
   std::string name;     // Specific device name (e.g., "Garnet")
@@ -276,6 +276,8 @@ private:
   std::unique_ptr<Aws::Braket::BraketClient> client_;
   std::unique_ptr<Aws::S3::S3Client> s3Client_;
   std::unique_ptr<Aws::STS::STSClient> stsClient_;
+  std::unique_ptr<Aws::Utils::Threading::Executor> submissionExecutor_;
+  std::unique_ptr<Aws::Utils::Threading::Executor> resultExecutor_;
 
   struct S3Destination {
     std::string bucket;
@@ -285,6 +287,7 @@ private:
   mutable std::mutex defaultS3DestinationMutex_;
 
 public:
+  ~AMAZON_BRAKET_QDMI_Device_Session_impl_d();
   auto init() -> QDMI_STATUS;
   auto setParameter(QDMI_Device_Session_Parameter param, size_t size,
                     const void* value) -> QDMI_STATUS;
@@ -307,7 +310,8 @@ public:
                             S3Destination& destination) -> QDMI_STATUS;
 
 private:
-  auto fetchDeviceArchitecture() const -> QDMI_STATUS;
+  /// Cache session metadata; refresh device status and queue length on request.
+  auto fetchDeviceArchitecture(bool refreshStatus) const -> QDMI_STATUS;
 
   [[nodiscard]] auto getClient() const -> Aws::Braket::BraketClient* {
     return client_.get();
@@ -339,7 +343,7 @@ private:
   /// Quantum task execution status (lifecycle tracking)
   /// CREATED → SUBMITTED → QUEUED → RUNNING → DONE/CANCELED/FAILED
   /// - CREATED: Local job object is still configurable
-  /// - SUBMITTED: AWS accepted the task, but has not yet queued it
+  /// - SUBMITTED: Accepted locally; AWS submission may still be in flight
   /// - QUEUED: Task is waiting in the AWS device queue
   /// - RUNNING: Currently executing on quantum hardware
   /// - DONE: Execution completed successfully, results available
@@ -359,7 +363,13 @@ private:
   std::string jobS3Uri_;
   std::string reservationArn_; // Optional - dedicate task to a reserved window
 
-  std::future<void> jobHandle_;
+  std::shared_future<void> jobHandle_;
+  /// Serialize active prefetch with destruction; cancel queued work before it
+  /// accesses the job.
+  std::shared_ptr<std::mutex> prefetchMutex_;
+  std::stop_source stopPrefetch_;
+  std::condition_variable_any prefetchChanged_;
+  std::atomic<QDMI_STATUS> submissionError_{QDMI_SUCCESS};
   mutable std::map<std::string, size_t> counts_;
   mutable std::string shotsString_; // Comma-separated shots: "00,11,00,..."
   mutable bool resultsFetched_ = false;
@@ -367,10 +377,14 @@ private:
   mutable std::string outputS3Directory_;
   mutable std::optional<size_t> queuePosition_;
   mutable std::mutex jobMutex_;
+  mutable std::mutex statusMutex_;
+  mutable std::mutex resultsMutex_;
 
-  // Helpers to fetch and parse results from S3
-  auto fetchResults() const -> QDMI_STATUS;         // Locks and calls internal
-  auto fetchResultsInternal() const -> QDMI_STATUS; // Assumes jobMutex_ is held
+  auto startPrefetch() noexcept -> void;
+  auto awaitSubmission() const -> QDMI_STATUS;
+  /// Fetch and parse S3 results without holding the job's lifecycle mutex.
+  auto fetchResults() const -> QDMI_STATUS;
+  auto fetchResultsInternal() const -> QDMI_STATUS; ///< Requires resultsMutex_
   auto updateFromTask(const Aws::Braket::Model::GetQuantumTaskResult& task,
                       QDMI_Job_Status* status) const -> QDMI_STATUS;
   auto
@@ -385,7 +399,7 @@ private:
     if (currentStatus == QDMI_JOB_STATUS_DONE ||
         currentStatus == QDMI_JOB_STATUS_FAILED ||
         currentStatus == QDMI_JOB_STATUS_CANCELED) {
-      return QDMI_SUCCESS;
+      return submissionError_.load();
     }
 
     const auto startTime = functions.now(functions.context);
@@ -421,6 +435,8 @@ public:
       AMAZON_BRAKET_QDMI_Device_Session_impl_d* session)
       : session_(session),
         id_(amazon::braket::qdmi::Device::get().generateUniqueID()) {}
+
+  ~AMAZON_BRAKET_QDMI_Device_Job_impl_d();
 
   auto getSession() -> AMAZON_BRAKET_QDMI_Device_Session_impl_d* {
     return session_;
