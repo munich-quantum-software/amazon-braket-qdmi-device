@@ -222,7 +222,6 @@ error-on-warning = true
 default.extend-ignore-re = [
   "(?Rm)^.*(#|//)\\s*spellchecker:disable-line$",  # ignore line
   "(?s)(#|//)\\s*spellchecker:off.*?\\n\\s*(#|//)\\s*spellchecker:on", # ignore block
-  "FoMaC",
 ]
 
 [tool.typos.default.extend-words]
@@ -257,7 +256,9 @@ before-all = "yum install -y curl-devel openssl-devel"
 environment = { MACOSX_DEPLOYMENT_TARGET = "13.3" }
 
 [tool.cibuildwheel.windows]
+before-test = "uv pip install --group test"
 repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel} --namespace-pkg amazon"
+test-groups = []
 
 
 [tool.uv]
