@@ -107,7 +107,7 @@ QDMI application
 Amazon Braket QDMI Device
     device_session_init()       -> construct AWS clients
     first property query        -> BraketClient::GetDevice()
-    device_job_submit()         -> CreateQuantumTask()
+    device_job_submit()         -> queue CreateQuantumTask() on AWS worker pool
     device_job_check()          -> GetQuantumTask()
     device_job_get_results()    -> S3Client::GetObject()
     |
@@ -116,7 +116,24 @@ Amazon Braket gate-model QPU or simulator
 ```
 
 The device schema returned by `GetDevice` determines the QDMI sites,
-connectivity, operations, and available calibration data. Job submission creates
-a QuantumTask. Status and queue-position queries refresh the task, and result
-queries read the output location returned by Amazon Braket rather than
-reconstructing it from the submitted configuration.
+connectivity, operations, and calibration data. Static properties are cached for
+the session; open a new session to refresh them. Explicit device status and
+queue-length queries refresh `GetDevice`. Results use the S3 location returned
+by Amazon Braket.
+
+### Concurrent submission
+
+`device_job_submit()` queues the request and returns before AWS acceptance.
+Submit the whole batch before waiting for results. Each session uses separate
+eight-worker pools for submission and result prefetch; these limit local HTTP
+requests, not remote running tasks. Foreground reads use prefetched results when
+available and can fetch results without waiting for the prefetch queue.
+
+Submitted jobs are immutable and report `SUBMITTED` while AWS acceptance is
+pending. Submission failures appear through `device_job_check()` and
+`device_job_wait()` with status `FAILED`. Job IDs remain AWS QuantumTask ARNs,
+so ID queries and cancellation wait for pending acceptance. Avoid querying each
+ID immediately after submission, which serializes the batch.
+
+Freeing a job or session stops background polling and drains pending HTTP
+requests. It does not wait for remote execution or cancel the QuantumTask.

@@ -39,8 +39,8 @@ device = qp.device("mqt.ddsim.default", wires=4, shots=200)
 ```
 
 One QAOA layer is evaluated and differentiated using the parameter-shift rule.
-Each shifted circuit is submitted as a separate QDMI job; job submission is
-sequential.
+Each shifted circuit is a separate QDMI job. PennyLane returns results
+synchronously in input order.
 
 ```{code-cell} python
 def ansatz(parameters):

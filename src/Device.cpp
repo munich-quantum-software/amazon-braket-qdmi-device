@@ -93,6 +93,7 @@
 #include <aws/core/utils/json/JsonSerializer.h>
 #include <aws/core/utils/memory/stl/AWSAllocator.h>
 #include <aws/core/utils/memory/stl/AWSString.h>
+#include <aws/core/utils/threading/PooledThreadExecutor.h>
 #include <aws/s3/S3Client.h>
 #include <aws/s3/S3ClientConfiguration.h>
 #include <aws/s3/S3Errors.h>
@@ -106,9 +107,11 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <future>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -642,26 +645,8 @@ auto Device::setCachedArchitecture(
 // Session Implementation
 // ============================================================================
 
-/**
- * Fetches the session device architecture from Amazon Braket.
- *
- * This function queries the session device properties:
- * - Number of qubits (sites)
- * - Qubit connectivity (which qubits can interact)
- * - Available quantum operations
- * - Device operational status (ONLINE/OFFLINE/RETIRED)
- *
- * Caching strategy:
- * - Simulators: full architecture is cached globally.
- *   Cache hits only re-fetch the mutable device status.
- * - QPUs: only name/provider/deviceType are cached globally. The first query
- *   publishes one complete architecture in the session so that returned QDMI
- *   handles stay valid. Later queries refresh only mutable status data.
- *
- * @return QDMI_SUCCESS on successful fetch, error code otherwise
- */
-auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
-    -> QDMI_STATUS try {
+auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture(
+    const bool refreshStatus) const -> QDMI_STATUS try {
   if (deviceArn_.empty() || client_ == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -682,6 +667,9 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture() const
   }
 
   if (localArch != nullptr && localArch->qubitsNum > 0) {
+    if (!refreshStatus) {
+      return QDMI_SUCCESS;
+    }
     // Architecture cache hit: refresh only the mutable device status and queue
     // length. Replacing a QPU architecture here would invalidate handles that
     // the caller obtained from an earlier property query.
@@ -1104,6 +1092,88 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::openDeviceJob(
   return statusFromCurrentException();
 }
 
+AMAZON_BRAKET_QDMI_Device_Session_impl_d::
+    ~AMAZON_BRAKET_QDMI_Device_Session_impl_d() {
+  /// Stop polling and drain requests before destroying the AWS clients.
+  for (const auto& [job, storage] : jobs_) {
+    job->stopPrefetch_.request_stop();
+  }
+  jobs_.clear();
+}
+
+AMAZON_BRAKET_QDMI_Device_Job_impl_d::~AMAZON_BRAKET_QDMI_Device_Job_impl_d() {
+  stopPrefetch_.request_stop();
+  if (jobHandle_.valid()) {
+    jobHandle_.wait();
+  }
+  if (prefetchMutex_) {
+    const std::scoped_lock lock(*prefetchMutex_);
+  }
+}
+
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::startPrefetch() noexcept
+    -> void try {
+  if (stopPrefetch_.stop_requested()) {
+    return;
+  }
+  if (!prefetchMutex_) {
+    prefetchMutex_ = std::make_shared<std::mutex>();
+  }
+  static_cast<void>(session_->resultExecutor_->Submit(
+      [this, mutex = prefetchMutex_, stop = stopPrefetch_.get_token()] {
+        try {
+          const std::scoped_lock lifetimeLock(*mutex);
+          if (stop.stop_requested()) {
+            return;
+          }
+          QDMI_Job_Status status = QDMI_JOB_STATUS_SUBMITTED;
+          if (check(&status) != QDMI_SUCCESS) {
+            return;
+          }
+          if (status == QDMI_JOB_STATUS_DONE) {
+            static_cast<void>(fetchResults());
+            return;
+          }
+          if (status == QDMI_JOB_STATUS_FAILED ||
+              status == QDMI_JOB_STATUS_CANCELED) {
+            return;
+          }
+          {
+            /// ponytail: poll delays occupy workers; use timed scheduling if
+            /// this limits throughput.
+            std::unique_lock lock(jobMutex_);
+            prefetchChanged_.wait_for(lock, stop,
+                                      std::chrono::milliseconds{500},
+                                      [] { return false; });
+          }
+          /// Let other jobs poll before checking this job again.
+          startPrefetch();
+        } catch (...) {
+          /// Prefetch is optional; foreground calls retain normal error
+          /// reporting.
+          std::fputs("Result prefetch failed; using on-demand retrieval.\n",
+                     stderr);
+        }
+      }));
+} catch (...) {
+  /// Prefetch is optional; foreground calls report errors.
+  std::fputs("Could not start result prefetch; using on-demand retrieval.\n",
+             stderr);
+}
+
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::awaitSubmission() const
+    -> QDMI_STATUS {
+  std::shared_future<void> submission;
+  {
+    const std::scoped_lock lock(jobMutex_);
+    submission = jobHandle_;
+  }
+  if (submission.valid()) {
+    submission.get();
+  }
+  return submissionError_.load();
+}
+
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::freeDeviceJob(
     AMAZON_BRAKET_QDMI_Device_Job job) -> void {
   if (job != nullptr) {
@@ -1119,8 +1189,10 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
     return QDMI_ERROR_BADSTATE;
   }
 
-  // fetchDeviceArchitecture() uses the internal cache
-  if (const auto ret = fetchDeviceArchitecture(); ret != QDMI_SUCCESS) {
+  const bool refreshStatus = prop == QDMI_DEVICE_PROPERTY_STATUS ||
+                             prop == QDMI_DEVICE_PROPERTY_QUEUELENGTH;
+  if (const auto ret = fetchDeviceArchitecture(refreshStatus);
+      ret != QDMI_SUCCESS) {
     return ret;
   }
 
@@ -1362,6 +1434,12 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
+  if (prop == QDMI_DEVICE_JOB_PROPERTY_ID) {
+    if (const auto result = awaitSubmission(); result != QDMI_SUCCESS) {
+      return result;
+    }
+  }
+
   if (prop == QDMI_DEVICE_JOB_PROPERTY_QUEUEPOSITION) {
     QDMI_Job_Status refreshedStatus = QDMI_JOB_STATUS_CREATED;
     if (const auto result = check(&refreshedStatus); result != QDMI_SUCCESS) {
@@ -1447,25 +1525,6 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
   // 4. Set Output S3 Bucket and Prefix
   // 5. Call BraketClient::CreateQuantumTask()
 
-  {
-    const std::scoped_lock<std::mutex> lock(jobMutex_);
-    if (retrieved_ || status_.load() != QDMI_JOB_STATUS_CREATED) {
-      return QDMI_ERROR_BADSTATE;
-    }
-    if (program_.empty() || session_->getDeviceArn().empty()) {
-      return QDMI_ERROR_INVALIDARGUMENT;
-    }
-  }
-
-  if (const auto result = session_->fetchDeviceArchitecture();
-      result != QDMI_SUCCESS) {
-    return result;
-  }
-  if (session_->braketDeviceStatus_.load() == QDMI_DEVICE_STATUS_OFFLINE) {
-    std::cerr << "Cannot submit a task to an offline or retired device.\n";
-    return QDMI_ERROR_BADSTATE;
-  }
-
   // Capture all shared fields under jobMutex_ to prevent data races with
   // concurrent setParameter() calls
   std::string localProgram;
@@ -1528,27 +1587,73 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
     request.AddAssociations(reservation);
   }
 
-  auto outcome = session_->getClient()->CreateQuantumTask(request);
-  if (!outcome.IsSuccess()) {
-    const std::scoped_lock<std::mutex> lock(jobMutex_);
-    submitting_ = false;
-    status_.store(QDMI_JOB_STATUS_FAILED);
-    return mapBraketServiceError(outcome.GetError(),
-                                 "Braket CreateQuantumTask");
+  {
+    const std::scoped_lock lock(session_->jobsMutex_);
+    if (session_->submissionExecutor_ == nullptr) {
+      /// Bound HTTP concurrency, not the number of remote QuantumTasks.
+      session_->submissionExecutor_ =
+          std::make_unique<Aws::Utils::Threading::PooledThreadExecutor>(8);
+    }
+    if (session_->resultExecutor_ == nullptr) {
+      session_->resultExecutor_ =
+          std::make_unique<Aws::Utils::Threading::PooledThreadExecutor>(8);
+    }
   }
 
+  auto submission = std::make_shared<std::packaged_task<void()>>(
+      [this, request = std::move(request)] {
+        auto result = QDMI_SUCCESS;
+        try {
+          const auto outcome =
+              session_->getClient()->CreateQuantumTask(request);
+          if (!outcome.IsSuccess()) {
+            result = mapBraketServiceError(outcome.GetError(),
+                                           "Braket CreateQuantumTask");
+          } else {
+            {
+              const std::scoped_lock lock(jobMutex_);
+              taskArn_ = outcome.GetResult().GetQuantumTaskArn();
+            }
+            startPrefetch();
+          }
+        } catch (...) {
+          result = statusFromCurrentException();
+        }
+        const std::scoped_lock lock(jobMutex_);
+        submissionError_.store(result);
+        if (result != QDMI_SUCCESS) {
+          status_.store(QDMI_JOB_STATUS_FAILED);
+        }
+        submitting_ = false;
+      });
   {
-    const std::scoped_lock<std::mutex> lock(jobMutex_);
-    taskArn_ = outcome.GetResult().GetQuantumTaskArn();
-    submitting_ = false;
+    const std::scoped_lock lock(jobMutex_);
+    jobHandle_ = submission->get_future().share();
     status_.store(QDMI_JOB_STATUS_SUBMITTED);
+    if (!session_->submissionExecutor_->Submit(
+            [submission] { (*submission)(); })) {
+      jobHandle_ = {};
+      submitting_ = false;
+      submissionError_.store(QDMI_ERROR_FATAL);
+      status_.store(QDMI_JOB_STATUS_FAILED);
+      return QDMI_ERROR_FATAL;
+    }
   }
   return QDMI_SUCCESS;
 } catch (...) {
-  return statusFromCurrentException();
+  const auto result = statusFromCurrentException();
+  const std::scoped_lock lock(jobMutex_);
+  submitting_ = false;
+  submissionError_.store(result);
+  status_.store(QDMI_JOB_STATUS_FAILED);
+  return result;
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS try {
+  /// A pending CreateQuantumTask must yield its ARN before it can be canceled.
+  if (const auto result = awaitSubmission(); result != QDMI_SUCCESS) {
+    return result;
+  }
   QDMI_Job_Status currentStatus = QDMI_JOB_STATUS_CREATED;
   {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
@@ -1671,6 +1776,10 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
   if (status == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
+  if (const auto result = submissionError_.load(); result != QDMI_SUCCESS) {
+    *status = status_.load();
+    return result;
+  }
 
   // Amazon Braket GetQuantumTask API Call
 
@@ -1704,25 +1813,23 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
   // AWS NOT_SET    → QDMI_ERROR_FATAL
   // AWS unknown    → QDMI_ERROR_FATAL
   //
+  /// Serialize foreground/background polls so an old response cannot overwrite
+  /// a newer terminal state. Check terminal status before locking result data.
+  const std::scoped_lock statusLock(statusMutex_);
+  const auto current = status_.load();
+  if (current == QDMI_JOB_STATUS_DONE || current == QDMI_JOB_STATUS_FAILED ||
+      current == QDMI_JOB_STATUS_CANCELED) {
+    *status = current;
+    return submissionError_.load();
+  }
   std::string localTaskArn;
   {
-    const std::scoped_lock<std::mutex> lock(jobMutex_);
+    const std::scoped_lock lock(jobMutex_);
     localTaskArn = taskArn_;
   }
   if (localTaskArn.empty()) {
     *status = status_.load();
-    return QDMI_SUCCESS;
-  }
-
-  // If already terminal, don't poll again
-  {
-    const std::scoped_lock<std::mutex> lock(jobMutex_);
-    const auto current = status_.load();
-    if (current == QDMI_JOB_STATUS_DONE || current == QDMI_JOB_STATUS_FAILED ||
-        current == QDMI_JOB_STATUS_CANCELED) {
-      *status = current;
-      return QDMI_SUCCESS;
-    }
+    return submissionError_.load();
   }
 
   Aws::Braket::Model::GetQuantumTaskRequest request;
@@ -1779,7 +1886,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
  * - counts_: {"00": 52, "11": 48} (histogram)
  */
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResults() const -> QDMI_STATUS {
-  const std::scoped_lock<std::mutex> lock(jobMutex_);
+  const std::scoped_lock lock(resultsMutex_);
   return fetchResultsInternal();
 }
 
@@ -1789,18 +1896,16 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal() const
     return QDMI_SUCCESS;
   }
 
-  if (outputS3Bucket_.empty() || outputS3Directory_.empty()) {
-    std::cerr << "S3 output location not available\n";
-    return QDMI_ERROR_FATAL;
-  }
-
-  // Download results.json from S3
-  // Key format: {outputS3Directory}/results.json
-  const std::string objectKey = outputS3Directory_ + "/results.json";
-
   Aws::S3::Model::GetObjectRequest getRequest;
-  getRequest.SetBucket(outputS3Bucket_);
-  getRequest.SetKey(objectKey);
+  {
+    const std::scoped_lock lock(jobMutex_);
+    if (outputS3Bucket_.empty() || outputS3Directory_.empty()) {
+      std::cerr << "S3 output location not available\n";
+      return QDMI_ERROR_FATAL;
+    }
+    getRequest.SetBucket(outputS3Bucket_);
+    getRequest.SetKey(outputS3Directory_ + "/results.json");
+  }
 
   auto outcome = session_->getS3Client()->GetObject(getRequest);
   if (!outcome.IsSuccess()) {
@@ -1864,9 +1969,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::getResults(
     return QDMI_ERROR_BADSTATE;
   }
 
-  const std::scoped_lock<std::mutex> lock(jobMutex_);
+  const std::scoped_lock lock(resultsMutex_);
 
-  // Fetch results from S3 if not already done
+  /// Fetch results from S3 if not already done.
   QDMI_STATUS const fetchStatus = fetchResultsInternal();
   if (fetchStatus != QDMI_SUCCESS) {
     return fetchStatus;
