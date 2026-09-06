@@ -12,7 +12,7 @@ releases may include breaking changes.
 
 ### Changed
 
-- ⬆️ Support MQT Core 3.9.2 and 4.x in the Qiskit and PennyLane extras ([#203])
+- ⬆️ Update MQT Core to 3.10.0 in the Qiskit and PennyLane extras ([#203])
   ([**@burgholzer**])
 - 🧪 Let explicitly enabled local PennyLane SV1 tests use the standard AWS
   credential provider chain while retaining CI-only cost controls ([#203])

@@ -79,7 +79,7 @@ def device_configuration(
 def test_configures_explicit_qdmi_parameters(
     device_configuration: list[tuple[str, Mapping[str, object], Mapping[str, object]]],
 ) -> None:
-    """Translate explicit Braket options to FoMaC session and job fields."""
+    """Translate explicit Braket options to QDMI session and job fields."""
     device = AmazonBraketDevice(
         "arn:aws:braket:::device/quantum-simulator/amazon/sv1",
         wires=4,
