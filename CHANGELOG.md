@@ -23,6 +23,11 @@ releases may include breaking changes.
   ([#194]) ([**@denialhaag**])
 - ⬆️ Raise the macOS deployment target to 13.3 ([#194]) ([**@denialhaag**])
 
+### Fixed
+
+- ⚡ Keep local and unsupported device-property queries offline while preserving
+  fresh status and queue queries ([#217]) ([**@burgholzer**])
+
 ## [1.1.1] - 2026-08-26
 
 ### Changed
@@ -172,3 +177,5 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 [Keep a Changelog]: https://keepachangelog.com/en/1.1.0/
 [Common Changelog]: https://common-changelog.org
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
+
+[#217]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/217

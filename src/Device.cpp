@@ -1189,6 +1189,31 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
     return QDMI_ERROR_BADSTATE;
   }
 
+  constexpr auto durationUnit = "us";
+  constexpr double durationScaleFactor = 0.001;
+  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_DURATIONUNIT, durationUnit, prop,
+                      size, value, sizeRet)
+  ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_DURATIONSCALEFACTOR, double,
+                            durationScaleFactor, prop, size, value, sizeRet)
+  ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_SUPPORTEDPROGRAMFORMATS,
+                    QDMI_Program_Format, SUPPORTED_PROGRAM_FORMATS, prop, size,
+                    value, sizeRet)
+
+  switch (prop) {
+  case QDMI_DEVICE_PROPERTY_NAME:
+  case QDMI_DEVICE_PROPERTY_QUBITSNUM:
+  case QDMI_DEVICE_PROPERTY_SITES:
+  case QDMI_DEVICE_PROPERTY_OPERATIONS:
+  case AMAZON_BRAKET_QDMI_DEVICE_PROPERTY_SUPPORTEDOPERATIONS:
+  case QDMI_DEVICE_PROPERTY_COUPLINGMAP:
+  case QDMI_DEVICE_PROPERTY_STATUS:
+  case QDMI_DEVICE_PROPERTY_QUEUELENGTH:
+    break;
+  default:
+    return amazon::braket::qdmi::Device::queryProperty(prop, size, value,
+                                                       sizeRet);
+  }
+
   const bool refreshStatus = prop == QDMI_DEVICE_PROPERTY_STATUS ||
                              prop == QDMI_DEVICE_PROPERTY_QUEUELENGTH;
   if (const auto ret = fetchDeviceArchitecture(refreshStatus);
@@ -1220,12 +1245,6 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
                             arch->qubitsNum, prop, size, value, sizeRet)
   ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_NAME, arch->name.c_str(), prop, size,
                       value, sizeRet)
-  constexpr auto durationUnit = "us";
-  constexpr double durationScaleFactor = 0.001;
-  ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_DURATIONUNIT, durationUnit, prop,
-                      size, value, sizeRet)
-  ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_DURATIONSCALEFACTOR, double,
-                            durationScaleFactor, prop, size, value, sizeRet)
 
   // Return device status from Amazon Braket (mutable, per-query)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_STATUS, QDMI_Device_Status,
@@ -1238,14 +1257,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
     ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_QUEUELENGTH, size_t,
                               *queueLength, prop, size, value, sizeRet)
   }
-  ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_SUPPORTEDPROGRAMFORMATS,
-                    QDMI_Program_Format, SUPPORTED_PROGRAM_FORMATS, prop, size,
-                    value, sizeRet)
 
-  // Delegate to Braket device singleton for library-level properties only
-  // (LIBRARYVERSION, NEEDSCALIBRATION)
-  return amazon::braket::qdmi::Device::queryProperty(prop, size, value,
-                                                     sizeRet);
+  return QDMI_ERROR_NOTSUPPORTED;
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::querySiteProperty(
@@ -2226,8 +2239,9 @@ int AMAZON_BRAKET_QDMI_device_session_set_parameter(
  * available gates, and device name. The session must be initialized before
  * querying properties.
  *
- * The first property query fetches device capabilities from Amazon Braket
- * via GetDevice(). Results are cached for subsequent queries.
+ * The first architecture query fetches device capabilities from Amazon Braket.
+ * Status and queue queries refresh mutable values. Local and unsupported
+ * properties do not require a request.
  *
  * @param session The session handle
  * @param prop The property to query
