@@ -3333,6 +3333,44 @@ TEST_F(AmazonBraketQDMILocalJobTest,
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest,
+       LocalDevicePropertiesDoNotFetchRemoteMetadata) {
+  auto stub = std::make_unique<StubGetDeviceClient>(
+      Aws::Braket::Model::GetDeviceResult{},
+      Aws::Braket::BraketErrors::INTERNAL_FAILURE);
+  auto* const stubPtr = stub.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                          std::move(stub));
+
+  for (const auto property :
+       {QDMI_DEVICE_PROPERTY_VERSION, QDMI_DEVICE_PROPERTY_LIBRARYVERSION,
+        QDMI_DEVICE_PROPERTY_NEEDSCALIBRATION,
+        QDMI_DEVICE_PROPERTY_DURATIONUNIT,
+        QDMI_DEVICE_PROPERTY_DURATIONSCALEFACTOR,
+        QDMI_DEVICE_PROPERTY_SUPPORTEDPROGRAMFORMATS}) {
+    size_t size = 0;
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                  session, property, 0, nullptr, &size),
+              QDMI_SUCCESS);
+    EXPECT_GT(size, 0U);
+    std::vector<char> value(size);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                  session, property, size, value.data(), nullptr),
+              QDMI_SUCCESS);
+  }
+  for (const auto property :
+       {QDMI_DEVICE_PROPERTY_CHILDDEVICES, QDMI_DEVICE_PROPERTY_CUSTOM5}) {
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                  session, property, 0, nullptr, nullptr),
+              QDMI_ERROR_NOTSUPPORTED);
+  }
+  EXPECT_EQ(stubPtr->calls(), 0U);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_STATUS, 0, nullptr, nullptr),
+            QDMI_ERROR_FATAL);
+  EXPECT_EQ(stubPtr->calls(), 1U);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
        DevicePropertyPropagatesInitialGetDeviceFailure) {
   auto stub = std::make_unique<StubGetDeviceClient>(
       Aws::Braket::Model::GetDeviceResult{},
