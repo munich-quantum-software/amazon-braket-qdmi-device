@@ -2,7 +2,7 @@
 ![OS](https://img.shields.io/badge/os-linux%20%7C%20macos%20%7C%20windows-blue?style=flat-square)
 [![License](https://img.shields.io/badge/license-Apache--2.0%20WITH%20LLVM--exception-blue.svg?style=flat-square)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/munich-quantum-software/amazon-braket-qdmi-device/ci.yml?branch=main&style=flat-square&logo=github&label=ci)](https://github.com/munich-quantum-software/amazon-braket-qdmi-device/actions/workflows/ci.yml)
-[![Documentation](https://img.shields.io/readthedocs/amazon-braket-qdmi-device?logo=readthedocs&style=flat-square)](https://amazon-braket-qdmi-device.readthedocs.io/)
+[![Documentation](https://img.shields.io/readthedocs/amazon-braket-qdmi-device?logo=readthedocs&style=flat-square)](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/)
 [![codecov](https://img.shields.io/codecov/c/github/munich-quantum-software/amazon-braket-qdmi-device?style=flat-square&logo=codecov)](https://codecov.io/gh/munich-quantum-software/amazon-braket-qdmi-device)
 
 # Amazon Braket QDMI Device
@@ -18,7 +18,7 @@ from S3.
 
 <!-- rumdl-disable MD033 -->
 <p align="center">
-  <a href="https://amazon-braket-qdmi-device.readthedocs.io/">
+  <a href="https://amazon-braket-qdmi-device.readthedocs.io/en/stable/">
   <img width="30%" src="https://img.shields.io/badge/documentation-blue?style=for-the-badge&logo=read%20the%20docs" alt="Documentation" />
   </a>
 </p>
@@ -56,14 +56,14 @@ cmake --install build --prefix /path/to/install
 
 | I want to...                               | Read...                                                                                                        |
 | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| install the package or build from source   | [Installation](https://amazon-braket-qdmi-device.readthedocs.io/en/latest/installation.html)                   |
-| configure AWS, devices, and S3             | [Configuration](https://amazon-braket-qdmi-device.readthedocs.io/en/latest/configuration.html)                 |
-| inspect the installed device catalogue     | [Device catalogue](https://amazon-braket-qdmi-device.readthedocs.io/en/latest/device_catalog.html)             |
-| execute Qiskit circuits                    | [Qiskit](https://amazon-braket-qdmi-device.readthedocs.io/en/latest/qiskit.html)                               |
-| execute PennyLane programs                 | [PennyLane](https://amazon-braket-qdmi-device.readthedocs.io/en/latest/pennylane.html)                         |
-| use the QDMI API and retrieve results      | [Usage](https://amazon-braket-qdmi-device.readthedocs.io/en/latest/usage.html)                                 |
-| run through Slurm and the SPANK plugin     | [Slurm and SPANK](https://amazon-braket-qdmi-device.readthedocs.io/en/latest/slurm.html)                       |
-| develop and test the provider              | [Development](https://amazon-braket-qdmi-device.readthedocs.io/en/latest/development.html)                     |
+| install the package or build from source   | [Installation](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/installation.html)                   |
+| configure AWS, devices, and S3             | [Configuration](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/configuration.html)                 |
+| inspect the installed device catalogue     | [Device catalogue](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/device_catalog.html)             |
+| execute Qiskit circuits                    | [Qiskit](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/qiskit.html)                               |
+| execute PennyLane programs                 | [PennyLane](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/pennylane.html)                         |
+| use the QDMI API and retrieve results      | [Usage](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/usage.html)                                 |
+| run through Slurm and the SPANK plugin     | [Slurm and SPANK](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/slurm.html)                       |
+| develop and test the provider              | [Development](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/development.html)                     |
 
 ## Contributors and Support
 
@@ -72,7 +72,7 @@ The Amazon Braket QDMI Device is developed by [MQSC](https://mq.sc).
 Please use
 [GitHub Issues](https://github.com/munich-quantum-software/amazon-braket-qdmi-device/issues)
 for bug reports and feature requests. See the
-[support guide](https://amazon-braket-qdmi-device.readthedocs.io/en/latest/support.html)
+[support guide](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/support.html)
 for security and support contacts.
 
 ## License

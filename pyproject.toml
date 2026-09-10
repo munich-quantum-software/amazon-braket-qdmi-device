@@ -16,24 +16,18 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 [build-system]
-requires = ["scikit-build-core>=1.0.3"]
 build-backend = "scikit_build_core.build"
+requires = [ "scikit-build-core>=1.0.3" ]
+
 
 [project]
 name = "amazon-braket-qdmi"
 version = "1.1.1"
-requires-python = ">=3.11"
-
 description = "Amazon Braket QDMI Device Implementation"
 readme = "README.md"
-authors = [
-  { name = "Patrick Hopf", email = "patrick@mq.sc" },
-  { name = "Lukas Burgholzer", email = "lukas@mq.sc" }
-]
-
 license = "Apache-2.0 WITH LLVM-exception"
-license-files = ["LICENSE"]
-
+license-files = [ "LICENSE" ]
+requires-python = ">=3.11"
 classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Intended Audience :: Information Technology",
@@ -55,13 +49,13 @@ classifiers = [
   "Typing :: Typed",
 ]
 
-[project.urls]
-Homepage = "https://github.com/munich-quantum-software/amazon-braket-qdmi-device"
-Documentation = "https://amazon-braket-qdmi-device.readthedocs.io/"
-Issues = "https://github.com/munich-quantum-software/amazon-braket-qdmi-device/issues"
+[[project.authors]]
+name = "Patrick Hopf"
+email = "patrick@mq.sc"
 
-[project.scripts]
-amazon-braket-qdmi = "amazon.braket.qdmi.__main__:main"
+[[project.authors]]
+name = "Lukas Burgholzer"
+email = "lukas@mq.sc"
 
 [project.optional-dependencies]
 pennylane = [
@@ -71,64 +65,81 @@ qiskit = [
   "mqt-core[qiskit]~=3.10.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/munich-quantum-software/amazon-braket-qdmi-device"
+Documentation = "https://amazon-braket-qdmi-device.readthedocs.io/en/stable/"
+Issues = "https://github.com/munich-quantum-software/amazon-braket-qdmi-device/issues"
+
+[project.scripts]
+amazon-braket-qdmi = "amazon.braket.qdmi.__main__:main"
+
 [project.entry-points."pennylane.plugins"]
 "amazon.braket.default" = "amazon.braket.qdmi._pennylane_entrypoint:AmazonBraketDevice"
 "amazon.braket.aqt.ibex-q1" = "amazon.braket.qdmi._pennylane_entrypoint:AmazonBraketAqtIbexQ1Device"
 "amazon.braket.ionq.forte-1" = "amazon.braket.qdmi._pennylane_entrypoint:AmazonBraketIonQForte1Device"
-"amazon.braket.ionq.forte-enterprise-1" = "amazon.braket.qdmi._pennylane_entrypoint:AmazonBraketIonQForteEnterprise1Device"
+"amazon.braket.ionq.forte-enterprise-1" = """\
+  amazon.braket.qdmi._pennylane_entrypoint:AmazonBraketIonQForteEnterprise1Device\
+  """
 "amazon.braket.iqm.garnet" = "amazon.braket.qdmi._pennylane_entrypoint:AmazonBraketIQMGarnetDevice"
 "amazon.braket.iqm.emerald" = "amazon.braket.qdmi._pennylane_entrypoint:AmazonBraketIQMEmeraldDevice"
 "amazon.braket.rigetti.ankaa-3" = "amazon.braket.qdmi._pennylane_entrypoint:AmazonBraketRigettiAnkaa3Device"
-"amazon.braket.rigetti.cepheus-1-108q" = "amazon.braket.qdmi._pennylane_entrypoint:AmazonBraketRigettiCepheus1108QDevice"
+"amazon.braket.rigetti.cepheus-1-108q" = """\
+  amazon.braket.qdmi._pennylane_entrypoint:AmazonBraketRigettiCepheus1108QDevice\
+  """
 "amazon.braket.sv1" = "amazon.braket.qdmi._pennylane_entrypoint:AmazonBraketSV1Device"
 "amazon.braket.dm1" = "amazon.braket.qdmi._pennylane_entrypoint:AmazonBraketDM1Device"
 
+
 [dependency-groups]
-build = [
-  "scikit-build-core>=1.0.3"
+dev = [
+  { include-group = "build" },
+  { include-group = "test" },
+  "nox>=2026.8.10",
 ]
 test = [
+  "mqt-core[pennylane,qiskit]~=3.10.0",
   "pytest>=9.1.1",
   "pytest-console-scripts>=1.4.1",
-  "pytest-cov>=7.1.0",
+  "pytest-cov>=7.1",
   "pytest-sugar>=1.1.1",
-  "pytest-xdist>=3.8.0",
-  "mqt-core[pennylane,qiskit]~=3.10.0",
-]
-typecheck = [
-  {include-group = "test"},
-  {include-group = "docs"},
-  "nox>=2026.8.10",
+  "pytest-xdist>=3.8",
 ]
 docs = [
   "furo>=2025.12.19",
   "mqt-core[pennylane,qiskit]~=3.10.0",
-  "myst-nb>=1.4.0",
+  "myst-nb>=1.4",
+  "sphinx>=9",
   "sphinx-copybutton>=0.5.2",
-  "sphinx-design>=0.7.0",
-  "sphinx>=9.0",
+  "sphinx-design>=0.7",
 ]
-dev = [
-  {include-group = "build"},
-  {include-group = "test"},
+build = [ "scikit-build-core>=1.0.3" ]
+typecheck = [
+  { include-group = "test" },
+  { include-group = "docs" },
   "nox>=2026.8.10",
 ]
 
 
 [tool.scikit-build]
 minimum-version = "build-system.requires"
-cmake.version = "CMakeLists.txt"
-ninja.make-fallback = true
 build-dir = "build"
-build.targets = ["amazon-braket-qdmi-device"]
-wheel.py-api = "py311"
-wheel.expand-macos-universal-tags = true
-wheel.packages = ["python/amazon"]
-wheel.install-dir = "amazon/braket/qdmi/data"
-install.components = ["amazon-braket-qdmi-device_Runtime", "amazon-braket-qdmi-device_Development"]
 
-sdist.include = ["python/amazon/braket/qdmi/_version.py"]
-sdist.exclude = [
+[tool.scikit-build.build]
+targets = [ "amazon-braket-qdmi-device" ]
+
+[tool.scikit-build.cmake]
+version = "CMakeLists.txt"
+
+[tool.scikit-build.cmake.define]
+BUILD_AMAZON_BRAKET_TESTS = "OFF"
+
+[tool.scikit-build.ninja]
+make-fallback = true
+
+[tool.scikit-build.sdist]
+
+include = [ "python/amazon/braket/qdmi/_version.py" ]
+exclude = [
   "**/docs",
   "**/test",
   "spank/**",
@@ -136,8 +147,14 @@ sdist.exclude = [
   ".*",
 ]
 
-[tool.scikit-build.cmake.define]
-BUILD_AMAZON_BRAKET_TESTS = "OFF"
+[tool.scikit-build.wheel]
+py-api = "py311"
+expand-macos-universal-tags = true
+packages = [ "python/amazon" ]
+install-dir = "amazon/braket/qdmi/data"
+
+[tool.scikit-build.install]
+components = [ "amazon-braket-qdmi-device_Runtime", "amazon-braket-qdmi-device_Development" ]
 
 [[tool.scikit-build.generate]]
 path = "amazon/braket/qdmi/_version.py"
@@ -146,50 +163,61 @@ version = "${version}"
 '''
 
 
-[tool.pytest.ini_options]
-minversion = "9.0"
-strict = true
-addopts = [
-  "-ra",
-  "--numprocesses=auto", # Automatically use all available CPU cores for parallel testing
+[tool.uv]
+cache-keys = [
+  { file = "pyproject.toml" },
+  { git = { commit = true, tags = true } },
+  { file = "src/**/*" },
+  { file = "include/**/*.hpp" },
 ]
-filterwarnings = [
-  "error",
-  # Autograd 1.8 uses control flow that Python 3.14 reports while compiling the module.
-  "ignore:'return' in a 'finally' block:SyntaxWarning",
-]
-log_level = "INFO"
-testpaths = ["test/python"]
+
+[tool.uv.sources]
+amazon-braket-qdmi = { workspace = true }
 
 
-[tool.coverage]
-run.source = ["amazon.braket.qdmi"]
-run.core = "sysmon"
-run.parallel = true
-run.disable_warnings = [
-  "no-sysmon",
-]
-report.exclude_also = [
-  '\.\.\.',
-  'if TYPE_CHECKING:',
-  'raise AssertionError',
-  'raise NotImplementedError',
-  'def __dir__()',  # Ignore __dir__ method that exists mainly for better IDE support
-  '@overload'  # Overloads are only for static typing
-]
+[tool.cibuildwheel]
+build = "cp3*"
+skip = [ "*-musllinux_*", "cp3??t-*", "cp315-*", "*-win_arm64" ]
+archs = "auto64"
+build-frontend = "uv"
+test-command = "pytest test/python"
+test-groups = [ "test" ]
+test-sources = [ "test/python" ]
+
+[tool.cibuildwheel.linux]
+before-all = "yum install -y curl-devel openssl-devel"
+
+[tool.cibuildwheel.macos]
+environment = { MACOSX_DEPLOYMENT_TARGET = "13.3" }
+
+[tool.cibuildwheel.windows]
+repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel} --namespace-pkg amazon"
+before-test = "uv pip install --group test"
+test-groups = []
 
 
 [tool.ruff]
 line-length = 120
-namespace-packages = ["amazon"]
+namespace-packages = [ "amazon" ]
+src = [ "python" ]
 preview = true
 fix = true
 unsafe-fixes = true
 show-fixes = true
-src = ["python"]
+
+[tool.ruff.lint.per-file-ignores]
+"docs/**" = [ "INP001", "T20" ]
+"python/amazon/braket/qdmi/__main__.py" = [ "T201" ]
+"test/python/**" = [ "INP001", "T20" ]
+
+[tool.ruff.lint.isort]
+known-first-party = [ "amazon.braket.qdmi" ]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.ruff.lint]
-select = ["ALL"]
+select = [ "ALL" ]
 ignore = [
   "C90",     # <...> too complex
   "COM812",  # Conflicts with formatter
@@ -197,30 +225,29 @@ ignore = [
   "PLR2004", # Magic value used in comparison
   "S101",    # Use of assert detected
   "S404",    # `subprocess` module is possibly insecure
-  "TID252"   # Prefer absolute imports over relative imports from parent modules
+  "TID252"  # Prefer absolute imports over relative imports from parent modules
 ]
 future-annotations = true
 
-[tool.ruff.lint.isort]
-known-first-party = ["amazon.braket.qdmi"]
 
-[tool.ruff.lint.pydocstyle]
-convention = "google"
-
-[tool.ruff.lint.per-file-ignores]
-"docs/**" = ["INP001", "T20"]
-"python/amazon/braket/qdmi/__main__.py" = ["T201"]
-"test/python/**" = ["T20", "INP001"]
+[tool.repo-review.ignore]
+GH200 = "We use Renovate instead of Dependabot"
+PC160 = "We use a mirror of crate-ci/typos"
+PC170 = "We do not use rST files anymore"
 
 
-[tool.ty.terminal]
-# Error if ty emits any warning-level diagnostics.
-error-on-warning = true
+[tool.pyproject-fmt]
+generate_python_version_classifiers = false
+table_format = "long"
+sub_table_spacing = "\n"
+separate_root_table = "\n\n"
 
 
 [tool.typos]
-default.extend-ignore-re = [
-  "(?Rm)^.*(#|//)\\s*spellchecker:disable-line$",  # ignore line
+
+[tool.typos.default]
+extend-ignore-re = [
+  "(?Rm)^.*(#|//)\\s*spellchecker:disable-line$",                      # ignore line
   "(?s)(#|//)\\s*spellchecker:off.*?\\n\\s*(#|//)\\s*spellchecker:on", # ignore block
 ]
 
@@ -234,37 +261,43 @@ optin = "optin"
 nd = "nd"
 
 
-[tool.repo-review.ignore]
-GH200 = "We use Renovate instead of Dependabot"
-PC160 = "We use a mirror of crate-ci/typos"
-PC170 = "We do not use rST files anymore"
+[tool.ty.terminal]
+# Error if ty emits any warning-level diagnostics.
+error-on-warning = true
 
 
-[tool.cibuildwheel]
-build = "cp3*"
-skip = ["*-musllinux_*", "cp3??t-*", "cp315-*", "*-win_arm64"]
-archs = "auto64"
-test-groups = ["test"]
-test-sources = ["test/python"]
-test-command = "pytest test/python"
-build-frontend = "uv"
-
-[tool.cibuildwheel.linux]
-before-all = "yum install -y curl-devel openssl-devel"
-
-[tool.cibuildwheel.macos]
-environment = { MACOSX_DEPLOYMENT_TARGET = "13.3" }
-
-[tool.cibuildwheel.windows]
-before-test = "uv pip install --group test"
-repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel} --namespace-pkg amazon"
-test-groups = []
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = [ "test/python" ]
+addopts = [
+  "-ra",
+  "--numprocesses=auto", # Automatically use all available CPU cores for parallel testing
+]
+filterwarnings = [
+  "error",
+  # Autograd 1.8 uses control flow that Python 3.14 reports while compiling the module.
+  "ignore:'return' in a 'finally' block:SyntaxWarning",
+]
+log_level = "INFO"
+strict = true
 
 
-[tool.uv]
-cache-keys = [
-  { file = "pyproject.toml" },
-  { git = { commit = true, tags = true } },
-  { file = "src/**/*" },
-  { file = "include/**/*.hpp" },
+[tool.coverage]
+
+[tool.coverage.run]
+source = [ "amazon.braket.qdmi" ]
+parallel = true
+disable_warnings = [
+  "no-sysmon",
+]
+core = "sysmon"
+
+[tool.coverage.report]
+exclude_also = [
+  "@overload",                 # Overloads are only for static typing
+  '\.\.\.',
+  "def __dir__()",             # Ignore __dir__ method that exists mainly for better IDE support
+  "if TYPE_CHECKING:",
+  "raise AssertionError",
+  "raise NotImplementedError"
 ]

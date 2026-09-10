@@ -11,4 +11,4 @@ The authoritative build, installation, configuration, job, and validation guide
 is the [Slurm and SPANK documentation]. Keeping that workflow in one place
 prevents the source-tree instructions from diverging from the published docs.
 
-[Slurm and SPANK documentation]: https://amazon-braket-qdmi-device.readthedocs.io/en/latest/slurm.html
+[Slurm and SPANK documentation]: https://amazon-braket-qdmi-device.readthedocs.io/en/stable/slurm.html
