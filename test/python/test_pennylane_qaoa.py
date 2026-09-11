@@ -70,19 +70,19 @@ def _ansatz(parameters: np.ndarray) -> None:
     qp.qaoa.mixer_layer(parameters[1], MIXER_HAMILTONIAN)
 
 
-def _run_qaoa(device: QDMIDevice) -> QAOAResult:
+def _run_qaoa(device: QDMIDevice, shots: int) -> QAOAResult:
     """Evaluate, differentiate, update, and sample one QAOA layer.
 
     Returns:
         Sampled objective, gradient, sample, and execution statistics.
     """
 
-    @qp.qnode(device, diff_method="parameter-shift")
+    @qp.qnode(device, shots=shots, diff_method="parameter-shift")
     def cost(parameters: np.ndarray):
         _ansatz(parameters)
         return qp.expval(COST_HAMILTONIAN)
 
-    @qp.qnode(device)
+    @qp.qnode(device, shots=shots)
     def sample(parameters: np.ndarray):
         _ansatz(parameters)
         return qp.sample(wires=range(4))
@@ -130,10 +130,10 @@ def _assert_valid_result(result: QAOAResult) -> None:
 
 def test_qaoa_end_to_end_on_ddsim() -> None:
     """Run the sampled workflow on the local QDMI simulator."""
-    device = qp.device("mqt.ddsim.default", wires=4, shots=200)
+    device = qp.device("mqt.ddsim.default", wires=4)
     assert isinstance(device, QDMIDevice)
 
-    _assert_valid_result(_run_qaoa(device))
+    _assert_valid_result(_run_qaoa(device, shots=200))
 
 
 def test_qaoa_cost_capped_on_sv1() -> None:
@@ -155,9 +155,8 @@ def test_qaoa_cost_capped_on_sv1() -> None:
     device = qp.device(
         "amazon.braket.sv1",
         wires=4,
-        shots=100,
     )
     assert isinstance(device, QDMIDevice)
 
-    result = _run_qaoa(device)
+    result = _run_qaoa(device, shots=100)
     _assert_valid_result(result)

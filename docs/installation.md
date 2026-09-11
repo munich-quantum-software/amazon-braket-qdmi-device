@@ -30,7 +30,8 @@ uv pip install "amazon-braket-qdmi[qiskit,pennylane]"
 ```
 
 Use only the `qiskit` or `pennylane` extra when the environment needs one
-application stack.
+application stack. Both extras require MQT Core 4.0.0 or later in the 4.0
+release series.
 
 The command-line entry point reports the installed catalogue path:
 
@@ -94,10 +95,11 @@ cmake --build build
 
 The installed CMake target exports the `AMAZON_BRAKET` symbol prefix and a
 relocatable catalogue with all stable device definitions. An application using
-MQT Core can copy the device library and catalogue beside its executable:
+MQT Core can copy the device library and catalogue beside its executable. This
+integration requires CMake 3.28 or later:
 
 ```cmake
-find_package(mqt-core 3.10.0 CONFIG REQUIRED)
+find_package(mqt-core 4.0.0 CONFIG REQUIRED)
 find_package(amazon-braket-qdmi-device CONFIG REQUIRED)
 
 add_executable(my_app main.cpp)
