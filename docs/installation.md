@@ -30,8 +30,7 @@ uv pip install "amazon-braket-qdmi[qiskit,pennylane]"
 ```
 
 Use only the `qiskit` or `pennylane` extra when the environment needs one
-application stack. Both extras require MQT Core 4.0.0 or later in the 4.0
-release series.
+application stack. Both extras require MQT Core 4.
 
 The command-line entry point reports the installed catalogue path:
 
