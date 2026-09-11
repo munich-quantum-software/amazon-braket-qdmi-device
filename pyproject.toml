@@ -22,7 +22,7 @@ requires = [ "scikit-build-core>=1.0.3" ]
 
 [project]
 name = "amazon-braket-qdmi"
-version = "1.1.1"
+version = "1.2.0"
 description = "Amazon Braket QDMI Device Implementation"
 readme = "README.md"
 license = "Apache-2.0 WITH LLVM-exception"
