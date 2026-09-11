@@ -13,7 +13,7 @@ releases may include breaking changes.
 ### Changed
 
 - ⬆️ Require MQT Core 4.0 in the Qiskit and PennyLane extras. Set PennyLane
-  shots on QNodes or with `pennylane.set_shots` instead of on devices
+  shots on QNodes or with `pennylane.set_shots` instead of on devices ([#219])
   ([**@denialhaag**])
 - ⬆️ Update MQT Core to 3.10.0 in the Qiskit and PennyLane extras ([#203])
   ([**@burgholzer**])
@@ -144,6 +144,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#219]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/219
 [#217]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/217
 [#205]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/205
 [#203]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/203
