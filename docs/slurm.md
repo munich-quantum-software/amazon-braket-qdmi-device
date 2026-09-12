@@ -210,11 +210,10 @@ from mqt.core.qdmi import slurm
 device = QDMIDevice(
     device=slurm.open_device_from_license(),
     wires=2,
-    shots=100,
 )
 
 
-@qp.qnode(device)
+@qp.qnode(device, shots=100)
 def bell():
     qp.Hadamard(0)
     qp.CNOT(wires=[0, 1])

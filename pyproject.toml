@@ -59,10 +59,10 @@ email = "lukas@mq.sc"
 
 [project.optional-dependencies]
 pennylane = [
-  "mqt-core[pennylane]~=3.10.0",
+  "mqt-core[pennylane]~=4.0.0",
 ]
 qiskit = [
-  "mqt-core[qiskit]~=3.10.0",
+  "mqt-core[qiskit]~=4.0.0",
 ]
 
 [project.urls]
@@ -97,7 +97,7 @@ dev = [
   "nox>=2026.8.10",
 ]
 test = [
-  "mqt-core[pennylane,qiskit]~=3.10.0",
+  "mqt-core[pennylane,qiskit]~=4.0.0",
   "pytest>=9.1.1",
   "pytest-console-scripts>=1.4.1",
   "pytest-cov>=7.1",
@@ -106,7 +106,7 @@ test = [
 ]
 docs = [
   "furo>=2025.12.19",
-  "mqt-core[pennylane,qiskit]~=3.10.0",
+  "mqt-core[pennylane,qiskit]~=4.0.0",
   "myst-nb>=1.4",
   "sphinx>=9",
   "sphinx-copybutton>=0.5.2",

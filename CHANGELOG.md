@@ -12,8 +12,8 @@ releases may include breaking changes.
 
 ### Changed
 
-- ⬆️ Update MQT Core to 3.10.0 in the Qiskit and PennyLane extras ([#203])
-  ([**@burgholzer**])
+- ⬆️ Update MQT Core to 4.0.0 in the Qiskit and PennyLane extras ([#203],
+  [#219]) ([**@burgholzer**], [**@denialhaag**])
 - 🧪 Let explicitly enabled local PennyLane SV1 tests use the standard AWS
   credential provider chain while retaining CI-only cost controls ([#203])
   ([**@burgholzer**])
@@ -141,6 +141,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#219]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/219
 [#217]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/217
 [#205]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/205
 [#203]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/203

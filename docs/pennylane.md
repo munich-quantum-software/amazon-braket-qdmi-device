@@ -35,12 +35,12 @@ import pennylane as qp
 graph = nx.Graph([(0, 1), (0, 2), (1, 2), (2, 3)])
 cost_hamiltonian, mixer_hamiltonian = qp.qaoa.maxcut(graph)
 
-device = qp.device("mqt.ddsim.default", wires=4, shots=200)
+device = qp.device("mqt.ddsim.default", wires=4)
 ```
 
 One QAOA layer is evaluated and differentiated using the parameter-shift rule.
-Each shifted circuit is a separate QDMI job. PennyLane returns results
-synchronously in input order.
+Each shifted circuit is a separate QDMI job. MQT Core submits each batch before
+collecting results in input order. Set finite shot counts on each QNode.
 
 ```{code-cell} python
 def ansatz(parameters):
@@ -50,13 +50,13 @@ def ansatz(parameters):
     qp.qaoa.mixer_layer(parameters[1], mixer_hamiltonian)
 
 
-@qp.qnode(device, diff_method="parameter-shift")
+@qp.qnode(device, shots=200, diff_method="parameter-shift")
 def cost(parameters):
     ansatz(parameters)
     return qp.expval(cost_hamiltonian)
 
 
-@qp.qnode(device)
+@qp.qnode(device, shots=200)
 def sample(parameters):
     ansatz(parameters)
     return qp.sample(wires=range(4))
@@ -111,7 +111,6 @@ allowing explicit Region, reservation, device ARN, and S3 overrides.
 remote_device = qp.device(
     "amazon.braket.sv1",
     wires=4,
-    shots=1_000,
 )
 ```
 
@@ -124,7 +123,6 @@ other_device = qp.device(
     "amazon.braket.default",
     device_arn="arn:aws:braket:::device/quantum-simulator/amazon/sv1",
     wires=4,
-    shots=1_000,
     region="us-east-1",
 )
 ```
@@ -155,7 +153,6 @@ from mqt.core.qdmi import slurm
 
 remote_device = QDMIDevice(
     device=slurm.open_device_from_license(),
-    shots=1_000,
 )
 ```
 
@@ -173,5 +170,4 @@ Braket targets such as IQM's `prx` or IonQ's `gpi` and `gpi2`. Those QPUs are
 therefore not supported by this integration until native target compilation is
 available in MQT Core; Amazon Braket's broader OpenQASM operation set is not
 substituted for the native device view. Analytic execution, pulse programs,
-non-gate-model devices, circuit routing, and parallel job submission are also
-not supported.
+non-gate-model devices, and circuit routing are also not supported.

@@ -29,6 +29,7 @@ except ImportError:
     pytest.skip("Install the PennyLane extra to run these tests.", allow_module_level=True)
 
 from mqt.core.plugins.pennylane import PennyLaneConfigurationError, QDMIDevice
+from mqt.core.plugins.pennylane import device as qdmi_pennylane
 from mqt.core.qdmi import driver
 
 from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_DEVICE_ID, _catalogue  # ruff: ignore[import-private-name]
@@ -83,7 +84,6 @@ def test_configures_explicit_qdmi_parameters(
     device = AmazonBraketDevice(
         "arn:aws:braket:::device/quantum-simulator/amazon/sv1",
         wires=4,
-        shots=8,
         s3_destination_folder=("results", "/qaoa/run/"),
         region="eu-west-2",
         reservation_arn="arn:aws:braket:reservation/test",
@@ -148,7 +148,6 @@ def test_stable_pennylane_entry_point(
         AMAZON_BRAKET_QDMI_DEVICE_ID,
         device_arn="arn:device",
         wires=["left", "right"],
-        shots=5,
     )
 
     assert isinstance(device, AmazonBraketDevice)
@@ -175,7 +174,7 @@ def test_catalogue_pennylane_entry_points(
     device_type: type[AmazonBraketDevice],
 ) -> None:
     """Construct every concrete catalogue entry without repeating its ARN."""
-    device = qp.device(device_id, wires=2, shots=5)
+    device = qp.device(device_id, wires=2)
 
     assert isinstance(device, device_type)
     assert device.device_arn is None
@@ -231,3 +230,16 @@ def test_reads_catalogue_session_defaults() -> None:
         "base-url": "arn:aws:braket:::device/quantum-simulator/amazon/sv1",
         "custom2": "us-east-1",
     }
+
+
+def test_samples_with_qnode_shots(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Execute through MQT Core with the QNode's explicit shot count."""
+    monkeypatch.setattr(qdmi_pennylane, "open_device", lambda _device_id: driver.open_device("mqt.ddsim.default"))
+    device = AmazonBraketSV1Device(wires=2)
+
+    @qp.qnode(device, shots=5)
+    def circuit() -> qp.measurements.CountsMP:
+        qp.PauliX(0)
+        return qp.counts(wires=[0, 1])
+
+    assert circuit() == {"10": 5}

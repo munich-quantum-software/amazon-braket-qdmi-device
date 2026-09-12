@@ -95,13 +95,14 @@ estimator_circuit = QuantumCircuit(2)
 estimator_circuit.h(0)
 estimator_circuit.cx(0, 1)
 
-estimator = backend.estimator(default_shots=100)
+estimator = backend.estimator(default_precision=0.1)
 estimated = estimator.run([(estimator_circuit, SparsePauliOp("ZZ"))]).result()
 expectation_value = estimated[0].data.evs
 ```
 
-Both primitives submit Amazon Braket QuantumTasks. Choose shot counts
-deliberately because each primitive run can submit multiple circuits.
+Both primitives submit Amazon Braket QuantumTasks. The estimator uses 100 shots
+per measurement circuit at this precision. Each primitive run can submit
+multiple circuits.
 
 ## Override the result destination
 

@@ -33,7 +33,6 @@ from ._catalogue import register_device
 if TYPE_CHECKING:
     from collections.abc import Hashable, Sequence
 
-    import pennylane as qp
     from mqt.core.typing import QDMIJobParameters, QDMISessionParameters
 
 __all__ = [
@@ -83,7 +82,6 @@ class AmazonBraketDevice(QDMIDevice):
             generic device requires an ARN. Catalogue-specific subclasses use
             their packaged ARN when this argument is omitted.
         wires: PennyLane wire labels or number of wires.
-        shots: Default shot configuration.
         s3_destination_folder: Optional S3 ``(bucket, prefix)``. If omitted,
             the native device uses the automatic regional result bucket.
         region: Optional AWS region override.
@@ -96,7 +94,6 @@ class AmazonBraketDevice(QDMIDevice):
         self,
         device_arn: str | None = None,
         wires: int | Sequence[Hashable] | None = None,
-        shots: int | Sequence[int | tuple[int, int]] | qp.measurements.Shots | None = 1024,
         *,
         s3_destination_folder: tuple[str, str] | None = None,
         region: str | None = None,
@@ -129,7 +126,6 @@ class AmazonBraketDevice(QDMIDevice):
         super().__init__(
             self.qdmi_device_id,
             wires=wires,
-            shots=shots,
             session_parameters=session_parameters,
             job_parameters=job_parameters,
         )
