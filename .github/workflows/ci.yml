@@ -35,7 +35,7 @@ jobs:
         include:
           - runs-on: ubuntu-24.04
             config: Debug
-    uses: ./.github/workflows/cpp-tests-ubuntu.yml
+    uses: $/.github/workflows/cpp-tests-ubuntu.yml
     with:
       runs-on: ${{ matrix.runs-on }}
       config: ${{ matrix.config }}
@@ -44,7 +44,7 @@ jobs:
     name: 🇨 SPANK 🐧
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cpp-tests)
-    uses: ./.github/workflows/cpp-spank-tests-ubuntu.yml
+    uses: $/.github/workflows/cpp-spank-tests-ubuntu.yml
 
   cpp-tests-macos:
     name: 🇨 Test 🍎
@@ -58,7 +58,7 @@ jobs:
         include:
           - runs-on: macos-26
             config: Debug
-    uses: ./.github/workflows/cpp-tests-macos.yml
+    uses: $/.github/workflows/cpp-tests-macos.yml
     with:
       runs-on: ${{ matrix.runs-on }}
       config: ${{ matrix.config }}
@@ -75,7 +75,7 @@ jobs:
         include:
           - runs-on: windows-2025
             config: Debug
-    uses: ./.github/workflows/cpp-tests-windows.yml
+    uses: $/.github/workflows/cpp-tests-windows.yml
     with:
       runs-on: ${{ matrix.runs-on }}
       config: ${{ matrix.config }}
@@ -88,7 +88,7 @@ jobs:
       fail-fast: false
       matrix:
         runs-on: [ubuntu-24.04, macos-26, windows-2025]
-    uses: ./.github/workflows/cpp-install-tests.yml
+    uses: $/.github/workflows/cpp-install-tests.yml
     with:
       runs-on: ${{ matrix.runs-on }}
 
@@ -96,7 +96,7 @@ jobs:
     name: 🇨 Coverage
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cpp-tests)
-    uses: ./.github/workflows/cpp-coverage.yml
+    uses: $/.github/workflows/cpp-coverage.yml
     permissions:
       contents: read
       id-token: write
@@ -109,7 +109,7 @@ jobs:
     name: 🇨 Lint
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cpp-linter)
-    uses: ./.github/workflows/cpp-linter.yml
+    uses: $/.github/workflows/cpp-linter.yml
     with:
       clang-version: 21
       files-changed-only: true
