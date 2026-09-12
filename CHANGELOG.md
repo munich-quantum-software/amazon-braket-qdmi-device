@@ -12,11 +12,8 @@ releases may include breaking changes.
 
 ### Changed
 
-- ⬆️ Require MQT Core 4.0 in the Qiskit and PennyLane extras. Set PennyLane
-  shots on QNodes or with `pennylane.set_shots` instead of on devices ([#219])
-  ([**@denialhaag**])
-- ⬆️ Update MQT Core to 3.10.0 in the Qiskit and PennyLane extras ([#203])
-  ([**@burgholzer**])
+- ⬆️ Update MQT Core to 4.0.0 in the Qiskit and PennyLane extras ([#203],
+  [#219]) ([**@burgholzer**], [**@denialhaag**])
 - 🧪 Let explicitly enabled local PennyLane SV1 tests use the standard AWS
   credential provider chain while retaining CI-only cost controls ([#203])
   ([**@burgholzer**])
