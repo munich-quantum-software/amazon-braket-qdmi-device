@@ -10,6 +10,8 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-12
+
 ### Changed
 
 - ⬆️ Update MQT Core to 4.0.0 in the Qiskit and PennyLane extras ([#203],
@@ -133,7 +135,8 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- Version links -->
 
-[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.1.1...HEAD
+[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/releases/tag/v1.0.1
