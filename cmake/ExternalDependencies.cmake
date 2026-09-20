@@ -71,9 +71,6 @@ if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
   set(BUILD_SHARED_LIBS
       OFF
       CACHE BOOL "Disable building shared libraries for AWS SDK" FORCE)
-  set(S2N_USE_CRYPTO_SHARED_LIBS
-      ON
-      CACHE BOOL "Link s2n against shared libcrypto and its transitive dependencies" FORCE)
   set(BUILD_ONLY
       "s3;sts;braket"
       CACHE STRING "" FORCE)
