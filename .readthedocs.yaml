@@ -10,6 +10,7 @@ build:
   os: ubuntu-26.04
   apt_packages:
     - doxygen
+    - graphviz
     - libcurl4-openssl-dev
   tools:
     python: "3.14"
