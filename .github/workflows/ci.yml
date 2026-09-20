@@ -30,10 +30,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: [ubuntu-24.04, ubuntu-24.04-arm]
+        runs-on: [ubuntu-26.04, ubuntu-26.04-arm]
         config: [Release]
         include:
-          - runs-on: ubuntu-24.04
+          - runs-on: ubuntu-26.04
             config: Debug
     uses: $/.github/workflows/cpp-tests-ubuntu.yml
     with:
@@ -87,7 +87,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: [ubuntu-24.04, macos-26, windows-2025]
+        runs-on: [ubuntu-26.04, macos-26, windows-2025]
     uses: $/.github/workflows/cpp-install-tests.yml
     with:
       runs-on: ${{ matrix.runs-on }}
@@ -141,7 +141,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: [ubuntu-24.04, ubuntu-24.04-arm, macos-26, windows-2025]
+        runs-on: [ubuntu-26.04, ubuntu-26.04-arm, macos-26, windows-2025]
     uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-cibuildwheel.yml@ace7363a2a8e036e5efc6717be67f1eda29a120e # v2.4.2
     with:
       runs-on: ${{ matrix.runs-on }}
@@ -150,7 +150,7 @@ jobs:
     name: 🐍 Test
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-python-tests) || fromJSON(needs.change-detection.outputs.run-cd)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -179,7 +179,7 @@ jobs:
     name: 🐍 PennyLane Live
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-python-tests) || fromJSON(needs.change-detection.outputs.run-cd)
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     env:
       AMAZON_BRAKET_PENNYLANE_LIVE: "1"
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
