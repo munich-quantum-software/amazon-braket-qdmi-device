@@ -13,8 +13,8 @@ releases may include breaking changes.
 ### Changed
 
 - 💥 Use MQT Core's shared Slurm 25.11+ setup and remove the provider SPANK
-  plugin. See the Slurm guide for catalogue and option migration (tracking issue
-  [#208]) ([**@flowerthrower**])
+  plugin. See the Slurm guide for catalogue and option migration ([#237])
+  ([**@flowerthrower**])
 
 ## [1.2.0] - 2026-09-12
 
@@ -150,7 +150,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
-[#208]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/issues/208
+[#237]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/237
 
 [#219]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/219
 [#217]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/217
