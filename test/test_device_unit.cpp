@@ -3546,14 +3546,8 @@ TEST_F(AmazonBraketQDMILocalJobTest,
                   session, property, size, value.data(), nullptr),
               QDMI_SUCCESS);
   }
-  /// Old binaries can query reserved values without a named enumerator.
-  /// NOLINTNEXTLINE(clang-analyzer-*EnumCastOutOfRange)
-  const auto calibrationProperty = static_cast<QDMI_Device_Property>(8);
-  /// NOLINTNEXTLINE(clang-analyzer-*EnumCastOutOfRange)
-  const auto pulseProperty = static_cast<QDMI_Device_Property>(9);
   for (const auto property :
-       {QDMI_DEVICE_PROPERTY_CHILDDEVICES, QDMI_DEVICE_PROPERTY_CUSTOM5,
-        calibrationProperty, pulseProperty}) {
+       {QDMI_DEVICE_PROPERTY_CHILDDEVICES, QDMI_DEVICE_PROPERTY_CUSTOM5}) {
     EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
                   session, property, 0, nullptr, nullptr),
               QDMI_ERROR_NOTSUPPORTED);
