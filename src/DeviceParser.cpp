@@ -65,10 +65,9 @@ auto amazon::braket::qdmi::parseMeasurementResults(
     const auto shot = measurements[i].AsArray();
     std::string bitstring;
 
-    // QDMI bit strings use conventional basis-state order: the
-    // highest-index site is the left-most bit.
-    for (size_t q = shot.GetLength(); q > 0; --q) {
-      bitstring += std::to_string(shot[q - 1].AsInteger());
+    // Preserve Braket's measurement-array order, with the first bit left-most.
+    for (size_t q = 0; q < shot.GetLength(); ++q) {
+      bitstring += std::to_string(shot.GetItem(q).AsInteger());
     }
 
     results.emplace_back(std::move(bitstring));

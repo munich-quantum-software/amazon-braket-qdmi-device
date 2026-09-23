@@ -10,6 +10,17 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+### Changed
+
+- 💥 Preserve Braket's measurement order in QDMI shots and histogram keys,
+  matching CUDA-Q and IQM. See [UPGRADING.md](UPGRADING.md) for adapter
+  compatibility.
+
+### Fixed
+
+- 🐛 Remove OpenQASM includes and map `cx`/`ccx` to Braket's `cnot`/`ccnot`
+  before task submission, matching CUDA-Q's native Braket helper.
+
 ## [1.2.0] - 2026-09-12
 
 ### Changed

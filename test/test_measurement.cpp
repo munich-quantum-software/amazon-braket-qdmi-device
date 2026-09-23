@@ -24,7 +24,7 @@
 #include <string>
 #include <vector>
 
-TEST(MeasurementResultParserTest, UsesQDMIOrderForShotsAndCounts) {
+TEST(MeasurementResultParserTest, PreservesMeasurementOrderForShotsAndCounts) {
   const Aws::Utils::Json::JsonValue json(
       R"({"measurements":[[1,0,0],[1,0,1],[1,0,0]]})");
   ASSERT_TRUE(json.WasParseSuccessful());
@@ -32,5 +32,5 @@ TEST(MeasurementResultParserTest, UsesQDMIOrderForShotsAndCounts) {
   const auto results = amazon::braket::qdmi::parseMeasurementResults(
       json.View().GetArray("measurements"));
 
-  EXPECT_EQ(results, (std::vector<std::string>{"001", "101", "001"}));
+  EXPECT_EQ(results, (std::vector<std::string>{"100", "101", "100"}));
 }

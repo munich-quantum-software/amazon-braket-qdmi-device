@@ -118,6 +118,7 @@
 #include <mutex>
 #include <new>
 #include <optional>
+#include <regex>
 #include <span>
 #include <sstream>
 #include <stdexcept>
@@ -1574,6 +1575,15 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
   header.WithString("name", "braket.ir.openqasm.program");
   header.WithString("version", "1");
   actionJson.WithObject("braketSchemaHeader", header);
+  // Adapt includes and controlled-X names as in prepareOpenQasm() in
+  // CUDA-Q's runtime/cudaq/platform/default/rest/helpers/braket/
+  // BraketServerHelper.cpp.
+  localProgram = std::regex_replace(localProgram,
+                                    std::regex{R"(include\s+"[^"]*"\s*;)"}, "");
+  localProgram =
+      std::regex_replace(localProgram, std::regex{R"(\scx\s)"}, " cnot ");
+  localProgram =
+      std::regex_replace(localProgram, std::regex{R"(\sccx\s)"}, " ccnot ");
   actionJson.WithString("source", localProgram);
 
   request.SetAction(actionJson.View().WriteCompact());
