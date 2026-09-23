@@ -74,14 +74,6 @@ if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
   add_subdirectory(src)
 endif()
 
-option(BUILD_AMAZON_BRAKET_SPANK_PLUGIN "Build the Slurm SPANK integration plugin" OFF)
-if(BUILD_AMAZON_BRAKET_SPANK_PLUGIN)
-  if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    message(FATAL_ERROR "The Amazon Braket SPANK plugin is supported only on Linux")
-  endif()
-  add_subdirectory(spank)
-endif()
-
 # add test code
 if(BUILD_AMAZON_BRAKET_TESTS)
   get_target_property(AMAZON_BRAKET_QDMI_DEVICE_ID ${QDMI_TARGET_NAME} QDMI_DEVICE_ID)

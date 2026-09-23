@@ -102,7 +102,7 @@ amazon-braket-qdmi-device/
 ├── docs/        Sphinx and MyST documentation
 ├── include/     Amazon Braket-specific public and internal headers
 ├── python/      Python package and installed-artifact discovery
-├── spank/       Optional GPL-licensed Slurm integration
+├── test/slurm/  Provider fixtures for MQT Core’s shared Slurm tests
 ├── src/         QDMI device implementation and schema parser
 └── test/        Hermetic, integration, and Python tests
 ```
