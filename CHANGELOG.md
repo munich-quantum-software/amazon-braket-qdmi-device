@@ -17,6 +17,7 @@ releases may include breaking changes.
   existing MQT Core clients ([#236]) ([**@burgholzer**]).
 
 - ⬆️ Update the AWS SDK for C++ to 1.11.899 ([#241]) ([**@burgholzer**])
+
 - 🛡️ Enable the SDK's 2026 retry behavior unless explicitly configured, and
   default to 10 request attempts while honoring AWS retry settings ([#241])
   ([**@burgholzer**])
