@@ -14,12 +14,13 @@ releases may include breaking changes.
 
 - 💥 Preserve Braket's measurement order in QDMI shots and histogram keys,
   matching CUDA-Q and IQM. See [UPGRADING.md](UPGRADING.md) for adapter
-  compatibility.
+  compatibility ([#238]) ([**@flowerthrower**]).
 
 ### Fixed
 
 - 🐛 Remove OpenQASM includes and map `cx`/`ccx` to Braket's `cnot`/`ccnot`
-  before task submission, matching CUDA-Q's native Braket helper.
+  before task submission, matching CUDA-Q's native Braket helper ([#238])
+  ([**@flowerthrower**]).
 
 ## [1.2.0] - 2026-09-12
 
@@ -155,6 +156,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#238]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/238
 [#219]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/219
 [#217]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/217
 [#205]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/205
