@@ -61,6 +61,7 @@ api
 
 development
 support
+upgrading
 CHANGELOG
 ```
 

@@ -13,7 +13,7 @@ releases may include breaking changes.
 ### Changed
 
 - 💥 Use MQT Core's shared Slurm 25.11+ setup and remove the provider SPANK
-  plugin. See the Slurm guide for catalogue and option migration ([#237])
+  plugin. See the upgrade guide for catalogue and option migration ([#237])
   ([**@flowerthrower**])
 
 ## [1.2.0] - 2026-09-12
