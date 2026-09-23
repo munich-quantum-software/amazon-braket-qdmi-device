@@ -61,7 +61,7 @@ jobs:
             -o Acquire::Retries=3 \
             -o Acquire::http::Timeout=30 \
             -o Acquire::https::Timeout=30 \
-            install -y libcurl4-openssl-dev libslurm-dev
+            install -y libcurl4-openssl-dev
 
       - name: Set up Clang ${{ inputs.clang-version }}
         env:
@@ -95,9 +95,7 @@ jobs:
           echo $CXX
           $CC --version
           $CXX --version
-          cmake -G Ninja -S . -B build \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DBUILD_AMAZON_BRAKET_SPANK_PLUGIN=ON
+          cmake -G Ninja -S . -B build -DCMAKE_BUILD_TYPE=Debug
 
       # runs the cpp-linter action using the generated compilation database and the specified clang version
       - name: Run cpp-linter

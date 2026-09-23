@@ -1,3 +1,4 @@
+#!/bin/sh
 # Copyright (c) 2025 - 2026 Munich Quantum Software Company GmbH
 # All rights reserved.
 #
@@ -16,17 +17,19 @@
 # You should have received a copy of the GNU General Public License along
 # with this program. If not, see <https://www.gnu.org/licenses/>.
 
-"""Exercise MQT Core's Slurm connector from inside an allocated job."""
+set -eu
 
-from mqt.core.qdmi import slurm
+uv run --no-project python - <<'CATALOGUE'
+import json
+import os
+from pathlib import Path
+from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_CATALOG_PATH
 
-
-def main() -> None:
-    """Open the licensed device and verify its representative metadata."""
-    device = slurm.open_device_from_license()
-    assert device.name() == "Local SV1"
-    assert device.qubits_num() == 2
-
-
-if __name__ == "__main__":
-    main()
+catalogue = AMAZON_BRAKET_QDMI_CATALOG_PATH
+if os.environ["PROVIDER_INSTALL_MODE"] == "native":
+    catalogue = Path("/opt/provider-native/lib/amazon-braket-qdmi-device.qdmi.json")
+configuration = json.loads(catalogue.read_text())
+for definition in configuration["qdmi"]["devices"]:
+    definition["library"] = str((catalogue.parent / definition["library"]).resolve())
+Path("/opt/provider-catalogue.json").write_text(json.dumps(configuration))
+CATALOGUE

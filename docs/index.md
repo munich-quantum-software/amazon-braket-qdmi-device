@@ -29,8 +29,8 @@ not exposed by this implementation.
 - {doc}`qiskit` shows local and live Amazon Braket execution with Qiskit.
 - {doc}`pennylane` describes PennyLane execution and the Amazon Braket
   specialization.
-- {doc}`slurm` is the authoritative deployment and job guide for Slurm and the
-  optional SPANK plugin.
+- {doc}`slurm` covers provider deployment and links to MQT Core’s canonical
+  Slurm and optional SPANK guide.
 - {doc}`usage` gives a complete direct-QDMI execution example.
 <!-- rumdl-disable MD033 -->
 - {doc}`api` records the supported QDMI properties, results, and lifecycle

@@ -9,9 +9,8 @@ A source build requires:
 - network access during initial configuration to obtain the AWS SDK for C++ and
   QDMI dependencies.
 
-Slurm 23.02 or later is required only for the optional SPANK plugin. CI tests
-the plugin against Slurm 23.11 on Ubuntu 24.04. Its build and deployment are
-documented in the authoritative {doc}`slurm` guide.
+The provider builds without Slurm. Optional shared SPANK injection is maintained
+by MQT Core and requires Slurm 25.11 or newer; see {doc}`slurm`.
 
 ## Python package
 
@@ -63,7 +62,6 @@ installations split them as follows:
 | ---------------------------------------------- | --------------------------------------------- |
 | `amazon-braket-qdmi-device_Runtime`            | Shared library and QDMI device catalogue      |
 | `amazon-braket-qdmi-device_Development`        | Headers, library link, and CMake package files|
-| `amazon-braket-qdmi-spank-plugin`              | Optional SPANK module and plugstack template  |
 
 A node that uses the centrally installed provider needs the Runtime component.
 Python wheel-only deployments do not. Install the Development component only
@@ -150,10 +148,10 @@ device ARN. Also restrict task inspection and result-bucket access to the
 required resources. See the [Amazon Braket service authorization reference] and
 the [device access guide].
 
-The optional SPANK plugin injects the system QDMI catalogue path and optional
-AWS configuration references. It does not distribute credentials, load the
-provider, or grant AWS permissions. A profile, file, workload identity, or node
-role that it references must already be available to the job user. See
+Core's optional shared SPANK plugin injects the system QDMI catalogue path and
+optional AWS configuration references. It does not distribute credentials, load
+the provider, or grant AWS permissions. A profile, file, workload identity, or
+node role that it references must already be available to the job user. See
 {doc}`slurm` for the complete managed-cluster and non-SPANK workflows.
 
 ## CMake options
@@ -162,7 +160,6 @@ role that it references must already be available to the job user. See
 | ----------------------------------------- | ------- | ------------------------------------------------------------- |
 | `BUILD_AMAZON_BRAKET_TESTS`               | `ON`    | Build and register the offline test suite                     |
 | `BUILD_AMAZON_BRAKET_LIVE_TESTS`          | `OFF`   | Register tests that access AWS and may submit paid tasks      |
-| `BUILD_AMAZON_BRAKET_SPANK_PLUGIN`        | `OFF`   | Build the optional Slurm SPANK plugin                         |
 | `USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE` | `OFF`   | Use an installed device library when building tests           |
 | `CMAKE_PREFIX_PATH`                       | --      | Search prefix for installed dependencies                      |
 
