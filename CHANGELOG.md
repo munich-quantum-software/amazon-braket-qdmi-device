@@ -14,7 +14,7 @@ releases may include breaking changes.
 
 - ⬆️ Update the AWS SDK for C++ to 1.11.899, enable its 2026 retry behavior
   unless explicitly configured, and default to 10 request attempts while
-  honoring AWS retry settings ([**@burgholzer**])
+  honoring AWS retry settings ([#241]) ([**@burgholzer**])
 
 ## [1.2.0] - 2026-09-12
 
@@ -150,6 +150,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#241]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/241
 [#219]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/219
 [#217]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/217
 [#205]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/205
