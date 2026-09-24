@@ -106,28 +106,23 @@ target_link_libraries(my_app PRIVATE MQT::CoreQDMI)
 mqt_copy_qdmi_runtime(my_app amazon-braket-qdmi-device)
 ```
 
-This placement is discovered automatically when the MQT Core Driver is linked
-statically into the executable. A dynamically linked Driver searches beside its
-own shared library. In that case, place the generated manifest there or register
-the definition explicitly.
+The runtime helper stages the selected driver, device library, and manifest
+beside the application. The driver resolves relative library paths from the
+manifest directory.
 
-Python consumers can select the installed catalogue before the first QDMI driver
-operation. Each definition contains the exact device ARN and AWS Region; the AWS
-SDK resolves credentials when MQT Core opens the device.
+Python consumers use installed entry-point metadata to discover the catalogue
+without importing provider code or loading the native library. Each definition
+contains the device ARN and AWS Region; the AWS SDK resolves credentials when
+the default driver opens the device.
 
 ```python
-import os
+from mqt.core.qdmi import default_driver
 
-from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_CATALOG_PATH
-from mqt.core.qdmi import driver
-
-os.environ["MQT_CORE_QDMI_CONFIG_FILE"] = str(AMAZON_BRAKET_QDMI_CATALOG_PATH)
-device = driver.open_device("amazon.braket.sv1")
+device = default_driver.open_device("amazon.braket.sv1")
 ```
 
-MQT Core resolves the catalogue's relative library path from the directory that
-contains the catalogue. An explicit catalogue augments built-in MQT Core device
-definitions and overrides only definitions with the same ID.
+An explicit configuration augments built-in and installed device definitions and
+overrides definitions with the same stable ID.
 
 Cluster administrators may configure local Slurm licenses for concrete catalogue
 IDs such as `amazon.braket.sv1`. Do not configure `amazon.braket.default` as a
@@ -168,3 +163,12 @@ role that it references must already be available to the job user. See
 
 [Amazon Braket service authorization reference]: https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonbraket.html
 [device access guide]: https://docs.aws.amazon.com/braket/latest/developerguide/restrict-access.html
+
+## Temporary driver-stack validation
+
+This development branch pins unreleased QDMI #511 and MQT Core #2231 commits to
+exercise installed driver and device discovery. It is not ready for release
+publication. Replace both pins with suitable releases and regenerate `uv.lock`
+before publishing. Remove the temporary LLVM/MLIR setup from Python CI and Linux
+wheel-test containers once Core wheels are available for these APIs. Native-only
+device builds do not require LLVM/MLIR.

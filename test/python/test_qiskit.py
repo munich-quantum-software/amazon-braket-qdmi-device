@@ -66,7 +66,6 @@ def backend_configuration(
         else:
             assert device_id is None
 
-    monkeypatch.setattr(braket_qiskit, "register_device", lambda _device_id: None)
     monkeypatch.setattr(braket_qiskit, "open_device", open_device)
     monkeypatch.setattr(QDMIBackend, "__init__", initialize)
     return calls
