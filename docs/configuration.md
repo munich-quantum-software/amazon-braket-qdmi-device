@@ -26,6 +26,67 @@ nonstandard location. `SSL_CERT_FILE` is also supported when `AWS_CA_BUNDLE` is
 not set. An invalid explicit path is reported by the AWS client; certificate
 verification is never disabled.
 
+## Retries and quotas
+
+The device delegates request retries to the AWS SDK for C++ for Amazon Braket,
+S3, and STS. It enables the SDK's 2026 retry behavior by setting
+`AWS_NEW_RETRIES_2026=true` during device initialization, before initializing
+the SDK, if the variable is absent. The default retry mode is `standard`, with
+up to **10 total attempts** per request, including the initial attempt. The SDK
+handles error classification, exponential backoff with jitter, and the retry
+token budget. Exhausting that budget can end retries before the attempt limit.
+
+The opt-in is process-wide and remains set after device finalization. It can
+affect other AWS clients created in the same process. Initialize the device at
+process startup, before other threads use the AWS SDK or modify the environment.
+If the application initializes the SDK itself first, set the variable before
+that initialization so that the SDK's shared error classification also uses the
+new behavior. Set `AWS_NEW_RETRIES_2026=false` before starting the process to
+opt out; the device preserves explicit values.
+
+Tune retries without rebuilding or adding QDMI parameters:
+
+```console
+export AWS_PROFILE=hpc-quantum
+export AWS_RETRY_MODE=standard
+export AWS_MAX_ATTEMPTS=15
+```
+
+Alternatively, configure the selected AWS profile in `~/.aws/config`:
+
+```ini
+[profile hpc-quantum]
+retry_mode = standard
+max_attempts = 15
+```
+
+Environment settings take precedence over profile settings. The device supplies
+10 attempts only when neither contains an attempt limit. Set
+`AWS_MAX_ATTEMPTS=1` to disable request retries. Configure these settings before
+device and session initialization; existing clients retain their retry
+strategies. Higher limits can make submission, polling, cancellation, and result
+retrieval take longer. An in-flight SDK call can also outlast the QDMI job-wait
+timeout.
+
+Use `standard` for general workloads. `adaptive` also limits outgoing requests
+per client and can delay the first attempt. Each session shares its Braket
+client across API operations, so throttling one operation can delay others. The
+SDK's `legacy` mode is supported for compatibility, but SDK 1.11.899 does not
+apply configured attempt limits in that mode with the 2026 opt-in enabled. See
+the [AWS retry reference] for the SDK's retry modes and token budget.
+
+Retries address temporary throttling and transient failures. They do not raise
+[Amazon Braket quotas] or wait for accepted QuantumTasks to finish. In
+particular, the SDK treats `ServiceQuotaExceededException` as non-retryable;
+reduce concurrent work or request an adjustable quota increase as appropriate.
+Validation and permission failures also return without retries. After the SDK
+stops retrying, the device reports the failed outcome through QDMI and logs the
+AWS diagnostic. It does not start another retry loop. QuantumTask status polling
+remains separate from request retries.
+
+[AWS retry reference]: https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html
+[Amazon Braket quotas]: https://docs.aws.amazon.com/braket/latest/developerguide/braket-quotas.html
+
 ## Device session
 
 Set the Amazon Braket device ARN before initializing a direct QDMI session:

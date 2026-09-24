@@ -10,6 +10,12 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+### Changed
+
+- ⬆️ Update the AWS SDK for C++ to 1.11.899, enable its 2026 retry behavior
+  unless explicitly configured, and default to 10 request attempts while
+  honoring AWS retry settings ([**@burgholzer**])
+
 ## [1.2.0] - 2026-09-12
 
 ### Changed

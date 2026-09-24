@@ -76,6 +76,7 @@
 #include <aws/braket/model/DeviceType.h>
 #include <aws/core/auth/AWSCredentialsProvider.h>
 #include <aws/core/client/ClientConfiguration.h>
+#include <aws/core/config/ConfigAndCredentialsCacheManager.h>
 #include <aws/core/utils/threading/Executor.h>
 #include <aws/s3/S3Client.h>
 #include <aws/sts/STSClient.h>
@@ -104,6 +105,21 @@ struct AMAZON_BRAKET_QDMI_Device_Session_TestAccess;
 namespace amazon::braket::qdmi {
 
 namespace detail {
+/// Use a higher retry budget unless the user configured an attempt limit.
+/// The SDK resolves the retry mode and owns backoff, jitter, and retry quotas.
+inline auto configureRetries(Aws::Client::ClientConfiguration& configuration)
+    -> void {
+  const auto* maxAttempts = std::getenv("AWS_MAX_ATTEMPTS");
+  if ((maxAttempts == nullptr || maxAttempts[0] == '\0') &&
+      Aws::Config::GetCachedConfigValue(configuration.profileName,
+                                        "max_attempts")
+          .empty()) {
+    configuration.retryStrategy = Aws::Client::InitRetryStrategy(10);
+  } else {
+    configuration.retryStrategy = Aws::Client::InitRetryStrategy();
+  }
+}
+
 inline auto configureCaBundle(Aws::Client::ClientConfiguration& configuration)
     -> void {
   for (const auto* variable : {"AWS_CA_BUNDLE", "SSL_CERT_FILE"}) {

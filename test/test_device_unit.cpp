@@ -57,6 +57,9 @@
 #include <aws/core/Aws.h>
 #include <aws/core/client/AWSError.h>
 #include <aws/core/client/ClientConfiguration.h>
+#include <aws/core/client/CoreErrors.h>
+#include <aws/core/client/RetryStrategy.h>
+#include <aws/core/config/ConfigAndCredentialsCacheManager.h>
 #include <aws/core/http/HttpResponse.h>
 #include <aws/core/utils/memory/AWSMemory.h>
 #include <aws/core/utils/memory/stl/AWSStringStream.h>
@@ -77,6 +80,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <future>
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
@@ -697,9 +701,13 @@ public:
       previous_ = previous;
     }
 #ifdef _WIN32
-    _putenv_s(name, value);
+    _putenv_s(name, value != nullptr ? value : "");
 #else
-    setenv(name, value, 1);
+    if (value != nullptr) {
+      setenv(name, value, 1);
+    } else {
+      unsetenv(name);
+    }
 #endif
   }
 
@@ -775,6 +783,90 @@ TEST_F(AwsClientConfigurationTest, HonorsOpenSslCaBundle) {
   amazon::braket::qdmi::detail::configureCaBundle(configuration);
 
   EXPECT_EQ(configuration.caFile, "/ssl-ca.pem");
+}
+
+class AwsRetryConfigurationTest : public AwsClientConfigurationTest {
+protected:
+  ScopedEnvironment newRetries_{"AWS_NEW_RETRIES_2026", "true"};
+  ScopedEnvironment profile_{"AWS_PROFILE", "amazon-braket-qdmi-retry-test"};
+  ScopedEnvironment retryMode_{"AWS_RETRY_MODE", ""};
+  ScopedEnvironment maxAttempts_{"AWS_MAX_ATTEMPTS", ""};
+};
+
+TEST_F(AwsRetryConfigurationTest, UsesTenAttemptsAndSdkErrorClassification) {
+  Aws::Client::ClientConfiguration configuration;
+  amazon::braket::qdmi::detail::configureRetries(configuration);
+  const auto& strategy = configuration.retryStrategy;
+  ASSERT_NE(strategy, nullptr);
+  EXPECT_STREQ(strategy->GetStrategyName(), "standard");
+  EXPECT_EQ(strategy->GetMaxAttempts(), 10);
+
+  for (const auto* name : {"ThrottlingException", "RequestLimitExceeded",
+                           "TooManyRequestsException"}) {
+    const auto error = Aws::Client::CoreErrorsMapper::GetErrorForName(name);
+    EXPECT_TRUE(error.ShouldThrottle());
+    EXPECT_TRUE(strategy->ShouldRetry(error, 8));
+    EXPECT_FALSE(strategy->ShouldRetry(error, 9));
+  }
+  EXPECT_FALSE(strategy->ShouldRetry(
+      Aws::Client::CoreErrorsMapper::GetErrorForName("ValidationException"),
+      0));
+  EXPECT_FALSE(
+      strategy->ShouldRetry(Aws::Braket::BraketErrorMapper::GetErrorForName(
+                                "ServiceQuotaExceededException"),
+                            0));
+}
+
+TEST_F(AwsRetryConfigurationTest, HonorsEnvironmentModeAndAttemptLimit) {
+  const ScopedEnvironment retryMode("AWS_RETRY_MODE", "adaptive");
+  for (const auto* limit : {"1", "17"}) {
+    const ScopedEnvironment maxAttempts("AWS_MAX_ATTEMPTS", limit);
+    Aws::Client::ClientConfiguration configuration;
+    amazon::braket::qdmi::detail::configureRetries(configuration);
+    EXPECT_STREQ(configuration.retryStrategy->GetStrategyName(), "adaptive");
+    EXPECT_EQ(configuration.retryStrategy->GetMaxAttempts(), std::stoi(limit));
+  }
+}
+
+TEST_F(AwsRetryConfigurationTest, HonorsProfileAndEnvironmentPrecedence) {
+  const auto path = testing::TempDir() + "amazon-braket-qdmi-retry.config";
+  {
+    std::ofstream profile(path);
+    profile << "[profile amazon-braket-qdmi-retry-test]\n"
+               "retry_mode = adaptive\nmax_attempts = 7\n";
+    ASSERT_TRUE(profile.good());
+  }
+  const ScopedEnvironment configFile("AWS_CONFIG_FILE", path.c_str());
+  Aws::Config::ReloadCachedConfigFile();
+  std::remove(path.c_str());
+
+  Aws::Client::ClientConfiguration configuration;
+  amazon::braket::qdmi::detail::configureRetries(configuration);
+  EXPECT_STREQ(configuration.retryStrategy->GetStrategyName(), "adaptive");
+  EXPECT_EQ(configuration.retryStrategy->GetMaxAttempts(), 7);
+
+  const ScopedEnvironment retryMode("AWS_RETRY_MODE", "standard");
+  const ScopedEnvironment maxAttempts("AWS_MAX_ATTEMPTS", "1");
+  amazon::braket::qdmi::detail::configureRetries(configuration);
+  EXPECT_STREQ(configuration.retryStrategy->GetStrategyName(), "standard");
+  EXPECT_EQ(configuration.retryStrategy->GetMaxAttempts(), 1);
+  EXPECT_FALSE(configuration.retryStrategy->ShouldRetry(
+      Aws::Client::CoreErrorsMapper::GetErrorForName("ThrottlingException"),
+      0));
+}
+
+TEST(AwsRetryInitializationTest, EnablesNewRetriesUnlessExplicitlyConfigured) {
+  for (const auto* value : {static_cast<const char*>(nullptr), "false"}) {
+    const ScopedEnvironment newRetries("AWS_NEW_RETRIES_2026", value);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+    EXPECT_STREQ(std::getenv("AWS_NEW_RETRIES_2026"),
+                 value != nullptr ? value : "true");
+    EXPECT_EQ(
+        Aws::Client::CoreErrorsMapper::GetErrorForName("RequestLimitExceeded")
+            .ShouldThrottle(),
+        value == nullptr);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);
+  }
 }
 
 #ifdef __linux__
@@ -853,18 +945,9 @@ TEST_F(AmazonBraketQDMIOfflineTest, SessionInitUsesEnvironmentFallbacks) {
 class AmazonBraketQDMILocalJobTest : public ::testing::Test {
 protected:
   AMAZON_BRAKET_QDMI_Device_Session session = nullptr;
-#ifdef _WIN32
-  Aws::SDKOptions testAWSOptions_;
-#endif
 
   void SetUp() override {
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
-#ifdef _WIN32
-    // The provider DLL and this test executable each contain their own
-    // statically linked AWS SDK state. StubBraketClient is instantiated in the
-    // executable, so initialise that copy as well.
-    Aws::InitAPI(testAWSOptions_);
-#endif
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&session), QDMI_SUCCESS);
 
     const char* deviceArn =
@@ -888,9 +971,6 @@ protected:
       session = nullptr;
     }
     AMAZON_BRAKET_QDMI_device_finalize();
-#ifdef _WIN32
-    Aws::ShutdownAPI(testAWSOptions_);
-#endif
   }
 };
 
