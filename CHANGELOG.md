@@ -12,9 +12,16 @@ releases may include breaking changes.
 
 ### Changed
 
-- ⬆️ Update the AWS SDK for C++ to 1.11.899, enable its 2026 retry behavior
-  unless explicitly configured, and default to 10 request attempts while
-  honoring AWS retry settings ([#241]) ([**@burgholzer**])
+- ⬆️ Update the AWS SDK for C++ to 1.11.899 ([#241]) ([**@burgholzer**])
+- 🛡️ Enable the SDK's 2026 retry behavior unless explicitly configured, and
+  default to 10 request attempts while honoring AWS retry settings ([#241])
+  ([**@burgholzer**])
+
+### Fixed
+
+- 🐛 Queue simulator submissions within a configurable concurrency limit and
+  retry temporary Braket service-quota errors through the AWS SDK ([#241])
+  ([**@burgholzer**])
 
 ## [1.2.0] - 2026-09-12
 

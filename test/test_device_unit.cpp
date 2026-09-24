@@ -60,9 +60,13 @@
 #include <aws/core/client/CoreErrors.h>
 #include <aws/core/client/RetryStrategy.h>
 #include <aws/core/config/ConfigAndCredentialsCacheManager.h>
+#include <aws/core/http/HttpClientFactory.h>
 #include <aws/core/http/HttpResponse.h>
+#include <aws/core/http/HttpTypes.h>
+#include <aws/core/http/standard/StandardHttpResponse.h>
 #include <aws/core/utils/memory/AWSMemory.h>
 #include <aws/core/utils/memory/stl/AWSStringStream.h>
+#include <aws/core/utils/stream/ResponseStream.h>
 #include <aws/s3/S3Client.h>
 #include <aws/s3/S3Errors.h>
 #include <aws/s3/S3ServiceClientModel.h>
@@ -125,6 +129,11 @@ struct AMAZON_BRAKET_QDMI_Device_Job_TestAccess {
 };
 
 struct AMAZON_BRAKET_QDMI_Device_Session_TestAccess {
+  static auto setMaxParallel(AMAZON_BRAKET_QDMI_Device_Session session,
+                             const size_t limit) -> void {
+    session->simulatorTasks_.assign(limit, std::nullopt);
+  }
+
   static auto stopSubmissions(AMAZON_BRAKET_QDMI_Device_Session session)
       -> void {
     session->submissionExecutor_->WaitUntilStopped();
@@ -292,6 +301,11 @@ public:
     const std::scoped_lock lock(createMutex_);
     releaseCreate_ = true;
     createChanged_.notify_all();
+  }
+  auto setTaskStatus(const Aws::Braket::Model::QuantumTaskStatus status)
+      -> void {
+    const std::scoped_lock lock(taskMutex_);
+    result_.SetStatus(status);
   }
 
 private:
@@ -828,6 +842,42 @@ TEST_F(AwsRetryConfigurationTest, HonorsEnvironmentModeAndAttemptLimit) {
   }
 }
 
+TEST_F(AwsRetryConfigurationTest, RetriesQuotaErrorsOnlyForTaskCreation) {
+  Aws::Braket::BraketClientConfiguration configuration;
+  configuration.region = "us-east-1";
+  amazon::braket::qdmi::detail::configureRetries(configuration);
+  const amazon::braket::qdmi::detail::BraketClient client{
+      Aws::Auth::AWSCredentials{"access", "secret"}, nullptr, configuration};
+  for (const auto* name : {"ServiceQuotaExceededException",
+                           "ValidationException", "AccessDeniedException"}) {
+    for (const auto method :
+         {Aws::Http::HttpMethod::HTTP_POST, Aws::Http::HttpMethod::HTTP_GET}) {
+      for (const auto* path : {"/quantum-task", "/job"}) {
+        const auto request = Aws::Http::CreateHttpRequest(
+            Aws::String{"https://braket.test"} + path, method,
+            Aws::Utils::Stream::DefaultResponseStreamFactoryMethod);
+        const auto response =
+            std::make_shared<Aws::Http::Standard::StandardHttpResponse>(
+                request);
+        response->SetResponseCode(Aws::Http::HttpResponseCode::BAD_REQUEST);
+        response->AddHeader("x-amzn-errortype", name);
+        response->GetResponseBody() << R"({"message":"test diagnostic"})";
+        const auto error = client.BuildAWSError(response);
+        const bool retryable =
+            std::strcmp(name, "ServiceQuotaExceededException") == 0 &&
+            method == Aws::Http::HttpMethod::HTTP_POST &&
+            std::strcmp(path, "/quantum-task") == 0;
+        EXPECT_EQ(error.GetExceptionName(), name);
+        EXPECT_EQ(error.GetMessage(), "test diagnostic");
+        EXPECT_EQ(error.ShouldThrottle(), retryable);
+        EXPECT_EQ(configuration.retryStrategy->ShouldRetry(error, 0),
+                  retryable);
+        EXPECT_FALSE(configuration.retryStrategy->ShouldRetry(error, 9));
+      }
+    }
+  }
+}
+
 TEST_F(AwsRetryConfigurationTest, HonorsProfileAndEnvironmentPrecedence) {
   const auto path = testing::TempDir() + "amazon-braket-qdmi-retry.config";
   {
@@ -929,6 +979,29 @@ TEST_F(AmazonBraketQDMIOfflineTest, SessionInitUsesEnvironmentFallbacks) {
   const ScopedEnvironment region(AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION,
                                  "us-east-1");
 
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
+}
+
+TEST_F(AmazonBraketQDMIOfflineTest, RejectsInvalidSimulatorConcurrency) {
+  const ScopedEnvironment device(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_DEVICE_ARN,
+      "arn:aws:braket:::device/quantum-simulator/amazon/sv1");
+#ifndef _WIN32
+  {
+    const ScopedEnvironment limit(AMAZON_BRAKET_QDMI_DEVICE_ENV_MAX_PARALLEL,
+                                  "");
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
+              QDMI_ERROR_INVALIDARGUMENT);
+  }
+#endif
+  for (const auto* value : {"0", "-1", "2jobs", "999999999999999999999999"}) {
+    const ScopedEnvironment limit(AMAZON_BRAKET_QDMI_DEVICE_ENV_MAX_PARALLEL,
+                                  value);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
+              QDMI_ERROR_INVALIDARGUMENT);
+  }
+  const ScopedEnvironment limit(AMAZON_BRAKET_QDMI_DEVICE_ENV_MAX_PARALLEL,
+                                "2");
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
 }
 
@@ -2256,7 +2329,8 @@ TEST_F(AmazonBraketQDMILocalJobTest, SubmissionConcurrencyIsBounded) {
       AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI,
       "s3://explicit-results/tasks");
   auto client = std::make_unique<StubBraketClient>(
-      Aws::Braket::Model::GetQuantumTaskResult{});
+      Aws::Braket::Model::GetQuantumTaskResult{}.WithStatus(
+          Aws::Braket::Model::QuantumTaskStatus::FAILED));
   auto* const braket = client.get();
   braket->blockCreate();
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
@@ -2284,6 +2358,91 @@ TEST_F(AmazonBraketQDMILocalJobTest, SubmissionConcurrencyIsBounded) {
     AMAZON_BRAKET_QDMI_device_job_free(job);
   }
   EXPECT_EQ(braket->createCalls(), jobs.size());
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       SimulatorQueueRetainsCapacityAndCanCancel) {
+  const ScopedEnvironment destination(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI,
+      "s3://explicit-results/tasks");
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setMaxParallel(session, 1);
+  auto client = std::make_unique<StubBraketClient>(
+      Aws::Braket::Model::GetQuantumTaskResult{}.WithStatus(
+          Aws::Braket::Model::QuantumTaskStatus::RUNNING));
+  auto* const braket = client.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                          std::move(client));
+  auto* first = createConfiguredJob(session);
+  ASSERT_EQ(submitAndAwaitAcceptance(first), QDMI_SUCCESS);
+  AMAZON_BRAKET_QDMI_device_job_free(first);
+  auto* pending = createConfiguredJob(session);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(pending), QDMI_SUCCESS);
+  auto acceptance = std::async(std::launch::async, [pending] {
+    return AMAZON_BRAKET_QDMI_Device_Job_TestAccess::awaitSubmission(pending);
+  });
+  EXPECT_EQ(acceptance.wait_for(std::chrono::milliseconds{100}),
+            std::future_status::timeout);
+  EXPECT_EQ(braket->createCalls(), 1U);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_cancel(pending), QDMI_SUCCESS);
+  acceptance.get();
+  QDMI_Job_Status status = QDMI_JOB_STATUS_SUBMITTED;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(pending, &status),
+            QDMI_SUCCESS);
+  EXPECT_EQ(status, QDMI_JOB_STATUS_CANCELED);
+  EXPECT_EQ(braket->createCalls(), 1U);
+  EXPECT_EQ(braket->cancelCalls(), 0U);
+  AMAZON_BRAKET_QDMI_device_job_free(pending);
+
+  auto* draining = createConfiguredJob(session);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(draining), QDMI_SUCCESS);
+  auto freeing = std::async(std::launch::async, [draining] {
+    AMAZON_BRAKET_QDMI_device_job_free(draining);
+  });
+  EXPECT_EQ(freeing.wait_for(std::chrono::milliseconds{100}),
+            std::future_status::timeout);
+  EXPECT_EQ(braket->createCalls(), 1U);
+  braket->setTaskStatus(Aws::Braket::Model::QuantumTaskStatus::FAILED);
+  freeing.get();
+  EXPECT_EQ(braket->createCalls(), 2U);
+
+  for (const auto terminal :
+       {Aws::Braket::Model::QuantumTaskStatus::COMPLETED,
+        Aws::Braket::Model::QuantumTaskStatus::FAILED,
+        Aws::Braket::Model::QuantumTaskStatus::CANCELLED}) {
+    auto* job = createConfiguredJob(session);
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_SUCCESS);
+    braket->setTaskStatus(terminal);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_Device_Job_TestAccess::awaitSubmission(job),
+              QDMI_SUCCESS);
+    AMAZON_BRAKET_QDMI_device_job_free(job);
+  }
+  EXPECT_EQ(braket->createCalls(), 5U);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest,
+       SimulatorQueueReportsCapacityQueryFailure) {
+  const ScopedEnvironment destination(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI,
+      "s3://explicit-results/tasks");
+  for (const auto& [error, expected] :
+       {std::pair{std::optional{Aws::Braket::BraketErrors::ACCESS_DENIED},
+                  QDMI_ERROR_PERMISSIONDENIED},
+        std::pair{std::optional<Aws::Braket::BraketErrors>{},
+                  QDMI_ERROR_FATAL}}) {
+    AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setMaxParallel(session, 1);
+    AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+        session, std::make_unique<StubBraketClient>(
+                     Aws::Braket::Model::GetQuantumTaskResult{}, error));
+    auto* first = createConfiguredJob(session);
+    ASSERT_EQ(submitAndAwaitAcceptance(first), QDMI_SUCCESS);
+    auto* pending = createConfiguredJob(session);
+    EXPECT_EQ(submitAndAwaitAcceptance(pending), expected);
+    QDMI_Job_Status status = QDMI_JOB_STATUS_SUBMITTED;
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(pending, &status), expected);
+    EXPECT_EQ(status, QDMI_JOB_STATUS_FAILED);
+    AMAZON_BRAKET_QDMI_device_job_free(pending);
+    AMAZON_BRAKET_QDMI_device_job_free(first);
+  }
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest, JobIdWaitsForAwsAcceptance) {
@@ -2361,6 +2520,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, FreeDrainsPendingSubmissions) {
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest, CreateQuantumTaskFailuresMapAwsErrors) {
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setMaxParallel(session, 1);
   constexpr std::array failures{
       std::pair{Aws::Braket::BraketErrors::ACCESS_DENIED,
                 QDMI_ERROR_PERMISSIONDENIED},
@@ -2680,10 +2840,6 @@ TEST_F(AmazonBraketQDMILocalJobTest,
 
 TEST_F(AmazonBraketQDMILocalJobTest,
        PrefetchIsBoundedAndForegroundResultsBypassItsQueue) {
-#ifdef _WIN32
-  GTEST_SKIP() << "The test executable and provider DLL contain separate "
-                  "static AWS SDK ResponseStream state on Windows.";
-#endif
   const ScopedEnvironment environment(
       AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI,
       "s3://explicit-results/tasks");
@@ -2824,10 +2980,6 @@ TEST_F(AmazonBraketQDMILocalJobTest, SessionFreeStopsBackgroundPolling) {
 
 TEST_F(AmazonBraketQDMILocalJobTest,
        ResultRetrievalUsesTaskReturnedS3Location) {
-#ifdef _WIN32
-  GTEST_SKIP() << "The test executable and provider DLL contain separate "
-                  "static AWS SDK ResponseStream state on Windows.";
-#endif
   constexpr auto* taskArn =
       "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
   Aws::Braket::Model::GetQuantumTaskResult
@@ -2919,10 +3071,6 @@ class InvalidResultDocumentTest
       public testing::WithParamInterface<std::string> {};
 
 TEST_P(InvalidResultDocumentTest, IsRejected) {
-#ifdef _WIN32
-  GTEST_SKIP() << "The test executable and provider DLL contain separate "
-                  "static AWS SDK ResponseStream state on Windows.";
-#endif
   constexpr auto* taskArn =
       "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
   Aws::Braket::Model::GetQuantumTaskResult task;

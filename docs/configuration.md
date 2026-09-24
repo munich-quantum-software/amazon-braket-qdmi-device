@@ -70,21 +70,45 @@ timeout.
 
 Use `standard` for general workloads. `adaptive` also limits outgoing requests
 per client and can delay the first attempt. Each session shares its Braket
-client across API operations, so throttling one operation can delay others. The
-SDK's `legacy` mode is supported for compatibility, but SDK 1.11.899 does not
-apply configured attempt limits in that mode with the 2026 opt-in enabled. See
-the [AWS retry reference] for the SDK's retry modes and token budget.
+client across API operations, which have different rate limits: throttling
+submissions can also delay polling and cancellation. Keep `standard` unless this
+tradeoff suits your workload. See the [AWS retry reference] for details.
 
-Retries address temporary throttling and transient failures. They do not raise
-[Amazon Braket quotas] or wait for accepted QuantumTasks to finish. In
-particular, the SDK treats `ServiceQuotaExceededException` as non-retryable;
-reduce concurrent work or request an adjustable quota increase as appropriate.
-Validation and permission failures also return without retries. After the SDK
-stops retrying, the device reports the failed outcome through QDMI and logs the
-AWS diagnostic. It does not start another retry loop. QuantumTask status polling
-remains separate from request retries.
+### Simulator batches
+
+Submit the whole batch before waiting for results. Each simulator session keeps
+at most **10 outstanding QuantumTasks**, including submissions in flight, and
+queues further submissions locally until tasks finish. This follows the
+[Braket Python SDK's batch approach]. QPU jobs use Braket's remote queue.
+
+Set the per-session limit before session initialization:
+
+```console
+export AMAZON_BRAKET_QDMI_MAX_PARALLEL=20
+```
+
+Choose a positive integer that leaves room within your [Amazon Braket quotas]
+for other sessions, processes, and applications using the same account and
+Region. This setting applies to simulators only; it does not discover or raise
+account quotas. Freeing an accepted job handle does not free its capacity slot:
+the session tracks the remote task until it finishes. Canceling a locally queued
+job prevents its submission. An in-flight request must finish before
+cancellation can reach the remote task. Freeing a job drains pending submission
+and can wait for capacity; cancel it first to discard queued work.
+
+The device classifies `ServiceQuotaExceededException` from task submission as
+retryable throttling, so the SDK also retries capacity races with other clients.
+The SDK owns backoff and attempt limits; there is no additional request-retry
+loop. Persistent quota exhaustion or failed capacity queries can still fail a
+submission after SDK retries. Increase `AWS_MAX_ATTEMPTS`, reduce concurrency,
+or request an adjustable quota increase for sustained capacity shortages.
+
+Validation and permission failures return without retries. After the SDK stops
+retrying, the device reports the failed outcome through QDMI and logs the AWS
+diagnostic. QuantumTask status polling remains separate from request retries.
 
 [AWS retry reference]: https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html
+[Braket Python SDK's batch approach]: https://amazon-braket-sdk-python.readthedocs.io/en/latest/_apidoc/braket.aws.aws_quantum_task_batch.html
 [Amazon Braket quotas]: https://docs.aws.amazon.com/braket/latest/developerguide/braket-quotas.html
 
 ## Device session

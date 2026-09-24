@@ -80,6 +80,7 @@
 #include <aws/core/utils/threading/Executor.h>
 #include <aws/s3/S3Client.h>
 #include <aws/sts/STSClient.h>
+#include <chrono>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdlib>
@@ -105,6 +106,16 @@ struct AMAZON_BRAKET_QDMI_Device_Session_TestAccess;
 namespace amazon::braket::qdmi {
 
 namespace detail {
+/// Classify temporary Braket capacity limits for the SDK's retry strategy.
+class BraketClient : public Aws::Braket::BraketClient {
+public:
+  using Aws::Braket::BraketClient::BraketClient;
+
+  auto
+  BuildAWSError(const std::shared_ptr<Aws::Http::HttpResponse>& response) const
+      -> Aws::Client::AWSError<Aws::Client::CoreErrors> override;
+};
+
 /// Use a higher retry budget unless the user configured an attempt limit.
 /// The SDK resolves the retry mode and owns backoff, jitter, and retry quotas.
 inline auto configureRetries(Aws::Client::ClientConfiguration& configuration)
@@ -295,6 +306,13 @@ private:
   std::unique_ptr<Aws::Utils::Threading::Executor> submissionExecutor_;
   std::unique_ptr<Aws::Utils::Threading::Executor> resultExecutor_;
 
+  /// Empty slots are available; empty ARNs reserve in-flight submissions.
+  /// Track ARNs independently of job handles so freeing a job retains its slot.
+  std::vector<std::optional<std::string>> simulatorTasks_;
+  std::mutex submissionMutex_;
+  std::condition_variable_any submissionChanged_;
+  std::chrono::steady_clock::time_point nextSubmissionPoll_;
+
   struct S3Destination {
     std::string bucket;
     std::string prefix;
@@ -326,6 +344,12 @@ public:
                             S3Destination& destination) -> QDMI_STATUS;
 
 private:
+  /// Wait for simulator capacity; nullopt means canceled before submission.
+  auto
+  createQuantumTask(const Aws::Braket::Model::CreateQuantumTaskRequest& request,
+                    const std::stop_token& stop)
+      -> std::optional<Aws::Braket::Model::CreateQuantumTaskOutcome>;
+
   /// Cache session metadata; refresh device status and queue length on request.
   auto fetchDeviceArchitecture(bool refreshStatus) const -> QDMI_STATUS;
 
@@ -380,6 +404,7 @@ private:
   std::string reservationArn_; // Optional - dedicate task to a reserved window
 
   std::shared_future<void> jobHandle_;
+  std::stop_source stopSubmission_;
   /// Serialize active prefetch with destruction; cancel queued work before it
   /// accesses the job.
   std::shared_ptr<std::mutex> prefetchMutex_;
