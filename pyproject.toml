@@ -61,11 +61,11 @@ email = "lukas@mq.sc"
 [project.optional-dependencies]
 pennylane = [
   """\
-  mqt-core[pennylane] @ git+https://github.com/munich-quantum-toolkit/core.git@477b7e02dbc9cdab8edfaf87f77d4ee122976c8c\
+  mqt-core[pennylane] @ git+https://github.com/munich-quantum-toolkit/core.git@5bd2dfb3e7676f6bb4c00ff06d8952e2547cc5aa\
   """,
 ]
 qiskit = [
-  "mqt-core[qiskit] @ git+https://github.com/munich-quantum-toolkit/core.git@477b7e02dbc9cdab8edfaf87f77d4ee122976c8c",
+  "mqt-core[qiskit] @ git+https://github.com/munich-quantum-toolkit/core.git@5bd2dfb3e7676f6bb4c00ff06d8952e2547cc5aa",
 ]
 
 [project.urls]
@@ -105,7 +105,7 @@ dev = [
 test = [
   """\
   mqt-core[pennylane,qiskit] @ \
-  git+https://github.com/munich-quantum-toolkit/core.git@477b7e02dbc9cdab8edfaf87f77d4ee122976c8c\
+  git+https://github.com/munich-quantum-toolkit/core.git@5bd2dfb3e7676f6bb4c00ff06d8952e2547cc5aa\
   """,
   "pytest>=9.1.1",
   "pytest-console-scripts>=1.4.1",
@@ -117,7 +117,7 @@ docs = [
   "furo>=2025.12.19",
   """\
   mqt-core[pennylane,qiskit] @ \
-  git+https://github.com/munich-quantum-toolkit/core.git@477b7e02dbc9cdab8edfaf87f77d4ee122976c8c\
+  git+https://github.com/munich-quantum-toolkit/core.git@5bd2dfb3e7676f6bb4c00ff06d8952e2547cc5aa\
   """,
   "myst-nb>=1.4",
   "sphinx>=9",
