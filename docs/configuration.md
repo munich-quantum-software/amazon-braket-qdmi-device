@@ -26,6 +26,33 @@ nonstandard location. `SSL_CERT_FILE` is also supported when `AWS_CA_BUNDLE` is
 not set. An invalid explicit path is reported by the AWS client; certificate
 verification is never disabled.
 
+## Retries and quotas
+
+The device uses AWS SDK retries, defaulting to `standard` mode and up to
+**10 total attempts** per request. Configure retries through AWS environment
+variables or your AWS profile before initialization. For example:
+
+```console
+export AWS_MAX_ATTEMPTS=15
+```
+
+See the [AWS retry reference] for `AWS_RETRY_MODE`, attempt limits, profile
+settings, and retry behavior.
+
+Device initialization enables `AWS_NEW_RETRIES_2026=true` unless explicitly set.
+This process-wide setting remains after finalization and can affect other AWS
+clients. Initialize the device before other threads use the SDK; if your
+application initializes the SDK first, set the variable before that step. Set it
+to `false` before startup to opt out.
+
+Task submissions also retry `ServiceQuotaExceededException`. Retries are
+bounded: persistent quota exhaustion can still fail a submission. Increase
+`AWS_MAX_ATTEMPTS`, reduce concurrent work, or request an adjustable
+[Amazon Braket quota] increase when needed.
+
+[AWS retry reference]: https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html
+[Amazon Braket quota]: https://docs.aws.amazon.com/braket/latest/developerguide/braket-quotas.html
+
 ## Device session
 
 Set the Amazon Braket device ARN before initializing a direct QDMI session:

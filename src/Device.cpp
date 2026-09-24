@@ -86,9 +86,12 @@
 #include <aws/braket/model/QuantumTaskStatus.h>
 #include <aws/core/Aws.h>
 #include <aws/core/auth/AWSCredentialsProviderChain.h>
+#include <aws/core/client/AWSError.h>
 #include <aws/core/client/CoreErrors.h>
 #include <aws/core/config/EndpointResolver.h>
+#include <aws/core/http/HttpRequest.h>
 #include <aws/core/http/HttpResponse.h>
+#include <aws/core/http/HttpTypes.h>
 #include <aws/core/utils/Array.h>
 #include <aws/core/utils/json/JsonSerializer.h>
 #include <aws/core/utils/memory/stl/AWSAllocator.h>
@@ -121,6 +124,7 @@
 #include <span>
 #include <sstream>
 #include <stdexcept>
+#include <stdlib.h> /// NOLINT(modernize-deprecated-headers): POSIX setenv
 #include <string>
 #include <string_view>
 #include <thread>
@@ -542,6 +546,22 @@ auto parseS3Uri(const std::string_view uri, std::string& bucket,
 
 namespace amazon::braket::qdmi {
 
+auto detail::BraketClient::BuildAWSError(
+    const std::shared_ptr<Aws::Http::HttpResponse>& response) const
+    -> Aws::Client::AWSError<Aws::Client::CoreErrors> {
+  auto error = Aws::Braket::BraketClient::BuildAWSError(response);
+  if (error.GetErrorType() ==
+          static_cast<Aws::Client::CoreErrors>(
+              Aws::Braket::BraketErrors::SERVICE_QUOTA_EXCEEDED) &&
+      response->GetOriginatingRequest().GetMethod() ==
+          Aws::Http::HttpMethod::HTTP_POST &&
+      response->GetOriginatingRequest().GetUri().GetPath().ends_with(
+          "/quantum-task")) {
+    error.SetRetryableType(Aws::Client::RetryableType::RETRYABLE_THROTTLING);
+  }
+  return error;
+}
+
 /**
  * Device constructor - initializes the global Braket device singleton.
  *
@@ -871,21 +891,24 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS try {
 
   Aws::Braket::BraketClientConfiguration config;
   config.region = region_;
+  amazon::braket::qdmi::detail::configureRetries(config);
   amazon::braket::qdmi::detail::configureCaBundle(config);
 
   credentialsProvider_ =
       Aws::MakeShared<Aws::Auth::DefaultAWSCredentialsProviderChain>(
           "AmazonBraketQDMICredentialsProvider",
           config.ResolveCredentialProviderConfig());
-  client_ = std::make_unique<Aws::Braket::BraketClient>(credentialsProvider_,
-                                                        nullptr, config);
+  client_ = std::make_unique<amazon::braket::qdmi::detail::BraketClient>(
+      credentialsProvider_, nullptr, config);
   Aws::S3::S3ClientConfiguration s3Config;
   s3Config.region = region_;
+  amazon::braket::qdmi::detail::configureRetries(s3Config);
   amazon::braket::qdmi::detail::configureCaBundle(s3Config);
   s3Client_ = std::make_unique<Aws::S3::S3Client>(credentialsProvider_, nullptr,
                                                   s3Config);
   Aws::STS::STSClientConfiguration stsConfig;
   stsConfig.region = region_;
+  amazon::braket::qdmi::detail::configureRetries(stsConfig);
   amazon::braket::qdmi::detail::configureCaBundle(stsConfig);
   // AWS SDK 1.11 does not pass a service name to the STS endpoint provider.
   // Resolve its standard service-specific environment/profile override here;
@@ -2098,6 +2121,19 @@ std::mutex gAWSInitMutex;
 int AMAZON_BRAKET_QDMI_device_initialize() try {
   const std::scoped_lock lock(gAWSInitMutex);
   if (!gAWSInitialized) {
+    /// The SDK reads this process-wide opt-in when initializing error maps.
+    /// Preserve explicit values and leave it set for subsequent AWS clients.
+    if (std::getenv("AWS_NEW_RETRIES_2026") == nullptr) {
+#ifdef _WIN32
+      const auto result = _putenv_s("AWS_NEW_RETRIES_2026", "true");
+#else
+      const auto result = setenv("AWS_NEW_RETRIES_2026", "true", 0);
+#endif
+      if (result != 0) {
+        std::fputs("Could not enable AWS_NEW_RETRIES_2026.\n", stderr);
+        return QDMI_ERROR_FATAL;
+      }
+    }
     Aws::InitAPI(gAWSOptions);
     gAWSInitialized = true;
   }
@@ -2410,7 +2446,7 @@ int AMAZON_BRAKET_QDMI_device_job_check(AMAZON_BRAKET_QDMI_Device_Job job,
  * Wait for a QDMI job to complete.
  *
  * Blocks until the underlying quantum task completes or the timeout expires.
- * Polls the quantum task status periodically using exponential backoff.
+ * Polls the quantum task status periodically. The AWS SDK retries failed calls.
  *
  * @param job The QDMI job handle
  * @param timeout Maximum time to wait in seconds (0 = infinite)
