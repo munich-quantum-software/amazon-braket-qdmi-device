@@ -24,7 +24,6 @@ import unicodedata
 from typing import TYPE_CHECKING, ClassVar
 
 from mqt.core.plugins.pennylane import PennyLaneConfigurationError, QDMIDevice
-from mqt.core.qdmi.default_driver import open_device
 
 from . import (
     AMAZON_BRAKET_QDMI_DEVICE_ID,
@@ -33,7 +32,7 @@ from . import (
 if TYPE_CHECKING:
     from collections.abc import Hashable, Sequence
 
-    from mqt.core.typing import QDMIJobParameters
+    from mqt.core.typing import QDMIJobParameters, QDMISessionParameters
 
 __all__ = [
     "AmazonBraketAqtIbexQ1Device",
@@ -109,7 +108,7 @@ class AmazonBraketDevice(QDMIDevice):
             msg = "Amazon Braket execution requires a non-empty device_arn."
             raise PennyLaneConfigurationError(msg)
 
-        session_parameters: dict[str, str] = {}
+        session_parameters: QDMISessionParameters = {}
         if device_arn is not None:
             session_parameters["base_url"] = device_arn
         if region:
@@ -120,15 +119,11 @@ class AmazonBraketDevice(QDMIDevice):
         s3_uri = _s3_destination_uri(s3_destination_folder)
         job_parameters: QDMIJobParameters = {} if s3_uri is None else {"custom1": s3_uri}
 
-        try:
-            device = open_device(self.qdmi_device_id, **session_parameters)
-        except (IndexError, RuntimeError, ValueError) as error:
-            msg = f"Failed to open QDMI device '{self.qdmi_device_id}': {error}"
-            raise PennyLaneConfigurationError(msg) from error
         self._device_arn = device_arn
         self._s3_destination_folder = s3_destination_folder
         super().__init__(
-            device=device,
+            device_id=self.qdmi_device_id,
+            session_parameters=session_parameters,
             wires=wires,
             job_parameters=job_parameters,
         )

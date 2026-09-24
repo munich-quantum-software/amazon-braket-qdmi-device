@@ -61,11 +61,11 @@ email = "lukas@mq.sc"
 [project.optional-dependencies]
 pennylane = [
   """\
-  mqt-core[pennylane] @ git+https://github.com/munich-quantum-toolkit/core.git@5bd2dfb3e7676f6bb4c00ff06d8952e2547cc5aa\
+  mqt-core[pennylane] @ git+https://github.com/munich-quantum-toolkit/core.git@7b0218a755478b42ca4ce69e408e9370f536c356\
   """,
 ]
 qiskit = [
-  "mqt-core[qiskit] @ git+https://github.com/munich-quantum-toolkit/core.git@5bd2dfb3e7676f6bb4c00ff06d8952e2547cc5aa",
+  "mqt-core[qiskit] @ git+https://github.com/munich-quantum-toolkit/core.git@7b0218a755478b42ca4ce69e408e9370f536c356",
 ]
 
 [project.urls]
@@ -77,7 +77,7 @@ Issues = "https://github.com/munich-quantum-software/amazon-braket-qdmi-device/i
 amazon-braket-qdmi = "amazon.braket.qdmi.__main__:main"
 
 [project.entry-points."mqt.core.qdmi.manifests"]
-"amazon-braket-qdmi-device.qdmi.json" = "amazon.braket.qdmi"
+braket = "amazon.braket.qdmi"
 
 [project.entry-points."pennylane.plugins"]
 "amazon.braket.default" = "amazon.braket.qdmi._pennylane_entrypoint:AmazonBraketDevice"
@@ -105,7 +105,7 @@ dev = [
 test = [
   """\
   mqt-core[pennylane,qiskit] @ \
-  git+https://github.com/munich-quantum-toolkit/core.git@5bd2dfb3e7676f6bb4c00ff06d8952e2547cc5aa\
+  git+https://github.com/munich-quantum-toolkit/core.git@7b0218a755478b42ca4ce69e408e9370f536c356\
   """,
   "pytest>=9.1.1",
   "pytest-console-scripts>=1.4.1",
@@ -117,7 +117,7 @@ docs = [
   "furo>=2025.12.19",
   """\
   mqt-core[pennylane,qiskit] @ \
-  git+https://github.com/munich-quantum-toolkit/core.git@5bd2dfb3e7676f6bb4c00ff06d8952e2547cc5aa\
+  git+https://github.com/munich-quantum-toolkit/core.git@7b0218a755478b42ca4ce69e408e9370f536c356\
   """,
   "myst-nb>=1.4",
   "sphinx>=9",
