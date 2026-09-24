@@ -32,6 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     munge \
     slurm-wlm \
     sudo \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.29 /uv /uvx /usr/local/bin/
