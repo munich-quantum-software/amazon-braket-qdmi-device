@@ -57,12 +57,15 @@ email = "patrick@mq.sc"
 name = "Lukas Burgholzer"
 email = "lukas@mq.sc"
 
+# Temporary Core #2231 source pin: replace with a release before publishing.
 [project.optional-dependencies]
 pennylane = [
-  "mqt-core[pennylane]~=4.0.0",
+  """\
+  mqt-core[pennylane] @ git+https://github.com/munich-quantum-toolkit/core.git@477b7e02dbc9cdab8edfaf87f77d4ee122976c8c\
+  """,
 ]
 qiskit = [
-  "mqt-core[qiskit]~=4.0.0",
+  "mqt-core[qiskit] @ git+https://github.com/munich-quantum-toolkit/core.git@477b7e02dbc9cdab8edfaf87f77d4ee122976c8c",
 ]
 
 [project.urls]
@@ -72,6 +75,9 @@ Issues = "https://github.com/munich-quantum-software/amazon-braket-qdmi-device/i
 
 [project.scripts]
 amazon-braket-qdmi = "amazon.braket.qdmi.__main__:main"
+
+[project.entry-points."mqt.core.qdmi.manifests"]
+"amazon-braket-qdmi-device.qdmi.json" = "amazon.braket.qdmi"
 
 [project.entry-points."pennylane.plugins"]
 "amazon.braket.default" = "amazon.braket.qdmi._pennylane_entrypoint:AmazonBraketDevice"
@@ -97,7 +103,10 @@ dev = [
   "nox>=2026.8.10",
 ]
 test = [
-  "mqt-core[pennylane,qiskit]~=4.0.0",
+  """\
+  mqt-core[pennylane,qiskit] @ \
+  git+https://github.com/munich-quantum-toolkit/core.git@477b7e02dbc9cdab8edfaf87f77d4ee122976c8c\
+  """,
   "pytest>=9.1.1",
   "pytest-console-scripts>=1.4.1",
   "pytest-cov>=7.1",
@@ -106,7 +115,10 @@ test = [
 ]
 docs = [
   "furo>=2025.12.19",
-  "mqt-core[pennylane,qiskit]~=4.0.0",
+  """\
+  mqt-core[pennylane,qiskit] @ \
+  git+https://github.com/munich-quantum-toolkit/core.git@477b7e02dbc9cdab8edfaf87f77d4ee122976c8c\
+  """,
   "myst-nb>=1.4",
   "sphinx>=9",
   "sphinx-copybutton>=0.5.2",
@@ -185,7 +197,12 @@ test-groups = [ "test" ]
 test-sources = [ "test/python" ]
 
 [tool.cibuildwheel.linux]
-before-all = "yum install -y curl-devel openssl-devel"
+# Temporary: Core PR #2231 builds from source. Remove with the release pin.
+environment = { MLIR_DIR = "/opt/llvm-23.1.1/lib/cmake/mlir" }
+before-all = """
+yum install -y curl-devel openssl-devel
+curl -LsSf https://github.com/munich-quantum-software/setup-mlir/releases/download/v1.4.2/setup-mlir.sh | bash -s -- -v 23.1.1 -p /opt/llvm-23.1.1
+"""
 
 [tool.cibuildwheel.macos]
 environment = { MACOSX_DEPLOYMENT_TARGET = "13.3" }

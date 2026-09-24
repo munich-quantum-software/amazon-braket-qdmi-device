@@ -124,6 +124,9 @@ jobs:
     if: fromJSON(needs.change-detection.outputs.run-python-linter)
     uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-linter.yml@17f5c58e46c51027501e7d8d38dc182654ed035c # v2.5.0
     with:
+      # Temporary while MQT Core is pinned to PR #2231.
+      setup-mlir: true
+      llvm-version: 23.1.1
       check-stubs: false
       enable-ty: true
       enable-mypy: false
@@ -145,6 +148,9 @@ jobs:
     uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-cibuildwheel.yml@17f5c58e46c51027501e7d8d38dc182654ed035c # v2.5.0
     with:
       runs-on: ${{ matrix.runs-on }}
+      # Temporary while MQT Core is pinned to PR #2231.
+      setup-mlir: true
+      llvm-version: 23.1.1
 
   python-tests:
     name: 🐍 Test
@@ -168,6 +174,12 @@ jobs:
             -o Acquire::http::Timeout=30 \
             -o Acquire::https::Timeout=30 \
             install -y libcurl4-openssl-dev
+      # Temporary: remove after replacing the Core source pin with a release.
+      - name: Set up LLVM/MLIR for source-built MQT Core
+        uses: munich-quantum-software/setup-mlir@3f32263ce571a8b745068980f30f188b6e800763 # v1.4.2
+        with:
+          llvm-version: 23.1.1
+
       - name: Install the latest version of uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
@@ -202,6 +214,12 @@ jobs:
             -o Acquire::http::Timeout=30 \
             -o Acquire::https::Timeout=30 \
             install -y libcurl4-openssl-dev
+      # Temporary: remove after replacing the Core source pin with a release.
+      - name: Set up LLVM/MLIR for source-built MQT Core
+        uses: munich-quantum-software/setup-mlir@3f32263ce571a8b745068980f30f188b6e800763 # v1.4.2
+        with:
+          llvm-version: 23.1.1
+
       - name: Install the latest version of uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:

@@ -20,6 +20,9 @@ releases may include breaking changes.
 - 👷 Run GitHub Actions, documentation, and Slurm fixture builds on Ubuntu 26.04
   with Slurm 25.11, shared OpenSSL on Linux, and OpenSSL 3 in macOS C++ CI
   ([#233]) ([**@denialhaag**], [**@burgholzer**])
+- ✨ Discover installed QDMI device manifests and open independent sessions
+  through MQT Core's default driver. Use temporary source pins and LLVM/MLIR CI
+  setup until a suitable Core release is available ([**@burgholzer**]).
 
 - 👷 Enable testing on Python 3.15 ([#258]) ([**@denialhaag**])
 

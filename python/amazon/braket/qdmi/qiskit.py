@@ -25,7 +25,7 @@ try:
     from mqt.core.plugins.qiskit.backend import QDMIBackend
     from mqt.core.qdmi import Device as QDMIDeviceHandle
     from mqt.core.qdmi import ProgramFormat
-    from mqt.core.qdmi.driver import open_device
+    from mqt.core.qdmi.default_driver import open_device
 except ImportError as error:
     msg = "Install 'amazon-braket-qdmi[qiskit]' to use the Qiskit backend."
     raise ImportError(msg) from error
@@ -39,7 +39,6 @@ except ImportError as error:
     raise ImportError(msg) from error
 
 from . import AMAZON_BRAKET_QDMI_DEVICE_ID
-from ._catalogue import register_device
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -172,7 +171,6 @@ class AmazonBraketBackend(QDMIBackend):
             msg = "The generic Amazon Braket device requires a non-empty device_arn."
             raise ValueError(msg)
 
-        register_device(resolved_device_id)
         device = open_device(
             resolved_device_id,
             base_url=device_arn,
