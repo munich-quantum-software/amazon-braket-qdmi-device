@@ -37,6 +37,7 @@ except ImportError:
 import networkx as nx
 import numpy as np
 from mqt.core.plugins.pennylane import QDMIDevice
+from mqt.core.qdmi import default_driver
 
 GRAPH = nx.Graph([(0, 1), (0, 2), (1, 2), (2, 3)])
 COST_HAMILTONIAN, MIXER_HAMILTONIAN = qp.qaoa.maxcut(GRAPH)
@@ -130,7 +131,7 @@ def _assert_valid_result(result: QAOAResult) -> None:
 
 def test_qaoa_end_to_end_on_ddsim() -> None:
     """Run the sampled workflow on the local QDMI simulator."""
-    device = qp.device("mqt.ddsim.default", wires=4)
+    device = QDMIDevice(device=default_driver.open_device("mqt.ddsim.default"), wires=4)
     assert isinstance(device, QDMIDevice)
 
     _assert_valid_result(_run_qaoa(device, shots=200))

@@ -19,23 +19,23 @@
 
 from __future__ import annotations
 
-from mqt.core.qdmi import driver
+import json
+from importlib.metadata import distribution
 
-from amazon.braket.qdmi import (
-    AMAZON_BRAKET_QDMI_LIBRARY_PATH,
-    AMAZON_BRAKET_QDMI_PREFIX,
-)
-
-TEST_DEVICE_ID = "test.amazon.braket.packaged"
+from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_CATALOG_PATH
 
 
-def test_register_device_if_absent() -> None:
-    """Register the packaged device without loading it or contacting AWS."""
-    definition = driver.DeviceDefinition(
-        TEST_DEVICE_ID,
-        AMAZON_BRAKET_QDMI_LIBRARY_PATH,
-        AMAZON_BRAKET_QDMI_PREFIX,
-    )
-
-    assert driver.register_device_if_absent(definition)
-    assert not driver.register_device_if_absent(definition)
+def test_installed_manifest_discovery() -> None:
+    """Advertise installed metadata without opening a device or contacting AWS."""
+    dist = distribution("amazon-braket-qdmi")
+    entries = [entry for entry in dist.entry_points if entry.group == "mqt.core.qdmi.manifests"]
+    assert [(entry.name, entry.value) for entry in entries] == [
+        ("amazon-braket-qdmi-device.qdmi.json", "amazon.braket.qdmi")
+    ]
+    devices = json.loads(AMAZON_BRAKET_QDMI_CATALOG_PATH.read_text())["qdmi"]["devices"]
+    assert len({device["id"] for device in devices}) == len(devices)
+    sv1 = next(device for device in devices if device["id"] == "amazon.braket.sv1")
+    assert sv1["session"] == {
+        "base-url": "arn:aws:braket:::device/quantum-simulator/amazon/sv1",
+        "custom2": "us-east-1",
+    }
