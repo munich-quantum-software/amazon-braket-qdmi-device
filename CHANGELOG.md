@@ -22,7 +22,7 @@ releases may include breaking changes.
   ([#233]) ([**@denialhaag**], [**@burgholzer**])
 - ✨ Discover installed QDMI device manifests and open independent sessions
   through MQT Core's default driver. Use temporary source pins and LLVM/MLIR CI
-  setup until a suitable Core release is available ([**@burgholzer**]).
+  setup until a suitable Core release is available ([#239]) ([**@burgholzer**]).
 
 - 👷 Enable testing on Python 3.15 ([#258]) ([**@denialhaag**])
 
@@ -224,3 +224,5 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 [Keep a Changelog]: https://keepachangelog.com/en/1.1.0/
 [Common Changelog]: https://common-changelog.org
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
+
+[#239]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/239
