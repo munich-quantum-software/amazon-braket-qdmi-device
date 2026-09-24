@@ -29,10 +29,9 @@ except ImportError:
     pytest.skip("Install the PennyLane extra to run these tests.", allow_module_level=True)
 
 from mqt.core.plugins.pennylane import PennyLaneConfigurationError, QDMIDevice
-from mqt.core.qdmi import default_driver as driver
+from mqt.core.qdmi import builtin_driver as driver
 
 from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_DEVICE_ID
-from amazon.braket.qdmi import pennylane as braket_pennylane
 from amazon.braket.qdmi.pennylane import (
     AmazonBraketAqtIbexQ1Device,
     AmazonBraketDevice,
@@ -61,21 +60,17 @@ def device_configuration(
     """
     calls: list[tuple[str, Mapping[str, object], Mapping[str, object]]] = []
 
-    def open_device(device_id: str, **parameters: str) -> object:
-        calls.append((device_id, parameters, {}))
-        return object()
-
     def initialize(
         _device: QDMIDevice,
         *,
+        device_id: str,
+        session_parameters: Mapping[str, object] | None = None,
         job_parameters: Mapping[str, object] | None = None,
         **_kwargs: object,
     ) -> None:
-        device_id, session, _ = calls[-1]
-        calls[-1] = (device_id, session, dict(job_parameters or {}))
+        calls.append((device_id, dict(session_parameters or {}), dict(job_parameters or {})))
 
     monkeypatch.setattr(QDMIDevice, "__init__", initialize)
-    monkeypatch.setattr(braket_pennylane, "open_device", open_device)
     return calls
 
 
@@ -208,7 +203,8 @@ def test_overrides_catalogue_configuration(
 def test_samples_with_qnode_shots(monkeypatch: pytest.MonkeyPatch) -> None:
     """Execute through MQT Core with the QNode's explicit shot count."""
     monkeypatch.setattr(
-        braket_pennylane, "open_device", lambda _device_id, **_kwargs: driver.open_device("mqt.ddsim.default")
+        "mqt.core.plugins.pennylane.device.open_device",
+        lambda _device_id, **_kwargs: driver.open_device("mqt.ddsim.default"),
     )
     device = AmazonBraketSV1Device(wires=2)
 
