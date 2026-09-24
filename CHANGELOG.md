@@ -19,9 +19,8 @@ releases may include breaking changes.
 
 ### Fixed
 
-- 🐛 Queue simulator submissions within a configurable concurrency limit and
-  retry temporary Braket service-quota errors through the AWS SDK ([#241])
-  ([**@burgholzer**])
+- 🐛 Retry temporary Braket service-quota errors during task submission through
+  the AWS SDK ([#241]) ([**@burgholzer**])
 
 ## [1.2.0] - 2026-09-12
 

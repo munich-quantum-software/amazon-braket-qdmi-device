@@ -107,7 +107,6 @@
 #include <aws/sts/STSClient.h>
 #include <aws/sts/STSServiceClientModel.h>
 #include <aws/sts/model/GetCallerIdentityRequest.h>
-#include <charconv>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -128,7 +127,6 @@
 #include <stdlib.h> /// NOLINT(modernize-deprecated-headers): POSIX setenv
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <thread>
 #include <unordered_map>
 #include <utility>
@@ -891,23 +889,6 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS try {
     }
   }
 
-  if (deviceArn_.find(":device/quantum-simulator/") != std::string::npos) {
-    size_t maxParallel = 10;
-    if (const auto* value =
-            std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_MAX_PARALLEL);
-        value != nullptr) {
-      const auto* end = value + std::strlen(value);
-      const auto [parsed, error] = std::from_chars(value, end, maxParallel);
-      if (error != std::errc{} || parsed != end || maxParallel == 0) {
-        std::fputs(
-            "AMAZON_BRAKET_QDMI_MAX_PARALLEL must be a positive integer.\n",
-            stderr);
-        return QDMI_ERROR_INVALIDARGUMENT;
-      }
-    }
-    simulatorTasks_.resize(maxParallel);
-  }
-
   Aws::Braket::BraketClientConfiguration config;
   config.region = region_;
   amazon::braket::qdmi::detail::configureRetries(config);
@@ -1555,86 +1536,6 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
   return statusFromCurrentException();
 }
 
-auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::createQuantumTask(
-    const Aws::Braket::Model::CreateQuantumTaskRequest& request,
-    const std::stop_token& stop)
-    -> std::optional<Aws::Braket::Model::CreateQuantumTaskOutcome> {
-  if (simulatorTasks_.empty()) {
-    return stop.stop_requested()
-               ? std::nullopt
-               : std::optional{client_->CreateQuantumTask(request)};
-  }
-  std::unique_lock lock(submissionMutex_);
-  while (!stop.stop_requested()) {
-    const auto slot =
-        std::ranges::find(simulatorTasks_, std::optional<std::string>{});
-    if (slot != simulatorTasks_.end()) {
-      slot->emplace();
-      try {
-        lock.unlock();
-        auto outcome = client_->CreateQuantumTask(request);
-        lock.lock();
-        if (outcome.IsSuccess()) {
-          *slot = outcome.GetResult().GetQuantumTaskArn();
-        } else {
-          slot->reset();
-        }
-        submissionChanged_.notify_all();
-        return outcome;
-      } catch (...) {
-        if (!lock.owns_lock()) {
-          lock.lock();
-        }
-        slot->reset();
-        submissionChanged_.notify_all();
-        throw;
-      }
-    }
-    if (std::chrono::steady_clock::now() < nextSubmissionPoll_) {
-      const auto nextPoll = nextSubmissionPoll_;
-      submissionChanged_.wait_until(lock, stop, nextPoll, [this] {
-        return std::ranges::find(simulatorTasks_,
-                                 std::optional<std::string>{}) !=
-               simulatorTasks_.end();
-      });
-      continue;
-    }
-    /// One worker polls capacity for the session; all backoff stays in the SDK.
-    nextSubmissionPoll_ =
-        std::chrono::steady_clock::now() + std::chrono::milliseconds{500};
-    for (auto& task : simulatorTasks_) {
-      if (stop.stop_requested()) {
-        return std::nullopt;
-      }
-      if (!task || task->empty()) {
-        continue;
-      }
-      Aws::Braket::Model::GetQuantumTaskRequest statusRequest;
-      statusRequest.SetQuantumTaskArn(*task);
-      const auto outcome = client_->GetQuantumTask(statusRequest);
-      if (!outcome.IsSuccess()) {
-        return outcome.GetError();
-      }
-      switch (outcome.GetResult().GetStatus()) {
-      case Aws::Braket::Model::QuantumTaskStatus::COMPLETED:
-      case Aws::Braket::Model::QuantumTaskStatus::CANCELLED:
-      case Aws::Braket::Model::QuantumTaskStatus::FAILED:
-        task.reset();
-        break;
-      case Aws::Braket::Model::QuantumTaskStatus::CREATED:
-      case Aws::Braket::Model::QuantumTaskStatus::QUEUED:
-      case Aws::Braket::Model::QuantumTaskStatus::RUNNING:
-      case Aws::Braket::Model::QuantumTaskStatus::CANCELLING:
-        break;
-      default:
-        throw std::runtime_error("Unknown Braket QuantumTask status");
-      }
-    }
-    submissionChanged_.notify_all();
-  }
-  return std::nullopt;
-}
-
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
   // Amazon Braket CreateQuantumTask API Call
 
@@ -1740,16 +1641,14 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
         auto result = QDMI_SUCCESS;
         try {
           const auto outcome =
-              session_->createQuantumTask(request, stopSubmission_.get_token());
-          if (!outcome) {
-            status_.store(QDMI_JOB_STATUS_CANCELED);
-          } else if (!outcome->IsSuccess()) {
-            result = mapBraketServiceError(outcome->GetError(),
-                                           "Braket task submission");
+              session_->getClient()->CreateQuantumTask(request);
+          if (!outcome.IsSuccess()) {
+            result = mapBraketServiceError(outcome.GetError(),
+                                           "Braket CreateQuantumTask");
           } else {
             {
               const std::scoped_lock lock(jobMutex_);
-              taskArn_ = outcome->GetResult().GetQuantumTaskArn();
+              taskArn_ = outcome.GetResult().GetQuantumTaskArn();
             }
             startPrefetch();
           }
@@ -1787,20 +1686,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS try {
-  bool wasPending = false;
-  {
-    const std::scoped_lock lock(jobMutex_);
-    wasPending = submitting_;
-    if (wasPending) {
-      stopSubmission_.request_stop();
-    }
-  }
-  /// In-flight requests must yield their ARN before remote cancellation.
+  /// A pending CreateQuantumTask must yield its ARN before it can be canceled.
   if (const auto result = awaitSubmission(); result != QDMI_SUCCESS) {
     return result;
-  }
-  if (wasPending && status_.load() == QDMI_JOB_STATUS_CANCELED) {
-    return QDMI_SUCCESS;
   }
   QDMI_Job_Status currentStatus = QDMI_JOB_STATUS_CREATED;
   {

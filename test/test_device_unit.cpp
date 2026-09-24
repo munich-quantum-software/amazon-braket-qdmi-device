@@ -129,11 +129,6 @@ struct AMAZON_BRAKET_QDMI_Device_Job_TestAccess {
 };
 
 struct AMAZON_BRAKET_QDMI_Device_Session_TestAccess {
-  static auto setMaxParallel(AMAZON_BRAKET_QDMI_Device_Session session,
-                             const size_t limit) -> void {
-    session->simulatorTasks_.assign(limit, std::nullopt);
-  }
-
   static auto stopSubmissions(AMAZON_BRAKET_QDMI_Device_Session session)
       -> void {
     session->submissionExecutor_->WaitUntilStopped();
@@ -301,11 +296,6 @@ public:
     const std::scoped_lock lock(createMutex_);
     releaseCreate_ = true;
     createChanged_.notify_all();
-  }
-  auto setTaskStatus(const Aws::Braket::Model::QuantumTaskStatus status)
-      -> void {
-    const std::scoped_lock lock(taskMutex_);
-    result_.SetStatus(status);
   }
 
 private:
@@ -979,29 +969,6 @@ TEST_F(AmazonBraketQDMIOfflineTest, SessionInitUsesEnvironmentFallbacks) {
   const ScopedEnvironment region(AMAZON_BRAKET_QDMI_DEVICE_ENV_REGION,
                                  "us-east-1");
 
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
-}
-
-TEST_F(AmazonBraketQDMIOfflineTest, RejectsInvalidSimulatorConcurrency) {
-  const ScopedEnvironment device(
-      AMAZON_BRAKET_QDMI_DEVICE_ENV_DEVICE_ARN,
-      "arn:aws:braket:::device/quantum-simulator/amazon/sv1");
-#ifndef _WIN32
-  {
-    const ScopedEnvironment limit(AMAZON_BRAKET_QDMI_DEVICE_ENV_MAX_PARALLEL,
-                                  "");
-    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
-              QDMI_ERROR_INVALIDARGUMENT);
-  }
-#endif
-  for (const auto* value : {"0", "-1", "2jobs", "999999999999999999999999"}) {
-    const ScopedEnvironment limit(AMAZON_BRAKET_QDMI_DEVICE_ENV_MAX_PARALLEL,
-                                  value);
-    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
-              QDMI_ERROR_INVALIDARGUMENT);
-  }
-  const ScopedEnvironment limit(AMAZON_BRAKET_QDMI_DEVICE_ENV_MAX_PARALLEL,
-                                "2");
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
 }
 
@@ -2329,8 +2296,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, SubmissionConcurrencyIsBounded) {
       AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI,
       "s3://explicit-results/tasks");
   auto client = std::make_unique<StubBraketClient>(
-      Aws::Braket::Model::GetQuantumTaskResult{}.WithStatus(
-          Aws::Braket::Model::QuantumTaskStatus::FAILED));
+      Aws::Braket::Model::GetQuantumTaskResult{});
   auto* const braket = client.get();
   braket->blockCreate();
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
@@ -2358,91 +2324,6 @@ TEST_F(AmazonBraketQDMILocalJobTest, SubmissionConcurrencyIsBounded) {
     AMAZON_BRAKET_QDMI_device_job_free(job);
   }
   EXPECT_EQ(braket->createCalls(), jobs.size());
-}
-
-TEST_F(AmazonBraketQDMILocalJobTest,
-       SimulatorQueueRetainsCapacityAndCanCancel) {
-  const ScopedEnvironment destination(
-      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI,
-      "s3://explicit-results/tasks");
-  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setMaxParallel(session, 1);
-  auto client = std::make_unique<StubBraketClient>(
-      Aws::Braket::Model::GetQuantumTaskResult{}.WithStatus(
-          Aws::Braket::Model::QuantumTaskStatus::RUNNING));
-  auto* const braket = client.get();
-  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
-                                                          std::move(client));
-  auto* first = createConfiguredJob(session);
-  ASSERT_EQ(submitAndAwaitAcceptance(first), QDMI_SUCCESS);
-  AMAZON_BRAKET_QDMI_device_job_free(first);
-  auto* pending = createConfiguredJob(session);
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(pending), QDMI_SUCCESS);
-  auto acceptance = std::async(std::launch::async, [pending] {
-    return AMAZON_BRAKET_QDMI_Device_Job_TestAccess::awaitSubmission(pending);
-  });
-  EXPECT_EQ(acceptance.wait_for(std::chrono::milliseconds{100}),
-            std::future_status::timeout);
-  EXPECT_EQ(braket->createCalls(), 1U);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_cancel(pending), QDMI_SUCCESS);
-  acceptance.get();
-  QDMI_Job_Status status = QDMI_JOB_STATUS_SUBMITTED;
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(pending, &status),
-            QDMI_SUCCESS);
-  EXPECT_EQ(status, QDMI_JOB_STATUS_CANCELED);
-  EXPECT_EQ(braket->createCalls(), 1U);
-  EXPECT_EQ(braket->cancelCalls(), 0U);
-  AMAZON_BRAKET_QDMI_device_job_free(pending);
-
-  auto* draining = createConfiguredJob(session);
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(draining), QDMI_SUCCESS);
-  auto freeing = std::async(std::launch::async, [draining] {
-    AMAZON_BRAKET_QDMI_device_job_free(draining);
-  });
-  EXPECT_EQ(freeing.wait_for(std::chrono::milliseconds{100}),
-            std::future_status::timeout);
-  EXPECT_EQ(braket->createCalls(), 1U);
-  braket->setTaskStatus(Aws::Braket::Model::QuantumTaskStatus::FAILED);
-  freeing.get();
-  EXPECT_EQ(braket->createCalls(), 2U);
-
-  for (const auto terminal :
-       {Aws::Braket::Model::QuantumTaskStatus::COMPLETED,
-        Aws::Braket::Model::QuantumTaskStatus::FAILED,
-        Aws::Braket::Model::QuantumTaskStatus::CANCELLED}) {
-    auto* job = createConfiguredJob(session);
-    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job), QDMI_SUCCESS);
-    braket->setTaskStatus(terminal);
-    EXPECT_EQ(AMAZON_BRAKET_QDMI_Device_Job_TestAccess::awaitSubmission(job),
-              QDMI_SUCCESS);
-    AMAZON_BRAKET_QDMI_device_job_free(job);
-  }
-  EXPECT_EQ(braket->createCalls(), 5U);
-}
-
-TEST_F(AmazonBraketQDMILocalJobTest,
-       SimulatorQueueReportsCapacityQueryFailure) {
-  const ScopedEnvironment destination(
-      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI,
-      "s3://explicit-results/tasks");
-  for (const auto& [error, expected] :
-       {std::pair{std::optional{Aws::Braket::BraketErrors::ACCESS_DENIED},
-                  QDMI_ERROR_PERMISSIONDENIED},
-        std::pair{std::optional<Aws::Braket::BraketErrors>{},
-                  QDMI_ERROR_FATAL}}) {
-    AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setMaxParallel(session, 1);
-    AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
-        session, std::make_unique<StubBraketClient>(
-                     Aws::Braket::Model::GetQuantumTaskResult{}, error));
-    auto* first = createConfiguredJob(session);
-    ASSERT_EQ(submitAndAwaitAcceptance(first), QDMI_SUCCESS);
-    auto* pending = createConfiguredJob(session);
-    EXPECT_EQ(submitAndAwaitAcceptance(pending), expected);
-    QDMI_Job_Status status = QDMI_JOB_STATUS_SUBMITTED;
-    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(pending, &status), expected);
-    EXPECT_EQ(status, QDMI_JOB_STATUS_FAILED);
-    AMAZON_BRAKET_QDMI_device_job_free(pending);
-    AMAZON_BRAKET_QDMI_device_job_free(first);
-  }
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest, JobIdWaitsForAwsAcceptance) {
@@ -2520,7 +2401,6 @@ TEST_F(AmazonBraketQDMILocalJobTest, FreeDrainsPendingSubmissions) {
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest, CreateQuantumTaskFailuresMapAwsErrors) {
-  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setMaxParallel(session, 1);
   constexpr std::array failures{
       std::pair{Aws::Braket::BraketErrors::ACCESS_DENIED,
                 QDMI_ERROR_PERMISSIONDENIED},

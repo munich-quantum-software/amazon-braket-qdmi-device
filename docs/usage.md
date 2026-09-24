@@ -126,19 +126,14 @@ by Amazon Braket.
 `device_job_submit()` queues the request and returns before AWS acceptance.
 Submit the whole batch before waiting for results. Each session uses separate
 eight-worker pools for submission and result prefetch; these limit local HTTP
-requests. Simulator sessions also limit outstanding tasks as described in
-[Retries and quotas](configuration.md#retries-and-quotas). Foreground reads use
-prefetched results when available and can fetch results without waiting for the
-prefetch queue.
+requests, not remote running tasks. Foreground reads use prefetched results when
+available and can fetch results without waiting for the prefetch queue.
 
 Submitted jobs are immutable and report `SUBMITTED` while AWS acceptance is
 pending. Submission failures appear through `device_job_check()` and
 `device_job_wait()` with status `FAILED`. Job IDs remain AWS QuantumTask ARNs,
-so ID queries wait for pending acceptance. Cancellation removes locally queued
-submissions or waits for an in-flight request before canceling its ARN. Avoid
-querying each ID immediately after submission, which serializes the batch.
+so ID queries and cancellation wait for pending acceptance. Avoid querying each
+ID immediately after submission, which serializes the batch.
 
-Freeing a job or session stops background polling and drains pending submissions
-and HTTP requests, including waits for simulator capacity. It does not cancel
-accepted QuantumTasks or wait for their execution. Cancel locally queued jobs
-first to discard their submissions.
+Freeing a job or session stops background polling and drains pending HTTP
+requests. It does not wait for remote execution or cancel the QuantumTask.

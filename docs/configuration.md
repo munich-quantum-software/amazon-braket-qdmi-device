@@ -28,88 +28,30 @@ verification is never disabled.
 
 ## Retries and quotas
 
-The device delegates request retries to the AWS SDK for C++ for Amazon Braket,
-S3, and STS. It enables the SDK's 2026 retry behavior by setting
-`AWS_NEW_RETRIES_2026=true` during device initialization, before initializing
-the SDK, if the variable is absent. The default retry mode is `standard`, with
-up to **10 total attempts** per request, including the initial attempt. The SDK
-handles error classification, exponential backoff with jitter, and the retry
-token budget. Exhausting that budget can end retries before the attempt limit.
-
-The opt-in is process-wide and remains set after device finalization. It can
-affect other AWS clients created in the same process. Initialize the device at
-process startup, before other threads use the AWS SDK or modify the environment.
-If the application initializes the SDK itself first, set the variable before
-that initialization so that the SDK's shared error classification also uses the
-new behavior. Set `AWS_NEW_RETRIES_2026=false` before starting the process to
-opt out; the device preserves explicit values.
-
-Tune retries without rebuilding or adding QDMI parameters:
+The device uses AWS SDK retries, defaulting to `standard` mode and up to
+**10 total attempts** per request. Configure retries through AWS environment
+variables or your AWS profile before initialization. For example:
 
 ```console
-export AWS_PROFILE=hpc-quantum
-export AWS_RETRY_MODE=standard
 export AWS_MAX_ATTEMPTS=15
 ```
 
-Alternatively, configure the selected AWS profile in `~/.aws/config`:
+See the [AWS retry reference] for `AWS_RETRY_MODE`, attempt limits, profile
+settings, and retry behavior.
 
-```ini
-[profile hpc-quantum]
-retry_mode = standard
-max_attempts = 15
-```
+Device initialization enables `AWS_NEW_RETRIES_2026=true` unless explicitly set.
+This process-wide setting remains after finalization and can affect other AWS
+clients. Initialize the device before other threads use the SDK; if your
+application initializes the SDK first, set the variable before that step. Set it
+to `false` before startup to opt out.
 
-Environment settings take precedence over profile settings. The device supplies
-10 attempts only when neither contains an attempt limit. Set
-`AWS_MAX_ATTEMPTS=1` to disable request retries. Configure these settings before
-device and session initialization; existing clients retain their retry
-strategies. Higher limits can make submission, polling, cancellation, and result
-retrieval take longer. An in-flight SDK call can also outlast the QDMI job-wait
-timeout.
-
-Use `standard` for general workloads. `adaptive` also limits outgoing requests
-per client and can delay the first attempt. Each session shares its Braket
-client across API operations, which have different rate limits: throttling
-submissions can also delay polling and cancellation. Keep `standard` unless this
-tradeoff suits your workload. See the [AWS retry reference] for details.
-
-### Simulator batches
-
-Submit the whole batch before waiting for results. Each simulator session keeps
-at most **10 outstanding QuantumTasks**, including submissions in flight, and
-queues further submissions locally until tasks finish. This follows the
-[Braket Python SDK's batch approach]. QPU jobs use Braket's remote queue.
-
-Set the per-session limit before session initialization:
-
-```console
-export AMAZON_BRAKET_QDMI_MAX_PARALLEL=20
-```
-
-Choose a positive integer that leaves room within your [Amazon Braket quotas]
-for other sessions, processes, and applications using the same account and
-Region. This setting applies to simulators only; it does not discover or raise
-account quotas. Freeing an accepted job handle does not free its capacity slot:
-the session tracks the remote task until it finishes. Canceling a locally queued
-job prevents its submission. An in-flight request must finish before
-cancellation can reach the remote task. Freeing a job drains pending submission
-and can wait for capacity; cancel it first to discard queued work.
-
-The device classifies `ServiceQuotaExceededException` from task submission as
-retryable throttling, so the SDK also retries capacity races with other clients.
-The SDK owns backoff and attempt limits; there is no additional request-retry
-loop. Persistent quota exhaustion or failed capacity queries can still fail a
-submission after SDK retries. Increase `AWS_MAX_ATTEMPTS`, reduce concurrency,
-or request an adjustable quota increase for sustained capacity shortages.
-
-Validation and permission failures return without retries. After the SDK stops
-retrying, the device reports the failed outcome through QDMI and logs the AWS
-diagnostic. QuantumTask status polling remains separate from request retries.
+Task submissions also retry `ServiceQuotaExceededException`. Retries are
+bounded: persistent quota exhaustion can still fail a submission. Increase
+`AWS_MAX_ATTEMPTS`, reduce concurrent work, or request an adjustable
+[Amazon Braket quota] increase when needed.
 
 [AWS retry reference]: https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html
-[Braket Python SDK's batch approach]: https://amazon-braket-sdk-python.readthedocs.io/en/latest/_apidoc/braket.aws.aws_quantum_task_batch.html
-[Amazon Braket quotas]: https://docs.aws.amazon.com/braket/latest/developerguide/braket-quotas.html
+[Amazon Braket quota]: https://docs.aws.amazon.com/braket/latest/developerguide/braket-quotas.html
 
 ## Device session
 
