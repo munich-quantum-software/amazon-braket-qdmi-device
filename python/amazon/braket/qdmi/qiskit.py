@@ -25,7 +25,7 @@ try:
     from mqt.core.plugins.qiskit.backend import QDMIBackend
     from mqt.core.qdmi import Device as QDMIDeviceHandle
     from mqt.core.qdmi import ProgramFormat
-    from mqt.core.qdmi.default_driver import open_device
+    from mqt.core.qdmi.builtin_driver import open_device
 except ImportError as error:
     msg = "Install 'amazon-braket-qdmi[qiskit]' to use the Qiskit backend."
     raise ImportError(msg) from error

@@ -29,9 +29,7 @@ def test_installed_manifest_discovery() -> None:
     """Advertise installed metadata without opening a device or contacting AWS."""
     dist = distribution("amazon-braket-qdmi")
     entries = [entry for entry in dist.entry_points if entry.group == "mqt.core.qdmi.manifests"]
-    assert [(entry.name, entry.value) for entry in entries] == [
-        ("amazon-braket-qdmi-device.qdmi.json", "amazon.braket.qdmi")
-    ]
+    assert [(entry.name, entry.value) for entry in entries] == [("braket", "amazon.braket.qdmi")]
     devices = json.loads(AMAZON_BRAKET_QDMI_CATALOG_PATH.read_text())["qdmi"]["devices"]
     assert len({device["id"] for device in devices}) == len(devices)
     sv1 = next(device for device in devices if device["id"] == "amazon.braket.sv1")

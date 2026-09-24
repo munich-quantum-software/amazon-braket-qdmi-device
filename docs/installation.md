@@ -106,19 +106,19 @@ target_link_libraries(my_app PRIVATE MQT::CoreQDMI)
 mqt_copy_qdmi_runtime(my_app amazon-braket-qdmi-device)
 ```
 
-The runtime helper stages the selected driver, device library, and manifest
-beside the application. The driver resolves relative library paths from the
-manifest directory.
+The helper copies the MQT Core QDMI driver, device library, and manifest beside
+the application. The driver resolves relative library paths from the manifest
+directory.
 
 Python consumers use installed entry-point metadata to discover the catalogue
 without importing provider code or loading the native library. Each definition
 contains the device ARN and AWS Region; the AWS SDK resolves credentials when
-the default driver opens the device.
+the MQT Core QDMI driver opens the device.
 
 ```python
-from mqt.core.qdmi import default_driver
+from mqt.core.qdmi import builtin_driver
 
-device = default_driver.open_device("amazon.braket.sv1")
+device = builtin_driver.open_device("amazon.braket.sv1")
 ```
 
 An explicit configuration augments built-in and installed device definitions and
