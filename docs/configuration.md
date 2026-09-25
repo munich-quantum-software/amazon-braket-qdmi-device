@@ -53,6 +53,34 @@ bounded: persistent quota exhaustion can still fail a submission. Increase
 [AWS retry reference]: https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html
 [Amazon Braket quota]: https://docs.aws.amazon.com/braket/latest/developerguide/braket-quotas.html
 
+## Diagnostics
+
+To see AWS service errors and SDK retry delays, enable logging before starting
+the application:
+
+```console
+export AMAZON_BRAKET_QDMI_LOG_LEVEL=warn
+```
+
+The setting accepts `off` (the default), `fatal`, `error`, `warn`, `info`,
+`debug`, and `trace`, ignoring case. An unset or empty value disables logging;
+an invalid value makes device initialization fail. The SDK writes
+`aws_sdk_*.log` files in the working directory. Higher verbosity can include
+request and response details; use `warn` for routine retry diagnosis.
+
+Logging is process-wide and configured when the SDK first initializes. If your
+application initializes the SDK before the device, configure logging there. See
+the
+[AWS SDK logging guide](https://docs.aws.amazon.com/sdk-for-cpp/v1/developer-guide/logging.html)
+for log levels and output behavior.
+
+For structured request-attempt metrics, the SDK also supports Client Side
+Monitoring (CSM), independently of logging. Set `AWS_CSM_ENABLED=true`,
+`AWS_CSM_HOST=127.0.0.1`, and `AWS_CSM_PORT=31000` before initialization and
+start a local UDP JSON receiver on that port. Count `ApiCallAttempt` events by
+`Api` and `AwsException` to distinguish submission retries from polling errors.
+These count HTTP attempts, not distinct failed QuantumTasks.
+
 ## Device session
 
 Set the Amazon Braket device ARN before initializing a direct QDMI session:

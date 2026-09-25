@@ -89,6 +89,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <new>
 #include <optional>
 #include <random>
 #include <stop_token>
@@ -105,6 +106,25 @@ struct AMAZON_BRAKET_QDMI_Device_Session_TestAccess;
 namespace amazon::braket::qdmi {
 
 namespace detail {
+/// Read configuration before SDK initialization, preserving absent vs. empty.
+inline auto getEnvironment(const char* name) -> std::optional<std::string> {
+#ifdef _MSC_VER
+  char* value = nullptr;
+  size_t size = 0;
+  const auto result = _dupenv_s(&value, &size, name);
+  const std::unique_ptr<char, decltype(&std::free)> storage(value, std::free);
+  if (result != 0) {
+    throw std::bad_alloc{};
+  }
+#else
+  const auto* value = std::getenv(name);
+#endif
+  if (value == nullptr) {
+    return std::nullopt;
+  }
+  return std::string{value};
+}
+
 /// Classify temporary Braket capacity limits for the SDK's retry strategy.
 class BraketClient : public Aws::Braket::BraketClient {
 public:
@@ -119,8 +139,7 @@ public:
 /// The SDK resolves the retry mode and owns backoff, jitter, and retry quotas.
 inline auto configureRetries(Aws::Client::ClientConfiguration& configuration)
     -> void {
-  const auto* maxAttempts = std::getenv("AWS_MAX_ATTEMPTS");
-  if ((maxAttempts == nullptr || maxAttempts[0] == '\0') &&
+  if (getEnvironment("AWS_MAX_ATTEMPTS").value_or("").empty() &&
       Aws::Config::GetCachedConfigValue(configuration.profileName,
                                         "max_attempts")
           .empty()) {
@@ -133,9 +152,9 @@ inline auto configureRetries(Aws::Client::ClientConfiguration& configuration)
 inline auto configureCaBundle(Aws::Client::ClientConfiguration& configuration)
     -> void {
   for (const auto* variable : {"AWS_CA_BUNDLE", "SSL_CERT_FILE"}) {
-    if (const auto* value = std::getenv(variable);
-        value != nullptr && value[0] != '\0') {
-      configuration.caFile = value;
+    if (const auto value = getEnvironment(variable);
+        value.has_value() && !value->empty()) {
+      configuration.caFile = value->c_str();
       return;
     }
   }

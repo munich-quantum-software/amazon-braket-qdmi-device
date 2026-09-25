@@ -93,7 +93,9 @@
 #include <aws/core/http/HttpResponse.h>
 #include <aws/core/http/HttpTypes.h>
 #include <aws/core/utils/Array.h>
+#include <aws/core/utils/StringUtils.h>
 #include <aws/core/utils/json/JsonSerializer.h>
+#include <aws/core/utils/logging/LogLevel.h>
 #include <aws/core/utils/memory/stl/AWSAllocator.h>
 #include <aws/core/utils/memory/stl/AWSString.h>
 #include <aws/core/utils/threading/PooledThreadExecutor.h>
@@ -850,10 +852,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS try {
   const auto applyEnvironmentFallback = [](std::string& destination,
                                            const char* variable) {
     if (destination.empty()) {
-      if (const char* value = std::getenv(variable);
-          value != nullptr && value[0] != '\0') {
-        destination = value;
-      }
+      destination =
+          amazon::braket::qdmi::detail::getEnvironment(variable).value_or("");
     }
   };
   applyEnvironmentFallback(deviceArn_,
@@ -980,11 +980,9 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::resolveS3Destination(
     const std::string& jobS3Uri, S3Destination& destination) -> QDMI_STATUS {
   std::string uri = jobS3Uri;
   if (uri.empty()) {
-    if (const auto* environmentUri =
-            std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI);
-        environmentUri != nullptr && *environmentUri != '\0') {
-      uri = environmentUri;
-    }
+    uri = amazon::braket::qdmi::detail::getEnvironment(
+              AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI)
+              .value_or("");
   }
   if (!uri.empty()) {
     if (!parseS3Uri(uri, destination.bucket, destination.prefix)) {
@@ -2140,9 +2138,37 @@ std::mutex gAWSInitMutex;
 int AMAZON_BRAKET_QDMI_device_initialize() try {
   const std::scoped_lock lock(gAWSInitMutex);
   if (!gAWSInitialized) {
+    using Aws::Utils::Logging::LogLevel;
+    auto logLevel = LogLevel::Off;
+    if (const auto value = amazon::braket::qdmi::detail::getEnvironment(
+            AMAZON_BRAKET_QDMI_DEVICE_ENV_LOG_LEVEL);
+        value.has_value() && !value->empty()) {
+      constexpr std::array levels{std::pair{"off", LogLevel::Off},
+                                  std::pair{"fatal", LogLevel::Fatal},
+                                  std::pair{"error", LogLevel::Error},
+                                  std::pair{"warn", LogLevel::Warn},
+                                  std::pair{"info", LogLevel::Info},
+                                  std::pair{"debug", LogLevel::Debug},
+                                  std::pair{"trace", LogLevel::Trace}};
+      /// NOLINTNEXTLINE(readability-qualified-auto): Portable iterator type.
+      const auto match =
+          std::ranges::find_if(levels, [&value](const auto& level) {
+            return Aws::Utils::StringUtils::CaselessCompare(value->c_str(),
+                                                            level.first);
+          });
+      if (match == levels.end()) {
+        std::fputs("Invalid AMAZON_BRAKET_QDMI_LOG_LEVEL; expected off, fatal, "
+                   "error, warn, info, debug, or trace.\n",
+                   stderr);
+        return QDMI_ERROR_INVALIDARGUMENT;
+      }
+      logLevel = match->second;
+    }
+    gAWSOptions.loggingOptions.logLevel = logLevel;
     /// The SDK reads this process-wide opt-in when initializing error maps.
     /// Preserve explicit values and leave it set for subsequent AWS clients.
-    if (std::getenv("AWS_NEW_RETRIES_2026") == nullptr) {
+    if (!amazon::braket::qdmi::detail::getEnvironment("AWS_NEW_RETRIES_2026")
+             .has_value()) {
 #ifdef _WIN32
       const auto result = _putenv_s("AWS_NEW_RETRIES_2026", "true");
 #else

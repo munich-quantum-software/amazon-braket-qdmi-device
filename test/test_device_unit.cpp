@@ -64,6 +64,9 @@
 #include <aws/core/http/HttpResponse.h>
 #include <aws/core/http/HttpTypes.h>
 #include <aws/core/http/standard/StandardHttpResponse.h>
+#include <aws/core/utils/logging/AWSLogging.h>
+#include <aws/core/utils/logging/LogLevel.h>
+#include <aws/core/utils/logging/LogSystemInterface.h>
 #include <aws/core/utils/memory/AWSMemory.h>
 #include <aws/core/utils/memory/stl/AWSStringStream.h>
 #include <aws/core/utils/stream/ResponseStream.h>
@@ -700,10 +703,9 @@ static_assert(AMAZON_BRAKET_QDMI_DEVICE_JOB_PROPERTY_OUTPUTS3URI ==
 // NOLINTBEGIN(misc-include-cleaner)
 class ScopedEnvironment {
 public:
-  ScopedEnvironment(const char* name, const char* value) : name_(name) {
-    if (const char* previous = std::getenv(name); previous != nullptr) {
-      previous_ = previous;
-    }
+  ScopedEnvironment(const char* name, const char* value)
+      : name_(name),
+        previous_(amazon::braket::qdmi::detail::getEnvironment(name)) {
 #ifdef _WIN32
     _putenv_s(name, value != nullptr ? value : "");
 #else
@@ -739,12 +741,15 @@ private:
 TEST(ScopedEnvironmentTest, TreatsEmptyValueAsAbsent) {
   constexpr auto* variable = "AMAZON_BRAKET_QDMI_TEST_EMPTY_ENVIRONMENT";
   const ScopedEnvironment emptyEnvironment(variable, "");
-  ASSERT_EQ(std::getenv(variable), nullptr);
+  EXPECT_EQ(amazon::braket::qdmi::detail::getEnvironment(variable),
+            std::nullopt);
   {
     const ScopedEnvironment temporaryEnvironment(variable, "temporary");
-    ASSERT_STREQ(std::getenv(variable), "temporary");
+    EXPECT_EQ(amazon::braket::qdmi::detail::getEnvironment(variable),
+              "temporary");
   }
-  EXPECT_EQ(std::getenv(variable), nullptr);
+  EXPECT_EQ(amazon::braket::qdmi::detail::getEnvironment(variable),
+            std::nullopt);
 }
 #else
 TEST(ScopedEnvironmentTest, RestoresExistingEmptyValue) {
@@ -752,11 +757,10 @@ TEST(ScopedEnvironmentTest, RestoresExistingEmptyValue) {
   const ScopedEnvironment emptyEnvironment(variable, "");
   {
     const ScopedEnvironment temporaryEnvironment(variable, "temporary");
-    ASSERT_STREQ(std::getenv(variable), "temporary");
+    EXPECT_EQ(amazon::braket::qdmi::detail::getEnvironment(variable),
+              "temporary");
   }
-  const auto* restored = std::getenv(variable);
-  ASSERT_NE(restored, nullptr);
-  EXPECT_STREQ(restored, "");
+  EXPECT_EQ(amazon::braket::qdmi::detail::getEnvironment(variable), "");
 }
 #endif
 
@@ -899,14 +903,74 @@ TEST(AwsRetryInitializationTest, EnablesNewRetriesUnlessExplicitlyConfigured) {
   for (const auto* value : {static_cast<const char*>(nullptr), "false"}) {
     const ScopedEnvironment newRetries("AWS_NEW_RETRIES_2026", value);
     EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
-    EXPECT_STREQ(std::getenv("AWS_NEW_RETRIES_2026"),
-                 value != nullptr ? value : "true");
+    EXPECT_EQ(
+        amazon::braket::qdmi::detail::getEnvironment("AWS_NEW_RETRIES_2026"),
+        value != nullptr ? value : "true");
     EXPECT_EQ(
         Aws::Client::CoreErrorsMapper::GetErrorForName("RequestLimitExceeded")
             .ShouldThrottle(),
         value == nullptr);
     EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);
   }
+}
+
+TEST(AwsLoggingInitializationTest, ConfiguresLoggingForEachSdkLifetime) {
+  using Aws::Utils::Logging::GetLogSystem;
+  using Aws::Utils::Logging::LogLevel;
+  for (const auto& [value, expected] : std::array{
+           std::pair{static_cast<const char*>(nullptr), LogLevel::Off},
+           std::pair{"", LogLevel::Off}, std::pair{"OFF", LogLevel::Off},
+           std::pair{"fatal", LogLevel::Fatal},
+           std::pair{"error", LogLevel::Error},
+           std::pair{"WaRn", LogLevel::Warn}, std::pair{"info", LogLevel::Info},
+           std::pair{"debug", LogLevel::Debug},
+           std::pair{"trace", LogLevel::Trace}}) {
+    const ScopedEnvironment logLevel(AMAZON_BRAKET_QDMI_DEVICE_ENV_LOG_LEVEL,
+                                     value);
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+    auto* const logger = GetLogSystem();
+    EXPECT_EQ(logger != nullptr, expected != LogLevel::Off);
+    if (logger != nullptr) {
+      EXPECT_EQ(logger->GetLogLevel(), expected);
+    }
+    {
+      const ScopedEnvironment changed(AMAZON_BRAKET_QDMI_DEVICE_ENV_LOG_LEVEL,
+                                      "invalid");
+      EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+      EXPECT_EQ(GetLogSystem(), logger);
+    }
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);
+    EXPECT_EQ(GetLogSystem(), nullptr);
+  }
+}
+
+TEST(AwsLoggingInitializationTest, RejectsInvalidLevelBeforeSdkInitialization) {
+  {
+    const ScopedEnvironment invalid(AMAZON_BRAKET_QDMI_DEVICE_ENV_LOG_LEVEL,
+                                    "verbose");
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(),
+              QDMI_ERROR_INVALIDARGUMENT);
+    EXPECT_EQ(Aws::Utils::Logging::GetLogSystem(), nullptr);
+  }
+  const ScopedEnvironment unset(AMAZON_BRAKET_QDMI_DEVICE_ENV_LOG_LEVEL,
+                                nullptr);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);
+}
+
+TEST(AwsLoggingInitializationTest, PreservesApplicationLogging) {
+  Aws::SDKOptions options;
+  options.loggingOptions.logLevel = Aws::Utils::Logging::LogLevel::Error;
+  Aws::InitAPI(options);
+  auto* const logger = Aws::Utils::Logging::GetLogSystem();
+  const ScopedEnvironment logLevel(AMAZON_BRAKET_QDMI_DEVICE_ENV_LOG_LEVEL,
+                                   "warn");
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+  EXPECT_EQ(Aws::Utils::Logging::GetLogSystem(), logger);
+  EXPECT_EQ(logger->GetLogLevel(), Aws::Utils::Logging::LogLevel::Error);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);
+  EXPECT_EQ(Aws::Utils::Logging::GetLogSystem(), logger);
+  Aws::ShutdownAPI(options);
 }
 
 #ifdef __linux__
