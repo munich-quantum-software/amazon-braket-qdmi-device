@@ -13,13 +13,14 @@ releases may include breaking changes.
 ### Added
 
 - ✨ Return complete bit/Boolean OpenQASM 3 outputs as per-shot JSON, including
-  undefined values as `null`.
+  undefined values as `null` ([#242]) ([**@burgholzer**]).
 
 ### Changed
 
 - 💥 Reconstruct final classical outputs from Braket measurement columns,
   preserving register widths, initial values, and final writes. Reject program
-  features whose outputs cannot be represented faithfully before submission.
+  features whose outputs cannot be represented faithfully before submission
+  ([#242]) ([**@burgholzer**]).
 
 - 💥 Adopt QDMI 1.4 development headers and remove the calibration advisory
   property. Preserve the remaining property values for binary compatibility with
@@ -170,6 +171,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#242]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/242
 [#241]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/241
 [#236]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/236
 [#219]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/219
