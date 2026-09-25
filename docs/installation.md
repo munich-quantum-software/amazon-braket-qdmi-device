@@ -92,10 +92,11 @@ cmake --build build
 
 ## MQT Core integration
 
-The installed CMake target exports the `AMAZON_BRAKET` symbol prefix and a
-relocatable catalogue with all stable device definitions. An application using
-MQT Core can copy the device library and catalogue beside its executable. This
-integration requires CMake 3.28 or later:
+The installed CMake target identifies its device manifest through
+`QDMI_MANIFEST_NAME`. The manifest contains the stable device IDs, symbol
+prefix, and relative library paths. An application using MQT Core can copy the
+device library and manifest beside its executable. This integration requires
+CMake 3.28 or later:
 
 ```cmake
 find_package(mqt-core 4.0.0 CONFIG REQUIRED)
