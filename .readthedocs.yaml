@@ -7,9 +7,10 @@ sphinx:
   configuration: docs/conf.py
 
 build:
-  os: ubuntu-24.04
+  os: ubuntu-26.04
   apt_packages:
     - doxygen
+    - graphviz
     - libcurl4-openssl-dev
   tools:
     python: "3.14"
