@@ -464,6 +464,40 @@ auto GateModelCapabilityParser::parseProperties(
       status != QDMI_SUCCESS) {
     return status;
   }
+  const auto actions = propertiesJson.GetObject("action");
+  constexpr auto programSetAction = "braket.ir.openqasm.program_set";
+  if (actions.ValueExists(programSetAction)) {
+    const auto action = actions.GetObject(programSetAction);
+    if (!action.ValueExists("version") ||
+        !action.GetObject("version").IsListType() ||
+        !action.ValueExists("maximumExecutables") ||
+        !action.GetObject("maximumExecutables").IsIntegerType() ||
+        !action.ValueExists("maximumTotalShots") ||
+        !action.GetObject("maximumTotalShots").IsIntegerType()) {
+      return QDMI_ERROR_FATAL;
+    }
+    const auto versions = action.GetArray("version");
+    bool supportedVersion = false;
+    for (size_t i = 0; i < versions.GetLength(); ++i) {
+      supportedVersion |= versions[i].AsString() == "1";
+    }
+    if (supportedVersion) {
+      const auto maximumExecutables = action.GetInt64("maximumExecutables");
+      const auto maximumTotalShots = action.GetInt64("maximumTotalShots");
+      const auto minimumTotalShots = action.ValueExists("minimumTotalShots")
+                                         ? action.GetInt64("minimumTotalShots")
+                                         : 0;
+      if (!std::in_range<size_t>(maximumExecutables) ||
+          !std::in_range<size_t>(maximumTotalShots) ||
+          !std::in_range<size_t>(minimumTotalShots)) {
+        return QDMI_ERROR_FATAL;
+      }
+      properties.programSetLimits = ProgramSetLimits{
+          .maximumExecutables = static_cast<size_t>(maximumExecutables),
+          .minimumTotalShots = static_cast<size_t>(minimumTotalShots),
+          .maximumTotalShots = static_cast<size_t>(maximumTotalShots)};
+    }
+  }
   for (const auto& enrich : calibrationEnrichers_) {
     enrich(propertiesJson, properties);
   }

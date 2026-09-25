@@ -41,8 +41,6 @@ int main() {
         job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(shots), &shots);
 
     QDMI_Program_Format format = QDMI_PROGRAM_FORMAT_QASM3;
-    AMAZON_BRAKET_QDMI_device_job_set_parameter(
-        job, QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT, sizeof(format), &format);
 
     const char* circuit = R"(OPENQASM 3.0;
         qubit[2] q;
@@ -52,8 +50,10 @@ int main() {
         c[0] = measure q[0];
         c[1] = measure q[1];
     )";
-    AMAZON_BRAKET_QDMI_device_job_set_parameter(
-        job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM, strlen(circuit) + 1, circuit);
+    const void* program = circuit;
+    const size_t programSize = strlen(circuit) + 1;
+    AMAZON_BRAKET_QDMI_device_job_set_programs(
+        job, &format, 1, &programSize, &program);
 
     AMAZON_BRAKET_QDMI_device_job_submit(job);
     AMAZON_BRAKET_QDMI_device_job_wait(job, 60);
@@ -64,16 +64,16 @@ int main() {
         size_t keysSize = 0;
         size_t valuesSize = 0;
         AMAZON_BRAKET_QDMI_device_job_get_results(
-            job, QDMI_JOB_RESULT_HIST_KEYS, 0, nullptr, &keysSize);
+            job, 0, QDMI_JOB_RESULT_HIST_KEYS, 0, nullptr, &keysSize);
         AMAZON_BRAKET_QDMI_device_job_get_results(
-            job, QDMI_JOB_RESULT_HIST_VALUES, 0, nullptr, &valuesSize);
+            job, 0, QDMI_JOB_RESULT_HIST_VALUES, 0, nullptr, &valuesSize);
 
         std::vector<char> keys(keysSize);
         std::vector<size_t> counts(valuesSize / sizeof(size_t));
         AMAZON_BRAKET_QDMI_device_job_get_results(
-            job, QDMI_JOB_RESULT_HIST_KEYS, keysSize, keys.data(), nullptr);
+            job, 0, QDMI_JOB_RESULT_HIST_KEYS, keysSize, keys.data(), nullptr);
         AMAZON_BRAKET_QDMI_device_job_get_results(
-            job, QDMI_JOB_RESULT_HIST_VALUES, valuesSize, counts.data(),
+            job, 0, QDMI_JOB_RESULT_HIST_VALUES, valuesSize, counts.data(),
             nullptr);
 
         std::cout << "Shot counts: {";
@@ -144,3 +144,32 @@ confirm the outcome: a remote task can finish before cancellation takes effect.
 Freeing a job or session stops background polling and drains pending worker
 callbacks and HTTP requests. It does not wait for remote execution or cancel the
 QuantumTask.
+
+## Multiple circuits
+
+Qiskit and PennyLane group compatible circuits into one QuantumTask when the
+device advertises OpenQASM 3 ProgramSets. Each circuit uses the configured shot
+count; the request's total shots are the circuit count multiplied by that value.
+Devices without ProgramSets, including SV1 and DM1, use separate QuantumTasks.
+Different shot counts or formats also use separate jobs.
+
+For direct QDMI use, pass the ordered program pointers and sizes to
+`AMAZON_BRAKET_QDMI_device_job_set_programs`. A null program-pointer array
+probes the exact format and count with the current job parameters. Unsupported
+groups return `QDMI_ERROR_NOTSUPPORTED` before submission. The implementation
+supports one fully bound OpenQASM 3 executable per program; parameter sweeps are
+not supported.
+
+Result indices follow input order. ProgramSets expose
+`QDMI_DEVICE_JOB_PROPERTY_PROGRAMSTATUSES` after the task finishes, allowing
+completed circuits to retain their results when another circuit fails or is
+cancelled. MQT Core can retry failed circuits without repeating successful ones.
+While the task is active, the property value returns `QDMI_ERROR_BADSTATE`;
+ordinary single-circuit tasks return `QDMI_ERROR_NOTSUPPORTED`. Result-download
+errors remain errors and do not trigger another execution.
+
+A retrieved ProgramSet preserves its program count and indexed outcomes. Foreign
+ProgramSets that expand programs into multiple executables cannot be reopened.
+See
+[AWS ProgramSets](https://docs.aws.amazon.com/braket/latest/developerguide/braket-batching-tasks.html)
+for the service model and device capabilities.

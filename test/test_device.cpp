@@ -211,9 +211,11 @@ protected:
       return;
     }
 
-    AMAZON_BRAKET_QDMI_device_job_set_parameter(
-        sharedJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
-        strlen(BELL_STATE_PROGRAM) + 1, BELL_STATE_PROGRAM);
+    const QDMI_Program_Format programFormat = QDMI_PROGRAM_FORMAT_QASM3;
+    const void* program = BELL_STATE_PROGRAM;
+    const size_t programSize = strlen(BELL_STATE_PROGRAM) + 1;
+    AMAZON_BRAKET_QDMI_device_job_set_programs(sharedJob, &programFormat, 1,
+                                               &programSize, &program);
     QDMI_Program_Format format = QDMI_PROGRAM_FORMAT_QASM3;
     AMAZON_BRAKET_QDMI_device_job_set_parameter(
         sharedJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT, sizeof(format),
@@ -243,25 +245,25 @@ protected:
           finalStatus == QDMI_JOB_STATUS_DONE) {
         size_t shotsSize = 0;
         if (AMAZON_BRAKET_QDMI_device_job_get_results(
-                sharedJob, QDMI_JOB_RESULT_SHOTS, 0, nullptr, &shotsSize) ==
+                sharedJob, 0, QDMI_JOB_RESULT_SHOTS, 0, nullptr, &shotsSize) ==
                 QDMI_SUCCESS &&
             shotsSize > 0) {
           std::string shotsStr(shotsSize - 1, '\0');
           if (AMAZON_BRAKET_QDMI_device_job_get_results(
-                  sharedJob, QDMI_JOB_RESULT_SHOTS, shotsSize, shotsStr.data(),
-                  nullptr) == QDMI_SUCCESS) {
+                  sharedJob, 0, QDMI_JOB_RESULT_SHOTS, shotsSize,
+                  shotsStr.data(), nullptr) == QDMI_SUCCESS) {
             hasShots = true;
             shotsData = shotsStr;
           }
         }
         size_t keysSize = 0;
         if (AMAZON_BRAKET_QDMI_device_job_get_results(
-                sharedJob, QDMI_JOB_RESULT_HIST_KEYS, 0, nullptr, &keysSize) ==
-                QDMI_SUCCESS &&
+                sharedJob, 0, QDMI_JOB_RESULT_HIST_KEYS, 0, nullptr,
+                &keysSize) == QDMI_SUCCESS &&
             keysSize > 0) {
           std::vector<char> keysData(keysSize);
           if (AMAZON_BRAKET_QDMI_device_job_get_results(
-                  sharedJob, QDMI_JOB_RESULT_HIST_KEYS, keysSize,
+                  sharedJob, 0, QDMI_JOB_RESULT_HIST_KEYS, keysSize,
                   keysData.data(), nullptr) == QDMI_SUCCESS) {
             if (keysData.back() != '\0') {
               return;
@@ -275,14 +277,14 @@ protected:
         }
         size_t valuesSize = 0;
         if (AMAZON_BRAKET_QDMI_device_job_get_results(
-                sharedJob, QDMI_JOB_RESULT_HIST_VALUES, 0, nullptr,
+                sharedJob, 0, QDMI_JOB_RESULT_HIST_VALUES, 0, nullptr,
                 &valuesSize) == QDMI_SUCCESS &&
             valuesSize > 0) {
           if (valuesSize % sizeof(size_t) == 0) {
             const size_t n = valuesSize / sizeof(size_t);
             histValues.resize(n);
             if (AMAZON_BRAKET_QDMI_device_job_get_results(
-                    sharedJob, QDMI_JOB_RESULT_HIST_VALUES, valuesSize,
+                    sharedJob, 0, QDMI_JOB_RESULT_HIST_VALUES, valuesSize,
                     histValues.data(), nullptr) == QDMI_SUCCESS) {
               hasHist = !histKeys.empty() && !histValues.empty();
             }
@@ -732,13 +734,14 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest, JobGetResults) {
   EXPECT_GT(shotsData.size(), 0U);
   size_t shotsSize = 0;
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
-                job, QDMI_JOB_RESULT_SHOTS, 0, nullptr, &shotsSize),
+                job, 0, QDMI_JOB_RESULT_SHOTS, 0, nullptr, &shotsSize),
             QDMI_SUCCESS);
   if (shotsSize > 0) {
     std::string buf(shotsSize - 1, '\0');
-    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
-                  job, QDMI_JOB_RESULT_SHOTS, shotsSize, buf.data(), nullptr),
-              QDMI_SUCCESS);
+    EXPECT_EQ(
+        AMAZON_BRAKET_QDMI_device_job_get_results(
+            job, 0, QDMI_JOB_RESULT_SHOTS, shotsSize, buf.data(), nullptr),
+        QDMI_SUCCESS);
   }
 }
 
@@ -784,13 +787,13 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest, JobGetResultsShotsBufferTooSmall) {
   }
   size_t requiredSize = 0;
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
-                sharedJob, QDMI_JOB_RESULT_SHOTS, 0, nullptr, &requiredSize),
+                sharedJob, 0, QDMI_JOB_RESULT_SHOTS, 0, nullptr, &requiredSize),
             QDMI_SUCCESS);
   ASSERT_GT(requiredSize, 1U);
   // Buffer of 1 byte is always too small for any non-empty shots string.
   char smallBuf = '\0';
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
-                sharedJob, QDMI_JOB_RESULT_SHOTS, 1, &smallBuf, nullptr),
+                sharedJob, 0, QDMI_JOB_RESULT_SHOTS, 1, &smallBuf, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
@@ -803,12 +806,12 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest,
   size_t requiredSize = 0;
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_job_get_results(
-          sharedJob, QDMI_JOB_RESULT_HIST_KEYS, 0, nullptr, &requiredSize),
+          sharedJob, 0, QDMI_JOB_RESULT_HIST_KEYS, 0, nullptr, &requiredSize),
       QDMI_SUCCESS);
   ASSERT_GT(requiredSize, 1U);
   char smallBuf = '\0';
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
-                sharedJob, QDMI_JOB_RESULT_HIST_KEYS, 1, &smallBuf, nullptr),
+                sharedJob, 0, QDMI_JOB_RESULT_HIST_KEYS, 1, &smallBuf, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
@@ -821,13 +824,14 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest,
   size_t requiredSize = 0;
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_job_get_results(
-          sharedJob, QDMI_JOB_RESULT_HIST_VALUES, 0, nullptr, &requiredSize),
+          sharedJob, 0, QDMI_JOB_RESULT_HIST_VALUES, 0, nullptr, &requiredSize),
       QDMI_SUCCESS);
   ASSERT_GT(requiredSize, sizeof(size_t));
   size_t smallVal = 0;
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
-                sharedJob, QDMI_JOB_RESULT_HIST_VALUES, 1, &smallVal, nullptr),
-            QDMI_ERROR_INVALIDARGUMENT);
+  EXPECT_EQ(
+      AMAZON_BRAKET_QDMI_device_job_get_results(
+          sharedJob, 0, QDMI_JOB_RESULT_HIST_VALUES, 1, &smallVal, nullptr),
+      QDMI_ERROR_INVALIDARGUMENT);
 }
 
 // Requesting statevector / probability results is not implemented.
@@ -838,15 +842,16 @@ TEST_F(AmazonBraketQDMIJobSpecificationTest,
         << "Job did not complete successfully; skipping statevector test";
   }
   size_t sz = 99; // sentinel — must become 0
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
-                sharedJob, QDMI_JOB_RESULT_STATEVECTOR_DENSE, 0, nullptr, &sz),
-            QDMI_ERROR_NOTSUPPORTED);
-  EXPECT_EQ(sz, 0U);
-
   EXPECT_EQ(
       AMAZON_BRAKET_QDMI_device_job_get_results(
-          sharedJob, QDMI_JOB_RESULT_PROBABILITIES_DENSE, 0, nullptr, nullptr),
+          sharedJob, 0, QDMI_JOB_RESULT_STATEVECTOR_DENSE, 0, nullptr, &sz),
       QDMI_ERROR_NOTSUPPORTED);
+  EXPECT_EQ(sz, 0U);
+
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
+                sharedJob, 0, QDMI_JOB_RESULT_PROBABILITIES_DENSE, 0, nullptr,
+                nullptr),
+            QDMI_ERROR_NOTSUPPORTED);
 }
 
 // =============================================================================
@@ -891,9 +896,11 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job),
             QDMI_SUCCESS);
 
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
-                strlen(BELL_STATE_PROGRAM) + 1, BELL_STATE_PROGRAM),
+  const QDMI_Program_Format programFormat = QDMI_PROGRAM_FORMAT_QASM3;
+  const void* program = BELL_STATE_PROGRAM;
+  const size_t programSize = strlen(BELL_STATE_PROGRAM) + 1;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, &programFormat, 1,
+                                                       &programSize, &program),
             QDMI_SUCCESS);
 
   QDMI_Program_Format format = QDMI_PROGRAM_FORMAT_QASM3;
@@ -953,19 +960,19 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
 
   size_t shotsSize = 0;
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
-                job, QDMI_JOB_RESULT_SHOTS, 0, nullptr, &shotsSize),
+                job, 0, QDMI_JOB_RESULT_SHOTS, 0, nullptr, &shotsSize),
             QDMI_SUCCESS);
   EXPECT_GT(shotsSize, 0U) << "Should have measurement results";
 
   size_t histKeysSize = 0;
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
-                job, QDMI_JOB_RESULT_HIST_KEYS, 0, nullptr, &histKeysSize),
+                job, 0, QDMI_JOB_RESULT_HIST_KEYS, 0, nullptr, &histKeysSize),
             QDMI_SUCCESS);
   ASSERT_GT(histKeysSize, 0U);
 
   std::vector<char> histKeysData(histKeysSize);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
-                job, QDMI_JOB_RESULT_HIST_KEYS, histKeysSize,
+                job, 0, QDMI_JOB_RESULT_HIST_KEYS, histKeysSize,
                 histKeysData.data(), nullptr),
             QDMI_SUCCESS);
   ASSERT_EQ(histKeysData.back(), '\0');
@@ -975,9 +982,10 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
               histogramKeys.find("11") != std::string_view::npos)
       << "Bell state should produce 00 and 11 outcomes";
   size_t histValuesSize = 0;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
-                job, QDMI_JOB_RESULT_HIST_VALUES, 0, nullptr, &histValuesSize),
-            QDMI_SUCCESS);
+  ASSERT_EQ(
+      AMAZON_BRAKET_QDMI_device_job_get_results(
+          job, 0, QDMI_JOB_RESULT_HIST_VALUES, 0, nullptr, &histValuesSize),
+      QDMI_SUCCESS);
   const auto keyCount = static_cast<size_t>(std::count(
                             histogramKeys.begin(), histogramKeys.end(), ',')) +
                         1;
@@ -1320,9 +1328,11 @@ TEST(AmazonBraketQDMIWaitTimeoutTest, JobWaitTimeout) {
                                                                 &guard.job),
             QDMI_SUCCESS);
 
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                guard.job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
-                strlen(BELL_STATE_PROGRAM) + 1, BELL_STATE_PROGRAM),
+  const QDMI_Program_Format programFormat = QDMI_PROGRAM_FORMAT_QASM3;
+  const void* program = BELL_STATE_PROGRAM;
+  const size_t programSize = strlen(BELL_STATE_PROGRAM) + 1;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(
+                guard.job, &programFormat, 1, &programSize, &program),
             QDMI_SUCCESS);
   QDMI_Program_Format format = QDMI_PROGRAM_FORMAT_QASM3;
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(

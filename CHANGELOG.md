@@ -15,6 +15,9 @@ releases may include breaking changes.
 - ✨ Publish an installed QDMI manifest so MQT Core can discover
   `amazon.braket.default` without loading the provider library ([#239])
   ([**@burgholzer**]).
+- ✨ Submit compatible circuits in one native Braket ProgramSet, retain indexed
+  results after partial failure, and use separate tasks on devices without
+  ProgramSets ([#245]) ([**@burgholzer**]).
 - ✨ Enable optional AWS SDK logging through `AMAZON_BRAKET_QDMI_LOG_LEVEL` to
   diagnose service errors and retries ([#243]) ([**@burgholzer**])
 
