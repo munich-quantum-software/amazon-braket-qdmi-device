@@ -93,7 +93,9 @@
 #include <aws/core/http/HttpResponse.h>
 #include <aws/core/http/HttpTypes.h>
 #include <aws/core/utils/Array.h>
+#include <aws/core/utils/StringUtils.h>
 #include <aws/core/utils/json/JsonSerializer.h>
+#include <aws/core/utils/logging/LogLevel.h>
 #include <aws/core/utils/memory/stl/AWSAllocator.h>
 #include <aws/core/utils/memory/stl/AWSString.h>
 #include <aws/core/utils/threading/PooledThreadExecutor.h>
@@ -2140,6 +2142,31 @@ std::mutex gAWSInitMutex;
 int AMAZON_BRAKET_QDMI_device_initialize() try {
   const std::scoped_lock lock(gAWSInitMutex);
   if (!gAWSInitialized) {
+    using Aws::Utils::Logging::LogLevel;
+    auto logLevel = LogLevel::Off;
+    if (const auto* value =
+            std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_LOG_LEVEL);
+        value != nullptr && value[0] != '\0') {
+      constexpr std::array levels{std::pair{"off", LogLevel::Off},
+                                  std::pair{"fatal", LogLevel::Fatal},
+                                  std::pair{"error", LogLevel::Error},
+                                  std::pair{"warn", LogLevel::Warn},
+                                  std::pair{"info", LogLevel::Info},
+                                  std::pair{"debug", LogLevel::Debug},
+                                  std::pair{"trace", LogLevel::Trace}};
+      const auto* const match =
+          std::ranges::find_if(levels, [value](const auto& level) {
+            return Aws::Utils::StringUtils::CaselessCompare(value, level.first);
+          });
+      if (match == levels.end()) {
+        std::fputs("Invalid AMAZON_BRAKET_QDMI_LOG_LEVEL; expected off, fatal, "
+                   "error, warn, info, debug, or trace.\n",
+                   stderr);
+        return QDMI_ERROR_INVALIDARGUMENT;
+      }
+      logLevel = match->second;
+    }
+    gAWSOptions.loggingOptions.logLevel = logLevel;
     /// The SDK reads this process-wide opt-in when initializing error maps.
     /// Preserve explicit values and leave it set for subsequent AWS clients.
     if (std::getenv("AWS_NEW_RETRIES_2026") == nullptr) {
