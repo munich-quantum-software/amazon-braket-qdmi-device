@@ -19,6 +19,8 @@ releases may include breaking changes.
 
 ### Fixed
 
+- 🐛 Cancel queued submissions locally without creating unwanted QuantumTasks
+  ([#244]) ([**@burgholzer**])
 - 🐛 Retry temporary Braket service-quota errors during task submission through
   the AWS SDK ([#241]) ([**@burgholzer**])
 
@@ -156,6 +158,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#244]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/244
 [#241]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/241
 [#219]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/219
 [#217]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/217
