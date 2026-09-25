@@ -1189,6 +1189,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::awaitSubmission() const
   std::shared_future<void> submission;
   {
     const std::scoped_lock lock(jobMutex_);
+    if (status_.load() == QDMI_JOB_STATUS_CANCELED && !submissionStarted_) {
+      return QDMI_SUCCESS;
+    }
     submission = jobHandle_;
   }
   if (submission.valid()) {
@@ -1640,6 +1643,13 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
       [this, request = std::move(request)] {
         auto result = QDMI_SUCCESS;
         try {
+          {
+            const std::scoped_lock lock(jobMutex_);
+            if (status_.load() == QDMI_JOB_STATUS_CANCELED) {
+              return;
+            }
+            submissionStarted_ = true;
+          }
           const auto outcome =
               session_->getClient()->CreateQuantumTask(request);
           if (!outcome.IsSuccess()) {
@@ -1686,7 +1696,16 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS try {
-  /// A pending CreateQuantumTask must yield its ARN before it can be canceled.
+  {
+    const std::scoped_lock lock(jobMutex_);
+    if (submitting_ && !submissionStarted_ &&
+        status_.load() == QDMI_JOB_STATUS_SUBMITTED) {
+      status_.store(QDMI_JOB_STATUS_CANCELED);
+      submitting_ = false;
+      return QDMI_SUCCESS;
+    }
+  }
+  /// An in-flight CreateQuantumTask must yield its ARN before remote cancel.
   if (const auto result = awaitSubmission(); result != QDMI_SUCCESS) {
     return result;
   }
