@@ -172,11 +172,12 @@ role that it references must already be available to the job user. See
 [Amazon Braket service authorization reference]: https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonbraket.html
 [device access guide]: https://docs.aws.amazon.com/braket/latest/developerguide/restrict-access.html
 
-## Temporary driver-stack validation
+## Temporary development dependencies
 
-This development branch pins unreleased QDMI #511 and MQT Core #2229 commits to
-exercise installed driver and device discovery. It is not ready for release
-publication. Replace both pins with suitable releases and regenerate `uv.lock`
-before publishing. Remove the temporary LLVM/MLIR setup from Python CI, Read the
-Docs, and Linux wheel-test containers once Core wheels are available for these
-APIs. Native-only device builds do not require LLVM/MLIR.
+This development branch pins unreleased QDMI #509 and MQT Core #2373 commits to
+exercise native multi-program jobs and installed device discovery. It is not
+ready for release publication. Replace both pins with suitable releases and
+regenerate `uv.lock` before publishing. Remove the temporary LLVM/MLIR setup
+from Python CI, Read the Docs, and Linux wheel-test containers once Core wheels
+are available for these APIs. Native-only device builds do not require
+LLVM/MLIR.

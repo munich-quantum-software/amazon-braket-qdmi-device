@@ -12,6 +12,10 @@ releases may include breaking changes.
 
 ### Added
 
+- ✨ Submit compatible circuits in one native Braket ProgramSet, retain indexed
+  results after partial failure, and use separate tasks on devices without
+  ProgramSets ([**@burgholzer**]).
+
 - ✨ Enable optional AWS SDK logging through `AMAZON_BRAKET_QDMI_LOG_LEVEL` to
   diagnose service errors and retries ([#243]) ([**@burgholzer**])
 
