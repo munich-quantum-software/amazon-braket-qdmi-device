@@ -111,9 +111,16 @@ the application. The driver resolves relative library paths from the manifest
 directory.
 
 Python consumers use installed entry-point metadata to discover the catalogue
-without importing provider code or loading the native library. Each definition
-contains the device ARN and AWS Region; the AWS SDK resolves credentials when
-the MQT Core QDMI driver opens the device.
+without importing provider code or loading the native library. The Python
+package advertises its catalogue with:
+
+```toml
+[project.entry-points]
+"mqt.core.qdmi.manifests".braket = "amazon.braket.qdmi"
+```
+
+Each definition contains the device ARN and AWS Region; the AWS SDK resolves
+credentials when the MQT Core QDMI driver opens the device.
 
 ```python
 from mqt.core.qdmi import builtin_driver
@@ -166,7 +173,7 @@ role that it references must already be available to the job user. See
 
 ## Temporary driver-stack validation
 
-This development branch pins unreleased QDMI #511 and MQT Core #2231 commits to
+This development branch pins unreleased QDMI #511 and MQT Core #2229 commits to
 exercise installed driver and device discovery. It is not ready for release
 publication. Replace both pins with suitable releases and regenerate `uv.lock`
 before publishing. Remove the temporary LLVM/MLIR setup from Python CI, Read the

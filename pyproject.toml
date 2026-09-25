@@ -57,15 +57,15 @@ email = "patrick@mq.sc"
 name = "Lukas Burgholzer"
 email = "lukas@mq.sc"
 
-# Temporary Core #2231 source pin: replace with a release before publishing.
+# Temporary Core #2229 source pin: replace with a release before publishing.
 [project.optional-dependencies]
 pennylane = [
   """\
-  mqt-core[pennylane] @ git+https://github.com/munich-quantum-toolkit/core.git@7b0218a755478b42ca4ce69e408e9370f536c356\
+  mqt-core[pennylane] @ git+https://github.com/munich-quantum-toolkit/core.git@e483dc6dfc25eab373a080a17cc8bdccc1812629\
   """,
 ]
 qiskit = [
-  "mqt-core[qiskit] @ git+https://github.com/munich-quantum-toolkit/core.git@7b0218a755478b42ca4ce69e408e9370f536c356",
+  "mqt-core[qiskit] @ git+https://github.com/munich-quantum-toolkit/core.git@e483dc6dfc25eab373a080a17cc8bdccc1812629",
 ]
 
 [project.urls]
@@ -76,8 +76,8 @@ Issues = "https://github.com/munich-quantum-software/amazon-braket-qdmi-device/i
 [project.scripts]
 amazon-braket-qdmi = "amazon.braket.qdmi.__main__:main"
 
-[project.entry-points."mqt.core.qdmi.manifests"]
-braket = "amazon.braket.qdmi"
+[project.entry-points]
+"mqt.core.qdmi.manifests".braket = "amazon.braket.qdmi"
 
 [project.entry-points."pennylane.plugins"]
 "amazon.braket.default" = "amazon.braket.qdmi._pennylane_entrypoint:AmazonBraketDevice"
@@ -105,7 +105,7 @@ dev = [
 test = [
   """\
   mqt-core[pennylane,qiskit] @ \
-  git+https://github.com/munich-quantum-toolkit/core.git@7b0218a755478b42ca4ce69e408e9370f536c356\
+  git+https://github.com/munich-quantum-toolkit/core.git@e483dc6dfc25eab373a080a17cc8bdccc1812629\
   """,
   "pytest>=9.1.1",
   "pytest-console-scripts>=1.4.1",
@@ -117,7 +117,7 @@ docs = [
   "furo>=2025.12.19",
   """\
   mqt-core[pennylane,qiskit] @ \
-  git+https://github.com/munich-quantum-toolkit/core.git@7b0218a755478b42ca4ce69e408e9370f536c356\
+  git+https://github.com/munich-quantum-toolkit/core.git@e483dc6dfc25eab373a080a17cc8bdccc1812629\
   """,
   "myst-nb>=1.4",
   "sphinx>=9",
@@ -197,7 +197,7 @@ test-groups = [ "test" ]
 test-sources = [ "test/python" ]
 
 [tool.cibuildwheel.linux]
-# Temporary: Core PR #2231 builds from source. Remove with the release pin.
+# Temporary: Core PR #2229 builds from source. Remove with the release pin.
 environment = { MLIR_DIR = "/opt/llvm-23.1.1/lib/cmake/mlir" }
 before-all = """
 yum install -y curl-devel openssl-devel
