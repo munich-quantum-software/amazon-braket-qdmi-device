@@ -39,6 +39,12 @@ else()
   target_link_libraries(${QDMI_TEST_TARGET_NAME} PRIVATE ${QDMI_TARGET_NAME}-internals
                                                          ${QDMI_TARGET_NAME}-parser-objects)
   target_compile_definitions(${QDMI_TEST_TARGET_NAME} PRIVATE ${QDMI_PREFIX}_QDMI_device_EXPORTS)
+  add_executable(amazon-braket-output-probe output_probe.cpp)
+  target_link_libraries(
+    amazon-braket-output-probe PRIVATE ${QDMI_TARGET_NAME}-parser-objects AWS::aws-cpp-sdk-core
+                                       qdmi::qdmi_project_warnings)
+  target_compile_features(amazon-braket-output-probe PRIVATE cxx_std_20)
+
 endif()
 
 # link the Google test infrastructure to the test executable.

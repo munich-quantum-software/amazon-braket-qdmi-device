@@ -76,6 +76,13 @@ AWS_PROFILE=hpc-quantum AMAZON_BRAKET_PENNYLANE_LIVE=1 \
 The Python version, platform, and explicit-secret restrictions apply only to the
 dedicated CI lane. Local runs use the standard AWS credential provider chain.
 
+The Python test session also builds `amazon-braket-output-probe` and runs the
+source-preparation and result-reconstruction code against Braket's local
+simulator. These offline checks compare actual Qiskit and PennyLane plugin
+results with `BasicSimulator` and `default.qubit`, including permuted wires,
+multiple classical registers, unwritten bits, and overwritten destinations. They
+do not require AWS credentials or submit remote tasks.
+
 ## Documentation
 
 Build the Sphinx and MyST documentation and standalone Doxygen native API only

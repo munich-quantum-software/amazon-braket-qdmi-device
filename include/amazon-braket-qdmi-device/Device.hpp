@@ -67,6 +67,7 @@
 #pragma once
 
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
+#include "amazon-braket-qdmi-device/ProgramOutput.hpp"
 #include "amazon-braket-qdmi-device/Wait.hpp"
 #include "amazon_braket_qdmi/device.h"
 
@@ -380,6 +381,7 @@ private:
 
   QDMI_Program_Format format_ = QDMI_PROGRAM_FORMAT_QASM3;
   std::string program_;
+  mutable std::optional<amazon::braket::qdmi::ProgramOutput> programOutput_;
   size_t shots_ = 100;
   std::string taskArn_;
   bool retrieved_ = false;
@@ -397,6 +399,8 @@ private:
   std::condition_variable_any prefetchChanged_;
   std::atomic<QDMI_STATUS> submissionError_{QDMI_SUCCESS};
   mutable std::map<std::string, size_t> counts_;
+  mutable bool binaryOutput_ = true;
+  mutable std::string qasmOutput_;
   mutable std::string shotsString_; // Comma-separated shots: "00,11,00,..."
   mutable bool resultsFetched_ = false;
   mutable std::string outputS3Bucket_;

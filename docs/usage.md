@@ -137,3 +137,48 @@ ID immediately after submission, which serializes the batch.
 
 Freeing a job or session stops background polling and drains pending HTTP
 requests. It does not wait for remote execution or cancel the QuantumTask.
+
+## Program outputs
+
+Sampling results describe final classical outputs, with output bit zero at the
+right of each bitstring. Registers retain their declared widths and leading
+zeros. Explicit OpenQASM 3 outputs select the returned variables; otherwise the
+global classical declarations are selected. Physical qubit indices and the
+backend's measurement-column order do not determine classical destinations. The
+adapter uses `measuredQubits` to match columns, then reconstructs the final
+value of each destination, including initialized bits and overwritten writes.
+
+For example, measuring qubit 0 into `c[2]` and qubit 1 into `c[0]`, with
+`bit[3] c = "000"`, produces `100` when those qubits yield 1 and 0. The
+unwritten middle bit remains zero.
+
+The supported subset has terminal measurements, bit registers and scalar
+bits/Booleans, literal initializers and assignments, and explicit output
+selection. Constants of these types participate in default output selection. The
+adapter prepares a Braket program with the same quantum operations and terminal
+measurements. It removes standard-library includes and uses Braket's
+`cnot`/`ccnot` names for `cx`/`ccx`. The submitted action retains the original
+source in a JSON-escaped comment so jobs reopened by ID recover the same output
+contract.
+
+`QDMI_JOB_RESULT_QASM3_OUTPUT` returns a null-terminated UTF-8 JSON array with
+one object per shot. Bits are 0/1, Booleans are JSON Booleans, and registers
+retain increasing index order. Undefined values are `null`; if any selected bit
+is undefined, all three binary queries return `QDMI_ERROR_NOTSUPPORTED`. The
+execution still succeeds and full output remains available. The reported size
+includes the terminator. QIR output is unsupported.
+
+Numeric declarations, general arrays, classical expressions and control flow,
+custom gate definitions, input bindings, and quantum operations following a
+measurement are unsupported and rejected before submission. These restrictions
+prevent silently dropping outputs or changing measurement semantics. OpenQASM 2
+classical registers start at zero. For a program with neither outputs nor
+explicit measurements, implicit samples use ascending `measuredQubits` indices
+before applying QDMI's bitstring order.
+
+### Migration
+
+Remove client-side reversal or sorting of Braket measurement columns. QDMI shots
+and histogram keys now contain the complete selected classical layout. Programs
+outside the supported subset return `QDMI_ERROR_NOTSUPPORTED` at submission
+instead of being forwarded with ambiguous output semantics.

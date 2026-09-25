@@ -89,17 +89,6 @@ struct ParsedDeviceProperties {
       operationsMap;
 };
 
-namespace amazon::braket::qdmi {
-
-/**
- * @brief Convert Amazon Braket measurement rows to QDMI basis-state order.
- */
-auto parseMeasurementResults(
-    const Aws::Utils::Array<Aws::Utils::Json::JsonView>& measurements)
-    -> std::vector<std::string>;
-
-} // namespace amazon::braket::qdmi
-
 /**
  * @brief Common parser for Amazon Braket gate-model device capabilities.
  */

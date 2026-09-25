@@ -97,6 +97,7 @@ dev = [
   "nox>=2026.8.10",
 ]
 test = [
+  "amazon-braket-sdk>=1.127.2",
   "mqt-core[pennylane,qiskit]~=4.0.0",
   "pytest>=9.1.1",
   "pytest-console-scripts>=1.4.1",

@@ -98,6 +98,12 @@ def _run_tests(
         "--no-dev",  # do not auto-install dev dependencies
         "--no-build-isolation-package",
         "amazon-braket-qdmi",  # build the project without isolation
+        "--config-settings-package",
+        "amazon-braket-qdmi:cmake.define.BUILD_AMAZON_BRAKET_TESTS=ON",
+        "--config-settings-package",
+        "amazon-braket-qdmi:cmake.define.BUILD_AMAZON_BRAKET_LIVE_TESTS=OFF",
+        "--config-settings-package",
+        "amazon-braket-qdmi:build.targets=amazon-braket-qdmi-device;amazon-braket-output-probe",
         *install_args,
         env=env,
     )
