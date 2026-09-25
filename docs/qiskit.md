@@ -15,7 +15,9 @@ uv pip install "amazon-braket-qdmi[qiskit]"
 
 The adapter exposes the selected Amazon Braket device as a Qiskit `BackendV2`.
 It serializes circuits to self-contained OpenQASM 3 and maps Qiskit operations
-to the names accepted by Amazon Braket.
+to the names accepted by Amazon Braket. A circuit list uses one native
+ProgramSet when the device advertises support and accepts the common shot count.
+Otherwise, MQT Core submits separate tasks and retains the input order.
 
 ## Select a catalogue device
 

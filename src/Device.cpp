@@ -1657,6 +1657,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
     ADD_STRING_PROPERTY(QDMI_DEVICE_JOB_PROPERTY_ID, taskArn_.c_str(), prop,
                         size, value, sizeRet)
   }
+  if (prop == QDMI_DEVICE_JOB_PROPERTY_PROGRAMSNUM && programs_.empty()) {
+    return QDMI_ERROR_BADSTATE;
+  }
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_JOB_PROPERTY_PROGRAMSNUM, size_t,
                             programs_.size(), prop, size, value, sizeRet)
   if (retrieved_ && !programSet_) {
@@ -2087,10 +2090,10 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::readResultJson(
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::resolveResultJson(
-    const Aws::Utils::Json::JsonView& value,
-    Aws::Utils::Json::JsonValue& json) const -> QDMI_STATUS {
+    const Aws::Utils::Json::JsonView& value, Aws::Utils::Json::JsonValue& json,
+    const std::string& directory) const -> QDMI_STATUS {
   if (value.IsString()) {
-    return readResultJson(value.AsString(), json);
+    return readResultJson(directory + value.AsString(), json);
   }
   if (!value.IsObject()) {
     return QDMI_ERROR_FATAL;
@@ -2203,8 +2206,15 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal(
   Aws::Utils::Json::JsonValue program;
   Aws::Utils::Json::JsonValue executable;
   if (programSet_) {
-    if (const auto result = resolveResultJson(
-            root.GetArray("programResults")[programIndex], program);
+    const auto reference = root.GetArray("programResults")[programIndex];
+    std::string directory;
+    if (reference.IsString()) {
+      const auto path = reference.AsString();
+      if (const auto slash = path.rfind('/'); slash != std::string::npos) {
+        directory = path.substr(0, slash + 1);
+      }
+    }
+    if (const auto result = resolveResultJson(reference, program);
         result != QDMI_SUCCESS) {
       return result;
     }
@@ -2216,7 +2226,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal(
     if (executables.GetLength() != 1) {
       return QDMI_ERROR_NOTSUPPORTED;
     }
-    if (const auto result = resolveResultJson(executables[0], executable);
+    if (const auto result =
+            resolveResultJson(executables[0], executable, directory);
         result != QDMI_SUCCESS) {
       return result;
     }

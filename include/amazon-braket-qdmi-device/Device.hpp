@@ -443,7 +443,8 @@ private:
   auto readResultJson(const std::string& relativePath,
                       Aws::Utils::Json::JsonValue& json) const -> QDMI_STATUS;
   auto resolveResultJson(const Aws::Utils::Json::JsonView& value,
-                         Aws::Utils::Json::JsonValue& json) const
+                         Aws::Utils::Json::JsonValue& json,
+                         const std::string& directory = {}) const
       -> QDMI_STATUS;
   auto supportsPrograms(QDMI_Program_Format format, size_t count,
                         size_t shots) const -> QDMI_STATUS;

@@ -2002,7 +2002,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobQueryPropertyProgram) {
 }
 
 // PROGRAMFORMAT defaults to QASM3.
-TEST_F(AmazonBraketQDMILocalJobTest, JobQueryPropertyProgramFormat) {
+TEST_F(AmazonBraketQDMILocalJobTest, JobQueryPropertyProgramFormatAndCount) {
   AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
@@ -2013,6 +2013,30 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobQueryPropertyProgramFormat) {
                 sizeof(QDMI_Program_Format), &fmt, nullptr),
             QDMI_SUCCESS);
   EXPECT_EQ(fmt, QDMI_PROGRAM_FORMAT_QASM3);
+  EXPECT_EQ(
+      AMAZON_BRAKET_QDMI_device_job_query_property(
+          freshJob, QDMI_DEVICE_JOB_PROPERTY_PROGRAMSNUM, 0, nullptr, nullptr),
+      QDMI_ERROR_BADSTATE);
+  const void* program = BELL_STATE_PROGRAM;
+  const auto programSize = strlen(BELL_STATE_PROGRAM) + 1;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(freshJob, &fmt, 1,
+                                                       &programSize, &program),
+            QDMI_SUCCESS);
+  size_t count = 0;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                freshJob, QDMI_DEVICE_JOB_PROPERTY_PROGRAMSNUM, sizeof(count),
+                &count, nullptr),
+            QDMI_SUCCESS);
+  EXPECT_EQ(count, 1U);
+  fmt = QDMI_PROGRAM_FORMAT_QASM2;
+  ASSERT_EQ(
+      AMAZON_BRAKET_QDMI_device_job_set_parameter(
+          freshJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT, sizeof(fmt), &fmt),
+      QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                freshJob, QDMI_DEVICE_JOB_PROPERTY_PROGRAMSNUM, sizeof(count),
+                &count, nullptr),
+            QDMI_ERROR_BADSTATE);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
@@ -4113,13 +4137,13 @@ TEST_F(AmazonBraketQDMILocalJobTest,
       session, std::make_unique<StubBraketClient>(task));
   auto s3 = std::make_unique<StubS3Client>(StubS3Client::Configuration{
       .resultJson =
-          R"({"s3Location":["results","tasks/set"],"taskMetadata":"metadata.json","programResults":["program0.json",{},{}]})"});
+          R"({"s3Location":["results","tasks/set"],"taskMetadata":"metadata.json","programResults":["0/results.json",{},{}]})"});
   s3->setResult(
       "tasks/set/metadata.json",
       R"({"programMetadata":[{"executables":[{}]},{"executables":[{"failureReason":"compilation failed","retryable":false,"category":"COMPILATION"}]},{"executables":[{"status":"CANCELLED"}]}]})");
-  s3->setResult("tasks/set/program0.json",
-                R"({"executableResults":["executable0.json"]})");
-  s3->setResult("tasks/set/executable0.json",
+  s3->setResult("tasks/set/0/results.json",
+                R"({"executableResults":["0.json"]})");
+  s3->setResult("tasks/set/0/0.json",
                 R"({"inputsIndex":0,"measurements":[[1,1],[0,0]]})");
   const auto* observed = s3.get();
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(session,
@@ -4134,6 +4158,12 @@ TEST_F(AmazonBraketQDMILocalJobTest,
                 nullptr),
             QDMI_SUCCESS);
   EXPECT_EQ(shots, 2U);
+  size_t count = 0;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                job, QDMI_DEVICE_JOB_PROPERTY_PROGRAMSNUM, sizeof(count),
+                &count, nullptr),
+            QDMI_SUCCESS);
+  EXPECT_EQ(count, 3U);
   std::array<QDMI_Job_Status, 3> statuses{};
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
                 job, QDMI_DEVICE_JOB_PROPERTY_PROGRAMSTATUSES, sizeof(statuses),
