@@ -32,6 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     munge \
     slurm-wlm \
     sudo \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.29 /uv /uvx /usr/local/bin/
@@ -56,6 +57,11 @@ RUN mkdir -p /workspace && chown testuser:testuser /workspace
 WORKDIR /workspace
 COPY --chown=testuser:testuser . /workspace
 RUN chmod 755 /workspace/spank/test/*.sh
+
+# Temporary for the Core PR #2231 source pin; remove with released Core wheels.
+RUN curl -LsSf https://github.com/munich-quantum-software/setup-mlir/releases/download/v1.4.2/setup-mlir.sh \
+    | bash -s -- -v 23.1.1 -p /opt/llvm-23.1.1
+ENV MLIR_DIR=/opt/llvm-23.1.1/lib/cmake/mlir
 
 # Install MQT Core from the repository lock so the test uses the same driver
 # revision as the project, without introducing another dependency pin here.

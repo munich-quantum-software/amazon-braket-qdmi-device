@@ -29,11 +29,9 @@ except ImportError:
     pytest.skip("Install the PennyLane extra to run these tests.", allow_module_level=True)
 
 from mqt.core.plugins.pennylane import PennyLaneConfigurationError, QDMIDevice
-from mqt.core.plugins.pennylane import device as qdmi_pennylane
-from mqt.core.qdmi import driver
+from mqt.core.qdmi import builtin_driver as driver
 
-from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_DEVICE_ID, _catalogue  # ruff: ignore[import-private-name]
-from amazon.braket.qdmi import pennylane as braket_pennylane
+from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_DEVICE_ID
 from amazon.braket.qdmi.pennylane import (
     AmazonBraketAqtIbexQ1Device,
     AmazonBraketDevice,
@@ -64,8 +62,8 @@ def device_configuration(
 
     def initialize(
         _device: QDMIDevice,
+        *,
         device_id: str,
-        *_args: object,
         session_parameters: Mapping[str, object] | None = None,
         job_parameters: Mapping[str, object] | None = None,
         **_kwargs: object,
@@ -73,7 +71,6 @@ def device_configuration(
         calls.append((device_id, dict(session_parameters or {}), dict(job_parameters or {})))
 
     monkeypatch.setattr(QDMIDevice, "__init__", initialize)
-    monkeypatch.setattr(braket_pennylane, "register_device", lambda _device_id: None)
     return calls
 
 
@@ -203,38 +200,12 @@ def test_overrides_catalogue_configuration(
     ]
 
 
-def test_registers_packaged_qdmi_catalogue() -> None:
-    """Register every packaged definition under its stable PennyLane device ID."""
-    device_ids = {
-        AMAZON_BRAKET_QDMI_DEVICE_ID,
-        "amazon.braket.aqt.ibex-q1",
-        "amazon.braket.ionq.forte-1",
-        "amazon.braket.ionq.forte-enterprise-1",
-        "amazon.braket.iqm.garnet",
-        "amazon.braket.iqm.emerald",
-        "amazon.braket.rigetti.ankaa-3",
-        "amazon.braket.rigetti.cepheus-1-108q",
-        "amazon.braket.sv1",
-        "amazon.braket.dm1",
-    }
-    for device_id in device_ids:
-        _catalogue.register_device(device_id)
-
-    assert device_ids <= set(driver.registered_device_ids())
-
-
-def test_reads_catalogue_session_defaults() -> None:
-    """Preserve the catalogue's ARN and Region when registering concrete IDs."""
-    assert _catalogue.catalogue_session(AMAZON_BRAKET_QDMI_DEVICE_ID) == {}
-    assert _catalogue.catalogue_session("amazon.braket.sv1") == {
-        "base-url": "arn:aws:braket:::device/quantum-simulator/amazon/sv1",
-        "custom2": "us-east-1",
-    }
-
-
 def test_samples_with_qnode_shots(monkeypatch: pytest.MonkeyPatch) -> None:
     """Execute through MQT Core with the QNode's explicit shot count."""
-    monkeypatch.setattr(qdmi_pennylane, "open_device", lambda _device_id: driver.open_device("mqt.ddsim.default"))
+    monkeypatch.setattr(
+        "mqt.core.plugins.pennylane.device.open_device",
+        lambda _device_id, **_kwargs: driver.open_device("mqt.ddsim.default"),
+    )
     device = AmazonBraketSV1Device(wires=2)
 
     @qp.qnode(device, shots=5)

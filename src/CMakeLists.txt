@@ -127,10 +127,6 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E copy_if_different "${AMAZON_BRAKET_QDMI_CATALOG}"
           "$<TARGET_FILE_DIR:${QDMI_TARGET_NAME}>/${AMAZON_BRAKET_QDMI_CATALOG_NAME}")
 
-# Publish the generic device metadata used by MQT Core and other QDMI drivers. Concrete catalogue
-# entries provide their ARN and Region through the manifest.
-configure_qdmi_device_target(TARGET ${QDMI_TARGET_NAME} ID amazon.braket.default PREFIX
-                             ${QDMI_PREFIX})
 set_target_properties(${QDMI_TARGET_NAME} PROPERTIES QDMI_MANIFEST_NAME
                                                      ${AMAZON_BRAKET_QDMI_CATALOG_NAME})
 set_property(

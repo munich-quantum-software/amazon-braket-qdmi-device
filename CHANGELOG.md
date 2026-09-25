@@ -17,6 +17,10 @@ releases may include breaking changes.
 
 ### Changed
 
+- ✨ Discover installed QDMI device manifests and open independent sessions
+  through the MQT Core QDMI driver. Use temporary source pins and LLVM/MLIR CI
+  setup until a suitable Core release is available ([#239]) ([**@burgholzer**]).
+
 - 💥 Adopt QDMI 1.4 development headers and remove the calibration advisory
   property. Preserve the remaining property values for binary compatibility with
   existing MQT Core clients ([#236]) ([**@burgholzer**]).
@@ -171,6 +175,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 [#244]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/244
 [#243]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/243
 [#241]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/241
+[#239]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/239
 [#236]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/236
 [#219]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/219
 [#217]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/217

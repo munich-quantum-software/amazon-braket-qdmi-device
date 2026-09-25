@@ -122,11 +122,20 @@ jobs:
     name: 🐍 Lint
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-python-linter)
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-linter.yml@ace7363a2a8e036e5efc6717be67f1eda29a120e # v2.4.2
-    with:
-      check-stubs: false
-      enable-ty: true
-      enable-mypy: false
+    # Temporary local setup while Core PR #2229 requires a source build.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: munich-quantum-software/setup-mlir@3f32263ce571a8b745068980f30f188b6e800763 # v1.4.2
+        with:
+          llvm-version: 23.1.1
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      - run: uvx prek run -a ty
+      - run: uvx check-sdist --inject-junk
 
   build-sdist:
     name: 🚀 CD
@@ -145,6 +154,9 @@ jobs:
     uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-cibuildwheel.yml@ace7363a2a8e036e5efc6717be67f1eda29a120e # v2.4.2
     with:
       runs-on: ${{ matrix.runs-on }}
+      # Temporary while MQT Core is pinned to PR #2229.
+      setup-mlir: true
+      llvm-version: 23.1.1
 
   python-tests:
     name: 🐍 Test
@@ -168,6 +180,12 @@ jobs:
             -o Acquire::http::Timeout=30 \
             -o Acquire::https::Timeout=30 \
             install -y libcurl4-openssl-dev
+      # Temporary: remove after replacing the Core source pin with a release.
+      - name: Set up LLVM/MLIR for source-built MQT Core
+        uses: munich-quantum-software/setup-mlir@3f32263ce571a8b745068980f30f188b6e800763 # v1.4.2
+        with:
+          llvm-version: 23.1.1
+
       - name: Install the latest version of uv
         uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
@@ -202,6 +220,12 @@ jobs:
             -o Acquire::http::Timeout=30 \
             -o Acquire::https::Timeout=30 \
             install -y libcurl4-openssl-dev
+      # Temporary: remove after replacing the Core source pin with a release.
+      - name: Set up LLVM/MLIR for source-built MQT Core
+        uses: munich-quantum-software/setup-mlir@3f32263ce571a8b745068980f30f188b6e800763 # v1.4.2
+        with:
+          llvm-version: 23.1.1
+
       - name: Install the latest version of uv
         uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
