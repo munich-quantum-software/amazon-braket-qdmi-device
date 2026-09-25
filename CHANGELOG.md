@@ -12,6 +12,10 @@ releases may include breaking changes.
 
 ### Added
 
+- ✨ Submit compatible circuits in one native Braket ProgramSet, retain indexed
+  results after partial failure, and use separate tasks on devices without
+  ProgramSets ([#245]) ([**@burgholzer**]).
+
 - ✨ Enable optional AWS SDK logging through `AMAZON_BRAKET_QDMI_LOG_LEVEL` to
   diagnose service errors and retries ([#243]) ([**@burgholzer**])
 
@@ -172,6 +176,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#245]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/245
 [#244]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/244
 [#243]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/243
 [#241]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/241

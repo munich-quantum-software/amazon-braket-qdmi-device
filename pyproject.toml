@@ -57,15 +57,15 @@ email = "patrick@mq.sc"
 name = "Lukas Burgholzer"
 email = "lukas@mq.sc"
 
-# Temporary Core #2229 source pin: replace with a release before publishing.
+# Temporary Core #2373 source pin: replace with a release before publishing.
 [project.optional-dependencies]
 pennylane = [
   """\
-  mqt-core[pennylane] @ git+https://github.com/munich-quantum-toolkit/core.git@8e6488938a338fd2b07427d293c3705df4bb07cc\
+  mqt-core[pennylane] @ git+https://github.com/munich-quantum-toolkit/core.git@2c0e6061e687a6bfbc0de99cc38d06a111ee8ad8\
   """,
 ]
 qiskit = [
-  "mqt-core[qiskit] @ git+https://github.com/munich-quantum-toolkit/core.git@8e6488938a338fd2b07427d293c3705df4bb07cc",
+  "mqt-core[qiskit] @ git+https://github.com/munich-quantum-toolkit/core.git@2c0e6061e687a6bfbc0de99cc38d06a111ee8ad8",
 ]
 
 [project.urls]
@@ -105,7 +105,7 @@ dev = [
 test = [
   """\
   mqt-core[pennylane,qiskit] @ \
-  git+https://github.com/munich-quantum-toolkit/core.git@8e6488938a338fd2b07427d293c3705df4bb07cc\
+  git+https://github.com/munich-quantum-toolkit/core.git@2c0e6061e687a6bfbc0de99cc38d06a111ee8ad8\
   """,
   "pytest>=9.1.1",
   "pytest-console-scripts>=1.4.1",
@@ -117,7 +117,7 @@ docs = [
   "furo>=2025.12.19",
   """\
   mqt-core[pennylane,qiskit] @ \
-  git+https://github.com/munich-quantum-toolkit/core.git@8e6488938a338fd2b07427d293c3705df4bb07cc\
+  git+https://github.com/munich-quantum-toolkit/core.git@2c0e6061e687a6bfbc0de99cc38d06a111ee8ad8\
   """,
   "myst-nb>=1.4",
   "sphinx>=9",
@@ -197,7 +197,7 @@ test-groups = [ "test" ]
 test-sources = [ "test/python" ]
 
 [tool.cibuildwheel.linux]
-# Temporary: Core PR #2229 builds from source. Remove with the release pin.
+# Temporary: Core PR #2373 builds from source. Remove with the release pin.
 environment = { MLIR_DIR = "/opt/llvm-23.1.1/lib/cmake/mlir" }
 before-all = """
 yum install -y curl-devel openssl-devel

@@ -138,9 +138,11 @@ TEST(AmazonBraketQDMILiveTest, UsesAutomaticDefaultS3Destination) {
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job),
             QDMI_SUCCESS);
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM,
-                BELL_STATE_PROGRAM.size() + 1, BELL_STATE_PROGRAM.data()),
+  const QDMI_Program_Format programFormat = QDMI_PROGRAM_FORMAT_QASM3;
+  const void* program = BELL_STATE_PROGRAM.data();
+  const size_t programSize = BELL_STATE_PROGRAM.size() + 1;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, &programFormat, 1,
+                                                       &programSize, &program),
             QDMI_SUCCESS);
   const size_t shots = 1;
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(

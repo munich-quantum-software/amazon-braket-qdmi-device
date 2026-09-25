@@ -67,12 +67,16 @@ struct AMAZON_BRAKET_QDMI_Operation_impl_d {
   std::vector<SiteFidelity> siteFidelities_;
 };
 
-/**
- * @brief Parsed device properties data structure
- *
- * This struct holds all the parsed information from device properties JSON.
- */
+/// Native ProgramSet limits advertised by the device.
+struct ProgramSetLimits {
+  size_t maximumExecutables = 0;
+  size_t minimumTotalShots = 0;
+  size_t maximumTotalShots = 0;
+};
+
+/// Parsed device capabilities and calibration metadata.
 struct ParsedDeviceProperties {
+  std::optional<ProgramSetLimits> programSetLimits;
   size_t qubitCount{0};
 
   std::vector<std::unique_ptr<AMAZON_BRAKET_QDMI_Site_impl_d>> sites;

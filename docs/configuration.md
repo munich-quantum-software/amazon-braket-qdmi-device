@@ -138,10 +138,13 @@ need STS, `CreateBucket`, or `PutPublicAccessBlock`.
 
 ## Job parameters
 
+Set the ordered circuit payloads with
+`AMAZON_BRAKET_QDMI_device_job_set_programs`. All programs in one job share
+these parameters.
+
 | Parameter                                                 | Type                  | Required | Description                                |
 | --------------------------------------------------------- | --------------------- | -------- | ------------------------------------------ |
-| `QDMI_DEVICE_JOB_PARAMETER_PROGRAM`                       | `char*`               | Yes      | OpenQASM circuit source                    |
 | `QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT`                 | `QDMI_Program_Format` | No       | QASM2 or QASM3; default QASM3              |
-| `QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM`                      | `size_t`              | No       | Number of shots; defaults to 100           |
+| `QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM`                      | `size_t`              | No       | Shots per program; defaults to 100         |
 | `AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI`     | `char*`               | No       | Complete S3 URI for QuantumTask results    |
 | `AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN` | `char*`               | No       | Reservation ARN for a reserved time window |

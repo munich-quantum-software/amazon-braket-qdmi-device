@@ -77,6 +77,7 @@
 #include <aws/core/auth/AWSCredentialsProvider.h>
 #include <aws/core/client/ClientConfiguration.h>
 #include <aws/core/config/ConfigAndCredentialsCacheManager.h>
+#include <aws/core/utils/json/JsonSerializer.h>
 #include <aws/core/utils/threading/Executor.h>
 #include <aws/s3/S3Client.h>
 #include <aws/sts/STSClient.h>
@@ -188,6 +189,7 @@ inline auto configureCaBundle(Aws::Client::ClientConfiguration& configuration)
  * to obtain a new calibration snapshot.
  */
 struct DeviceArchitecture {
+  std::optional<ProgramSetLimits> programSetLimits;
   std::string name;     // Specific device name (e.g., "Garnet")
   std::string provider; // Provider name (e.g., "IQM")
   Aws::Braket::Model::DeviceType deviceType; // QPU or SIMULATOR
@@ -399,7 +401,8 @@ private:
   bool submissionStarted_ = false; ///< Worker has committed to calling AWS
 
   QDMI_Program_Format format_ = QDMI_PROGRAM_FORMAT_QASM3;
-  std::string program_;
+  std::vector<std::string> programs_;
+  bool programSet_ = false;
   size_t shots_ = 100;
   std::string taskArn_;
   bool retrieved_ = false;
@@ -416,9 +419,14 @@ private:
   std::stop_source stopPrefetch_;
   std::condition_variable_any prefetchChanged_;
   std::atomic<QDMI_STATUS> submissionError_{QDMI_SUCCESS};
-  mutable std::map<std::string, size_t> counts_;
-  mutable std::string shotsString_; // Comma-separated shots: "00,11,00,..."
-  mutable bool resultsFetched_ = false;
+  struct ProgramResult {
+    std::map<std::string, size_t> counts;
+    std::string shots;
+    bool fetched = false;
+  };
+  mutable std::vector<ProgramResult> results_;
+  mutable std::vector<QDMI_Job_Status> programStatuses_;
+  mutable std::optional<Aws::Utils::Json::JsonValue> resultManifest_;
   mutable std::string outputS3Bucket_;
   mutable std::string outputS3Directory_;
   mutable std::optional<size_t> queuePosition_;
@@ -430,7 +438,16 @@ private:
   auto awaitSubmission() const -> QDMI_STATUS;
   /// Fetch and parse S3 results without holding the job's lifecycle mutex.
   auto fetchResults() const -> QDMI_STATUS;
-  auto fetchResultsInternal() const -> QDMI_STATUS; ///< Requires resultsMutex_
+  auto fetchResultManifest() const -> QDMI_STATUS; ///< Requires resultsMutex_
+  auto fetchResultsInternal(size_t programIndex) const -> QDMI_STATUS;
+  auto readResultJson(const std::string& relativePath,
+                      Aws::Utils::Json::JsonValue& json) const -> QDMI_STATUS;
+  auto resolveResultJson(const Aws::Utils::Json::JsonView& value,
+                         Aws::Utils::Json::JsonValue& json,
+                         const std::string& directory = {}) const
+      -> QDMI_STATUS;
+  auto supportsPrograms(QDMI_Program_Format format, size_t count,
+                        size_t shots) const -> QDMI_STATUS;
   auto updateFromTask(const Aws::Braket::Model::GetQuantumTaskResult& task,
                       QDMI_Job_Status* status) const -> QDMI_STATUS;
   auto
@@ -490,12 +507,15 @@ public:
 
   auto setParameter(QDMI_Device_Job_Parameter param, size_t size,
                     const void* value) -> QDMI_STATUS;
+  auto setPrograms(const QDMI_Program_Format* format, size_t count,
+                   const size_t* sizes, const void* const* programs)
+      -> QDMI_STATUS;
   auto queryProperty(QDMI_Device_Job_Property prop, size_t size, void* value,
                      size_t* sizeRet) const -> QDMI_STATUS;
   auto submit() -> QDMI_STATUS;
   auto cancel() -> QDMI_STATUS;
   auto check(QDMI_Job_Status* status) const -> QDMI_STATUS;
   auto wait(size_t timeout) const -> QDMI_STATUS;
-  auto getResults(QDMI_Job_Result result, size_t size, void* data,
-                  size_t* sizeRet) const -> QDMI_STATUS;
+  auto getResults(size_t programIndex, QDMI_Job_Result result, size_t size,
+                  void* data, size_t* sizeRet) const -> QDMI_STATUS;
 };
