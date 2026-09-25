@@ -91,20 +91,21 @@ retrieve results, but cannot be reconfigured or submitted again.
 
 ## Job status
 
-| Event or Amazon Braket status | QDMI job status             |
-| ----------------------------- | --------------------------- |
-| Local configurable job        | `QDMI_JOB_STATUS_CREATED`   |
-| Task accepted; AWS `CREATED`  | `QDMI_JOB_STATUS_SUBMITTED` |
-| AWS `QUEUED`                  | `QDMI_JOB_STATUS_QUEUED`    |
-| AWS `RUNNING`                 | `QDMI_JOB_STATUS_RUNNING`   |
-| AWS `COMPLETED`               | `QDMI_JOB_STATUS_DONE`      |
-| AWS `FAILED`                  | `QDMI_JOB_STATUS_FAILED`    |
-| AWS `CANCELLED`               | `QDMI_JOB_STATUS_CANCELED`  |
+| Event or Amazon Braket status             | QDMI job status             |
+| ----------------------------------------- | --------------------------- |
+| Local configurable job                    | `QDMI_JOB_STATUS_CREATED`   |
+| Local submission pending or AWS `CREATED` | `QDMI_JOB_STATUS_SUBMITTED` |
+| AWS `QUEUED`                              | `QDMI_JOB_STATUS_QUEUED`    |
+| AWS `RUNNING`                             | `QDMI_JOB_STATUS_RUNNING`   |
+| AWS `COMPLETED`                           | `QDMI_JOB_STATUS_DONE`      |
+| AWS `FAILED`                              | `QDMI_JOB_STATUS_FAILED`    |
+| Local cancellation or AWS `CANCELLED`     | `QDMI_JOB_STATUS_CANCELED`  |
 
-The local job remains `CREATED` while `CreateQuantumTask` is in progress. A
-concurrent reconfiguration, cancellation, or second submission returns
-`QDMI_ERROR_BADSTATE`; the job becomes `SUBMITTED` only after AWS returns its
-QuantumTask ARN.
+The job becomes `SUBMITTED` when its request is queued locally, before AWS
+acceptance. Reconfiguration and repeated submission return
+`QDMI_ERROR_BADSTATE`. See
+[Concurrent submission](usage.md#concurrent-submission) for cancellation and
+job-lifetime behavior.
 
 ## Job results
 

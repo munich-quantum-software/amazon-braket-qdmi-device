@@ -2286,12 +2286,14 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   EXPECT_EQ(submission.get(), QDMI_SUCCESS);
   EXPECT_EQ(cancellation.get(), QDMI_SUCCESS);
   EXPECT_EQ(braket->cancelCalls(), 1U);
+  EXPECT_EQ(braket->canceledArn(),
+            "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id");
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(job, &status), QDMI_SUCCESS);
   EXPECT_EQ(status, QDMI_JOB_STATUS_SUBMITTED);
   AMAZON_BRAKET_QDMI_device_job_free(job);
 }
 
-TEST_F(AmazonBraketQDMILocalJobTest, SubmissionConcurrencyIsBounded) {
+TEST_F(AmazonBraketQDMILocalJobTest, QueuedSubmissionCanBeCanceledLocally) {
   const ScopedEnvironment environment(
       AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI,
       "s3://explicit-results/tasks");
@@ -2316,14 +2318,30 @@ TEST_F(AmazonBraketQDMILocalJobTest, SubmissionConcurrencyIsBounded) {
   EXPECT_TRUE(overlapped);
   EXPECT_EQ(submitted, std::future_status::ready);
   EXPECT_EQ(braket->createCalls(), 8U);
+  auto cancellation = std::async(std::launch::async, [job = jobs.back()] {
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_cancel(job), QDMI_SUCCESS);
+    QDMI_Job_Status status = QDMI_JOB_STATUS_SUBMITTED;
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(job, &status), QDMI_SUCCESS);
+    EXPECT_EQ(status, QDMI_JOB_STATUS_CANCELED);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(job, 1), QDMI_SUCCESS);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                  job, QDMI_DEVICE_JOB_PROPERTY_ID, 0, nullptr, nullptr),
+              QDMI_ERROR_NOTSUPPORTED);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_cancel(job),
+              QDMI_ERROR_INVALIDARGUMENT);
+  });
+  EXPECT_EQ(cancellation.wait_for(std::chrono::seconds{5}),
+            std::future_status::ready);
   braket->releaseCreate();
   submissions.get();
+  cancellation.get();
   for (auto* job : jobs) {
     EXPECT_EQ(AMAZON_BRAKET_QDMI_Device_Job_TestAccess::awaitSubmission(job),
-              QDMI_SUCCESS);
+              job == jobs.back() ? QDMI_ERROR_NOTSUPPORTED : QDMI_SUCCESS);
     AMAZON_BRAKET_QDMI_device_job_free(job);
   }
-  EXPECT_EQ(braket->createCalls(), jobs.size());
+  EXPECT_EQ(braket->createCalls(), jobs.size() - 1);
+  EXPECT_EQ(braket->cancelCalls(), 0U);
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest, JobIdWaitsForAwsAcceptance) {
