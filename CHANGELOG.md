@@ -10,7 +10,16 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- ✨ Return complete bit/Boolean OpenQASM 3 outputs as per-shot JSON, including
+  undefined values as `null`.
+
 ### Changed
+
+- 💥 Reconstruct final classical outputs from Braket measurement columns,
+  preserving register widths, initial values, and final writes. Reject program
+  features whose outputs cannot be represented faithfully before submission.
 
 - 💥 Adopt QDMI 1.4 development headers and remove the calibration advisory
   property. Preserve the remaining property values for binary compatibility with

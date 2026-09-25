@@ -129,6 +129,16 @@ class AmazonBraketBackend(QDMIBackend):
             The serialized program and its format.
         """
         assert ProgramFormat.QASM3 in supported_program_formats
+        # Qiskit classical bits start at zero; OpenQASM 3 declarations do not.
+        if circuit.num_clbits:
+            initialization = circuit.copy_empty_like(vars_mode="drop")
+            initialization.global_phase = 0
+            for clbit in initialization.clbits:
+                initialization.store(
+                    clbit,
+                    False,  # ruff: ignore[boolean-positional-value-in-call] Qiskit arguments are positional-only.
+                )
+            circuit = circuit.compose(initialization, front=True, inplace=False)
         available = {operation.name().lower() for operation in self.device.operations()}
         dag = circuit_to_dag(circuit)
         dag.remove_qubits(*(set(dag.idle_wires()) & set(dag.qubits)))
@@ -140,7 +150,7 @@ class AmazonBraketBackend(QDMIBackend):
             name = instruction.operation.name.lower()
             aliases = self._map_qiskit_gate_to_operation_names(name)
             translated_name = name if name in available else min(aliases & available, default=name)
-            if translated_name not in {"barrier", "measure", "reset"}:
+            if translated_name not in {"barrier", "measure", "reset", "store"}:
                 basis_gates.add(translated_name)
             if translated_name != name:
                 translated.data[index] = instruction.replace(operation=instruction.operation.copy(name=translated_name))

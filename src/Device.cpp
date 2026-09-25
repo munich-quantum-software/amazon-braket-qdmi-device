@@ -62,6 +62,7 @@
 #include "amazon-braket-qdmi-device/Device.hpp"
 
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
+#include "amazon-braket-qdmi-device/ProgramOutput.hpp"
 #include "amazon-braket-qdmi-device/Queue.hpp"
 #include "amazon-braket-qdmi-device/Wait.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
@@ -1574,8 +1575,14 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
     if (program_.empty() || session_->getDeviceArn().empty()) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
+    try {
+      programOutput_ = amazon::braket::qdmi::prepareProgram(program_);
+    } catch (const std::invalid_argument& error) {
+      std::cerr << error.what() << '\n';
+      return QDMI_ERROR_NOTSUPPORTED;
+    }
     submitting_ = true;
-    localProgram = program_;
+    localProgram = programOutput_->source;
     localS3Uri = jobS3Uri_;
     localReservationArn = reservationArn_.empty()
                               ? session_->getReservationArn()
@@ -1958,20 +1965,56 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal() const
 
   auto root = json.View();
 
-  // Parse measurements array: [[0,0], [1,1], [0,0], ...]
-  if (!root.KeyExists("measurements")) {
-    std::cerr << "No measurements in results\n";
+  if (!programOutput_) {
+    /// Reopened tasks obtain their source contract from the stored action.
+    if (!root.ValueExists("additionalMetadata") ||
+        !root.GetObject("additionalMetadata").IsObject()) {
+      return QDMI_ERROR_FATAL;
+    }
+    const auto metadata = root.GetObject("additionalMetadata");
+    if (!metadata.ValueExists("action") ||
+        !metadata.GetObject("action").IsObject()) {
+      return QDMI_ERROR_NOTSUPPORTED;
+    }
+    const auto action = metadata.GetObject("action");
+    if (!action.ValueExists("source") ||
+        !action.GetObject("source").IsString()) {
+      return QDMI_ERROR_NOTSUPPORTED;
+    }
+    auto source = action.GetString("source");
+    constexpr std::string_view prefix = "// QDMI_SOURCE ";
+    if (source.starts_with(prefix)) {
+      const Aws::Utils::Json::JsonValue original(
+          source.substr(prefix.size(), source.find('\n') - prefix.size()));
+      if (!original.WasParseSuccessful() ||
+          !original.View().ValueExists("source") ||
+          !original.View().GetObject("source").IsString()) {
+        return QDMI_ERROR_FATAL;
+      }
+      source = original.View().GetString("source");
+    }
+    try {
+      programOutput_ = amazon::braket::qdmi::prepareProgram(source);
+    } catch (const std::invalid_argument&) {
+      return QDMI_ERROR_NOTSUPPORTED;
+    }
+  }
+  amazon::braket::qdmi::MeasurementResults parsed;
+  try {
+    parsed = amazon::braket::qdmi::parseMeasurementResults(
+        root, *programOutput_, shots_);
+  } catch (const std::invalid_argument& error) {
+    std::cerr << error.what() << '\n';
     return QDMI_ERROR_FATAL;
   }
-
-  const auto results = amazon::braket::qdmi::parseMeasurementResults(
-      root.GetArray("measurements"));
-  for (size_t i = 0; i < results.size(); ++i) {
+  binaryOutput_ = parsed.binary;
+  qasmOutput_ = std::move(parsed.output);
+  for (size_t i = 0; i < parsed.shots.size(); ++i) {
     if (i > 0) {
       shotsString_ += ',';
     }
-    shotsString_ += results[i];
-    ++counts_[results[i]];
+    shotsString_ += parsed.shots[i];
+    ++counts_[parsed.shots[i]];
   }
 
   resultsFetched_ = true;
@@ -2009,6 +2052,24 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::getResults(
     return fetchStatus;
   }
 
+  if (result == QDMI_JOB_RESULT_QASM3_OUTPUT && programOutput_->qasm3) {
+    const auto totalSize = qasmOutput_.size() + 1;
+    if (data != nullptr) {
+      if (size < totalSize) {
+        return QDMI_ERROR_INVALIDARGUMENT;
+      }
+      memcpy(data, qasmOutput_.c_str(), totalSize);
+    }
+    if (sizeRet != nullptr) {
+      *sizeRet = totalSize;
+    }
+    return QDMI_SUCCESS;
+  }
+  if (!binaryOutput_ &&
+      (result == QDMI_JOB_RESULT_SHOTS || result == QDMI_JOB_RESULT_HIST_KEYS ||
+       result == QDMI_JOB_RESULT_HIST_VALUES)) {
+    return QDMI_ERROR_NOTSUPPORTED;
+  }
   if (result == QDMI_JOB_RESULT_SHOTS) {
     // Return comma-separated shot results: "00,11,00,11,..."
     // Size includes null terminator
