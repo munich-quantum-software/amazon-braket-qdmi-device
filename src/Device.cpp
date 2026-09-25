@@ -2154,7 +2154,8 @@ int AMAZON_BRAKET_QDMI_device_initialize() try {
                                   std::pair{"info", LogLevel::Info},
                                   std::pair{"debug", LogLevel::Debug},
                                   std::pair{"trace", LogLevel::Trace}};
-      const auto* const match =
+      /// NOLINTNEXTLINE(readability-qualified-auto): Portable iterator type.
+      const auto match =
           std::ranges::find_if(levels, [value](const auto& level) {
             return Aws::Utils::StringUtils::CaselessCompare(value, level.first);
           });
