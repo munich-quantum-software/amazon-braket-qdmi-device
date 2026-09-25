@@ -10,6 +10,11 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- ✨ Enable optional AWS SDK logging through `AMAZON_BRAKET_QDMI_LOG_LEVEL` to
+  diagnose service errors and retries ([#243]) ([**@burgholzer**])
+
 ### Changed
 
 - ⬆️ Update the AWS SDK for C++ to 1.11.899 ([#241]) ([**@burgholzer**])
@@ -159,6 +164,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 <!-- PR links -->
 
 [#244]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/244
+[#243]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/243
 [#241]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/241
 [#219]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/219
 [#217]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/217
