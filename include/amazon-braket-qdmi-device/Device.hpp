@@ -512,6 +512,8 @@ public:
       -> QDMI_STATUS;
   auto getProgram(size_t programIndex, size_t size, void* data,
                   size_t* sizeRet) const -> QDMI_STATUS;
+  auto getProgramStatus(size_t programIndex, QDMI_Job_Status* status) const
+      -> QDMI_STATUS;
   auto queryProperty(QDMI_Device_Job_Property prop, size_t size, void* value,
                      size_t* sizeRet) const -> QDMI_STATUS;
   auto submit() -> QDMI_STATUS;

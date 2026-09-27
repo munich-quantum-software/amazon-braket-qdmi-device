@@ -72,6 +72,8 @@ struct ProgramSetLimits {
   size_t maximumExecutables = 0;
   size_t minimumTotalShots = 0;
   size_t maximumTotalShots = 0;
+  size_t minimumShotsPerProgram = 0;
+  size_t maximumShotsPerProgram = 0;
 };
 
 /// Parsed device capabilities and calibration metadata.

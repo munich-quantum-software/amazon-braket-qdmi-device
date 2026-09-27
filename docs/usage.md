@@ -151,7 +151,8 @@ Qiskit and PennyLane group compatible circuits into one QuantumTask when the
 device advertises OpenQASM 3 ProgramSets. Each circuit uses the configured shot
 count; the request's total shots are the circuit count multiplied by that value.
 Devices without ProgramSets, including SV1 and DM1, use separate QuantumTasks.
-Different shot counts or formats also use separate jobs.
+Each program must also satisfy the device's advertised shot range. Different
+shot counts or formats also use separate jobs.
 
 For direct QDMI use, pass the ordered program pointers and sizes to
 `AMAZON_BRAKET_QDMI_device_job_set_programs`. A null program-pointer array
@@ -163,10 +164,10 @@ not supported.
 Program and result indices follow input order. Use
 `AMAZON_BRAKET_QDMI_device_job_get_program` to read a stored program; historical
 task payloads may be unavailable. ProgramSets expose
-`QDMI_DEVICE_JOB_PROPERTY_PROGRAMSTATUSES` after the task finishes, allowing
-completed circuits to retain their results when another circuit fails or is
-cancelled. MQT Core can retry failed circuits without repeating successful ones.
-While the task is active, the property value returns `QDMI_ERROR_BADSTATE`;
+`AMAZON_BRAKET_QDMI_device_job_get_program_status` after the task finishes,
+allowing completed circuits to retain their results when another circuit fails
+or is cancelled. MQT Core can retry failed circuits without repeating successful
+ones. While the task is active, the status query returns `QDMI_ERROR_BADSTATE`;
 ordinary single-circuit tasks return `QDMI_ERROR_NOTSUPPORTED`. Result-download
 errors remain errors and do not trigger another execution.
 
