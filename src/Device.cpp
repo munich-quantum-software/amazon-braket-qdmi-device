@@ -2317,6 +2317,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::getResults(
   }
   if (result != QDMI_JOB_RESULT_SHOTS && result != QDMI_JOB_RESULT_HIST_KEYS &&
       result != QDMI_JOB_RESULT_HIST_VALUES) {
+    if (sizeRet != nullptr) {
+      *sizeRet = 0;
+    }
     return QDMI_ERROR_NOTSUPPORTED;
   }
 
@@ -2395,19 +2398,6 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::getResults(
       *sizeRet = values.size() * sizeof(size_t);
     }
     return QDMI_SUCCESS;
-  }
-
-  if (result == QDMI_JOB_RESULT_STATEVECTOR_DENSE ||
-      result == QDMI_JOB_RESULT_PROBABILITIES_DENSE ||
-      result == QDMI_JOB_RESULT_STATEVECTOR_SPARSE_KEYS ||
-      result == QDMI_JOB_RESULT_STATEVECTOR_SPARSE_VALUES ||
-      result == QDMI_JOB_RESULT_PROBABILITIES_SPARSE_KEYS ||
-      result == QDMI_JOB_RESULT_PROBABILITIES_SPARSE_VALUES) {
-    // Statevector and probability results are not currently supported
-    if (sizeRet != nullptr) {
-      *sizeRet = 0;
-    }
-    return QDMI_ERROR_NOTSUPPORTED;
   }
 
   return QDMI_ERROR_NOTSUPPORTED;

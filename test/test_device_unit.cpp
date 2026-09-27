@@ -4067,6 +4067,12 @@ TEST_F(AmazonBraketQDMILocalJobTest, ProgramSetsUseOneTaskAndOrderedResults) {
       QDMI_SUCCESS);
   EXPECT_STREQ(shots.data(), "01");
   EXPECT_EQ(observedS3->getObjectCalls(), 1U);
+  size_t unsupportedSize = 99;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
+                job, 0, QDMI_JOB_RESULT_STATEVECTOR_DENSE, 0, nullptr,
+                &unsupportedSize),
+            QDMI_ERROR_NOTSUPPORTED);
+  EXPECT_EQ(unsupportedSize, 0U);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
                 job, 2, QDMI_JOB_RESULT_SHOTS, 0, nullptr, nullptr),
             QDMI_ERROR_OUTOFRANGE);
