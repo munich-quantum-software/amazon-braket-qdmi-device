@@ -492,10 +492,32 @@ auto GateModelCapabilityParser::parseProperties(
           !std::in_range<size_t>(minimumTotalShots)) {
         return QDMI_ERROR_FATAL;
       }
+      size_t minimumShotsPerProgram = 0;
+      size_t maximumShotsPerProgram = 0;
+      if (propertiesJson.ValueExists("service")) {
+        const auto service = propertiesJson.GetObject("service");
+        if (service.ValueExists("shotsRange")) {
+          if (!service.GetObject("shotsRange").IsListType()) {
+            return QDMI_ERROR_FATAL;
+          }
+          const auto range = service.GetArray("shotsRange");
+          if (range.GetLength() != 2 || !range[0].IsIntegerType() ||
+              !range[1].IsIntegerType() ||
+              !std::in_range<size_t>(range[0].AsInt64()) ||
+              !std::in_range<size_t>(range[1].AsInt64()) ||
+              range[0].AsInt64() > range[1].AsInt64()) {
+            return QDMI_ERROR_FATAL;
+          }
+          minimumShotsPerProgram = static_cast<size_t>(range[0].AsInt64());
+          maximumShotsPerProgram = static_cast<size_t>(range[1].AsInt64());
+        }
+      }
       properties.programSetLimits = ProgramSetLimits{
           .maximumExecutables = static_cast<size_t>(maximumExecutables),
           .minimumTotalShots = static_cast<size_t>(minimumTotalShots),
-          .maximumTotalShots = static_cast<size_t>(maximumTotalShots)};
+          .maximumTotalShots = static_cast<size_t>(maximumTotalShots),
+          .minimumShotsPerProgram = minimumShotsPerProgram,
+          .maximumShotsPerProgram = maximumShotsPerProgram};
     }
   }
   for (const auto& enrich : calibrationEnrichers_) {

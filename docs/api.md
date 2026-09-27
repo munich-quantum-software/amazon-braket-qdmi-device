@@ -72,10 +72,12 @@ connectivity.
 | `QDMI_DEVICE_JOB_PROPERTY_PROGRAMFORMAT`             | Current program format               |
 | `QDMI_DEVICE_JOB_PROPERTY_PROGRAM`                   | Current program source               |
 | `QDMI_DEVICE_JOB_PROPERTY_PROGRAMSNUM`               | Number of programs in input order    |
-| `QDMI_DEVICE_JOB_PROPERTY_PROGRAMSTATUSES`           | Per-program outcomes for ProgramSets |
 | `QDMI_DEVICE_JOB_PROPERTY_SHOTSNUM`                  | Current shot count                   |
 | `QDMI_DEVICE_JOB_PROPERTY_QUEUEPOSITION`             | Jobs ahead while the task is queued  |
 | `AMAZON_BRAKET_QDMI_DEVICE_JOB_PROPERTY_OUTPUTS3URI` | Resolved S3 result directory         |
+
+`AMAZON_BRAKET_QDMI_device_job_get_program_status` queries a ProgramSet outcome
+by input index.
 
 Querying `QDMI_DEVICE_JOB_PROPERTY_QUEUEPOSITION` performs a fresh
 `GetQuantumTask` request with the `QueueInfo` additional attribute. The query

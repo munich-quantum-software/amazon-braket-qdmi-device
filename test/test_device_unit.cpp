@@ -256,7 +256,7 @@ public:
         "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id");
   }
 
-  auto enableProgramSets() -> void {
+  auto enableProgramSets(const size_t minimumShots = 0) -> void {
     Aws::Utils::Json::JsonValue capabilities(capabilities_);
     auto action = capabilities.View().GetObject("action").Materialize();
     action.WithObject(
@@ -264,6 +264,12 @@ public:
         Aws::Utils::Json::JsonValue{
             R"({"version":["1"],"maximumExecutables":100,"minimumTotalShots":2,"maximumTotalShots":1000})"});
     capabilities.WithObject("action", std::move(action));
+    if (minimumShots != 0) {
+      capabilities.WithObject(
+          "service",
+          Aws::Utils::Json::JsonValue{
+              "{\"shotsRange\":[" + std::to_string(minimumShots) + ",1000]}"});
+    }
     capabilities_ = capabilities.View().WriteCompact();
   }
   [[nodiscard]] auto action() const -> std::string {
@@ -4035,10 +4041,11 @@ TEST_F(AmazonBraketQDMILocalJobTest, ProgramSetsUseOneTaskAndOrderedResults) {
   EXPECT_EQ(payloads[1].GetObject("braketSchemaHeader").GetString("name"),
             "braket.ir.openqasm.program");
   std::array<QDMI_Job_Status, 2> statuses{};
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
-                job, QDMI_DEVICE_JOB_PROPERTY_PROGRAMSTATUSES, sizeof(statuses),
-                statuses.data(), nullptr),
-            QDMI_SUCCESS);
+  for (size_t i = 0; i < statuses.size(); ++i) {
+    ASSERT_EQ(
+        AMAZON_BRAKET_QDMI_device_job_get_program_status(job, i, &statuses[i]),
+        QDMI_SUCCESS);
+  }
   EXPECT_EQ(statuses, (std::array{QDMI_JOB_STATUS_DONE, QDMI_JOB_STATUS_DONE}));
   std::array<char, 3> shots{};
   ASSERT_EQ(
@@ -4055,6 +4062,31 @@ TEST_F(AmazonBraketQDMILocalJobTest, ProgramSetsUseOneTaskAndOrderedResults) {
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
                 job, 2, QDMI_JOB_RESULT_SHOTS, 0, nullptr, nullptr),
             QDMI_ERROR_OUTOFRANGE);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, ProgramSetProbeChecksShotsPerExecutable) {
+  auto client = std::make_unique<StubBraketClient>(
+      Aws::Braket::Model::GetQuantumTaskResult{});
+  client->enableProgramSets(10);
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                          std::move(client));
+  auto* const job = createConfiguredJob(session);
+  ASSERT_NE(job, nullptr);
+  const size_t shots = 5;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(shots), &shots),
+            QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(
+                job, QDMI_PROGRAM_FORMAT_QASM3, 2, nullptr, nullptr),
+            QDMI_ERROR_NOTSUPPORTED);
+  const size_t supportedShots = 10;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(supportedShots),
+                &supportedShots),
+            QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(
+                job, QDMI_PROGRAM_FORMAT_QASM3, 2, nullptr, nullptr),
+            QDMI_SUCCESS);
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest, ProgramSetProbesAndReplacementAreAtomic) {
@@ -4102,10 +4134,11 @@ TEST_F(AmazonBraketQDMILocalJobTest, ProgramSetProbesAndReplacementAreAtomic) {
             QDMI_SUCCESS);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_cancel(job), QDMI_SUCCESS);
   std::array<QDMI_Job_Status, 2> statuses{};
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
-                job, QDMI_DEVICE_JOB_PROPERTY_PROGRAMSTATUSES, sizeof(statuses),
-                statuses.data(), nullptr),
-            QDMI_SUCCESS);
+  for (size_t i = 0; i < statuses.size(); ++i) {
+    ASSERT_EQ(
+        AMAZON_BRAKET_QDMI_device_job_get_program_status(job, i, &statuses[i]),
+        QDMI_SUCCESS);
+  }
   EXPECT_EQ(statuses,
             (std::array{QDMI_JOB_STATUS_CANCELED, QDMI_JOB_STATUS_CANCELED}));
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
@@ -4125,10 +4158,9 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, format, 1, nullptr,
                                                        nullptr),
             QDMI_SUCCESS);
-  EXPECT_EQ(
-      AMAZON_BRAKET_QDMI_device_job_query_property(
-          job, QDMI_DEVICE_JOB_PROPERTY_PROGRAMSTATUSES, 0, nullptr, nullptr),
-      QDMI_ERROR_NOTSUPPORTED);
+  QDMI_Job_Status status{};
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_program_status(job, 0, &status),
+            QDMI_ERROR_NOTSUPPORTED);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
                 job, static_cast<QDMI_Device_Job_Parameter>(1), 0, nullptr),
             QDMI_ERROR_NOTSUPPORTED);
@@ -4181,10 +4213,11 @@ TEST_F(AmazonBraketQDMILocalJobTest,
       AMAZON_BRAKET_QDMI_device_job_get_program(job, 1, 0, nullptr, nullptr),
       QDMI_ERROR_NOTSUPPORTED);
   std::array<QDMI_Job_Status, 3> statuses{};
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
-                job, QDMI_DEVICE_JOB_PROPERTY_PROGRAMSTATUSES, sizeof(statuses),
-                statuses.data(), nullptr),
-            QDMI_SUCCESS);
+  for (size_t i = 0; i < statuses.size(); ++i) {
+    ASSERT_EQ(
+        AMAZON_BRAKET_QDMI_device_job_get_program_status(job, i, &statuses[i]),
+        QDMI_SUCCESS);
+  }
   EXPECT_EQ(statuses, (std::array{QDMI_JOB_STATUS_DONE, QDMI_JOB_STATUS_FAILED,
                                   QDMI_JOB_STATUS_CANCELED}));
   EXPECT_EQ(observed->getObjectCalls(), 2U);
@@ -4227,26 +4260,18 @@ TEST_F(AmazonBraketQDMILocalJobTest, ProgramSetMetadataErrorsRemainErrors) {
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
                 session, "task-arn", &job),
             QDMI_SUCCESS);
-  size_t size = 0;
-  EXPECT_EQ(
-      AMAZON_BRAKET_QDMI_device_job_query_property(
-          job, QDMI_DEVICE_JOB_PROPERTY_PROGRAMSTATUSES, 0, nullptr, &size),
-      QDMI_SUCCESS);
-  EXPECT_EQ(size, 2 * sizeof(QDMI_Job_Status));
   std::array<QDMI_Job_Status, 2> statuses{QDMI_JOB_STATUS_RUNNING,
                                           QDMI_JOB_STATUS_RUNNING};
   AMAZON_BRAKET_QDMI_Device_Job_TestAccess::setStatus(job,
                                                       QDMI_JOB_STATUS_RUNNING);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
-                job, QDMI_DEVICE_JOB_PROPERTY_PROGRAMSTATUSES, sizeof(statuses),
-                statuses.data(), nullptr),
-            QDMI_ERROR_BADSTATE);
+  EXPECT_EQ(
+      AMAZON_BRAKET_QDMI_device_job_get_program_status(job, 0, &statuses[0]),
+      QDMI_ERROR_BADSTATE);
   AMAZON_BRAKET_QDMI_Device_Job_TestAccess::setStatus(job,
                                                       QDMI_JOB_STATUS_FAILED);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
-                job, QDMI_DEVICE_JOB_PROPERTY_PROGRAMSTATUSES, sizeof(statuses),
-                statuses.data(), nullptr),
-            QDMI_ERROR_FATAL);
+  EXPECT_EQ(
+      AMAZON_BRAKET_QDMI_device_job_get_program_status(job, 0, &statuses[0]),
+      QDMI_ERROR_FATAL);
   EXPECT_EQ(statuses,
             (std::array{QDMI_JOB_STATUS_RUNNING, QDMI_JOB_STATUS_RUNNING}));
   task.WithActionMetadata(Aws::Braket::Model::ActionMetadata{}

@@ -1438,7 +1438,10 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::supportsPrograms(
   const auto totalShots = shots * count;
   if (!limits || count > limits->maximumExecutables ||
       totalShots < limits->minimumTotalShots ||
-      totalShots > limits->maximumTotalShots) {
+      totalShots > limits->maximumTotalShots ||
+      shots < limits->minimumShotsPerProgram ||
+      (limits->maximumShotsPerProgram != 0 &&
+       shots > limits->maximumShotsPerProgram)) {
     return QDMI_ERROR_NOTSUPPORTED;
   }
   return QDMI_SUCCESS;
@@ -1607,38 +1610,40 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
   return statusFromCurrentException();
 }
 
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::getProgramStatus(
+    const size_t programIndex, QDMI_Job_Status* status) const -> QDMI_STATUS
+    try {
+  if (status == nullptr) {
+    return QDMI_ERROR_INVALIDARGUMENT;
+  }
+  {
+    const std::scoped_lock lock(jobMutex_);
+    if (programs_.empty()) {
+      return QDMI_ERROR_BADSTATE;
+    }
+    if (programIndex >= programs_.size()) {
+      return QDMI_ERROR_OUTOFRANGE;
+    }
+    if (!programSet_) {
+      return QDMI_ERROR_NOTSUPPORTED;
+    }
+  }
+  const std::scoped_lock lock(resultsMutex_);
+  if (const auto result = fetchResultManifest(); result != QDMI_SUCCESS) {
+    return result;
+  }
+  *status = programStatuses_[programIndex];
+  return QDMI_SUCCESS;
+} catch (...) {
+  return statusFromCurrentException();
+}
+
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
     const QDMI_Device_Job_Property prop, const size_t size, void* value,
     size_t* sizeRet) const -> QDMI_STATUS try {
   if ((value != nullptr && size == 0) ||
       IS_INVALID_ARGUMENT(prop, QDMI_DEVICE_JOB_PROPERTY)) {
     return QDMI_ERROR_INVALIDARGUMENT;
-  }
-
-  if (prop == QDMI_DEVICE_JOB_PROPERTY_PROGRAMSTATUSES) {
-    {
-      const std::scoped_lock lock(jobMutex_);
-      if (!programSet_) {
-        return QDMI_ERROR_NOTSUPPORTED;
-      }
-      const auto required = programs_.size() * sizeof(QDMI_Job_Status);
-      if (sizeRet != nullptr) {
-        *sizeRet = required;
-      }
-      if (value == nullptr) {
-        return QDMI_SUCCESS;
-      }
-      if (size < required) {
-        return QDMI_ERROR_INVALIDARGUMENT;
-      }
-    }
-    const std::scoped_lock lock(resultsMutex_);
-    if (const auto result = fetchResultManifest(); result != QDMI_SUCCESS) {
-      return result;
-    }
-    std::memcpy(value, programStatuses_.data(),
-                programStatuses_.size() * sizeof(QDMI_Job_Status));
-    return QDMI_SUCCESS;
   }
 
   if (prop == QDMI_DEVICE_JOB_PROPERTY_ID) {
@@ -2747,6 +2752,13 @@ int AMAZON_BRAKET_QDMI_device_job_get_program(AMAZON_BRAKET_QDMI_Device_Job job,
  * @param sizeRet Pointer to receive required size (can be NULL)
  * @return QDMI_SUCCESS on success, error code otherwise
  */
+int AMAZON_BRAKET_QDMI_device_job_get_program_status(
+    AMAZON_BRAKET_QDMI_Device_Job job, const size_t programIndex,
+    QDMI_Job_Status* status) {
+  return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT
+                        : job->getProgramStatus(programIndex, status);
+}
+
 int AMAZON_BRAKET_QDMI_device_job_query_property(
     AMAZON_BRAKET_QDMI_Device_Job job, const QDMI_Device_Job_Property prop,
     const size_t size, void* value, size_t* sizeRet) {
