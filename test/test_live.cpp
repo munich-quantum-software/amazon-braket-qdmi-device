@@ -141,7 +141,7 @@ TEST(AmazonBraketQDMILiveTest, UsesAutomaticDefaultS3Destination) {
   const QDMI_Program_Format programFormat = QDMI_PROGRAM_FORMAT_QASM3;
   const void* program = BELL_STATE_PROGRAM.data();
   const size_t programSize = BELL_STATE_PROGRAM.size() + 1;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, &programFormat, 1,
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, programFormat, 1,
                                                        &programSize, &program),
             QDMI_SUCCESS);
   const size_t shots = 1;

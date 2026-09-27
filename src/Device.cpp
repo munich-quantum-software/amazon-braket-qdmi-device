@@ -189,6 +189,11 @@
     }                                                                          \
   }
 
+#define IS_INVALID_ARGUMENT(value, prefix)                                     \
+  ((value) >= prefix##_MAX && (value) != prefix##_CUSTOM1 &&                   \
+   (value) != prefix##_CUSTOM2 && (value) != prefix##_CUSTOM3 &&               \
+   (value) != prefix##_CUSTOM4 && (value) != prefix##_CUSTOM5)
+
 // Assigns a null-terminated string parameter.
 // Validates that value has exactly one terminating null byte at size - 1, then
 // assigns. Use as the body of a case label or an if block.
@@ -1406,10 +1411,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryOperationProperty(
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::supportsPrograms(
     const QDMI_Program_Format format, const size_t count,
     const size_t shots) const -> QDMI_STATUS {
-  if (static_cast<int>(format) < 0 ||
-      (format >= QDMI_PROGRAM_FORMAT_MAX &&
-       (format < QDMI_PROGRAM_FORMAT_CUSTOM1 ||
-        format > QDMI_PROGRAM_FORMAT_CUSTOM5))) {
+  if (IS_INVALID_ARGUMENT(format, QDMI_PROGRAM_FORMAT)) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   if (format != QDMI_PROGRAM_FORMAT_QASM2 &&
@@ -1443,17 +1445,16 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::supportsPrograms(
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setPrograms(
-    const QDMI_Program_Format* format, const size_t count, const size_t* sizes,
+    const QDMI_Program_Format format, const size_t count, const size_t* sizes,
     const void* const* programs) -> QDMI_STATUS try {
-  if (format == nullptr || count == 0 ||
-      (programs != nullptr && sizes == nullptr)) {
+  if (count == 0 || (programs != nullptr && sizes == nullptr)) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   const std::scoped_lock lock(jobMutex_);
   if (retrieved_ || submitting_ || status_.load() != QDMI_JOB_STATUS_CREATED) {
     return QDMI_ERROR_BADSTATE;
   }
-  if (const auto result = supportsPrograms(*format, count, shots_);
+  if (const auto result = supportsPrograms(format, count, shots_);
       result != QDMI_SUCCESS) {
     return result;
   }
@@ -1476,11 +1477,41 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setPrograms(
   std::vector<ProgramResult> results(count);
   programs_ = std::move(replacement);
   results_ = std::move(results);
-  format_ = *format;
+  format_ = format;
   programSet_ = count > 1;
   return QDMI_SUCCESS;
 } catch (...) {
   return statusFromCurrentException();
+}
+
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::getProgram(const size_t programIndex,
+                                                      const size_t size,
+                                                      void* data,
+                                                      size_t* sizeRet) const
+    -> QDMI_STATUS {
+  const std::scoped_lock lock(jobMutex_);
+  if (programs_.empty()) {
+    return QDMI_ERROR_BADSTATE;
+  }
+  if (programIndex >= programs_.size()) {
+    return QDMI_ERROR_OUTOFRANGE;
+  }
+  if (retrieved_) {
+    return QDMI_ERROR_NOTSUPPORTED;
+  }
+  const auto& program = programs_.at(programIndex);
+  const auto requiredSize = program.size() + 1;
+  if (data != nullptr) {
+    if (size < requiredSize) {
+      return QDMI_ERROR_INVALIDARGUMENT;
+    }
+    std::memcpy(data, program.data(), program.size());
+    std::span(static_cast<char*>(data), requiredSize).back() = '\0';
+  }
+  if (sizeRet != nullptr) {
+    *sizeRet = requiredSize;
+  }
+  return QDMI_SUCCESS;
 }
 
 // Job implementation
@@ -1496,11 +1527,11 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
       (param == AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI ||
        param == AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN);
 
-  if (static_cast<int>(param) == 1) {
-    return QDMI_ERROR_NOTSUPPORTED;
+  if (IS_INVALID_ARGUMENT(param, QDMI_DEVICE_JOB_PARAMETER)) {
+    return QDMI_ERROR_INVALIDARGUMENT;
   }
   if (!isStandardParam && !isDefinedCustomParam) {
-    return QDMI_ERROR_INVALIDARGUMENT;
+    return QDMI_ERROR_NOTSUPPORTED;
   }
 
   const std::scoped_lock<std::mutex> lock(jobMutex_);
@@ -1579,7 +1610,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
     const QDMI_Device_Job_Property prop, const size_t size, void* value,
     size_t* sizeRet) const -> QDMI_STATUS try {
-  if ((value != nullptr && size == 0) || prop == QDMI_DEVICE_JOB_PROPERTY_MAX) {
+  if ((value != nullptr && size == 0) ||
+      IS_INVALID_ARGUMENT(prop, QDMI_DEVICE_JOB_PROPERTY)) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
@@ -2274,8 +2306,13 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal(
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::getResults(
     const size_t programIndex, const QDMI_Job_Result result, const size_t size,
     void* data, size_t* sizeRet) const -> QDMI_STATUS try {
-  if ((data != nullptr && size == 0) || result >= QDMI_JOB_RESULT_MAX) {
+  if ((data != nullptr && size == 0) ||
+      IS_INVALID_ARGUMENT(result, QDMI_JOB_RESULT)) {
     return QDMI_ERROR_INVALIDARGUMENT;
+  }
+  if (result != QDMI_JOB_RESULT_SHOTS && result != QDMI_JOB_RESULT_HIST_KEYS &&
+      result != QDMI_JOB_RESULT_HIST_VALUES) {
+    return QDMI_ERROR_NOTSUPPORTED;
   }
 
   {
@@ -2684,10 +2721,18 @@ int AMAZON_BRAKET_QDMI_device_job_set_parameter(
 }
 
 int AMAZON_BRAKET_QDMI_device_job_set_programs(
-    AMAZON_BRAKET_QDMI_Device_Job job, const QDMI_Program_Format* format,
+    AMAZON_BRAKET_QDMI_Device_Job job, const QDMI_Program_Format format,
     const size_t count, const size_t* sizes, const void* const* programs) {
   return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT
                         : job->setPrograms(format, count, sizes, programs);
+}
+
+int AMAZON_BRAKET_QDMI_device_job_get_program(AMAZON_BRAKET_QDMI_Device_Job job,
+                                              const size_t programIndex,
+                                              const size_t size, void* data,
+                                              size_t* sizeRet) {
+  return job == nullptr ? QDMI_ERROR_INVALIDARGUMENT
+                        : job->getProgram(programIndex, size, data, sizeRet);
 }
 
 /**

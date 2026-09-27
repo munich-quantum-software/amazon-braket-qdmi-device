@@ -53,7 +53,7 @@ int main() {
     const void* program = circuit;
     const size_t programSize = strlen(circuit) + 1;
     AMAZON_BRAKET_QDMI_device_job_set_programs(
-        job, &format, 1, &programSize, &program);
+        job, format, 1, &programSize, &program);
 
     AMAZON_BRAKET_QDMI_device_job_submit(job);
     AMAZON_BRAKET_QDMI_device_job_wait(job, 60);
@@ -160,7 +160,9 @@ groups return `QDMI_ERROR_NOTSUPPORTED` before submission. The implementation
 supports one fully bound OpenQASM 3 executable per program; parameter sweeps are
 not supported.
 
-Result indices follow input order. ProgramSets expose
+Program and result indices follow input order. Use
+`AMAZON_BRAKET_QDMI_device_job_get_program` to read a stored program; historical
+task payloads may be unavailable. ProgramSets expose
 `QDMI_DEVICE_JOB_PROPERTY_PROGRAMSTATUSES` after the task finishes, allowing
 completed circuits to retain their results when another circuit fails or is
 cancelled. MQT Core can retry failed circuits without repeating successful ones.

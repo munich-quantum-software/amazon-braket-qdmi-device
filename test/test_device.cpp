@@ -214,7 +214,7 @@ protected:
     const QDMI_Program_Format programFormat = QDMI_PROGRAM_FORMAT_QASM3;
     const void* program = BELL_STATE_PROGRAM;
     const size_t programSize = strlen(BELL_STATE_PROGRAM) + 1;
-    AMAZON_BRAKET_QDMI_device_job_set_programs(sharedJob, &programFormat, 1,
+    AMAZON_BRAKET_QDMI_device_job_set_programs(sharedJob, programFormat, 1,
                                                &programSize, &program);
     QDMI_Program_Format format = QDMI_PROGRAM_FORMAT_QASM3;
     AMAZON_BRAKET_QDMI_device_job_set_parameter(
@@ -899,7 +899,7 @@ TEST(AmazonBraketQDMIPerJobS3Test, SubmitJobWithPerJobS3) {
   const QDMI_Program_Format programFormat = QDMI_PROGRAM_FORMAT_QASM3;
   const void* program = BELL_STATE_PROGRAM;
   const size_t programSize = strlen(BELL_STATE_PROGRAM) + 1;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, &programFormat, 1,
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, programFormat, 1,
                                                        &programSize, &program),
             QDMI_SUCCESS);
 
@@ -1332,7 +1332,7 @@ TEST(AmazonBraketQDMIWaitTimeoutTest, JobWaitTimeout) {
   const void* program = BELL_STATE_PROGRAM;
   const size_t programSize = strlen(BELL_STATE_PROGRAM) + 1;
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(
-                guard.job, &programFormat, 1, &programSize, &program),
+                guard.job, programFormat, 1, &programSize, &program),
             QDMI_SUCCESS);
   QDMI_Program_Format format = QDMI_PROGRAM_FORMAT_QASM3;
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
