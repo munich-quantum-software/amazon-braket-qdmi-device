@@ -705,7 +705,7 @@ auto setProgram(AMAZON_BRAKET_QDMI_Device_Job job, const char* program,
                 const size_t size) -> int {
   const QDMI_Program_Format format = QDMI_PROGRAM_FORMAT_QASM3;
   const void* payload = program;
-  return AMAZON_BRAKET_QDMI_device_job_set_programs(job, &format, 1, &size,
+  return AMAZON_BRAKET_QDMI_device_job_set_programs(job, format, 1, &size,
                                                     &payload);
 }
 
@@ -2019,7 +2019,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobQueryPropertyProgramFormatAndCount) {
       QDMI_ERROR_BADSTATE);
   const void* program = BELL_STATE_PROGRAM;
   const auto programSize = strlen(BELL_STATE_PROGRAM) + 1;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(freshJob, &fmt, 1,
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(freshJob, fmt, 1,
                                                        &programSize, &program),
             QDMI_SUCCESS);
   size_t count = 0;
@@ -3999,9 +3999,22 @@ TEST_F(AmazonBraketQDMILocalJobTest, ProgramSetsUseOneTaskAndOrderedResults) {
                                             secondProgram};
   const std::array sizes{firstProgram.size() + 1, strlen(secondProgram) + 1};
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(
-                job, &format, programs.size(), sizes.data(), programs.data()),
+                job, format, programs.size(), sizes.data(), programs.data()),
             QDMI_SUCCESS);
   firstProgram.clear();
+  size_t payloadSize = 0;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_get_program(job, 1, 0, nullptr,
+                                                      &payloadSize),
+            QDMI_SUCCESS);
+  EXPECT_EQ(payloadSize, sizes.at(1));
+  std::vector<char> payload(payloadSize);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_get_program(job, 1, payload.size(),
+                                                      payload.data(), nullptr),
+            QDMI_SUCCESS);
+  EXPECT_STREQ(payload.data(), secondProgram);
+  EXPECT_EQ(
+      AMAZON_BRAKET_QDMI_device_job_get_program(job, 2, 0, nullptr, nullptr),
+      QDMI_ERROR_OUTOFRANGE);
   const auto* uri = "s3://results/tasks";
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
                 job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
@@ -4054,24 +4067,24 @@ TEST_F(AmazonBraketQDMILocalJobTest, ProgramSetProbesAndReplacementAreAtomic) {
   auto* const job = createConfiguredJob(session);
   ASSERT_NE(job, nullptr);
   const QDMI_Program_Format format = QDMI_PROGRAM_FORMAT_QASM3;
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, &format, 2, nullptr,
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, format, 2, nullptr,
                                                        nullptr),
             QDMI_SUCCESS);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, &format, 101,
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, format, 101,
                                                        nullptr, nullptr),
             QDMI_ERROR_NOTSUPPORTED);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, &format, 11,
-                                                       nullptr, nullptr),
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, format, 11, nullptr,
+                                                       nullptr),
             QDMI_ERROR_NOTSUPPORTED);
   const QDMI_Program_Format qasm2 = QDMI_PROGRAM_FORMAT_QASM2;
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, &qasm2, 2, nullptr,
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, qasm2, 2, nullptr,
                                                        nullptr),
             QDMI_ERROR_NOTSUPPORTED);
   constexpr std::array bad{'x', '\0', 'x', '\0'};
   const std::array<const void*, 2> programs{BELL_STATE_PROGRAM, bad.data()};
   const std::array sizes{strlen(BELL_STATE_PROGRAM) + 1, bad.size()};
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(
-                job, &format, programs.size(), sizes.data(), programs.data()),
+                job, format, programs.size(), sizes.data(), programs.data()),
             QDMI_ERROR_INVALIDARGUMENT);
   size_t count = 0;
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
@@ -4084,7 +4097,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, ProgramSetProbesAndReplacementAreAtomic) {
   const std::array validSizes{strlen(BELL_STATE_PROGRAM) + 1,
                               strlen(BELL_STATE_PROGRAM) + 1};
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(
-                job, &format, validPrograms.size(), validSizes.data(),
+                job, format, validPrograms.size(), validSizes.data(),
                 validPrograms.data()),
             QDMI_SUCCESS);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_cancel(job), QDMI_SUCCESS);
@@ -4106,10 +4119,10 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   auto* const job = createConfiguredJob(session);
   ASSERT_NE(job, nullptr);
   const QDMI_Program_Format format = QDMI_PROGRAM_FORMAT_QASM3;
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, &format, 2, nullptr,
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, format, 2, nullptr,
                                                        nullptr),
             QDMI_ERROR_NOTSUPPORTED);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, &format, 1, nullptr,
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, format, 1, nullptr,
                                                        nullptr),
             QDMI_SUCCESS);
   EXPECT_EQ(
@@ -4164,6 +4177,9 @@ TEST_F(AmazonBraketQDMILocalJobTest,
                 &count, nullptr),
             QDMI_SUCCESS);
   EXPECT_EQ(count, 3U);
+  EXPECT_EQ(
+      AMAZON_BRAKET_QDMI_device_job_get_program(job, 1, 0, nullptr, nullptr),
+      QDMI_ERROR_NOTSUPPORTED);
   std::array<QDMI_Job_Status, 3> statuses{};
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
                 job, QDMI_DEVICE_JOB_PROPERTY_PROGRAMSTATUSES, sizeof(statuses),

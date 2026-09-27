@@ -507,9 +507,11 @@ public:
 
   auto setParameter(QDMI_Device_Job_Parameter param, size_t size,
                     const void* value) -> QDMI_STATUS;
-  auto setPrograms(const QDMI_Program_Format* format, size_t count,
+  auto setPrograms(QDMI_Program_Format format, size_t count,
                    const size_t* sizes, const void* const* programs)
       -> QDMI_STATUS;
+  auto getProgram(size_t programIndex, size_t size, void* data,
+                  size_t* sizeRet) const -> QDMI_STATUS;
   auto queryProperty(QDMI_Device_Job_Property prop, size_t size, void* value,
                      size_t* sizeRet) const -> QDMI_STATUS;
   auto submit() -> QDMI_STATUS;

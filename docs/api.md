@@ -145,6 +145,7 @@ job-lifetime behavior.
 | `AMAZON_BRAKET_QDMI_device_job_set_parameter()`                 | Store job configuration         | Set circuit, shots, format, and destination |
 | `AMAZON_BRAKET_QDMI_device_job_query_property()`                | Stored values or refreshed task | Query job properties                        |
 | `AMAZON_BRAKET_QDMI_device_job_set_programs()`                  | Local configuration             | Set an ordered list of program payloads     |
+| `AMAZON_BRAKET_QDMI_device_job_get_program()`                   | Stored values                   | Read one program payload by input index     |
 | `AMAZON_BRAKET_QDMI_device_job_submit()`                        | `CreateQuantumTask()`           | Submit a QuantumTask                        |
 | `AMAZON_BRAKET_QDMI_device_job_check()`                         | `GetQuantumTask()`              | Refresh task status                         |
 | `AMAZON_BRAKET_QDMI_device_job_wait()`                          | Poll `GetQuantumTask()`         | Wait for completion                         |
