@@ -4279,12 +4279,12 @@ TEST_F(AmazonBraketQDMILocalJobTest, ProgramSetMetadataErrorsRemainErrors) {
   AMAZON_BRAKET_QDMI_Device_Job_TestAccess::setStatus(job,
                                                       QDMI_JOB_STATUS_RUNNING);
   EXPECT_EQ(
-      AMAZON_BRAKET_QDMI_device_job_get_program_status(job, 0, &statuses[0]),
+      AMAZON_BRAKET_QDMI_device_job_get_program_status(job, 0, statuses.data()),
       QDMI_ERROR_BADSTATE);
   AMAZON_BRAKET_QDMI_Device_Job_TestAccess::setStatus(job,
                                                       QDMI_JOB_STATUS_FAILED);
   EXPECT_EQ(
-      AMAZON_BRAKET_QDMI_device_job_get_program_status(job, 0, &statuses[0]),
+      AMAZON_BRAKET_QDMI_device_job_get_program_status(job, 0, statuses.data()),
       QDMI_ERROR_FATAL);
   EXPECT_EQ(statuses,
             (std::array{QDMI_JOB_STATUS_RUNNING, QDMI_JOB_STATUS_RUNNING}));
