@@ -90,15 +90,15 @@ typecheck = [
 
 [package.metadata]
 requires-dist = [
-    { name = "mqt-core", extras = ["pennylane"], marker = "extra == 'pennylane'", git = "https://github.com/munich-quantum-toolkit/core.git?rev=2726dc45791b9042f0baaf4f4dd1b0dea6db1618" },
-    { name = "mqt-core", extras = ["qiskit"], marker = "extra == 'qiskit'", git = "https://github.com/munich-quantum-toolkit/core.git?rev=2726dc45791b9042f0baaf4f4dd1b0dea6db1618" },
+    { name = "mqt-core", extras = ["pennylane"], marker = "extra == 'pennylane'", git = "https://github.com/munich-quantum-toolkit/core.git?rev=553d274b1f8b17bcc9c80940e6bd9703bbd45eff" },
+    { name = "mqt-core", extras = ["qiskit"], marker = "extra == 'qiskit'", git = "https://github.com/munich-quantum-toolkit/core.git?rev=553d274b1f8b17bcc9c80940e6bd9703bbd45eff" },
 ]
 provides-extras = ["pennylane", "qiskit"]
 
 [package.metadata.requires-dev]
 build = [{ name = "scikit-build-core", specifier = ">=1.0.3" }]
 dev = [
-    { name = "mqt-core", extras = ["pennylane", "qiskit"], git = "https://github.com/munich-quantum-toolkit/core.git?rev=2726dc45791b9042f0baaf4f4dd1b0dea6db1618" },
+    { name = "mqt-core", extras = ["pennylane", "qiskit"], git = "https://github.com/munich-quantum-toolkit/core.git?rev=553d274b1f8b17bcc9c80940e6bd9703bbd45eff" },
     { name = "nox", specifier = ">=2026.8.10" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-console-scripts", specifier = ">=1.4.1" },
@@ -109,14 +109,14 @@ dev = [
 ]
 docs = [
     { name = "furo", specifier = ">=2025.12.19" },
-    { name = "mqt-core", extras = ["pennylane", "qiskit"], git = "https://github.com/munich-quantum-toolkit/core.git?rev=2726dc45791b9042f0baaf4f4dd1b0dea6db1618" },
+    { name = "mqt-core", extras = ["pennylane", "qiskit"], git = "https://github.com/munich-quantum-toolkit/core.git?rev=553d274b1f8b17bcc9c80940e6bd9703bbd45eff" },
     { name = "myst-nb", specifier = ">=1.4" },
     { name = "sphinx", specifier = ">=9" },
     { name = "sphinx-copybutton", specifier = ">=0.5.2" },
     { name = "sphinx-design", specifier = ">=0.7" },
 ]
 test = [
-    { name = "mqt-core", extras = ["pennylane", "qiskit"], git = "https://github.com/munich-quantum-toolkit/core.git?rev=2726dc45791b9042f0baaf4f4dd1b0dea6db1618" },
+    { name = "mqt-core", extras = ["pennylane", "qiskit"], git = "https://github.com/munich-quantum-toolkit/core.git?rev=553d274b1f8b17bcc9c80940e6bd9703bbd45eff" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "pytest-console-scripts", specifier = ">=1.4.1" },
     { name = "pytest-cov", specifier = ">=7.1" },
@@ -125,7 +125,7 @@ test = [
 ]
 typecheck = [
     { name = "furo", specifier = ">=2025.12.19" },
-    { name = "mqt-core", extras = ["pennylane", "qiskit"], git = "https://github.com/munich-quantum-toolkit/core.git?rev=2726dc45791b9042f0baaf4f4dd1b0dea6db1618" },
+    { name = "mqt-core", extras = ["pennylane", "qiskit"], git = "https://github.com/munich-quantum-toolkit/core.git?rev=553d274b1f8b17bcc9c80940e6bd9703bbd45eff" },
     { name = "myst-nb", specifier = ">=1.4" },
     { name = "nox", specifier = ">=2026.8.10" },
     { name = "pytest", specifier = ">=9.1.1" },
@@ -1126,8 +1126,8 @@ wheels = [
 
 [[package]]
 name = "mqt-core"
-version = "4.0.1.dev55+g2726dc457"
-source = { git = "https://github.com/munich-quantum-toolkit/core.git?rev=2726dc45791b9042f0baaf4f4dd1b0dea6db1618#2726dc45791b9042f0baaf4f4dd1b0dea6db1618" }
+version = "4.0.1.dev56+g553d274b1"
+source = { git = "https://github.com/munich-quantum-toolkit/core.git?rev=553d274b1f8b17bcc9c80940e6bd9703bbd45eff#553d274b1f8b17bcc9c80940e6bd9703bbd45eff" }
 dependencies = [
     { name = "nanobind-backend" },
 ]
