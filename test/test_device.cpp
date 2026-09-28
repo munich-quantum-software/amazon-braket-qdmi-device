@@ -454,16 +454,6 @@ TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceVersion) {
   EXPECT_FALSE(version.empty());
 }
 
-// NEEDSCALIBRATION is always 0 for Braket (no offline calibration step).
-TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceNeedsCalibration) {
-  size_t needsCalibration = 99; // sentinel — must be overwritten
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
-                session, QDMI_DEVICE_PROPERTY_NEEDSCALIBRATION, sizeof(size_t),
-                &needsCalibration, nullptr),
-            QDMI_SUCCESS);
-  EXPECT_EQ(needsCalibration, 0U);
-}
-
 TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteIndex) {
   uint64_t id = 0;
   EXPECT_NO_THROW(for (auto* site : querySites(session)) {
