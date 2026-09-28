@@ -31,7 +31,7 @@ adapters. Native mode selects the separately installed Runtime catalogue; wheel
 mode selects the bundled library. The workload checks the loaded library path
 and submits and retrieves eight Bell-state shots through each SDK. Core runs the
 same workload as a non-root user with explicit environment setup and with shared
-SPANK injection, then runs its generic transport checks.
+SPANK injection.
 
 The mock accepts only dummy AWS credentials returned by the local credential
 process. Do not pass real AWS credentials or endpoints to this fixture.
