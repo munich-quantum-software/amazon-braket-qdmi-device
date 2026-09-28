@@ -86,11 +86,16 @@
 #include <aws/braket/model/QuantumTaskStatus.h>
 #include <aws/core/Aws.h>
 #include <aws/core/auth/AWSCredentialsProviderChain.h>
+#include <aws/core/client/AWSError.h>
 #include <aws/core/client/CoreErrors.h>
 #include <aws/core/config/EndpointResolver.h>
+#include <aws/core/http/HttpRequest.h>
 #include <aws/core/http/HttpResponse.h>
+#include <aws/core/http/HttpTypes.h>
 #include <aws/core/utils/Array.h>
+#include <aws/core/utils/StringUtils.h>
 #include <aws/core/utils/json/JsonSerializer.h>
+#include <aws/core/utils/logging/LogLevel.h>
 #include <aws/core/utils/memory/stl/AWSAllocator.h>
 #include <aws/core/utils/memory/stl/AWSString.h>
 #include <aws/core/utils/threading/PooledThreadExecutor.h>
@@ -121,6 +126,7 @@
 #include <span>
 #include <sstream>
 #include <stdexcept>
+#include <stdlib.h> /// NOLINT(modernize-deprecated-headers): POSIX setenv
 #include <string>
 #include <string_view>
 #include <thread>
@@ -542,6 +548,22 @@ auto parseS3Uri(const std::string_view uri, std::string& bucket,
 
 namespace amazon::braket::qdmi {
 
+auto detail::BraketClient::BuildAWSError(
+    const std::shared_ptr<Aws::Http::HttpResponse>& response) const
+    -> Aws::Client::AWSError<Aws::Client::CoreErrors> {
+  auto error = Aws::Braket::BraketClient::BuildAWSError(response);
+  if (error.GetErrorType() ==
+          static_cast<Aws::Client::CoreErrors>(
+              Aws::Braket::BraketErrors::SERVICE_QUOTA_EXCEEDED) &&
+      response->GetOriginatingRequest().GetMethod() ==
+          Aws::Http::HttpMethod::HTTP_POST &&
+      response->GetOriginatingRequest().GetUri().GetPath().ends_with(
+          "/quantum-task")) {
+    error.SetRetryableType(Aws::Client::RetryableType::RETRYABLE_THROTTLING);
+  }
+  return error;
+}
+
 /**
  * Device constructor - initializes the global Braket device singleton.
  *
@@ -830,10 +852,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS try {
   const auto applyEnvironmentFallback = [](std::string& destination,
                                            const char* variable) {
     if (destination.empty()) {
-      if (const char* value = std::getenv(variable);
-          value != nullptr && value[0] != '\0') {
-        destination = value;
-      }
+      destination =
+          amazon::braket::qdmi::detail::getEnvironment(variable).value_or("");
     }
   };
   applyEnvironmentFallback(deviceArn_,
@@ -871,21 +891,24 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS try {
 
   Aws::Braket::BraketClientConfiguration config;
   config.region = region_;
+  amazon::braket::qdmi::detail::configureRetries(config);
   amazon::braket::qdmi::detail::configureCaBundle(config);
 
   credentialsProvider_ =
       Aws::MakeShared<Aws::Auth::DefaultAWSCredentialsProviderChain>(
           "AmazonBraketQDMICredentialsProvider",
           config.ResolveCredentialProviderConfig());
-  client_ = std::make_unique<Aws::Braket::BraketClient>(credentialsProvider_,
-                                                        nullptr, config);
+  client_ = std::make_unique<amazon::braket::qdmi::detail::BraketClient>(
+      credentialsProvider_, nullptr, config);
   Aws::S3::S3ClientConfiguration s3Config;
   s3Config.region = region_;
+  amazon::braket::qdmi::detail::configureRetries(s3Config);
   amazon::braket::qdmi::detail::configureCaBundle(s3Config);
   s3Client_ = std::make_unique<Aws::S3::S3Client>(credentialsProvider_, nullptr,
                                                   s3Config);
   Aws::STS::STSClientConfiguration stsConfig;
   stsConfig.region = region_;
+  amazon::braket::qdmi::detail::configureRetries(stsConfig);
   amazon::braket::qdmi::detail::configureCaBundle(stsConfig);
   // AWS SDK 1.11 does not pass a service name to the STS endpoint provider.
   // Resolve its standard service-specific environment/profile override here;
@@ -957,11 +980,9 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::resolveS3Destination(
     const std::string& jobS3Uri, S3Destination& destination) -> QDMI_STATUS {
   std::string uri = jobS3Uri;
   if (uri.empty()) {
-    if (const auto* environmentUri =
-            std::getenv(AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI);
-        environmentUri != nullptr && *environmentUri != '\0') {
-      uri = environmentUri;
-    }
+    uri = amazon::braket::qdmi::detail::getEnvironment(
+              AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI)
+              .value_or("");
   }
   if (!uri.empty()) {
     if (!parseS3Uri(uri, destination.bucket, destination.prefix)) {
@@ -1166,6 +1187,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::awaitSubmission() const
   std::shared_future<void> submission;
   {
     const std::scoped_lock lock(jobMutex_);
+    if (status_.load() == QDMI_JOB_STATUS_CANCELED && !submissionStarted_) {
+      return QDMI_SUCCESS;
+    }
     submission = jobHandle_;
   }
   if (submission.valid()) {
@@ -1617,6 +1641,13 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
       [this, request = std::move(request)] {
         auto result = QDMI_SUCCESS;
         try {
+          {
+            const std::scoped_lock lock(jobMutex_);
+            if (status_.load() == QDMI_JOB_STATUS_CANCELED) {
+              return;
+            }
+            submissionStarted_ = true;
+          }
           const auto outcome =
               session_->getClient()->CreateQuantumTask(request);
           if (!outcome.IsSuccess()) {
@@ -1663,7 +1694,16 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS try {
-  /// A pending CreateQuantumTask must yield its ARN before it can be canceled.
+  {
+    const std::scoped_lock lock(jobMutex_);
+    if (submitting_ && !submissionStarted_ &&
+        status_.load() == QDMI_JOB_STATUS_SUBMITTED) {
+      status_.store(QDMI_JOB_STATUS_CANCELED);
+      submitting_ = false;
+      return QDMI_SUCCESS;
+    }
+  }
+  /// An in-flight CreateQuantumTask must yield its ARN before remote cancel.
   if (const auto result = awaitSubmission(); result != QDMI_SUCCESS) {
     return result;
   }
@@ -2098,6 +2138,47 @@ std::mutex gAWSInitMutex;
 int AMAZON_BRAKET_QDMI_device_initialize() try {
   const std::scoped_lock lock(gAWSInitMutex);
   if (!gAWSInitialized) {
+    using Aws::Utils::Logging::LogLevel;
+    auto logLevel = LogLevel::Off;
+    if (const auto value = amazon::braket::qdmi::detail::getEnvironment(
+            AMAZON_BRAKET_QDMI_DEVICE_ENV_LOG_LEVEL);
+        value.has_value() && !value->empty()) {
+      constexpr std::array levels{std::pair{"off", LogLevel::Off},
+                                  std::pair{"fatal", LogLevel::Fatal},
+                                  std::pair{"error", LogLevel::Error},
+                                  std::pair{"warn", LogLevel::Warn},
+                                  std::pair{"info", LogLevel::Info},
+                                  std::pair{"debug", LogLevel::Debug},
+                                  std::pair{"trace", LogLevel::Trace}};
+      /// NOLINTNEXTLINE(readability-qualified-auto): Portable iterator type.
+      const auto match =
+          std::ranges::find_if(levels, [&value](const auto& level) {
+            return Aws::Utils::StringUtils::CaselessCompare(value->c_str(),
+                                                            level.first);
+          });
+      if (match == levels.end()) {
+        std::fputs("Invalid AMAZON_BRAKET_QDMI_LOG_LEVEL; expected off, fatal, "
+                   "error, warn, info, debug, or trace.\n",
+                   stderr);
+        return QDMI_ERROR_INVALIDARGUMENT;
+      }
+      logLevel = match->second;
+    }
+    gAWSOptions.loggingOptions.logLevel = logLevel;
+    /// The SDK reads this process-wide opt-in when initializing error maps.
+    /// Preserve explicit values and leave it set for subsequent AWS clients.
+    if (!amazon::braket::qdmi::detail::getEnvironment("AWS_NEW_RETRIES_2026")
+             .has_value()) {
+#ifdef _WIN32
+      const auto result = _putenv_s("AWS_NEW_RETRIES_2026", "true");
+#else
+      const auto result = setenv("AWS_NEW_RETRIES_2026", "true", 0);
+#endif
+      if (result != 0) {
+        std::fputs("Could not enable AWS_NEW_RETRIES_2026.\n", stderr);
+        return QDMI_ERROR_FATAL;
+      }
+    }
     Aws::InitAPI(gAWSOptions);
     gAWSInitialized = true;
   }
@@ -2410,7 +2491,7 @@ int AMAZON_BRAKET_QDMI_device_job_check(AMAZON_BRAKET_QDMI_Device_Job job,
  * Wait for a QDMI job to complete.
  *
  * Blocks until the underlying quantum task completes or the timeout expires.
- * Polls the quantum task status periodically using exponential backoff.
+ * Polls the quantum task status periodically. The AWS SDK retries failed calls.
  *
  * @param job The QDMI job handle
  * @param timeout Maximum time to wait in seconds (0 = infinite)

@@ -132,8 +132,15 @@ available and can fetch results without waiting for the prefetch queue.
 Submitted jobs are immutable and report `SUBMITTED` while AWS acceptance is
 pending. Submission failures appear through `device_job_check()` and
 `device_job_wait()` with status `FAILED`. Job IDs remain AWS QuantumTask ARNs,
-so ID queries and cancellation wait for pending acceptance. Avoid querying each
-ID immediately after submission, which serializes the batch.
+so ID queries wait for pending acceptance. Avoid querying each ID immediately
+after submission, which serializes the batch.
 
-Freeing a job or session stops background polling and drains pending HTTP
-requests. It does not wait for remote execution or cancel the QuantumTask.
+To stop unwanted work, call `device_job_cancel()` before freeing the job.
+Requests still waiting locally are canceled immediately without creating a
+QuantumTask. If `CreateQuantumTask` has already started, cancellation waits for
+its ARN and sends a cancellation request to Braket. Check the job status to
+confirm the outcome: a remote task can finish before cancellation takes effect.
+
+Freeing a job or session stops background polling and drains pending worker
+callbacks and HTTP requests. It does not wait for remote execution or cancel the
+QuantumTask.

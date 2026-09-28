@@ -33,6 +33,9 @@
 #define AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI                      \
   "AMZN_BRAKET_TASK_RESULTS_S3_URI"
 
+/// AWS SDK log level, read at device initialization. Defaults to off.
+#define AMAZON_BRAKET_QDMI_DEVICE_ENV_LOG_LEVEL "AMAZON_BRAKET_QDMI_LOG_LEVEL"
+
 /**
  * @brief OpenQASM operations accepted by the Amazon Braket device.
  * @details Returns an array of `AMAZON_BRAKET_QDMI_Operation` handles. For a

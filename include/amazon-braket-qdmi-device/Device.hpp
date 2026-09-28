@@ -76,6 +76,7 @@
 #include <aws/braket/model/DeviceType.h>
 #include <aws/core/auth/AWSCredentialsProvider.h>
 #include <aws/core/client/ClientConfiguration.h>
+#include <aws/core/config/ConfigAndCredentialsCacheManager.h>
 #include <aws/core/utils/threading/Executor.h>
 #include <aws/s3/S3Client.h>
 #include <aws/sts/STSClient.h>
@@ -88,6 +89,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <new>
 #include <optional>
 #include <random>
 #include <stop_token>
@@ -104,12 +106,55 @@ struct AMAZON_BRAKET_QDMI_Device_Session_TestAccess;
 namespace amazon::braket::qdmi {
 
 namespace detail {
+/// Read configuration before SDK initialization, preserving absent vs. empty.
+inline auto getEnvironment(const char* name) -> std::optional<std::string> {
+#ifdef _MSC_VER
+  char* value = nullptr;
+  size_t size = 0;
+  const auto result = _dupenv_s(&value, &size, name);
+  const std::unique_ptr<char, decltype(&std::free)> storage(value, std::free);
+  if (result != 0) {
+    throw std::bad_alloc{};
+  }
+#else
+  const auto* value = std::getenv(name);
+#endif
+  if (value == nullptr) {
+    return std::nullopt;
+  }
+  return std::string{value};
+}
+
+/// Classify temporary Braket capacity limits for the SDK's retry strategy.
+class BraketClient : public Aws::Braket::BraketClient {
+public:
+  using Aws::Braket::BraketClient::BraketClient;
+
+  auto
+  BuildAWSError(const std::shared_ptr<Aws::Http::HttpResponse>& response) const
+      -> Aws::Client::AWSError<Aws::Client::CoreErrors> override;
+};
+
+/// Use a higher retry budget unless the user configured an attempt limit.
+/// The SDK resolves the retry mode and owns backoff, jitter, and retry quotas.
+inline auto configureRetries(Aws::Client::ClientConfiguration& configuration)
+    -> void {
+  if (getEnvironment("AWS_MAX_ATTEMPTS").value_or("").empty() &&
+      Aws::Config::GetCachedConfigValue(configuration.profileName,
+                                        "max_attempts")
+          .empty()) {
+    configuration.retryStrategy = Aws::Client::InitRetryStrategy(10);
+  } else {
+    configuration.retryStrategy = Aws::Client::InitRetryStrategy();
+  }
+}
+
 inline auto configureCaBundle(Aws::Client::ClientConfiguration& configuration)
     -> void {
   for (const auto* variable : {"AWS_CA_BUNDLE", "SSL_CERT_FILE"}) {
-    if (const auto* value = std::getenv(variable);
-        value != nullptr && value[0] != '\0') {
-      configuration.caFile = value;
+    if (const auto value = getEnvironment(variable);
+        value.has_value() && !value->empty()) {
+      configuration.caFile = value->c_str();
       return;
     }
   }
@@ -350,7 +395,8 @@ private:
   /// - CANCELED: User canceled before completion
   /// - FAILED: Execution failed due to error
   mutable std::atomic<QDMI_Job_Status> status_{QDMI_JOB_STATUS_CREATED};
-  bool submitting_ = false; ///< A CreateQuantumTask request is in progress
+  bool submitting_ = false; ///< Submission is being prepared, queued, or sent
+  bool submissionStarted_ = false; ///< Worker has committed to calling AWS
 
   QDMI_Program_Format format_ = QDMI_PROGRAM_FORMAT_QASM3;
   std::string program_;

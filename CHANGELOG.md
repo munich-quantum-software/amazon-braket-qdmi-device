@@ -10,11 +10,27 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- ✨ Enable optional AWS SDK logging through `AMAZON_BRAKET_QDMI_LOG_LEVEL` to
+  diagnose service errors and retries ([#243]) ([**@burgholzer**])
+
 ### Changed
 
 - 💥 Use MQT Core's shared Slurm 25.11+ setup and remove the provider SPANK
   plugin. See the upgrade guide for catalogue and option migration ([#237])
   ([**@flowerthrower**])
+- ⬆️ Update the AWS SDK for C++ to 1.11.899 ([#241]) ([**@burgholzer**])
+- 🛡️ Enable the SDK's 2026 retry behavior unless explicitly configured, and
+  default to 10 request attempts while honoring AWS retry settings ([#241])
+  ([**@burgholzer**])
+
+### Fixed
+
+- 🐛 Cancel queued submissions locally without creating unwanted QuantumTasks
+  ([#244]) ([**@burgholzer**])
+- 🐛 Retry temporary Braket service-quota errors during task submission through
+  the AWS SDK ([#241]) ([**@burgholzer**])
 
 ## [1.2.0] - 2026-09-12
 
@@ -150,8 +166,10 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#244]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/244
+[#243]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/243
+[#241]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/241
 [#237]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/237
-
 [#219]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/219
 [#217]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/217
 [#205]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/205

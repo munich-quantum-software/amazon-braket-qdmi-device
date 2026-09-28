@@ -31,22 +31,19 @@ set(QDMI_TEST_TARGET_NAME "${QDMI_TARGET_NAME}-test")
 if(USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
   # Install mode: only test the public C API against the installed library
   add_executable(${QDMI_TEST_TARGET_NAME} test_device.cpp)
+  target_link_libraries(${QDMI_TEST_TARGET_NAME} PRIVATE ${QDMI_TARGET_NAME})
 else()
   # Build-from-source: also compile offline unit tests for internal parser classes.
   add_executable(${QDMI_TEST_TARGET_NAME} test_device.cpp test_device_unit.cpp test_measurement.cpp)
-  target_link_libraries(${QDMI_TEST_TARGET_NAME} PRIVATE ${QDMI_TARGET_NAME}-parser-objects)
+  # Keep the provider and AWS test clients in one SDK initialization domain.
+  target_link_libraries(${QDMI_TEST_TARGET_NAME} PRIVATE ${QDMI_TARGET_NAME}-internals
+                                                         ${QDMI_TARGET_NAME}-parser-objects)
+  target_compile_definitions(${QDMI_TEST_TARGET_NAME} PRIVATE ${QDMI_PREFIX}_QDMI_device_EXPORTS)
 endif()
 
 # link the Google test infrastructure to the test executable.
-target_link_libraries(
-  ${QDMI_TEST_TARGET_NAME} PRIVATE GTest::gtest_main GTest::gmock ${QDMI_TARGET_NAME} qdmi::qdmi
-                                   qdmi::qdmi_project_warnings)
-
-if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
-  target_link_libraries(
-    ${QDMI_TEST_TARGET_NAME} PRIVATE AWS::aws-cpp-sdk-braket AWS::aws-cpp-sdk-s3
-                                     AWS::aws-cpp-sdk-sts AWS::aws-cpp-sdk-core)
-endif()
+target_link_libraries(${QDMI_TEST_TARGET_NAME} PRIVATE GTest::gtest_main GTest::gmock qdmi::qdmi
+                                                       qdmi::qdmi_project_warnings)
 
 # set c++ standard
 target_compile_features(${QDMI_TEST_TARGET_NAME} PRIVATE cxx_std_20)

@@ -26,6 +26,61 @@ nonstandard location. `SSL_CERT_FILE` is also supported when `AWS_CA_BUNDLE` is
 not set. An invalid explicit path is reported by the AWS client; certificate
 verification is never disabled.
 
+## Retries and quotas
+
+The device uses AWS SDK retries, defaulting to `standard` mode and up to
+**10 total attempts** per request. Configure retries through AWS environment
+variables or your AWS profile before initialization. For example:
+
+```console
+export AWS_MAX_ATTEMPTS=15
+```
+
+See the [AWS retry reference] for `AWS_RETRY_MODE`, attempt limits, profile
+settings, and retry behavior.
+
+Device initialization enables `AWS_NEW_RETRIES_2026=true` unless explicitly set.
+This process-wide setting remains after finalization and can affect other AWS
+clients. Initialize the device before other threads use the SDK; if your
+application initializes the SDK first, set the variable before that step. Set it
+to `false` before startup to opt out.
+
+Task submissions also retry `ServiceQuotaExceededException`. Retries are
+bounded: persistent quota exhaustion can still fail a submission. Increase
+`AWS_MAX_ATTEMPTS`, reduce concurrent work, or request an adjustable
+[Amazon Braket quota] increase when needed.
+
+[AWS retry reference]: https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html
+[Amazon Braket quota]: https://docs.aws.amazon.com/braket/latest/developerguide/braket-quotas.html
+
+## Diagnostics
+
+To see AWS service errors and SDK retry delays, enable logging before starting
+the application:
+
+```console
+export AMAZON_BRAKET_QDMI_LOG_LEVEL=warn
+```
+
+The setting accepts `off` (the default), `fatal`, `error`, `warn`, `info`,
+`debug`, and `trace`, ignoring case. An unset or empty value disables logging;
+an invalid value makes device initialization fail. The SDK writes
+`aws_sdk_*.log` files in the working directory. Higher verbosity can include
+request and response details; use `warn` for routine retry diagnosis.
+
+Logging is process-wide and configured when the SDK first initializes. If your
+application initializes the SDK before the device, configure logging there. See
+the
+[AWS SDK logging guide](https://docs.aws.amazon.com/sdk-for-cpp/v1/developer-guide/logging.html)
+for log levels and output behavior.
+
+For structured request-attempt metrics, the SDK also supports Client Side
+Monitoring (CSM), independently of logging. Set `AWS_CSM_ENABLED=true`,
+`AWS_CSM_HOST=127.0.0.1`, and `AWS_CSM_PORT=31000` before initialization and
+start a local UDP JSON receiver on that port. Count `ApiCallAttempt` events by
+`Api` and `AwsException` to distinguish submission retries from polling errors.
+These count HTTP attempts, not distinct failed QuantumTasks.
+
 ## Device session
 
 Set the Amazon Braket device ARN before initializing a direct QDMI session:

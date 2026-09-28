@@ -57,9 +57,19 @@
 #include <aws/core/Aws.h>
 #include <aws/core/client/AWSError.h>
 #include <aws/core/client/ClientConfiguration.h>
+#include <aws/core/client/CoreErrors.h>
+#include <aws/core/client/RetryStrategy.h>
+#include <aws/core/config/ConfigAndCredentialsCacheManager.h>
+#include <aws/core/http/HttpClientFactory.h>
 #include <aws/core/http/HttpResponse.h>
+#include <aws/core/http/HttpTypes.h>
+#include <aws/core/http/standard/StandardHttpResponse.h>
+#include <aws/core/utils/logging/AWSLogging.h>
+#include <aws/core/utils/logging/LogLevel.h>
+#include <aws/core/utils/logging/LogSystemInterface.h>
 #include <aws/core/utils/memory/AWSMemory.h>
 #include <aws/core/utils/memory/stl/AWSStringStream.h>
+#include <aws/core/utils/stream/ResponseStream.h>
 #include <aws/s3/S3Client.h>
 #include <aws/s3/S3Errors.h>
 #include <aws/s3/S3ServiceClientModel.h>
@@ -77,6 +87,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <future>
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
@@ -692,14 +703,17 @@ static_assert(AMAZON_BRAKET_QDMI_DEVICE_JOB_PROPERTY_OUTPUTS3URI ==
 // NOLINTBEGIN(misc-include-cleaner)
 class ScopedEnvironment {
 public:
-  ScopedEnvironment(const char* name, const char* value) : name_(name) {
-    if (const char* previous = std::getenv(name); previous != nullptr) {
-      previous_ = previous;
-    }
+  ScopedEnvironment(const char* name, const char* value)
+      : name_(name),
+        previous_(amazon::braket::qdmi::detail::getEnvironment(name)) {
 #ifdef _WIN32
-    _putenv_s(name, value);
+    _putenv_s(name, value != nullptr ? value : "");
 #else
-    setenv(name, value, 1);
+    if (value != nullptr) {
+      setenv(name, value, 1);
+    } else {
+      unsetenv(name);
+    }
 #endif
   }
 
@@ -727,12 +741,15 @@ private:
 TEST(ScopedEnvironmentTest, TreatsEmptyValueAsAbsent) {
   constexpr auto* variable = "AMAZON_BRAKET_QDMI_TEST_EMPTY_ENVIRONMENT";
   const ScopedEnvironment emptyEnvironment(variable, "");
-  ASSERT_EQ(std::getenv(variable), nullptr);
+  EXPECT_EQ(amazon::braket::qdmi::detail::getEnvironment(variable),
+            std::nullopt);
   {
     const ScopedEnvironment temporaryEnvironment(variable, "temporary");
-    ASSERT_STREQ(std::getenv(variable), "temporary");
+    EXPECT_EQ(amazon::braket::qdmi::detail::getEnvironment(variable),
+              "temporary");
   }
-  EXPECT_EQ(std::getenv(variable), nullptr);
+  EXPECT_EQ(amazon::braket::qdmi::detail::getEnvironment(variable),
+            std::nullopt);
 }
 #else
 TEST(ScopedEnvironmentTest, RestoresExistingEmptyValue) {
@@ -740,11 +757,10 @@ TEST(ScopedEnvironmentTest, RestoresExistingEmptyValue) {
   const ScopedEnvironment emptyEnvironment(variable, "");
   {
     const ScopedEnvironment temporaryEnvironment(variable, "temporary");
-    ASSERT_STREQ(std::getenv(variable), "temporary");
+    EXPECT_EQ(amazon::braket::qdmi::detail::getEnvironment(variable),
+              "temporary");
   }
-  const auto* restored = std::getenv(variable);
-  ASSERT_NE(restored, nullptr);
-  EXPECT_STREQ(restored, "");
+  EXPECT_EQ(amazon::braket::qdmi::detail::getEnvironment(variable), "");
 }
 #endif
 
@@ -775,6 +791,186 @@ TEST_F(AwsClientConfigurationTest, HonorsOpenSslCaBundle) {
   amazon::braket::qdmi::detail::configureCaBundle(configuration);
 
   EXPECT_EQ(configuration.caFile, "/ssl-ca.pem");
+}
+
+class AwsRetryConfigurationTest : public AwsClientConfigurationTest {
+protected:
+  ScopedEnvironment newRetries_{"AWS_NEW_RETRIES_2026", "true"};
+  ScopedEnvironment profile_{"AWS_PROFILE", "amazon-braket-qdmi-retry-test"};
+  ScopedEnvironment retryMode_{"AWS_RETRY_MODE", ""};
+  ScopedEnvironment maxAttempts_{"AWS_MAX_ATTEMPTS", ""};
+};
+
+TEST_F(AwsRetryConfigurationTest, UsesTenAttemptsAndSdkErrorClassification) {
+  Aws::Client::ClientConfiguration configuration;
+  amazon::braket::qdmi::detail::configureRetries(configuration);
+  const auto& strategy = configuration.retryStrategy;
+  ASSERT_NE(strategy, nullptr);
+  EXPECT_STREQ(strategy->GetStrategyName(), "standard");
+  EXPECT_EQ(strategy->GetMaxAttempts(), 10);
+
+  for (const auto* name : {"ThrottlingException", "RequestLimitExceeded",
+                           "TooManyRequestsException"}) {
+    const auto error = Aws::Client::CoreErrorsMapper::GetErrorForName(name);
+    EXPECT_TRUE(error.ShouldThrottle());
+    EXPECT_TRUE(strategy->ShouldRetry(error, 8));
+    EXPECT_FALSE(strategy->ShouldRetry(error, 9));
+  }
+  EXPECT_FALSE(strategy->ShouldRetry(
+      Aws::Client::CoreErrorsMapper::GetErrorForName("ValidationException"),
+      0));
+  EXPECT_FALSE(
+      strategy->ShouldRetry(Aws::Braket::BraketErrorMapper::GetErrorForName(
+                                "ServiceQuotaExceededException"),
+                            0));
+}
+
+TEST_F(AwsRetryConfigurationTest, HonorsEnvironmentModeAndAttemptLimit) {
+  const ScopedEnvironment retryMode("AWS_RETRY_MODE", "adaptive");
+  for (const auto* limit : {"1", "17"}) {
+    const ScopedEnvironment maxAttempts("AWS_MAX_ATTEMPTS", limit);
+    Aws::Client::ClientConfiguration configuration;
+    amazon::braket::qdmi::detail::configureRetries(configuration);
+    EXPECT_STREQ(configuration.retryStrategy->GetStrategyName(), "adaptive");
+    EXPECT_EQ(configuration.retryStrategy->GetMaxAttempts(), std::stoi(limit));
+  }
+}
+
+TEST_F(AwsRetryConfigurationTest, RetriesQuotaErrorsOnlyForTaskCreation) {
+  Aws::Braket::BraketClientConfiguration configuration;
+  configuration.region = "us-east-1";
+  amazon::braket::qdmi::detail::configureRetries(configuration);
+  const amazon::braket::qdmi::detail::BraketClient client{
+      Aws::Auth::AWSCredentials{"access", "secret"}, nullptr, configuration};
+  for (const auto* name : {"ServiceQuotaExceededException",
+                           "ValidationException", "AccessDeniedException"}) {
+    for (const auto method :
+         {Aws::Http::HttpMethod::HTTP_POST, Aws::Http::HttpMethod::HTTP_GET}) {
+      for (const auto* path : {"/quantum-task", "/job"}) {
+        const auto request = Aws::Http::CreateHttpRequest(
+            Aws::String{"https://braket.test"} + path, method,
+            Aws::Utils::Stream::DefaultResponseStreamFactoryMethod);
+        const auto response =
+            std::make_shared<Aws::Http::Standard::StandardHttpResponse>(
+                request);
+        response->SetResponseCode(Aws::Http::HttpResponseCode::BAD_REQUEST);
+        response->AddHeader("x-amzn-errortype", name);
+        response->GetResponseBody() << R"({"message":"test diagnostic"})";
+        const auto error = client.BuildAWSError(response);
+        const bool retryable =
+            std::strcmp(name, "ServiceQuotaExceededException") == 0 &&
+            method == Aws::Http::HttpMethod::HTTP_POST &&
+            std::strcmp(path, "/quantum-task") == 0;
+        EXPECT_EQ(error.GetExceptionName(), name);
+        EXPECT_EQ(error.GetMessage(), "test diagnostic");
+        EXPECT_EQ(error.ShouldThrottle(), retryable);
+        EXPECT_EQ(configuration.retryStrategy->ShouldRetry(error, 0),
+                  retryable);
+        EXPECT_FALSE(configuration.retryStrategy->ShouldRetry(error, 9));
+      }
+    }
+  }
+}
+
+TEST_F(AwsRetryConfigurationTest, HonorsProfileAndEnvironmentPrecedence) {
+  const auto path = testing::TempDir() + "amazon-braket-qdmi-retry.config";
+  {
+    std::ofstream profile(path);
+    profile << "[profile amazon-braket-qdmi-retry-test]\n"
+               "retry_mode = adaptive\nmax_attempts = 7\n";
+    ASSERT_TRUE(profile.good());
+  }
+  const ScopedEnvironment configFile("AWS_CONFIG_FILE", path.c_str());
+  Aws::Config::ReloadCachedConfigFile();
+  std::remove(path.c_str());
+
+  Aws::Client::ClientConfiguration configuration;
+  amazon::braket::qdmi::detail::configureRetries(configuration);
+  EXPECT_STREQ(configuration.retryStrategy->GetStrategyName(), "adaptive");
+  EXPECT_EQ(configuration.retryStrategy->GetMaxAttempts(), 7);
+
+  const ScopedEnvironment retryMode("AWS_RETRY_MODE", "standard");
+  const ScopedEnvironment maxAttempts("AWS_MAX_ATTEMPTS", "1");
+  amazon::braket::qdmi::detail::configureRetries(configuration);
+  EXPECT_STREQ(configuration.retryStrategy->GetStrategyName(), "standard");
+  EXPECT_EQ(configuration.retryStrategy->GetMaxAttempts(), 1);
+  EXPECT_FALSE(configuration.retryStrategy->ShouldRetry(
+      Aws::Client::CoreErrorsMapper::GetErrorForName("ThrottlingException"),
+      0));
+}
+
+TEST(AwsRetryInitializationTest, EnablesNewRetriesUnlessExplicitlyConfigured) {
+  for (const auto* value : {static_cast<const char*>(nullptr), "false"}) {
+    const ScopedEnvironment newRetries("AWS_NEW_RETRIES_2026", value);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+    EXPECT_EQ(
+        amazon::braket::qdmi::detail::getEnvironment("AWS_NEW_RETRIES_2026"),
+        value != nullptr ? value : "true");
+    EXPECT_EQ(
+        Aws::Client::CoreErrorsMapper::GetErrorForName("RequestLimitExceeded")
+            .ShouldThrottle(),
+        value == nullptr);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);
+  }
+}
+
+TEST(AwsLoggingInitializationTest, ConfiguresLoggingForEachSdkLifetime) {
+  using Aws::Utils::Logging::GetLogSystem;
+  using Aws::Utils::Logging::LogLevel;
+  for (const auto& [value, expected] : std::array{
+           std::pair{static_cast<const char*>(nullptr), LogLevel::Off},
+           std::pair{"", LogLevel::Off}, std::pair{"OFF", LogLevel::Off},
+           std::pair{"fatal", LogLevel::Fatal},
+           std::pair{"error", LogLevel::Error},
+           std::pair{"WaRn", LogLevel::Warn}, std::pair{"info", LogLevel::Info},
+           std::pair{"debug", LogLevel::Debug},
+           std::pair{"trace", LogLevel::Trace}}) {
+    const ScopedEnvironment logLevel(AMAZON_BRAKET_QDMI_DEVICE_ENV_LOG_LEVEL,
+                                     value);
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+    auto* const logger = GetLogSystem();
+    EXPECT_EQ(logger != nullptr, expected != LogLevel::Off);
+    if (logger != nullptr) {
+      EXPECT_EQ(logger->GetLogLevel(), expected);
+    }
+    {
+      const ScopedEnvironment changed(AMAZON_BRAKET_QDMI_DEVICE_ENV_LOG_LEVEL,
+                                      "invalid");
+      EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+      EXPECT_EQ(GetLogSystem(), logger);
+    }
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);
+    EXPECT_EQ(GetLogSystem(), nullptr);
+  }
+}
+
+TEST(AwsLoggingInitializationTest, RejectsInvalidLevelBeforeSdkInitialization) {
+  {
+    const ScopedEnvironment invalid(AMAZON_BRAKET_QDMI_DEVICE_ENV_LOG_LEVEL,
+                                    "verbose");
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(),
+              QDMI_ERROR_INVALIDARGUMENT);
+    EXPECT_EQ(Aws::Utils::Logging::GetLogSystem(), nullptr);
+  }
+  const ScopedEnvironment unset(AMAZON_BRAKET_QDMI_DEVICE_ENV_LOG_LEVEL,
+                                nullptr);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);
+}
+
+TEST(AwsLoggingInitializationTest, PreservesApplicationLogging) {
+  Aws::SDKOptions options;
+  options.loggingOptions.logLevel = Aws::Utils::Logging::LogLevel::Error;
+  Aws::InitAPI(options);
+  auto* const logger = Aws::Utils::Logging::GetLogSystem();
+  const ScopedEnvironment logLevel(AMAZON_BRAKET_QDMI_DEVICE_ENV_LOG_LEVEL,
+                                   "warn");
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+  EXPECT_EQ(Aws::Utils::Logging::GetLogSystem(), logger);
+  EXPECT_EQ(logger->GetLogLevel(), Aws::Utils::Logging::LogLevel::Error);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);
+  EXPECT_EQ(Aws::Utils::Logging::GetLogSystem(), logger);
+  Aws::ShutdownAPI(options);
 }
 
 #ifdef __linux__
@@ -853,18 +1049,9 @@ TEST_F(AmazonBraketQDMIOfflineTest, SessionInitUsesEnvironmentFallbacks) {
 class AmazonBraketQDMILocalJobTest : public ::testing::Test {
 protected:
   AMAZON_BRAKET_QDMI_Device_Session session = nullptr;
-#ifdef _WIN32
-  Aws::SDKOptions testAWSOptions_;
-#endif
 
   void SetUp() override {
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
-#ifdef _WIN32
-    // The provider DLL and this test executable each contain their own
-    // statically linked AWS SDK state. StubBraketClient is instantiated in the
-    // executable, so initialise that copy as well.
-    Aws::InitAPI(testAWSOptions_);
-#endif
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&session), QDMI_SUCCESS);
 
     const char* deviceArn =
@@ -888,9 +1075,6 @@ protected:
       session = nullptr;
     }
     AMAZON_BRAKET_QDMI_device_finalize();
-#ifdef _WIN32
-    Aws::ShutdownAPI(testAWSOptions_);
-#endif
   }
 };
 
@@ -2166,12 +2350,14 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   EXPECT_EQ(submission.get(), QDMI_SUCCESS);
   EXPECT_EQ(cancellation.get(), QDMI_SUCCESS);
   EXPECT_EQ(braket->cancelCalls(), 1U);
+  EXPECT_EQ(braket->canceledArn(),
+            "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id");
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(job, &status), QDMI_SUCCESS);
   EXPECT_EQ(status, QDMI_JOB_STATUS_SUBMITTED);
   AMAZON_BRAKET_QDMI_device_job_free(job);
 }
 
-TEST_F(AmazonBraketQDMILocalJobTest, SubmissionConcurrencyIsBounded) {
+TEST_F(AmazonBraketQDMILocalJobTest, QueuedSubmissionCanBeCanceledLocally) {
   const ScopedEnvironment environment(
       AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI,
       "s3://explicit-results/tasks");
@@ -2196,14 +2382,30 @@ TEST_F(AmazonBraketQDMILocalJobTest, SubmissionConcurrencyIsBounded) {
   EXPECT_TRUE(overlapped);
   EXPECT_EQ(submitted, std::future_status::ready);
   EXPECT_EQ(braket->createCalls(), 8U);
+  auto cancellation = std::async(std::launch::async, [job = jobs.back()] {
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_cancel(job), QDMI_SUCCESS);
+    QDMI_Job_Status status = QDMI_JOB_STATUS_SUBMITTED;
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(job, &status), QDMI_SUCCESS);
+    EXPECT_EQ(status, QDMI_JOB_STATUS_CANCELED);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_wait(job, 1), QDMI_SUCCESS);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                  job, QDMI_DEVICE_JOB_PROPERTY_ID, 0, nullptr, nullptr),
+              QDMI_ERROR_NOTSUPPORTED);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_cancel(job),
+              QDMI_ERROR_INVALIDARGUMENT);
+  });
+  EXPECT_EQ(cancellation.wait_for(std::chrono::seconds{5}),
+            std::future_status::ready);
   braket->releaseCreate();
   submissions.get();
+  cancellation.get();
   for (auto* job : jobs) {
     EXPECT_EQ(AMAZON_BRAKET_QDMI_Device_Job_TestAccess::awaitSubmission(job),
-              QDMI_SUCCESS);
+              job == jobs.back() ? QDMI_ERROR_NOTSUPPORTED : QDMI_SUCCESS);
     AMAZON_BRAKET_QDMI_device_job_free(job);
   }
-  EXPECT_EQ(braket->createCalls(), jobs.size());
+  EXPECT_EQ(braket->createCalls(), jobs.size() - 1);
+  EXPECT_EQ(braket->cancelCalls(), 0U);
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest, JobIdWaitsForAwsAcceptance) {
@@ -2600,10 +2802,6 @@ TEST_F(AmazonBraketQDMILocalJobTest,
 
 TEST_F(AmazonBraketQDMILocalJobTest,
        PrefetchIsBoundedAndForegroundResultsBypassItsQueue) {
-#ifdef _WIN32
-  GTEST_SKIP() << "The test executable and provider DLL contain separate "
-                  "static AWS SDK ResponseStream state on Windows.";
-#endif
   const ScopedEnvironment environment(
       AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI,
       "s3://explicit-results/tasks");
@@ -2744,10 +2942,6 @@ TEST_F(AmazonBraketQDMILocalJobTest, SessionFreeStopsBackgroundPolling) {
 
 TEST_F(AmazonBraketQDMILocalJobTest,
        ResultRetrievalUsesTaskReturnedS3Location) {
-#ifdef _WIN32
-  GTEST_SKIP() << "The test executable and provider DLL contain separate "
-                  "static AWS SDK ResponseStream state on Windows.";
-#endif
   constexpr auto* taskArn =
       "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
   Aws::Braket::Model::GetQuantumTaskResult
@@ -2839,10 +3033,6 @@ class InvalidResultDocumentTest
       public testing::WithParamInterface<std::string> {};
 
 TEST_P(InvalidResultDocumentTest, IsRejected) {
-#ifdef _WIN32
-  GTEST_SKIP() << "The test executable and provider DLL contain separate "
-                  "static AWS SDK ResponseStream state on Windows.";
-#endif
   constexpr auto* taskArn =
       "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
   Aws::Braket::Model::GetQuantumTaskResult task;
