@@ -142,7 +142,6 @@ include = [ "python/amazon/braket/qdmi/_version.py" ]
 exclude = [
   "**/docs",
   "**/test",
-  "spank/**",
   "sitecustomize.py",
   ".*",
 ]
@@ -209,6 +208,7 @@ show-fixes = true
 "docs/**" = [ "INP001", "T20" ]
 "python/amazon/braket/qdmi/__main__.py" = [ "T201" ]
 "test/python/**" = [ "INP001", "T20" ]
+"test/slurm/**" = [ "INP001" ]
 
 [tool.ruff.lint.isort]
 known-first-party = [ "amazon.braket.qdmi" ]

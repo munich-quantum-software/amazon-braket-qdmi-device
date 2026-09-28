@@ -1,139 +1,77 @@
-# Slurm and SPANK deployment
+# Amazon Braket on Slurm
 
-This is the authoritative guide for deploying Amazon Braket QDMI on a Slurm
-cluster and running workloads through a Slurm license. A centrally managed
-deployment has three parts:
+Use the
+[MQT Core Slurm guide](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm.html)
+for static licenses, the optional shared SPANK injector, scheduler operations,
+and the common Dockerized test setup. This page covers the Braket runtime,
+catalogue, credentials, and application adapters.
 
-1. The native Runtime installs the provider library and its adjacent device
-   catalogue on nodes that execute QDMI workloads.
-2. The optional SPANK plugin passes the system catalogue path and selected AWS
-   configuration references into licensed jobs.
-3. The Python package installs the Qiskit and PennyLane adapters together with
-   the corresponding MQT Core extras. No MQT Core source build is required.
+## Choose the provider runtime
 
-The Python wheel also contains a native provider so that it works outside a
-managed cluster. When `MQT_CORE_QDMI_CONFIG_FILE` selects the system catalogue,
-MQT Core loads the system provider beside that catalogue; the wheel's provider
-is not loaded.
-
-## Install the native components
-
-Build against the exact Slurm headers used by the cluster. The default paths
-cover conventional Slurm installations:
+For Python jobs, the wheel supplies the native provider and catalogue:
 
 ```console
-git clone https://github.com/munich-quantum-software/amazon-braket-qdmi-device.git
-cd amazon-braket-qdmi-device
-cmake -S . -B build-spank \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_AMAZON_BRAKET_TESTS=OFF \
-  -DBUILD_AMAZON_BRAKET_SPANK_PLUGIN=ON
-cmake --build build-spank \
-  --target amazon-braket-qdmi-device amazon-braket-qdmi-spank \
-  --parallel 2
-sudo cmake --install build-spank \
-  --component amazon-braket-qdmi-device_Runtime
-sudo cmake --install build-spank \
-  --component amazon-braket-qdmi-spank-plugin
+uv venv /opt/braket
+uv pip install --python /opt/braket/bin/python 'amazon-braket-qdmi[qiskit,pennylane]'
 ```
 
-For a Slurm distribution with version-specific paths, add
-`-DSLURM_SPANK_INCLUDE_DIR=/path/to/include` and
-`-DAMAZON_BRAKET_QDMI_SLURM_CONF_DIR=/path/to/slurm/config` to the configure
-command. Set `AMAZON_BRAKET_QDMI_SPANK_INSTALL_DIR` as well when the cluster
-loads plugins from a nonstandard directory.
-
-Install the Runtime on every node where a Python process opens the QDMI device.
-Install the SPANK component wherever the cluster loads its plugstack module,
-which commonly includes submission and compute nodes. Installing both in a
-shared cluster image is the simplest deployment when those node roles use the
-same software stack.
-
-The Runtime contains the shared provider library and device catalogue. The CMake
-package configuration is a development artifact; install it only on nodes that
-must compile consumers:
+Locate its catalogue using that same environment:
 
 ```console
-sudo cmake --install build-spank \
-  --component amazon-braket-qdmi-device_Development
+/opt/braket/bin/python -c 'from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_CATALOG_PATH; print(AMAZON_BRAKET_QDMI_CATALOG_PATH)'
 ```
 
-Create the Python environment on the nodes or on a shared filesystem available
-to jobs. Install the Braket extras for the application stacks that workloads
-need:
+Use this path as `MQT_CORE_QDMI_CONFIG_FILE` or the shared injector's
+`qdmi_config_file` default. The environment and referenced files must be
+available at the same paths on compute nodes. A separate system provider is
+unnecessary for this workflow.
+
+For a site-managed native runtime, build and install the provider instead:
 
 ```console
-uv venv /opt/amazon-braket-qdmi
-uv pip install --python /opt/amazon-braket-qdmi/bin/python \
-  "amazon-braket-qdmi[qiskit,pennylane]"
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_AMAZON_BRAKET_TESTS=OFF
+cmake --build build --target amazon-braket-qdmi-device --parallel 2
+sudo cmake --install build --component amazon-braket-qdmi-device_Runtime
 ```
 
-Use only the `qiskit` or `pennylane` extra when workloads need one application
-stack. These extras install the matching MQT Core extra and the Braket-specific
-adapter. On supported platforms, installation needs no MQT Core checkout or
-local C++ build.
+Select the installed `amazon-braket-qdmi-device.qdmi.json` beside the native
+library, normally `/usr/local/lib/amazon-braket-qdmi-device.qdmi.json`. Python
+adapters come from the wheel; selecting this catalogue makes Core load the
+system library named there. It does not load the wheel's provider as a second
+runtime. Install the Development component only for C++ consumers.
 
-## Enable the plugin
+## Catalogue and AWS access
 
-Installation creates a disabled `plugstack.conf.d/amazon-braket-qdmi.conf`. The
-generated directive contains the system catalogue installed by the Runtime.
-Enable it wherever the cluster loads this plugstack configuration:
+Request a concrete catalogue ID, such as `amazon.braket.sv1`. The generic
+`amazon.braket.default` entry requires runtime device selection and must not be
+configured as a Slurm license. ARN and Region are fixed by the selected
+catalogue entry.
 
-```text
-required /usr/local/lib/slurm/amazon-braket-qdmi-spank.so amazon_braket_qdmi_config_file=/usr/local/lib/amazon-braket-qdmi-device.qdmi.json
-```
+The provider resolves AWS credentials. Prefer an instance role, workload
+identity, or a profile using temporary credentials. The shared injector may
+carry these non-secret references when an administrator allows them:
 
-The actual plugin directory follows the target Slurm installation. Keep
-`required` when all nodes contain the module and a configuration failure must
-reject the workload.
+| Reference                         | Purpose                             |
+| --------------------------------- | ----------------------------------- |
+| `AWS_PROFILE`                     | Named AWS profile                   |
+| `AWS_CONFIG_FILE`                 | AWS configuration file              |
+| `AWS_SHARED_CREDENTIALS_FILE`     | Shared credentials file path        |
+| `AMZN_BRAKET_TASK_RESULTS_S3_URI` | Pre-provisioned results destination |
+| `AMAZON_BRAKET_RESERVATION_ARN`   | Reservation reference               |
 
-Configure only concrete catalogue IDs as Slurm licenses. The generic
-`amazon.braket.default` device requires runtime configuration and is therefore
-not a schedulable device license.
+For example, `reference=AWS_PROFILE:amazon.braket.sv1:hpc-quantum` supplies a
+profile default for that concrete license. An allowed override is
+`--qdmi-ref-AWS_PROFILE=research`. The standard regional results bucket is the
+default when no S3 destination is supplied. Referenced files must already be
+readable by the job user. Never put raw credentials in plugstack arguments.
 
-```ini
-Licenses=amazon.braket.sv1:2
-```
+Follow Core's documented option, job-environment, and administrator-default
+precedence. AWS IAM authorizes AWS operations; a Slurm license only accounts for
+local concurrency.
 
-Restart or reconfigure Slurm as required by the cluster after changing the
-license and plugstack configuration.
+## Run a Qiskit job
 
-## Configure AWS access
-
-The plugin carries paths and names into the job; it never carries raw access
-keys or grants AWS permissions. Prefer an instance role, workload identity, or
-an AWS profile backed by temporary credentials. AWS IAM remains the
-authorization boundary for Braket, STS, and S3.
-
-Administrator defaults can be appended to the plugstack directive:
-
-```text
-amazon_braket_profile=hpc-quantum
-```
-
-Jobs can override each value with a SPANK option. Precedence is SPANK option,
-submitted job environment, then plugstack default.
-
-| SPANK option                                | Plugstack key                           | Job environment                   |
-| ------------------------------------------- | --------------------------------------- | --------------------------------- |
-| `--amazon-braket-qdmi-config-file`          | `amazon_braket_qdmi_config_file`        | `MQT_CORE_QDMI_CONFIG_FILE`       |
-| `--amazon-braket-profile`                   | `amazon_braket_profile`                 | `AWS_PROFILE`                     |
-| `--amazon-braket-config-file`               | `amazon_braket_config_file`             | `AWS_CONFIG_FILE`                 |
-| `--amazon-braket-shared-credentials-file`   | `amazon_braket_shared_credentials_file` | `AWS_SHARED_CREDENTIALS_FILE`     |
-| `--amazon-braket-task-results-s3-uri`       | `amazon_braket_task_results_s3_uri`     | `AMZN_BRAKET_TASK_RESULTS_S3_URI` |
-| `--amazon-braket-reservation-arn`           | `amazon_braket_reservation_arn`         | `AMAZON_BRAKET_RESERVATION_ARN`   |
-
-Protect referenced files with operating-system access controls. Apply
-least-privilege policies to profiles and roles. The plugin does not accept or
-log an access key, secret key, or session token.
-
-The device uses the standard regional result bucket automatically. Set the S3
-option, plugstack key, or environment variable only when a job must use a
-pre-provisioned destination.
-
-## Run a minimal Qiskit job
-
-Save the following as `bell.py` on a shared filesystem available to the job:
+Save `bell.py` in the job's environment:
 
 ```python
 from amazon.braket.qdmi.qiskit import AmazonBraketBackend
@@ -145,72 +83,37 @@ circuit = QuantumCircuit(2)
 circuit.h(0)
 circuit.cx(0, 1)
 circuit.measure_all()
-
-result = backend.run(circuit, shots=100).result()
-print(result.get_counts())
+print(backend.run(circuit, shots=100).result().get_counts())
 ```
 
-Save the batch script as `bell.sbatch`:
-
-```bash
-#!/bin/bash
-#SBATCH --licenses=amazon.braket.sv1:1
-#SBATCH --output=braket-%j.out
-
-set -euo pipefail
-/opt/amazon-braket-qdmi/bin/python /path/to/bell.py
-```
-
-With an instance or workload role, submit it directly:
+Without SPANK, export the selected catalogue and any AWS configuration
+references before starting Python:
 
 ```console
-sbatch bell.sbatch
+export MQT_CORE_QDMI_CONFIG_FILE=/path/to/amazon-braket-qdmi-device.qdmi.json
+srun --licenses=amazon.braket.sv1 /opt/braket/bin/python bell.py
 ```
 
-Otherwise pass references that are already accessible to the job user:
+With shared injection configured, the same job uses the administrator's defaults
+or an allowed override:
 
 ```console
-sbatch \
-  --amazon-braket-profile=hpc-quantum \
-  bell.sbatch
+srun --licenses=amazon.braket.sv1 --qdmi-ref-AWS_PROFILE=research /opt/braket/bin/python bell.py
 ```
 
-MQT Core validates that exactly one concrete local QDMI device license was
-requested, opens the catalogue entry, and performs the authenticated Amazon
-Braket device check in the job process. The Slurm license controls local
-admission; it neither proves allocation to AWS nor authorizes a QuantumTask.
+Core opens and checks the licensed device in the application process. The
+injector itself makes no AWS requests.
 
-## Run without SPANK
+## Run a PennyLane job
 
-SPANK is convenient when administrators want to expose the system catalogue or
-AWS configuration references only to matching licensed jobs. It is not required
-by the provider or by MQT Core. A cluster environment module, container, or
-batch script can expose the same catalogue instead:
-
-```bash
-export MQT_CORE_QDMI_CONFIG_FILE=/usr/local/lib/amazon-braket-qdmi-device.qdmi.json
-```
-
-AWS credentials remain available through the standard AWS credential provider
-chain. The batch job still requests a concrete Slurm license and calls
-`slurm.open_device_from_license()` exactly as shown above. Without SPANK, the
-administrator or job environment is responsible for exporting the catalogue path
-before the Python process first uses MQT Core.
-
-## Run PennyLane instead
-
-MQT Core lets PennyLane reuse the same Slurm-selected handle. Replace `bell.py`
-with the following program and submit the same batch script:
+The same licensed handle works with Core's PennyLane adapter:
 
 ```python
 import pennylane as qp
 from mqt.core.plugins.pennylane import QDMIDevice
 from mqt.core.qdmi import slurm
 
-device = QDMIDevice(
-    device=slurm.open_device_from_license(),
-    wires=2,
-)
+device = QDMIDevice(device=slurm.open_device_from_license(), wires=2)
 
 
 @qp.qnode(device, shots=100)
@@ -223,21 +126,10 @@ def bell():
 print(bell())
 ```
 
-The {doc}`pennylane` guide also documents direct catalogue-ID execution outside
-Slurm.
+## Validate the setup
 
-## Validate a custom build
-
-The repository's isolated test runs real Slurm and Munge services with a local
-Amazon Braket endpoint. It does not contact AWS:
-
-```console
-docker build -t amazon-braket-spank-tests -f spank/Dockerfile .
-docker run --rm --privileged amazon-braket-spank-tests
-```
-
-The test checks option precedence, temporary `credential_process` credentials,
-MQT Core device opening through the system catalogue, and the absence of
-configuration references in Slurm daemon environments. The plugin is
-GPL-3.0-or-later because it links against Slurm; the provider remains Apache-2.0
-WITH LLVM-exception.
+The provider's local mock endpoint and probes are in `test/slurm`. Use Core's
+common runner with this repository's Compose overlay and setup script; it owns
+Slurm installation, daemon startup, admission, transport tests, and teardown.
+See `test/slurm/README.md` for native and wheel test commands. These tests do
+not contact AWS.
