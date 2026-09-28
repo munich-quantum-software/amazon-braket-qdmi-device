@@ -39,7 +39,8 @@ device = qp.device("mqt.ddsim.default", wires=4)
 ```
 
 One QAOA layer is evaluated and differentiated using the parameter-shift rule.
-Each shifted circuit is a separate QDMI job. MQT Core submits each batch before
+MQT Core groups circuits with compatible shots into native multi-program jobs
+when the device supports them. Otherwise, it submits separate jobs before
 collecting results in input order. Set finite shot counts on each QNode.
 
 ```{code-cell} python
