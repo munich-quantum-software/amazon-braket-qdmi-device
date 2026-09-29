@@ -1605,14 +1605,15 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
   localProgram = std::regex_replace(
       localProgram, std::regex{R"(include\s+"(?:qelib1|stdgates)\.inc"\s*;)"},
       "");
-  localProgram =
-      std::regex_replace(localProgram, std::regex{R"(\scx\s)"}, " cnot ");
-  localProgram =
-      std::regex_replace(localProgram, std::regex{R"(\sccx\s)"}, " ccnot ");
-  localProgram =
-      std::regex_replace(localProgram, std::regex{R"(\stdg\s)"}, " ti ");
-  localProgram =
-      std::regex_replace(localProgram, std::regex{R"(\ssdg\s)"}, " si ");
+  // Preserve whitespace and require a qubit operand, not an assignment.
+  localProgram = std::regex_replace(
+      localProgram, std::regex{R"((\s)cx(\s+)(?=[a-zA-Z_$]))"}, "$1cnot$2");
+  localProgram = std::regex_replace(
+      localProgram, std::regex{R"((\s)ccx(\s+)(?=[a-zA-Z_$]))"}, "$1ccnot$2");
+  localProgram = std::regex_replace(
+      localProgram, std::regex{R"((\s)tdg(\s+)(?=[a-zA-Z_$]))"}, "$1ti$2");
+  localProgram = std::regex_replace(
+      localProgram, std::regex{R"((\s)sdg(\s+)(?=[a-zA-Z_$]))"}, "$1si$2");
   actionJson.WithString("source", localProgram);
 
   request.SetAction(actionJson.View().WriteCompact());

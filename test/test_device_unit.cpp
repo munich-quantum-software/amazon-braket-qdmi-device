@@ -2302,13 +2302,15 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSubmitPreparesOpenQasm) {
   constexpr std::string_view program = "OPENQASM 2.0;\n"
                                        "include \"qelib1.inc\";\n"
                                        "qreg q[3];\n"
-                                       "creg c[3];\n"
+                                       "creg cx [3];\n"
                                        "x q[0];\n"
+                                       "// Entangle qubits.\n"
                                        "cx q[0], q[1];\n"
-                                       "ccx q[0], q[1], q[2];\n"
-                                       "tdg q[0];\n"
-                                       "sdg q[1];\n"
-                                       "measure q[0] -> c[0];\n";
+                                       "  ccx\tq[0], q[1], q[2];\n"
+                                       "tdg\nq[0];\n"
+                                       "sdg q[1]; // Phase gate.\n"
+                                       "cx q[1], q[2];\n"
+                                       "measure q[0] -> cx [0];\n";
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
                 job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM, program.size() + 1,
                 program.data()),
@@ -2317,9 +2319,11 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSubmitPreparesOpenQasm) {
   const Aws::Utils::Json::JsonValue action(braket->action());
   ASSERT_TRUE(action.WasParseSuccessful());
   EXPECT_EQ(action.View().GetString("source"),
-            "OPENQASM 2.0;\n\nqreg q[3];\ncreg c[3];\nx q[0]; cnot q[0], q[1];"
-            " ccnot q[0], q[1], q[2]; ti q[0]; si q[1];\n"
-            "measure q[0] -> c[0];\n");
+            "OPENQASM 2.0;\n\nqreg q[3];\ncreg cx [3];\nx q[0];\n"
+            "// Entangle qubits.\ncnot q[0], q[1];\n"
+            "  ccnot\tq[0], q[1], q[2];\nti\nq[0];\n"
+            "si q[1]; // Phase gate.\ncnot q[1], q[2];\n"
+            "measure q[0] -> cx [0];\n");
   AMAZON_BRAKET_QDMI_device_job_free(job);
 }
 
