@@ -236,6 +236,7 @@ public:
       std::unique_lock lock(createMutex_);
       outputBucket_ = request.GetOutputS3Bucket();
       outputPrefix_ = request.GetOutputS3KeyPrefix();
+      action_ = request.GetAction();
       if (!request.GetAssociations().empty()) {
         reservationArn_ = request.GetAssociations().front().GetArn();
       }
@@ -285,6 +286,10 @@ public:
     const std::scoped_lock lock(createMutex_);
     return reservationArn_;
   }
+  [[nodiscard]] auto action() const -> std::string {
+    const std::scoped_lock lock(createMutex_);
+    return action_;
+  }
   auto blockCreate() -> void {
     const std::scoped_lock lock(createMutex_);
     blockCreate_ = true;
@@ -327,6 +332,7 @@ private:
   mutable std::string outputBucket_;
   mutable std::string outputPrefix_;
   mutable std::string reservationArn_;
+  mutable std::string action_;
 };
 
 class StubStsClient final : public Aws::STS::STSClient {
@@ -2279,6 +2285,45 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   EXPECT_EQ(braket->outputBucket(), "explicit-results");
   EXPECT_EQ(braket->outputPrefix(), "experiments/run-42");
   EXPECT_EQ(braket->deviceCalls(), 0U);
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, JobSubmitPreparesOpenQasm) {
+  const ScopedEnvironment environment(
+      AMAZON_BRAKET_QDMI_DEVICE_ENV_TASK_RESULTS_S3_URI,
+      "s3://explicit-results/tasks");
+  auto braketClient = std::make_unique<StubBraketClient>(
+      Aws::Braket::Model::GetQuantumTaskResult{});
+  const auto* braket = braketClient.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::move(braketClient));
+  auto* const job = createConfiguredJob(session);
+  ASSERT_NE(job, nullptr);
+  constexpr std::string_view program = "OPENQASM 2.0;\n"
+                                       "include \"qelib1.inc\";\n"
+                                       "qreg q[3];\n"
+                                       "creg cx [3];\n"
+                                       "x q[0];\n"
+                                       "// Entangle qubits.\n"
+                                       "cx q[0], q[1];\n"
+                                       "  ccx\tq[0], q[1], q[2];\n"
+                                       "tdg\nq[0];\n"
+                                       "sdg q[1]; // Phase gate.\n"
+                                       "cx q[1], q[2];\n"
+                                       "measure q[0] -> cx [0];\n";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                job, QDMI_DEVICE_JOB_PARAMETER_PROGRAM, program.size() + 1,
+                program.data()),
+            QDMI_SUCCESS);
+  ASSERT_EQ(submitAndAwaitAcceptance(job), QDMI_SUCCESS);
+  const Aws::Utils::Json::JsonValue action(braket->action());
+  ASSERT_TRUE(action.WasParseSuccessful());
+  EXPECT_EQ(action.View().GetString("source"),
+            "OPENQASM 2.0;\n\nqreg q[3];\ncreg cx [3];\nx q[0];\n"
+            "// Entangle qubits.\ncnot q[0], q[1];\n"
+            "  ccnot\tq[0], q[1], q[2];\nti\nq[0];\n"
+            "si q[1]; // Phase gate.\ncnot q[1], q[2];\n"
+            "measure q[0] -> cx [0];\n");
   AMAZON_BRAKET_QDMI_device_job_free(job);
 }
 

@@ -24,6 +24,8 @@ releases may include breaking changes.
 
 ### Fixed
 
+- 🐛 Accept standard OpenQASM includes and controlled-X and inverse S/T gate
+  names when submitting programs to Braket ([#252]) ([**@flowerthrower**])
 - 🐛 Cancel queued submissions locally without creating unwanted QuantumTasks
   ([#244]) ([**@burgholzer**])
 - 🐛 Retry temporary Braket service-quota errors during task submission through
@@ -163,6 +165,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#252]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/252
 [#244]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/244
 [#243]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/243
 [#241]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/241

@@ -123,6 +123,7 @@
 #include <mutex>
 #include <new>
 #include <optional>
+#include <regex>
 #include <span>
 #include <sstream>
 #include <stdexcept>
@@ -1598,6 +1599,21 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
   header.WithString("name", "braket.ir.openqasm.program");
   header.WithString("version", "1");
   actionJson.WithObject("braketSchemaHeader", header);
+  // Adapt standard includes and controlled-X names as in prepareOpenQasm() in
+  // CUDA-Q's runtime/cudaq/platform/default/rest/helpers/braket/
+  // BraketServerHelper.cpp.
+  localProgram = std::regex_replace(
+      localProgram, std::regex{R"(include\s+"(?:qelib1|stdgates)\.inc"\s*;)"},
+      "");
+  // Preserve whitespace and require a qubit operand, not an assignment.
+  localProgram = std::regex_replace(
+      localProgram, std::regex{R"((\s)cx(\s+)(?=[a-zA-Z_$]))"}, "$1cnot$2");
+  localProgram = std::regex_replace(
+      localProgram, std::regex{R"((\s)ccx(\s+)(?=[a-zA-Z_$]))"}, "$1ccnot$2");
+  localProgram = std::regex_replace(
+      localProgram, std::regex{R"((\s)tdg(\s+)(?=[a-zA-Z_$]))"}, "$1ti$2");
+  localProgram = std::regex_replace(
+      localProgram, std::regex{R"((\s)sdg(\s+)(?=[a-zA-Z_$]))"}, "$1si$2");
   actionJson.WithString("source", localProgram);
 
   request.SetAction(actionJson.View().WriteCompact());
