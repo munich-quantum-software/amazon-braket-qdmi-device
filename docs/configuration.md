@@ -144,7 +144,6 @@ these parameters.
 
 | Parameter                                                 | Type                  | Required | Description                                |
 | --------------------------------------------------------- | --------------------- | -------- | ------------------------------------------ |
-| `QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT`                 | `QDMI_Program_Format` | No       | QASM2 or QASM3; default QASM3              |
 | `QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM`                      | `size_t`              | No       | Shots per program; defaults to 100         |
 | `AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI`     | `char*`               | No       | Complete S3 URI for QuantumTask results    |
 | `AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN` | `char*`               | No       | Reservation ARN for a reserved time window |

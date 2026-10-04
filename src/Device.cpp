@@ -1523,9 +1523,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
     -> QDMI_STATUS try {
   // Validate parameter: must be standard QDMI param or one of the specifically
   // defined custom params (OUTPUTS3URI, RESERVATION_ARN)
-  const bool isStandardParam =
-      param == QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT ||
-      param == QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM;
+  const bool isStandardParam = param == QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM;
   const bool isDefinedCustomParam =
       (param == AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI ||
        param == AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN);
@@ -1566,26 +1564,6 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
     shots_ = shots;
     return QDMI_SUCCESS;
   }
-  if (param == QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT) {
-    if (size != sizeof(QDMI_Program_Format)) {
-      return QDMI_ERROR_INVALIDARGUMENT;
-    }
-    const auto fmt = *static_cast<const QDMI_Program_Format*>(value);
-
-    if (const auto result = supportsPrograms(fmt, 1, shots_);
-        result != QDMI_SUCCESS) {
-      return result;
-    }
-
-    if (format_ != fmt) {
-      programs_.clear();
-      results_.clear();
-      programSet_ = false;
-    }
-    format_ = fmt;
-    return QDMI_SUCCESS;
-  }
-
   if (param == AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI) {
     const auto* uriValue = static_cast<const char*>(value);
     if (uriValue[size - 1] != '\0' ||
@@ -2683,7 +2661,6 @@ void AMAZON_BRAKET_QDMI_device_job_free(AMAZON_BRAKET_QDMI_Device_Job job) {
  * Configures job-level parameters.
  *
  * Optional parameters:
- * - QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT: Format (QASM2 or QASM3)
  * - QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM: Number of measurement shots (default:
  * 100)
  * - AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI: Complete S3 result

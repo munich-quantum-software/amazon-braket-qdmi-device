@@ -1744,11 +1744,10 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterMaxReturnsInvalidArgument) {
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
       QDMI_SUCCESS);
-  QDMI_Program_Format value = QDMI_PROGRAM_FORMAT_QASM3;
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT,
-                sizeof(value), &value),
-            QDMI_SUCCESS);
+  EXPECT_EQ(
+      AMAZON_BRAKET_QDMI_device_job_set_parameter(
+          freshJob, static_cast<QDMI_Device_Job_Parameter>(0), 0, nullptr),
+      QDMI_ERROR_NOTSUPPORTED);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
                 freshJob, QDMI_DEVICE_JOB_PARAMETER_MAX, 0, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
@@ -1818,8 +1817,7 @@ TEST_F(AmazonBraketQDMILocalJobTest,
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
       QDMI_SUCCESS);
   for (const auto parameter :
-       {QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT,
-        QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM,
+       {QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM,
         AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
         AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN}) {
     EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(freshJob, parameter,
@@ -1843,36 +1841,33 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterShotsWrongSize) {
 }
 
 /// Reject invalid enum values and distinguish valid unsupported formats.
-TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterUnsupportedProgramFormat) {
+TEST_F(AmazonBraketQDMILocalJobTest, JobSetProgramsUnsupportedFormat) {
   AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
       QDMI_SUCCESS);
   const auto unsupported = static_cast<QDMI_Program_Format>(0xFF);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT,
-                sizeof(unsupported), &unsupported),
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(freshJob, unsupported, 1,
+                                                       nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
 
   const auto unsupportedFormat = QDMI_PROGRAM_FORMAT_QIRBASESTRING;
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT,
-                sizeof(unsupportedFormat), &unsupportedFormat),
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(
+                freshJob, unsupportedFormat, 1, nullptr, nullptr),
             QDMI_ERROR_NOTSUPPORTED);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
 // QASM2 is a valid program format and must be accepted.
-TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterQASM2Format) {
+TEST_F(AmazonBraketQDMILocalJobTest, JobSetProgramsQASM2Format) {
   AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
       QDMI_SUCCESS);
   const QDMI_Program_Format fmt = QDMI_PROGRAM_FORMAT_QASM2;
-  EXPECT_EQ(
-      AMAZON_BRAKET_QDMI_device_job_set_parameter(
-          freshJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT, sizeof(fmt), &fmt),
-      QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(freshJob, fmt, 1,
+                                                       nullptr, nullptr),
+            QDMI_SUCCESS);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
@@ -1882,11 +1877,11 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSetParameterValueNonNullZeroSize) {
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
       QDMI_SUCCESS);
-  const QDMI_Program_Format fmt = QDMI_PROGRAM_FORMAT_QASM3;
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                freshJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT,
-                /*size=*/0, &fmt),
-            QDMI_ERROR_INVALIDARGUMENT);
+  const size_t shots = 100;
+  EXPECT_EQ(
+      AMAZON_BRAKET_QDMI_device_job_set_parameter(
+          freshJob, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, /*size=*/0, &shots),
+      QDMI_ERROR_INVALIDARGUMENT);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
@@ -1896,8 +1891,7 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
       QDMI_SUCCESS);
-  constexpr std::array<QDMI_Device_Job_Parameter, 4> parameters{
-      QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT,
+  constexpr std::array<QDMI_Device_Job_Parameter, 3> parameters{
       QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM,
       AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
       AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN};
@@ -2032,15 +2026,6 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobQueryPropertyProgramFormatAndCount) {
                 &count, nullptr),
             QDMI_SUCCESS);
   EXPECT_EQ(count, 1U);
-  fmt = QDMI_PROGRAM_FORMAT_QASM2;
-  ASSERT_EQ(
-      AMAZON_BRAKET_QDMI_device_job_set_parameter(
-          freshJob, QDMI_DEVICE_JOB_PARAMETER_PROGRAMFORMAT, sizeof(fmt), &fmt),
-      QDMI_SUCCESS);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
-                freshJob, QDMI_DEVICE_JOB_PROPERTY_PROGRAMSNUM, sizeof(count),
-                &count, nullptr),
-            QDMI_ERROR_BADSTATE);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
