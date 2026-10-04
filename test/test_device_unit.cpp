@@ -1543,9 +1543,9 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobRetrieveExistingQuantumTask) {
                 nullptr),
             QDMI_SUCCESS);
   EXPECT_EQ(shots, 42U);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
-                job, QDMI_DEVICE_JOB_PROPERTY_PROGRAM, 0, nullptr, nullptr),
-            QDMI_ERROR_NOTSUPPORTED);
+  EXPECT_EQ(
+      AMAZON_BRAKET_QDMI_device_job_get_program(job, 0, 0, nullptr, nullptr),
+      QDMI_ERROR_NOTSUPPORTED);
 
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
                 job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(shots), &shots),
@@ -1980,8 +1980,8 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobIdUnavailableBeforeSubmission) {
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
-// Two-step (size then value) query of the PROGRAM property.
-TEST_F(AmazonBraketQDMILocalJobTest, JobQueryPropertyProgram) {
+// Two-step (size then value) query of the indexed program.
+TEST_F(AmazonBraketQDMILocalJobTest, JobGetProgram) {
   AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
@@ -1991,18 +1991,16 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobQueryPropertyProgram) {
       QDMI_SUCCESS);
 
   size_t programSize = 0;
-  EXPECT_EQ(
-      AMAZON_BRAKET_QDMI_device_job_query_property(
-          freshJob, QDMI_DEVICE_JOB_PROPERTY_PROGRAM, 0, nullptr, &programSize),
-      QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_program(freshJob, 0, 0, nullptr,
+                                                      &programSize),
+            QDMI_SUCCESS);
   ASSERT_GT(programSize, 0U);
 
-  std::string programBuf(programSize - 1, '\0');
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
-                freshJob, QDMI_DEVICE_JOB_PROPERTY_PROGRAM, programSize,
-                programBuf.data(), nullptr),
+  std::string programBuf(programSize, '\0');
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_program(
+                freshJob, 0, programSize, programBuf.data(), nullptr),
             QDMI_SUCCESS);
-  EXPECT_EQ(programBuf, BELL_STATE_PROGRAM);
+  EXPECT_EQ(programBuf, std::string(BELL_STATE_PROGRAM, programSize));
 
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }

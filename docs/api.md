@@ -70,7 +70,6 @@ connectivity.
 | ---------------------------------------------------- | ------------------------------------ |
 | `QDMI_DEVICE_JOB_PROPERTY_ID`                        | QuantumTask ARN after submission     |
 | `QDMI_DEVICE_JOB_PROPERTY_PROGRAMFORMAT`             | Current program format               |
-| `QDMI_DEVICE_JOB_PROPERTY_PROGRAM`                   | Current program source               |
 | `QDMI_DEVICE_JOB_PROPERTY_PROGRAMSNUM`               | Number of programs in input order    |
 | `QDMI_DEVICE_JOB_PROPERTY_SHOTSNUM`                  | Current shot count                   |
 | `QDMI_DEVICE_JOB_PROPERTY_QUEUEPOSITION`             | Jobs ahead while the task is queued  |

@@ -1707,10 +1707,6 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_JOB_PROPERTY_PROGRAMFORMAT,
                             QDMI_Program_Format, format_, prop, size, value,
                             sizeRet)
-  if (!retrieved_ && programs_.size() == 1) {
-    ADD_STRING_PROPERTY(QDMI_DEVICE_JOB_PROPERTY_PROGRAM,
-                        programs_.front().c_str(), prop, size, value, sizeRet)
-  }
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_JOB_PROPERTY_SHOTSNUM, size_t, shots_,
                             prop, size, value, sizeRet)
 
