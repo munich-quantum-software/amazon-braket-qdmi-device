@@ -143,7 +143,7 @@ job-lifetime behavior.
 | --------------------------------------------------------------- | ------------------------------- | ------------------------------------------- |
 | `AMAZON_BRAKET_QDMI_device_session_create_device_job()`         | Internal allocation             | Create a new QDMI job                       |
 | `AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id()` | `GetQuantumTask()`              | Open an existing task by ARN                |
-| `AMAZON_BRAKET_QDMI_device_job_set_parameter()`                 | Store job configuration         | Set circuit, shots, format, and destination |
+| `AMAZON_BRAKET_QDMI_device_job_set_parameter()`                 | Store job configuration         | Set shots and Braket options                |
 | `AMAZON_BRAKET_QDMI_device_job_query_property()`                | Stored values or refreshed task | Query job properties                        |
 | `AMAZON_BRAKET_QDMI_device_job_set_programs()`                  | Local configuration             | Set an ordered list of program payloads     |
 | `AMAZON_BRAKET_QDMI_device_job_get_program()`                   | Stored values                   | Read one program payload by input index     |

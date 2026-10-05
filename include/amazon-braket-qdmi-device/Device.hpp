@@ -441,7 +441,8 @@ private:
   auto fetchResultManifest() const -> QDMI_STATUS; ///< Requires resultsMutex_
   auto fetchResultsInternal(size_t programIndex) const -> QDMI_STATUS;
   auto readResultJson(const std::string& relativePath,
-                      Aws::Utils::Json::JsonValue& json) const -> QDMI_STATUS;
+                      Aws::Utils::Json::JsonValue& json,
+                      bool* missingKey = nullptr) const -> QDMI_STATUS;
   auto resolveResultJson(const Aws::Utils::Json::JsonView& value,
                          Aws::Utils::Json::JsonValue& json,
                          const std::string& directory = {}) const

@@ -2071,8 +2071,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::readResultJson(
-    const std::string& relativePath, Aws::Utils::Json::JsonValue& json) const
-    -> QDMI_STATUS {
+    const std::string& relativePath, Aws::Utils::Json::JsonValue& json,
+    bool* missingKey) const -> QDMI_STATUS {
   Aws::S3::Model::GetObjectRequest request;
   {
     const std::scoped_lock lock(jobMutex_);
@@ -2093,6 +2093,11 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::readResultJson(
   }
   auto outcome = session_->getS3Client()->GetObject(request);
   if (!outcome.IsSuccess()) {
+    if (missingKey != nullptr &&
+        outcome.GetError().GetErrorType() == Aws::S3::S3Errors::NO_SUCH_KEY) {
+      *missingKey = true;
+      return QDMI_ERROR_NOTFOUND;
+    }
     return mapS3ServiceError(outcome.GetError(), "S3 GetObject");
   }
   json = Aws::Utils::Json::JsonValue(outcome.GetResult().GetBody());
@@ -2130,11 +2135,21 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultManifest() const
   }
   if (!resultManifest_) {
     Aws::Utils::Json::JsonValue manifest;
-    if (const auto result = readResultJson("results.json", manifest);
+    bool missingKey = false;
+    if (const auto result = readResultJson(
+            "results.json", manifest,
+            status == QDMI_JOB_STATUS_CANCELED ? &missingKey : nullptr);
         result != QDMI_SUCCESS) {
+      if (missingKey) {
+        programStatuses_.assign(programs_.size(), QDMI_JOB_STATUS_CANCELED);
+        return QDMI_SUCCESS;
+      }
       return result;
     }
     resultManifest_ = std::move(manifest);
+    if (status == QDMI_JOB_STATUS_CANCELED) {
+      programStatuses_.clear();
+    }
   }
   if (!programSet_ || !programStatuses_.empty()) {
     return QDMI_SUCCESS;
@@ -2703,18 +2718,6 @@ int AMAZON_BRAKET_QDMI_device_job_get_program(AMAZON_BRAKET_QDMI_Device_Job job,
                         : job->getProgram(programIndex, size, data, sizeRet);
 }
 
-/**
- * Query a job property.
- *
- * Retrieves job-level properties such as shot count, job ID, and status.
- *
- * @param job The job handle
- * @param prop The property to query
- * @param size Size of the output buffer in bytes
- * @param value Pointer to output buffer (can be NULL to query size)
- * @param sizeRet Pointer to receive required size (can be NULL)
- * @return QDMI_SUCCESS on success, error code otherwise
- */
 int AMAZON_BRAKET_QDMI_device_job_get_program_status(
     AMAZON_BRAKET_QDMI_Device_Job job, const size_t programIndex,
     QDMI_Job_Status* status) {

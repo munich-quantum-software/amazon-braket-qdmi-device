@@ -4233,6 +4233,46 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   EXPECT_EQ(observed->getObjectCalls(), 4U);
 }
 
+TEST_F(AmazonBraketQDMILocalJobTest,
+       CanceledProgramSetWithoutManifestReportsCanceledPrograms) {
+  Aws::Braket::Model::GetQuantumTaskResult task;
+  task.WithDeviceArn("arn:aws:braket:::device/quantum-simulator/amazon/sv1")
+      .WithStatus(Aws::Braket::Model::QuantumTaskStatus::CANCELLED)
+      .WithShots(2)
+      .WithOutputS3Bucket("results")
+      .WithOutputS3Directory("tasks/set")
+      .WithActionMetadata(Aws::Braket::Model::ActionMetadata{}
+                              .WithActionType("braket.ir.openqasm.program_set")
+                              .WithProgramCount(2)
+                              .WithExecutableCount(2));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::make_unique<StubBraketClient>(task));
+
+  for (const auto& [error, expected] :
+       {std::pair{Aws::S3::S3Errors::NO_SUCH_KEY, QDMI_SUCCESS},
+        std::pair{Aws::S3::S3Errors::NO_SUCH_BUCKET, QDMI_ERROR_NOTFOUND},
+        std::pair{Aws::S3::S3Errors::ACCESS_DENIED,
+                  QDMI_ERROR_PERMISSIONDENIED}}) {
+    SCOPED_TRACE(static_cast<int>(error));
+    AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
+        session, std::make_unique<StubS3Client>(
+                     StubS3Client::Configuration{.getObjectError = error}));
+    AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                  session, "task-arn", &job),
+              QDMI_SUCCESS);
+    for (size_t index = 0; index < 2; ++index) {
+      QDMI_Job_Status status = QDMI_JOB_STATUS_CREATED;
+      EXPECT_EQ(
+          AMAZON_BRAKET_QDMI_device_job_get_program_status(job, index, &status),
+          expected);
+      EXPECT_EQ(status, expected == QDMI_SUCCESS ? QDMI_JOB_STATUS_CANCELED
+                                                 : QDMI_JOB_STATUS_CREATED);
+    }
+    AMAZON_BRAKET_QDMI_device_job_free(job);
+  }
+}
+
 TEST_F(AmazonBraketQDMILocalJobTest, ProgramSetMetadataErrorsRemainErrors) {
   Aws::Braket::Model::GetQuantumTaskResult task;
   task.WithDeviceArn("arn:aws:braket:::device/quantum-simulator/amazon/sv1")
