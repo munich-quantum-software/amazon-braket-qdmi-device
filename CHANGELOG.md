@@ -17,6 +17,7 @@ releases may include breaking changes.
 
 ### Changed
 
+- 👷 Enable testing on Python 3.15 ([#258]) ([**@denialhaag**])
 - ⬆️ Update the AWS SDK for C++ to 1.11.899 ([#241]) ([**@burgholzer**])
 - 🛡️ Enable the SDK's 2026 retry behavior unless explicitly configured, and
   default to 10 request attempts while honoring AWS retry settings ([#241])
@@ -163,6 +164,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#258]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/258
 [#244]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/244
 [#243]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/243
 [#241]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/241

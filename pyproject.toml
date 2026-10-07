@@ -177,7 +177,7 @@ amazon-braket-qdmi = { workspace = true }
 
 [tool.cibuildwheel]
 build = "cp3*"
-skip = [ "*-musllinux_*", "cp3??t-*", "cp315-*", "*-win_arm64" ]
+skip = [ "*-musllinux_*", "cp3??t-*", "*-win_arm64" ]
 archs = "auto64"
 build-frontend = "uv"
 test-command = "pytest test/python"
