@@ -30,6 +30,8 @@ releases may include breaking changes.
 
 ### Fixed
 
+- 🐛 Accept live device connectivity graphs that omit unavailable qubits while
+  retaining the advertised qubit count ([#236]) ([**@burgholzer**])
 - 🐛 Cancel queued submissions locally without creating unwanted QuantumTasks
   ([#244]) ([**@burgholzer**])
 - 🐛 Retry temporary Braket service-quota errors during task submission through

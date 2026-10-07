@@ -3137,6 +3137,14 @@ TEST(DeviceParserOfflineTest, RejectsMalformedCapabilityDocuments) {
           Aws::Braket::Model::DeviceType::QPU,
           R"({"paradigm":{"qubitCount":3,"nativeGateSet":["x"],"connectivity":{"fullyConnected":false,"connectivityGraph":{"a":["b"]}}},"action":{"braket.ir.openqasm.program":{"supportedOperations":["x"]}}})",
           properties),
+      QDMI_SUCCESS);
+  EXPECT_EQ(properties.qubitCount, 3U);
+  EXPECT_EQ(siteNames(properties), (std::vector<std::string>{"a", "b"}));
+  EXPECT_EQ(
+      parser.parseProperties(
+          Aws::Braket::Model::DeviceType::QPU,
+          R"({"paradigm":{"qubitCount":1,"nativeGateSet":["x"],"connectivity":{"fullyConnected":false,"connectivityGraph":{"a":["b"]}}},"action":{"braket.ir.openqasm.program":{"supportedOperations":["x"]}}})",
+          properties),
       QDMI_ERROR_FATAL);
   EXPECT_EQ(
       parser.parseProperties(
