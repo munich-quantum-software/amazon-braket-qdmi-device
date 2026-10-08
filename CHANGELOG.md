@@ -18,9 +18,10 @@ releases may include breaking changes.
 ### Changed
 
 - 👷 Enable testing on Python 3.15 ([#258]) ([**@denialhaag**])
+
 - 💥 Adopt QDMI 1.4 development headers and remove the calibration advisory
-  property. Preserve the remaining property values for binary compatibility with
-  existing MQT Core clients ([#236]) ([**@burgholzer**]).
+  property while preserving the remaining enum values for binary compatibility
+  with existing QDMI clients ([#236]) ([**@burgholzer**]).
 
 - ⬆️ Update the AWS SDK for C++ to 1.11.899 ([#241]) ([**@burgholzer**])
 
