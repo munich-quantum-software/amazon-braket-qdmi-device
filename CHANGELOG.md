@@ -20,7 +20,6 @@ releases may include breaking changes.
 - ✨ Query indexed program payloads, retain results after partial failure, and
   report canceled programs without a result manifest ([#245])
   ([**@burgholzer**]).
-
 - ✨ Enable optional AWS SDK logging through `AMAZON_BRAKET_QDMI_LOG_LEVEL` to
   diagnose service errors and retries ([#243]) ([**@burgholzer**])
 

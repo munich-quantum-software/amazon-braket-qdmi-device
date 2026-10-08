@@ -189,11 +189,6 @@
     }                                                                          \
   }
 
-#define IS_INVALID_ARGUMENT(value, prefix)                                     \
-  ((value) >= prefix##_MAX && (value) != prefix##_CUSTOM1 &&                   \
-   (value) != prefix##_CUSTOM2 && (value) != prefix##_CUSTOM3 &&               \
-   (value) != prefix##_CUSTOM4 && (value) != prefix##_CUSTOM5)
-
 // Assigns a null-terminated string parameter.
 // Validates that value has exactly one terminating null byte at size - 1, then
 // assigns. Use as the body of a case label or an if block.
@@ -1411,7 +1406,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryOperationProperty(
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::supportsPrograms(
     const QDMI_Program_Format format, const size_t count,
     const size_t shots) const -> QDMI_STATUS {
-  if (IS_INVALID_ARGUMENT(format, QDMI_PROGRAM_FORMAT)) {
+  if (QDMI_IS_INVALID_ENUM_VALUE(format, QDMI_PROGRAM_FORMAT)) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   if (format != QDMI_PROGRAM_FORMAT_QASM2 &&
@@ -1528,7 +1523,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::setParameter(
       (param == AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI ||
        param == AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_RESERVATION_ARN);
 
-  if (IS_INVALID_ARGUMENT(param, QDMI_DEVICE_JOB_PARAMETER)) {
+  if (QDMI_IS_INVALID_ENUM_VALUE(param, QDMI_DEVICE_JOB_PARAMETER)) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   if (!isStandardParam && !isDefinedCustomParam) {
@@ -1620,7 +1615,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
     const QDMI_Device_Job_Property prop, const size_t size, void* value,
     size_t* sizeRet) const -> QDMI_STATUS try {
   if ((value != nullptr && size == 0) ||
-      IS_INVALID_ARGUMENT(prop, QDMI_DEVICE_JOB_PROPERTY)) {
+      QDMI_IS_INVALID_ENUM_VALUE(prop, QDMI_DEVICE_JOB_PROPERTY)) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
@@ -2301,7 +2296,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::getResults(
     const size_t programIndex, const QDMI_Job_Result result, const size_t size,
     void* data, size_t* sizeRet) const -> QDMI_STATUS try {
   if ((data != nullptr && size == 0) ||
-      IS_INVALID_ARGUMENT(result, QDMI_JOB_RESULT)) {
+      QDMI_IS_INVALID_ENUM_VALUE(result, QDMI_JOB_RESULT)) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
   if (result != QDMI_JOB_RESULT_SHOTS && result != QDMI_JOB_RESULT_HIST_KEYS &&
