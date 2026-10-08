@@ -12,6 +12,9 @@ releases may include breaking changes.
 
 ### Added
 
+- ✨ Publish an installed QDMI manifest so MQT Core can discover
+  `amazon.braket.default` without loading the provider library ([#239])
+  ([**@burgholzer**]).
 - ✨ Enable optional AWS SDK logging through `AMAZON_BRAKET_QDMI_LOG_LEVEL` to
   diagnose service errors and retries ([#243]) ([**@burgholzer**])
 
@@ -20,9 +23,9 @@ releases may include breaking changes.
 - 👷 Run GitHub Actions, documentation, and Slurm fixture builds on Ubuntu 26.04
   with Slurm 25.11, shared OpenSSL on Linux, and OpenSSL 3 in macOS C++ CI
   ([#233]) ([**@denialhaag**], [**@burgholzer**])
-- ✨ Discover installed QDMI device manifests and open independent sessions
-  through the MQT Core QDMI driver. Use temporary source pins and LLVM/MLIR CI
-  setup until a suitable Core release is available ([#239]) ([**@burgholzer**]).
+- ✨ Open Braket devices in independent MQT Core driver sessions while retaining
+  stable-ID SDK entry points. Temporary Core source pins and LLVM/MLIR CI setup
+  remain until a suitable release ([#239]) ([**@burgholzer**]).
 
 - 👷 Enable testing on Python 3.15 ([#258]) ([**@denialhaag**])
 
