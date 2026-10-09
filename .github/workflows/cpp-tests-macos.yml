@@ -34,6 +34,11 @@ jobs:
         with:
           prepend_symlinks_to_path: false
           override_cache_key: c++-tests-${{ inputs.runs-on }}-${{ inputs.config }}
+      - name: Select OpenSSL 3
+        run: |
+          brew install openssl@3
+          echo "OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
       # configure CMake in the specified mode, optionally with additional arguments
       - name: Configure CMake
         env:
