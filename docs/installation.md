@@ -9,9 +9,7 @@ A source build requires:
 - network access during initial configuration to obtain the AWS SDK for C++ and
   QDMI dependencies.
 
-Slurm 23.02 or later is required only for the optional SPANK plugin. CI tests
-the plugin against Slurm 25.11 on Ubuntu 26.04. Its build and deployment are
-documented in the authoritative {doc}`slurm` guide.
+Slurm integration uses MQT Core and Slurm 25.11 or newer; see {doc}`slurm`.
 
 ## Python package
 
@@ -63,7 +61,6 @@ installations split them as follows:
 | ---------------------------------------------- | --------------------------------------------- |
 | `amazon-braket-qdmi-device_Runtime`            | Shared library and QDMI device catalogue      |
 | `amazon-braket-qdmi-device_Development`        | Headers, library link, and CMake package files|
-| `amazon-braket-qdmi-spank-plugin`              | Optional SPANK module and plugstack template  |
 
 A node that uses the centrally installed provider needs the Runtime component.
 Python wheel-only deployments do not. Install the Development component only
@@ -92,11 +89,10 @@ cmake --build build
 
 ## MQT Core integration
 
-The installed CMake target identifies its device manifest through
-`QDMI_MANIFEST_NAME`. The manifest contains the stable device IDs, symbol
-prefix, and relative library paths. An application using MQT Core can copy the
-device library and manifest beside its executable. This integration requires
-CMake 3.28 or later:
+The installed CMake target exports the `AMAZON_BRAKET` symbol prefix and a
+relocatable catalogue with all stable device definitions. An application using
+MQT Core can copy the device library and catalogue beside its executable. This
+integration requires CMake 3.28 or later:
 
 ```cmake
 find_package(mqt-core 4.0.0 CONFIG REQUIRED)
@@ -107,30 +103,28 @@ target_link_libraries(my_app PRIVATE MQT::CoreQDMI)
 mqt_copy_qdmi_runtime(my_app amazon-braket-qdmi-device)
 ```
 
-The helper copies the MQT Core QDMI driver, device library, and manifest beside
-the application. The driver resolves relative library paths from the manifest
-directory.
+This placement is discovered automatically when the MQT Core Driver is linked
+statically into the executable. A dynamically linked Driver searches beside its
+own shared library. In that case, place the generated manifest there or register
+the definition explicitly.
 
-Python consumers use installed entry-point metadata to discover the catalogue
-without importing provider code or loading the native library. The Python
-package advertises its catalogue with:
-
-```toml
-[project.entry-points]
-"mqt.core.qdmi.manifests".braket = "amazon.braket.qdmi"
-```
-
-Each definition contains the device ARN and AWS Region; the AWS SDK resolves
-credentials when the MQT Core QDMI driver opens the device.
+Python consumers can select the installed catalogue before the first QDMI driver
+operation. Each definition contains the exact device ARN and AWS Region; the AWS
+SDK resolves credentials when MQT Core opens the device.
 
 ```python
-from mqt.core.qdmi import builtin_driver
+import os
 
-device = builtin_driver.open_device("amazon.braket.sv1")
+from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_CATALOG_PATH
+from mqt.core.qdmi import driver
+
+os.environ["MQT_CORE_QDMI_CONFIG_FILE"] = str(AMAZON_BRAKET_QDMI_CATALOG_PATH)
+device = driver.open_device("amazon.braket.sv1")
 ```
 
-An explicit configuration augments built-in and installed device definitions and
-overrides definitions with the same stable ID.
+MQT Core resolves the catalogue's relative library path from the directory that
+contains the catalogue. An explicit catalogue augments built-in MQT Core device
+definitions and overrides only definitions with the same ID.
 
 Cluster administrators may configure local Slurm licenses for concrete catalogue
 IDs such as `amazon.braket.sv1`. Do not configure `amazon.braket.default` as a
@@ -142,9 +136,9 @@ quotas.
 
 Slurm licenses and AWS IAM are independent controls. Slurm uses the local
 license count to limit admitted jobs and to account for that shared resource.
-MQT Core uses the process-mutable `SLURM_JOB_LICENSES` value to select the
-persistent QDMI definition. This value does not attest the Slurm allocation and
-does not authorize AWS access.
+MQT Core uses the process-mutable `SLURM_JOB_LICENSES` value to select the QDMI
+device. This value does not attest the Slurm allocation and does not authorize
+AWS access.
 
 AWS IAM authorizes calls to Amazon Braket, STS, and S3. Apply least-privilege
 policies to IAM users and groups, and to workload or node roles. In particular,
@@ -153,11 +147,11 @@ device ARN. Also restrict task inspection and result-bucket access to the
 required resources. See the [Amazon Braket service authorization reference] and
 the [device access guide].
 
-The optional SPANK plugin injects the system QDMI catalogue path and optional
-AWS configuration references. It does not distribute credentials, load the
-provider, or grant AWS permissions. A profile, file, workload identity, or node
-role that it references must already be available to the job user. See
-{doc}`slurm` for the complete managed-cluster and non-SPANK workflows.
+MQT Core's optional SPANK module supplies default catalogue paths and AWS
+configuration references. It does not distribute credentials, load the device
+implementation, or grant AWS permissions. A profile, file, workload identity, or
+node role that it references must already be available to the job user. See
+{doc}`slurm` for cluster setup and job examples.
 
 ## CMake options
 
@@ -165,18 +159,8 @@ role that it references must already be available to the job user. See
 | ----------------------------------------- | ------- | ------------------------------------------------------------- |
 | `BUILD_AMAZON_BRAKET_TESTS`               | `ON`    | Build and register the offline test suite                     |
 | `BUILD_AMAZON_BRAKET_LIVE_TESTS`          | `OFF`   | Register tests that access AWS and may submit paid tasks      |
-| `BUILD_AMAZON_BRAKET_SPANK_PLUGIN`        | `OFF`   | Build the optional Slurm SPANK plugin                         |
 | `USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE` | `OFF`   | Use an installed device library when building tests           |
 | `CMAKE_PREFIX_PATH`                       | --      | Search prefix for installed dependencies                      |
 
 [Amazon Braket service authorization reference]: https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonbraket.html
 [device access guide]: https://docs.aws.amazon.com/braket/latest/developerguide/restrict-access.html
-
-## Temporary development dependencies
-
-This repository currently pins QDMI #509 and MQT Core #2373 commits to exercise
-native multi-program jobs and installed device discovery. Replace both pins with
-suitable releases and regenerate `uv.lock` before publishing. Remove the
-temporary LLVM/MLIR setup from Python CI, Read the Docs, and Linux wheel-test
-containers once Core wheels are available for these APIs. Native-only device
-builds do not require LLVM/MLIR.

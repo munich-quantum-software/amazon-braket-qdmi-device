@@ -20,8 +20,8 @@ jobs:
     uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-change-detection.yml@fd3d75dece69c363989347869529a5e99cdcfffc # v2.5.1
     with:
       additional-cpp-files: |
-        spank/**
-        .github/workflows/cpp-spank-tests-ubuntu.yml
+        test/slurm/**
+        .github/workflows/slurm.yml
 
   cpp-tests-ubuntu:
     name: 🇨 Test 🐧
@@ -40,11 +40,11 @@ jobs:
       runs-on: ${{ matrix.runs-on }}
       config: ${{ matrix.config }}
 
-  cpp-spank-tests-ubuntu:
-    name: 🇨 SPANK 🐧
+  slurm-tests:
+    name: 🇸 Slurm 🐧
     needs: change-detection
-    if: fromJSON(needs.change-detection.outputs.run-cpp-tests)
-    uses: $/.github/workflows/cpp-spank-tests-ubuntu.yml
+    if: fromJSON(needs.change-detection.outputs.run-cpp-tests) || fromJSON(needs.change-detection.outputs.run-python-tests)
+    uses: $/.github/workflows/slurm.yml
 
   cpp-tests-macos:
     name: 🇨 Test 🍎
@@ -244,7 +244,7 @@ jobs:
     needs:
       - change-detection
       - cpp-tests-ubuntu
-      - cpp-spank-tests-ubuntu
+      - slurm-tests
       - cpp-tests-macos
       - cpp-tests-windows
       - cpp-install-tests
@@ -263,7 +263,11 @@ jobs:
           allowed-skips: >-
             ${{
               !fromJSON(needs.change-detection.outputs.run-cpp-tests)
-              && 'cpp-tests-ubuntu,cpp-spank-tests-ubuntu,cpp-tests-macos,cpp-tests-windows,cpp-install-tests,cpp-coverage,' || ''
+              && 'cpp-tests-ubuntu,cpp-tests-macos,cpp-tests-windows,cpp-install-tests,cpp-coverage,' || ''
+            }}
+            ${{
+              !fromJSON(needs.change-detection.outputs.run-cpp-tests) && !fromJSON(needs.change-detection.outputs.run-python-tests)
+              && 'slurm-tests,' || ''
             }}
             ${{
               !fromJSON(needs.change-detection.outputs.run-cpp-linter)
