@@ -54,6 +54,8 @@ sudo env \
   AWS_EC2_METADATA_DISABLED=true \
   /usr/sbin/slurmd -N localhost
 
+# Let Slurm move existing processes before spawning node-status polls.
+sleep 1
 echo "=== Waiting for the local Slurm node ==="
 for _ in {1..30}; do
   if sinfo -h -n localhost -o "%t" | grep -qE "idle|alloc"; then

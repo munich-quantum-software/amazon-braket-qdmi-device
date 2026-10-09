@@ -45,6 +45,13 @@ jobs:
           override_cache_key: c++-tests-install-${{ inputs.runs-on }}
           windows_compile_environment: msvc
 
+      - name: Select OpenSSL 3
+        if: runner.os == 'macOS'
+        run: |
+          brew install openssl@3
+          echo "OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
+
       # Set up mold as linker (Linux only)
       - name: Set up mold as linker
         uses: rui314/setup-mold@9c9c13bf4c3f1adef0cc596abc155580bcb04444 # v1

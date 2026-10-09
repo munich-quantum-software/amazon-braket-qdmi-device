@@ -17,13 +17,18 @@ releases may include breaking changes.
 
 ### Changed
 
+- 👷 Run GitHub Actions, documentation, and Slurm fixture builds on Ubuntu 26.04
+  with Slurm 25.11, shared OpenSSL on Linux, and OpenSSL 3 in macOS C++ CI
+  ([#233]) ([**@denialhaag**], [**@burgholzer**])
+
 - 👷 Enable testing on Python 3.15 ([#258]) ([**@denialhaag**])
 
 - 💥 Adopt QDMI 1.4 development headers and remove the calibration advisory
   property while preserving the remaining enum values for binary compatibility
   with existing QDMI clients ([#236]) ([**@burgholzer**]).
 
-- ⬆️ Update the AWS SDK for C++ to 1.11.899 ([#241]) ([**@burgholzer**])
+- ⬆️ Update the AWS SDK for C++ to 1.11.908 ([#241]) ([#233])
+  ([**@burgholzer**])
 
 - 🛡️ Enable the SDK's 2026 retry behavior unless explicitly configured, and
   default to 10 request attempts while honoring AWS retry settings ([#241])
@@ -177,6 +182,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 [#243]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/243
 [#241]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/241
 [#236]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/236
+[#233]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/233
 [#219]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/219
 [#217]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/217
 [#205]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/205
