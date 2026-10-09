@@ -23,6 +23,7 @@ releases may include breaking changes.
 - 👷 Run GitHub Actions, documentation, and Slurm fixture builds on Ubuntu 26.04
   with Slurm 25.11, shared OpenSSL on Linux, and OpenSSL 3 in macOS C++ CI
   ([#233]) ([**@denialhaag**], [**@burgholzer**])
+
 - ✨ Open Braket devices in independent MQT Core driver sessions while retaining
   stable-ID SDK entry points. Temporary Core source pins and LLVM/MLIR CI setup
   remain until a suitable release ([#239]) ([**@burgholzer**]).
