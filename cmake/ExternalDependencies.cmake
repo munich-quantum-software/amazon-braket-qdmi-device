@@ -71,6 +71,12 @@ if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
   set(BUILD_SHARED_LIBS
       OFF
       CACHE BOOL "Disable building shared libraries for AWS SDK" FORCE)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # Ubuntu 26.04's static libcrypto needs dependencies that s2n does not propagate.
+    set(S2N_USE_CRYPTO_SHARED_LIBS
+        ON
+        CACHE BOOL "Link s2n against shared libcrypto on Linux" FORCE)
+  endif()
   set(BUILD_ONLY
       "s3;sts;braket"
       CACHE STRING "" FORCE)

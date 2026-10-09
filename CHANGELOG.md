@@ -17,6 +17,9 @@ releases may include breaking changes.
 
 ### Changed
 
+- 👷 Run GitHub Actions jobs and documentation builds on Ubuntu 26.04, using
+  shared OpenSSL for Linux source builds ([#233]) ([**@denialhaag**],
+  [**@burgholzer**])
 - 👷 Enable testing on Python 3.15 ([#258]) ([**@denialhaag**])
 
 - 💥 Adopt QDMI 1.4 development headers and remove the calibration advisory
@@ -177,6 +180,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 [#243]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/243
 [#241]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/241
 [#236]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/236
+[#233]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/233
 [#219]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/219
 [#217]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/217
 [#205]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/205
