@@ -17,9 +17,9 @@ releases may include breaking changes.
 
 ### Changed
 
-- 👷 Run GitHub Actions jobs and documentation builds on Ubuntu 26.04, using
-  shared OpenSSL for Linux source builds ([#233]) ([**@denialhaag**],
-  [**@burgholzer**])
+- 👷 Run GitHub Actions, documentation, and Slurm fixture builds on Ubuntu 26.04
+  with Slurm 25.11 and shared OpenSSL for Linux source builds ([#233])
+  ([**@denialhaag**], [**@burgholzer**])
 - 👷 Enable testing on Python 3.15 ([#258]) ([**@denialhaag**])
 
 - 💥 Adopt QDMI 1.4 development headers and remove the calibration advisory

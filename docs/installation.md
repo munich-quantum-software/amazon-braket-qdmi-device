@@ -10,7 +10,7 @@ A source build requires:
   QDMI dependencies.
 
 Slurm 23.02 or later is required only for the optional SPANK plugin. CI tests
-the plugin against Slurm 23.11 on Ubuntu 24.04. Its build and deployment are
+the plugin against Slurm 25.11 on Ubuntu 26.04. Its build and deployment are
 documented in the authoritative {doc}`slurm` guide.
 
 ## Python package
