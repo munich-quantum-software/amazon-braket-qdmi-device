@@ -54,16 +54,16 @@ cmake --install build --prefix /path/to/install
 
 ## Where to Start
 
-| I want to...                               | Read...                                                                                                        |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| install the package or build from source   | [Installation](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/installation.html)                   |
-| configure AWS, devices, and S3             | [Configuration](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/configuration.html)                 |
-| inspect the installed device catalogue     | [Device catalogue](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/device_catalog.html)             |
-| execute Qiskit circuits                    | [Qiskit](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/qiskit.html)                               |
-| execute PennyLane programs                 | [PennyLane](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/pennylane.html)                         |
-| use the QDMI API and retrieve results      | [Usage](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/usage.html)                                 |
-| run through Slurm and the SPANK plugin     | [Slurm and SPANK](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/slurm.html)                       |
-| develop and test the provider              | [Development](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/development.html)                     |
+| I want to...                             | Read...                                                                                            |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| install the package or build from source | [Installation](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/installation.html)       |
+| configure AWS, devices, and S3           | [Configuration](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/configuration.html)     |
+| inspect the installed device catalogue   | [Device catalogue](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/device_catalog.html) |
+| execute Qiskit circuits                  | [Qiskit](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/qiskit.html)                   |
+| execute PennyLane programs               | [PennyLane](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/pennylane.html)             |
+| use the QDMI API and retrieve results    | [Usage](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/usage.html)                     |
+| schedule jobs through Slurm              | [Slurm integration](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/slurm.html)         |
+| develop and test the provider            | [Development](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/development.html)         |
 
 ## Contributors and Support
 
@@ -78,6 +78,7 @@ for security and support contacts.
 ## License
 
 The provider is licensed under the Apache License 2.0 with LLVM exceptions; see
-[LICENSE](LICENSE). The optional Slurm SPANK plugin under [spank/](spank/) is
-licensed separately under GPL-3.0-or-later; see
-[spank/LICENSE.md](spank/LICENSE.md).
+[LICENSE](LICENSE). Provider integration fixtures in [test/slurm/](test/slurm/)
+retain their GPL-3.0-or-later license; see
+[test/slurm/LICENSE.md](test/slurm/LICENSE.md). The optional shared SPANK
+component is maintained by MQT Core.

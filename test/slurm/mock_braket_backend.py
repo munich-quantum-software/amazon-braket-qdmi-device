@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License along
 # with this program. If not, see <https://www.gnu.org/licenses/>.
 
-"""Minimal signed GetDevice fixture for the real-Slurm connector test."""
+"""Local Braket and S3 endpoints for license-selected adapter execution."""
 
 from __future__ import annotations
 
@@ -45,25 +45,16 @@ DEVICE_CAPABILITIES = json.dumps(
 
 
 class BraketRequestHandler(BaseHTTPRequestHandler):
-    """Serve deterministic GetDevice responses."""
+    """Serve deterministic device, task, and measurement responses."""
 
-    counters: ClassVar[dict[str, int]] = {
-        "get_device": 0,
-        "signed_requests": 0,
-        "signature_failures": 0,
-    }
+    tasks: ClassVar[dict[str, dict[str, object]]] = {}
     lock: ClassVar[Lock] = Lock()
 
     def do_GET(self) -> None:
-        """Return fixture health, counters, or one device description."""
+        """Return fixture health, device, task, or measurement data."""
         path = unquote(urlsplit(self.path).path)
         if path == "/health":
             self._send_json({"status": "ok"})
-            return
-        if path == "/state":
-            with self.lock:
-                payload = dict(self.counters)
-            self._send_json(payload)
             return
         if not self._has_temporary_credentials():
             self._send_json(
@@ -74,11 +65,30 @@ class BraketRequestHandler(BaseHTTPRequestHandler):
                 HTTPStatus.FORBIDDEN,
             )
             return
+        if path.startswith("/quantum-task/"):
+            task_id = path.rsplit("/", maxsplit=1)[-1]
+            with self.lock:
+                task = self.tasks[task_id]
+            self._send_json({
+                "quantumTaskArn": f"arn:aws:braket:us-east-1:123456789012:quantum-task/{task_id}",
+                "deviceArn": task["deviceArn"],
+                "status": "COMPLETED",
+                "shots": task["shots"],
+                "outputS3Bucket": "fixture-bucket",
+                "outputS3Directory": task_id,
+            })
+            return
+        if path.endswith("/results.json"):
+            task_id = path.split("/")[-2]
+            with self.lock:
+                shots = self.tasks[task_id]["shots"]
+            assert isinstance(shots, int)
+            self._send_json({"measurements": [[index % 2, index % 2] for index in range(shots)]})
+            return
         if not path.startswith("/device/"):
             self.send_error(HTTPStatus.NOT_FOUND)
             return
 
-        self._increment("get_device")
         retired = path.endswith("/dm1")
         self._send_json({
             "deviceArn": path.removeprefix("/device/"),
@@ -90,6 +100,29 @@ class BraketRequestHandler(BaseHTTPRequestHandler):
             "deviceQueueInfo": [],
         })
 
+    def do_POST(self) -> None:
+        """Accept a short OpenQASM task without contacting AWS."""
+        if not self._has_temporary_credentials():
+            self._send_json({"__type": "AccessDeniedException"}, HTTPStatus.FORBIDDEN)
+            return
+        if self.path != "/quantum-task":
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+        payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+        action = json.loads(payload["action"])
+        assert action["braketSchemaHeader"]["name"] == "braket.ir.openqasm.program"
+        assert "OPENQASM" in action["source"]
+        assert "measure" in action["source"]
+        statements = {"".join(statement.split()) for statement in action["source"].split(";")}
+        assert "hq[0]" in statements
+        assert "cnotq[0],q[1]" in statements
+        assert payload["deviceArn"].endswith("/amazon/sv1")
+        assert payload["outputS3Bucket"] == "fixture-bucket"
+        with self.lock:
+            task_id = str(len(self.tasks) + 1)
+            self.tasks[task_id] = payload
+        self._send_json({"quantumTaskArn": f"arn:aws:braket:us-east-1:123456789012:quantum-task/{task_id}"})
+
     def log_message(
         self,
         format: str,  # ruff: ignore[builtin-argument-shadowing]
@@ -97,17 +130,10 @@ class BraketRequestHandler(BaseHTTPRequestHandler):
     ) -> None:
         """Suppress routine request logging in the test container."""
 
-    @classmethod
-    def _increment(cls, name: str) -> None:
-        with cls.lock:
-            cls.counters[name] += 1
-
     def _has_temporary_credentials(self) -> bool:
         authorization = self.headers.get("Authorization", "")
         token = self.headers.get("X-Amz-Security-Token", "")
-        valid = f"Credential={ACCESS_KEY}/" in authorization and token == SESSION_TOKEN
-        self._increment("signed_requests" if valid else "signature_failures")
-        return valid
+        return f"Credential={ACCESS_KEY}/" in authorization and token == SESSION_TOKEN
 
     def _send_json(
         self,

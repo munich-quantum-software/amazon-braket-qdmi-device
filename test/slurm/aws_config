@@ -16,17 +16,6 @@
 # You should have received a copy of the GNU General Public License along
 # with this program. If not, see <https://www.gnu.org/licenses/>.
 
-"""Exercise MQT Core's Slurm connector from inside an allocated job."""
-
-from mqt.core.qdmi import slurm
-
-
-def main() -> None:
-    """Open the licensed device and verify its representative metadata."""
-    device = slurm.open_device_from_license()
-    assert device.name() == "Local SV1"
-    assert device.qubits_num() == 2
-
-
-if __name__ == "__main__":
-    main()
+[profile spank-test]
+region = us-east-1
+credential_process = /workload/test/slurm/credential_process.sh
