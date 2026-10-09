@@ -66,14 +66,17 @@ connectivity.
 
 ## Job properties
 
-| Property                                             | Meaning                             |
-| ---------------------------------------------------- | ----------------------------------- |
-| `QDMI_DEVICE_JOB_PROPERTY_ID`                        | QuantumTask ARN after submission    |
-| `QDMI_DEVICE_JOB_PROPERTY_PROGRAMFORMAT`             | Current program format              |
-| `QDMI_DEVICE_JOB_PROPERTY_PROGRAM`                   | Current program source              |
-| `QDMI_DEVICE_JOB_PROPERTY_SHOTSNUM`                  | Current shot count                  |
-| `QDMI_DEVICE_JOB_PROPERTY_QUEUEPOSITION`             | Jobs ahead while the task is queued |
-| `AMAZON_BRAKET_QDMI_DEVICE_JOB_PROPERTY_OUTPUTS3URI` | Resolved S3 result directory        |
+| Property                                             | Meaning                              |
+| ---------------------------------------------------- | ------------------------------------ |
+| `QDMI_DEVICE_JOB_PROPERTY_ID`                        | QuantumTask ARN after submission     |
+| `QDMI_DEVICE_JOB_PROPERTY_PROGRAMFORMAT`             | Current program format               |
+| `QDMI_DEVICE_JOB_PROPERTY_PROGRAMSNUM`               | Number of programs in input order    |
+| `QDMI_DEVICE_JOB_PROPERTY_SHOTSNUM`                  | Current shot count                   |
+| `QDMI_DEVICE_JOB_PROPERTY_QUEUEPOSITION`             | Jobs ahead while the task is queued  |
+| `AMAZON_BRAKET_QDMI_DEVICE_JOB_PROPERTY_OUTPUTS3URI` | Resolved S3 result directory         |
+
+`AMAZON_BRAKET_QDMI_device_job_get_program_status` queries a ProgramSet outcome
+by input index.
 
 Querying `QDMI_DEVICE_JOB_PROPERTY_QUEUEPOSITION` performs a fresh
 `GetQuantumTask` request with the `QueueInfo` additional attribute. The query
@@ -140,8 +143,10 @@ job-lifetime behavior.
 | --------------------------------------------------------------- | ------------------------------- | ------------------------------------------- |
 | `AMAZON_BRAKET_QDMI_device_session_create_device_job()`         | Internal allocation             | Create a new QDMI job                       |
 | `AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id()` | `GetQuantumTask()`              | Open an existing task by ARN                |
-| `AMAZON_BRAKET_QDMI_device_job_set_parameter()`                 | Store job configuration         | Set circuit, shots, format, and destination |
+| `AMAZON_BRAKET_QDMI_device_job_set_parameter()`                 | Store job configuration         | Set shots and Braket options                |
 | `AMAZON_BRAKET_QDMI_device_job_query_property()`                | Stored values or refreshed task | Query job properties                        |
+| `AMAZON_BRAKET_QDMI_device_job_set_programs()`                  | Local configuration             | Set an ordered list of program payloads     |
+| `AMAZON_BRAKET_QDMI_device_job_get_program()`                   | Stored values                   | Read one program payload by input index     |
 | `AMAZON_BRAKET_QDMI_device_job_submit()`                        | `CreateQuantumTask()`           | Submit a QuantumTask                        |
 | `AMAZON_BRAKET_QDMI_device_job_check()`                         | `GetQuantumTask()`              | Refresh task status                         |
 | `AMAZON_BRAKET_QDMI_device_job_wait()`                          | Poll `GetQuantumTask()`         | Wait for completion                         |

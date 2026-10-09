@@ -24,7 +24,8 @@ build:
       - curl -LsSf https://github.com/munich-quantum-software/setup-mlir/releases/download/v1.4.2/setup-mlir.sh | bash -s -- -v 23.1.1 -p $HOME/mlir
     build:
       html:
-        - MLIR_DIR=$HOME/mlir/lib/cmake/mlir uvx nox --non-interactive -s docs
+        # Temporary: skip Core source-build LTO to stay within the Read the Docs time limit.
+        - MLIR_DIR=$HOME/mlir/lib/cmake/mlir CMAKE_ARGS=-DENABLE_IPO=OFF uvx nox --non-interactive -s docs
         - mkdir -p $READTHEDOCS_OUTPUT/html && cp -R docs/_build/html/. $READTHEDOCS_OUTPUT/html
       htmlzip:
         - |

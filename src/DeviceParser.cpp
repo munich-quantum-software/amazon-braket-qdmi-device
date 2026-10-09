@@ -464,6 +464,62 @@ auto GateModelCapabilityParser::parseProperties(
       status != QDMI_SUCCESS) {
     return status;
   }
+  const auto actions = propertiesJson.GetObject("action");
+  constexpr auto programSetAction = "braket.ir.openqasm.program_set";
+  if (actions.ValueExists(programSetAction)) {
+    const auto action = actions.GetObject(programSetAction);
+    if (!action.ValueExists("version") ||
+        !action.GetObject("version").IsListType() ||
+        !action.ValueExists("maximumExecutables") ||
+        !action.GetObject("maximumExecutables").IsIntegerType() ||
+        !action.ValueExists("maximumTotalShots") ||
+        !action.GetObject("maximumTotalShots").IsIntegerType()) {
+      return QDMI_ERROR_FATAL;
+    }
+    const auto versions = action.GetArray("version");
+    bool supportedVersion = false;
+    for (size_t i = 0; i < versions.GetLength(); ++i) {
+      supportedVersion |= versions[i].AsString() == "1";
+    }
+    if (supportedVersion) {
+      const auto maximumExecutables = action.GetInt64("maximumExecutables");
+      const auto maximumTotalShots = action.GetInt64("maximumTotalShots");
+      const auto minimumTotalShots = action.ValueExists("minimumTotalShots")
+                                         ? action.GetInt64("minimumTotalShots")
+                                         : 0;
+      if (!std::in_range<size_t>(maximumExecutables) ||
+          !std::in_range<size_t>(maximumTotalShots) ||
+          !std::in_range<size_t>(minimumTotalShots)) {
+        return QDMI_ERROR_FATAL;
+      }
+      size_t minimumShotsPerProgram = 0;
+      size_t maximumShotsPerProgram = 0;
+      if (propertiesJson.ValueExists("service")) {
+        const auto service = propertiesJson.GetObject("service");
+        if (service.ValueExists("shotsRange")) {
+          if (!service.GetObject("shotsRange").IsListType()) {
+            return QDMI_ERROR_FATAL;
+          }
+          const auto range = service.GetArray("shotsRange");
+          if (range.GetLength() != 2 || !range[0].IsIntegerType() ||
+              !range[1].IsIntegerType() ||
+              !std::in_range<size_t>(range[0].AsInt64()) ||
+              !std::in_range<size_t>(range[1].AsInt64()) ||
+              range[0].AsInt64() > range[1].AsInt64()) {
+            return QDMI_ERROR_FATAL;
+          }
+          minimumShotsPerProgram = static_cast<size_t>(range[0].AsInt64());
+          maximumShotsPerProgram = static_cast<size_t>(range[1].AsInt64());
+        }
+      }
+      properties.programSetLimits = ProgramSetLimits{
+          .maximumExecutables = static_cast<size_t>(maximumExecutables),
+          .minimumTotalShots = static_cast<size_t>(minimumTotalShots),
+          .maximumTotalShots = static_cast<size_t>(maximumTotalShots),
+          .minimumShotsPerProgram = minimumShotsPerProgram,
+          .maximumShotsPerProgram = maximumShotsPerProgram};
+    }
+  }
   for (const auto& enrich : calibrationEnrichers_) {
     enrich(propertiesJson, properties);
   }
