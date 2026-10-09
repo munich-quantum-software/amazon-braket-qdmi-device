@@ -11,6 +11,8 @@ build:
   apt_packages:
     - doxygen
     - libcurl4-openssl-dev
+    - libzstd-dev
+    - zstd
   tools:
     python: "3.14"
   jobs:
@@ -18,9 +20,11 @@ build:
       - asdf plugin add uv
       - asdf install uv latest
       - asdf global uv latest
+      # Temporary: remove with the Core release pin when source builds are unnecessary.
+      - curl -LsSf https://github.com/munich-quantum-software/setup-mlir/releases/download/v1.4.2/setup-mlir.sh | bash -s -- -v 23.1.1 -p $HOME/mlir
     build:
       html:
-        - uvx nox --non-interactive -s docs
+        - MLIR_DIR=$HOME/mlir/lib/cmake/mlir uvx nox --non-interactive -s docs
         - mkdir -p $READTHEDOCS_OUTPUT/html && cp -R docs/_build/html/. $READTHEDOCS_OUTPUT/html
       htmlzip:
         - |

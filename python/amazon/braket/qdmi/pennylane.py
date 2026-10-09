@@ -28,7 +28,6 @@ from mqt.core.plugins.pennylane import PennyLaneConfigurationError, QDMIDevice
 from . import (
     AMAZON_BRAKET_QDMI_DEVICE_ID,
 )
-from ._catalogue import register_device
 
 if TYPE_CHECKING:
     from collections.abc import Hashable, Sequence
@@ -120,13 +119,12 @@ class AmazonBraketDevice(QDMIDevice):
         s3_uri = _s3_destination_uri(s3_destination_folder)
         job_parameters: QDMIJobParameters = {} if s3_uri is None else {"custom1": s3_uri}
 
-        register_device(self.qdmi_device_id)
         self._device_arn = device_arn
         self._s3_destination_folder = s3_destination_folder
         super().__init__(
-            self.qdmi_device_id,
-            wires=wires,
+            device_id=self.qdmi_device_id,
             session_parameters=session_parameters,
+            wires=wires,
             job_parameters=job_parameters,
         )
 
