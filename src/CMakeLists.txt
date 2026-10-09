@@ -85,6 +85,7 @@ set_target_properties(
              C_VISIBILITY_PRESET hidden
              CXX_VISIBILITY_PRESET hidden
              VISIBILITY_INLINES_HIDDEN 1)
+configure_qdmi_exports(TARGET ${QDMI_TARGET_NAME} INTERFACE device PREFIX ${QDMI_PREFIX})
 
 target_sources(
   ${QDMI_TARGET_NAME}

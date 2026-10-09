@@ -288,10 +288,10 @@ auto GateModelCapabilityParser::parseSitesAndConnectivity(
     }
   }
 
-  if (siteNames.size() != properties.qubitCount) {
+  if (siteNames.size() > properties.qubitCount) {
     std::cerr << "Connectivity graph contains " << siteNames.size()
-              << " sites, but paradigm.qubitCount is " << properties.qubitCount
-              << "\n";
+              << " sites, exceeding paradigm.qubitCount "
+              << properties.qubitCount << "\n";
     return QDMI_ERROR_FATAL;
   }
   // Decimal provider labels are the physical indices used in programs. Reserve

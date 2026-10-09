@@ -18,13 +18,21 @@ releases may include breaking changes.
 ### Changed
 
 - 👷 Enable testing on Python 3.15 ([#258]) ([**@denialhaag**])
+
+- 💥 Adopt QDMI 1.4 development headers and remove the calibration advisory
+  property while preserving the remaining enum values for binary compatibility
+  with existing QDMI clients ([#236]) ([**@burgholzer**]).
+
 - ⬆️ Update the AWS SDK for C++ to 1.11.899 ([#241]) ([**@burgholzer**])
+
 - 🛡️ Enable the SDK's 2026 retry behavior unless explicitly configured, and
   default to 10 request attempts while honoring AWS retry settings ([#241])
   ([**@burgholzer**])
 
 ### Fixed
 
+- 🐛 Accept live device connectivity graphs that omit unavailable qubits while
+  retaining the advertised qubit count ([#236]) ([**@burgholzer**])
 - 🐛 Cancel queued submissions locally without creating unwanted QuantumTasks
   ([#244]) ([**@burgholzer**])
 - 🐛 Retry temporary Braket service-quota errors during task submission through
@@ -168,6 +176,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 [#244]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/244
 [#243]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/243
 [#241]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/241
+[#236]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/236
 [#219]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/219
 [#217]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/217
 [#205]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/205
