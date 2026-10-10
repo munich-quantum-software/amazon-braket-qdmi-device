@@ -6,11 +6,10 @@ It requires AWS credentials with Braket and S3 access in `us-east-1`. Each
 installation mode submits two tasks with eight shots each; AWS charges apply.
 
 Use the MQT Core revision pinned in the Slurm workflow and build its Linux wheel
-with
-`uv build --python 3.15 --wheel --out-dir "$CORE_DIST" -Ccmake.define.DEPLOY=ON`
-from that checkout. The wheel must match the host architecture and Python 3.15.
-The example deploys Slurm 25.11 or newer through rootful Docker on a disposable
-Linux cgroup-v2 host.
+with `uv build --wheel --out-dir "$CORE_DIST" -Ccmake.define.DEPLOY=ON` from
+that checkout. The wheel must match the host architecture and the cluster's
+Python interpreter. The example deploys Slurm 25.11 or newer through rootful
+Docker on a disposable Linux cgroup-v2 host.
 
 ```sh
 PROVIDER_INSTALL_MODE=native uv run --no-project \
@@ -18,18 +17,17 @@ PROVIDER_INSTALL_MODE=native uv run --no-project \
   --workload . --dist "$CORE_DIST" \
   --setup-script test/slurm/setup.sh \
   --compose-file test/slurm/compose.yml \
-  --partition braket \
   --device-license amazon.braket.sv1 \
   --qdmi-config-file /opt/provider-catalogue.json \
-  -- python3 /workload/test/slurm/probe.py
+  -- python3 /workload/test/slurm/probe.py amazon.braket.sv1
 ```
 
 Repeat with `PROVIDER_INSTALL_MODE=wheel`. Both modes install the Python
 adapters. Native mode selects the separately installed Runtime catalogue; wheel
 mode selects the bundled library. The workload checks the loaded library path
 and submits and retrieves eight Bell-state shots through each SDK. The workload
-runs as an unprivileged user. Only the `amazon.braket.sv1` catalogue entry is
-enabled, using the standard regional S3 result bucket.
+runs as the unprivileged `mqt-dev` user. Only the `amazon.braket.sv1` catalogue
+entry is enabled, using the standard regional S3 result bucket.
 
 Export `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and, for temporary
 credentials, `AWS_SESSION_TOKEN` before running the command. The Compose overlay
@@ -46,6 +44,7 @@ See [Amazon Braket on Slurm](../../docs/slurm.md) for deployment.
 For IQM and Braket jobs on the same cluster, use the
 [MQT Core multi-vendor example](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm_cluster.html#multiple-device-implementations).
 MQT Core and all device implementations share one Python environment. Each job
-opens its selected device through the driver, with the credentials that device
-needs. The cluster monitors each device before admitting its jobs.
-`setup.sh [OUTPUT]` writes the catalogue to the chosen path.
+opens an explicit device ID through the driver, with the credentials that device
+needs. All quantum access nodes share the `quantum` partition and can reach
+every configured device. The cluster monitors each device before admitting its
+jobs. `setup.sh [OUTPUT]` writes the catalogue to the chosen path.

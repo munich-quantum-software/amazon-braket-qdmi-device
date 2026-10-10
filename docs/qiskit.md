@@ -112,16 +112,16 @@ Jobs use the standard regional result bucket automatically. Set
 `AMZN_BRAKET_TASK_RESULTS_S3_URI` to an existing `s3://bucket/prefix` only when
 a pre-provisioned destination is required.
 
-## Use a Slurm-selected device
+## Use an open QDMI device
 
-The Slurm adapter returns an already-open QDMI device. Pass it directly to the
-Amazon Braket backend; no second device lookup is needed.
+Open a catalogue ID through MQT Core's driver and pass the device to the Amazon
+Braket backend:
 
 ```python
 from amazon.braket.qdmi.qiskit import AmazonBraketBackend
-from mqt.core.qdmi import slurm
+from mqt.core.qdmi import builtin_driver
 
-backend = AmazonBraketBackend(device=slurm.open_device_from_license())
+backend = AmazonBraketBackend(device=builtin_driver.open_device("amazon.braket.sv1"))
 ```
 
 See {doc}`slurm` for the complete cluster and job setup.
