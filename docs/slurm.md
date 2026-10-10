@@ -2,10 +2,10 @@
 
 [MQT Core's Slurm integration](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm.html)
 provides the cluster configuration, device licenses, and availability monitor.
-Install Amazon Braket alongside the other QDMI device implementations in the
-same workload environment on every compute node. MQT Core's driver opens the
-device selected by the job's license; the Amazon Braket implementation handles
-AWS authentication and quantum tasks.
+Cluster administrators install Amazon Braket alongside the other QDMI device
+implementations in one workload environment on login and compute nodes. MQT
+Core's driver opens the device selected by the job's license; the Amazon Braket
+implementation handles AWS authentication and quantum tasks.
 
 ## Configure AWS access
 
@@ -18,9 +18,12 @@ uv pip install 'amazon-braket-qdmi[qiskit]'
 MQT Core discovers the installed device catalogue from the Python package. For
 the unreleased QDMI 1.4 and MQT Core 4.1 interfaces, build the repositories'
 current source revisions together as shown in the
-[shared cluster example](https://github.com/munich-quantum-toolkit/core/tree/main/examples/slurm).
+[shared cluster example](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm_cluster.html).
 Native installations need a readable catalogue and library on each compute node;
-retain the Python package for framework adapters.
+retain the Python package for framework adapters. Administrators can put shared
+non-secret settings in `/etc/mqt-core/qdmi.json`, which MQT Core reads
+automatically, and make the workload environment available through the site
+defaults or a software module.
 
 Choose a [catalogue ID](device_catalog.md), such as `amazon.braket.sv1`, and
 register it as a Slurm license. `Licenses=amazon.braket.sv1:2` permits two
@@ -29,11 +32,12 @@ while this device is unavailable. Slurm license counts are separate from AWS
 quotas and authorization.
 
 The device implementation uses the [AWS credential chain](configuration.md).
-Prefer short-lived credentials through a role or profile. Set `AWS_PROFILE` in
-the job environment when selecting a profile, and make its configuration and
-credential sources available on compute nodes and to the availability monitor.
-Slurm exports the submission environment; AWS credentials and other devices'
-credentials can coexist in the same job environment.
+Prefer short-lived credentials through a role or profile. Select your profile
+with `AWS_PROFILE` in the submission environment when needed, and make its
+configuration and credential sources available on compute nodes. Configure the
+availability monitor with separate site-owned AWS credentials. Slurm exports the
+submission environment; AWS credentials and other devices' credentials can
+coexist in the same job environment.
 
 See [result-storage configuration](configuration.md) for S3 permissions and
 optional destination overrides. Keep credentials out of Slurm configuration and
@@ -56,10 +60,9 @@ circuit.measure_all()
 print(backend.run(circuit, shots=100).result().get_counts())
 ```
 
-Activate the shared workload environment and submit the job:
+With the site environment and your credentials available, submit the job:
 
-```bash
-export AWS_PROFILE=research
+```console
 srun --licenses=amazon.braket.sv1 python bell.py
 ```
 
