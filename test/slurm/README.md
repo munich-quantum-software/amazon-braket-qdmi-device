@@ -1,7 +1,7 @@
 # Amazon Braket Slurm smoke test
 
 This test runs Qiskit and PennyLane workloads against Amazon Braket SV1 in
-[MQT Core's Slurm cluster example](https://github.com/munich-quantum-toolkit/core/tree/main/examples/slurm).
+[MQT Core's Slurm cluster example](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm_cluster.html).
 It requires AWS credentials with Braket and S3 access in `us-east-1`. Each
 installation mode submits two tasks with eight shots each; AWS charges apply.
 
@@ -40,7 +40,7 @@ skip when the access key or secret key is unavailable.
 See [Amazon Braket on Slurm](../../docs/slurm.md) for deployment.
 
 For IQM and Braket jobs on the same cluster, use the
-[MQT Core multi-vendor example](https://github.com/munich-quantum-toolkit/core/tree/main/examples/slurm#multiple-device-implementations).
+[MQT Core multi-vendor example](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm_cluster.html#multiple-device-implementations).
 MQT Core and all device implementations share one Python environment. Each job
 opens its selected device through the driver, with the credentials that device
 needs. The cluster monitors each device before admitting its jobs.
