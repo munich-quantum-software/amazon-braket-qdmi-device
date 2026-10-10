@@ -25,6 +25,13 @@ releases may include breaking changes.
 
 ### Changed
 
+- 💥 Run Amazon Braket jobs in MQT Core's shared Slurm example, using one
+  `quantum` partition and one environment for all QDMI device implementations.
+  Applications open an explicit catalogue ID, while Slurm licenses schedule
+  access and the cluster monitors device availability. Remove the device SPANK
+  plugin. Native and wheel smoke tests each submit eight shots through Qiskit
+  and PennyLane to SV1 ([#237]) ([**@flowerthrower**], [**@burgholzer**])
+
 - 👷 Run GitHub Actions, documentation, and Slurm fixture builds on Ubuntu 26.04
   with Slurm 25.11, shared OpenSSL on Linux, and OpenSSL 3 in macOS C++ CI
   ([#233]) ([**@denialhaag**], [**@burgholzer**])
@@ -195,6 +202,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 [#243]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/243
 [#241]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/241
 [#239]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/239
+[#237]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/237
 [#236]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/236
 [#233]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/233
 [#219]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/219

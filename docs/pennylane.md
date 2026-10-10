@@ -144,20 +144,19 @@ program on SV1. Remote execution creates paid Amazon Braket QuantumTasks. Shot
 counts, parameter-shift evaluations, and optimizer iterations should therefore
 be selected explicitly before execution.
 
-MQT Core also accepts the QDMI handle selected from a Slurm license. Construct
-the generic adapter from that existing session; no second device lookup is
-needed:
+MQT Core also accepts an open QDMI device. Select its catalogue ID through the
+driver and pass the device to the adapter:
 
 ```python
 from mqt.core.plugins.pennylane import QDMIDevice
-from mqt.core.qdmi import slurm
+from mqt.core.qdmi import builtin_driver
 
 remote_device = QDMIDevice(
-    device=slurm.open_device_from_license(),
+    device=builtin_driver.open_device("amazon.braket.sv1"),
 )
 ```
 
-See {doc}`slurm` for the complete deployment and optional plugin setup.
+See {doc}`slurm` for the complete deployment and job setup.
 
 ## Execution boundary
 

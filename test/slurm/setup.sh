@@ -1,3 +1,4 @@
+#!/bin/sh
 # Copyright (c) 2025 - 2026 Munich Quantum Software Company GmbH
 # All rights reserved.
 #
@@ -16,22 +17,21 @@
 # You should have received a copy of the GNU General Public License along
 # with this program. If not, see <https://www.gnu.org/licenses/>.
 
-ClusterName=amazon-braket-ci
-SlurmctldHost=localhost(127.0.0.1)
-SlurmUser=slurm
-SlurmctldPort=6817
-SlurmdPort=6818
-AuthType=auth/munge
-StateSaveLocation=/var/spool/slurmctld
-SlurmdSpoolDir=/var/spool/slurmd
-SlurmdLogFile=/var/log/slurmd.log
-SlurmctldLogFile=/var/log/slurmctld.log
-ProctrackType=proctrack/pgid
-SchedulerType=sched/backfill
-SelectType=select/linear
-TaskPlugin=task/none
-SlurmdParameters=config_overrides
-PlugStackConfig=/etc/slurm/plugstack.conf
-Licenses=amazon.braket.sv1:1,amazon.braket.dm1:1,ordinary.one:1,ordinary.two:1
-NodeName=localhost NodeAddr=127.0.0.1 State=UNKNOWN
-PartitionName=debug Nodes=localhost Default=YES MaxTime=INFINITE State=UP
+set -eu
+
+python3 - "${1:-/opt/provider-catalogue.json}" <<'CATALOGUE'
+import json
+import os
+import sys
+from pathlib import Path
+from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_CATALOG_PATH
+
+catalogue = AMAZON_BRAKET_QDMI_CATALOG_PATH
+if os.environ["PROVIDER_INSTALL_MODE"] == "native":
+    catalogue = Path("/opt/provider-native/lib/amazon-braket-qdmi-device.qdmi.json")
+configuration = json.loads(catalogue.read_text())
+for definition in configuration["qdmi"]["devices"]:
+    definition["library"] = str((catalogue.parent / definition["library"]).resolve())
+    definition["enabled"] = definition["id"] == "amazon.braket.sv1"
+Path(sys.argv[1]).write_text(json.dumps(configuration))
+CATALOGUE
