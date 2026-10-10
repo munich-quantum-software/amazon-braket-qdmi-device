@@ -18,6 +18,7 @@ PROVIDER_INSTALL_MODE=native uv run --no-project \
   --workload . --dist "$CORE_DIST" \
   --setup-script test/slurm/setup.sh \
   --compose-file test/slurm/compose.yml \
+  --partition braket \
   --device-license amazon.braket.sv1 \
   --qdmi-config-file /opt/provider-catalogue.json \
   -- python3 /workload/test/slurm/probe.py
@@ -32,7 +33,10 @@ enabled, using the standard regional S3 result bucket.
 
 Export `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and, for temporary
 credentials, `AWS_SESSION_TOKEN` before running the command. The Compose overlay
-passes them to the controller at runtime; Slurm exports them to the job. Use
+passes them to the login node for job submission and to the controller for
+availability monitoring. Slurm exports the login node's submission environment
+to the job. This smoke test uses one identity for both roles; production
+deployments should configure separate site-owned monitor credentials. Use
 short-lived credentials and keep their values out of command arguments, build
 arguments, and logs. CI receives the same three secrets and reports an explicit
 skip when the access key or secret key is unavailable.

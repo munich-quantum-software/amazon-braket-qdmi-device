@@ -16,14 +16,18 @@
 # You should have received a copy of the GNU General Public License along
 # with this program. If not, see <https://www.gnu.org/licenses/>.
 
+x-device-environment: &device-environment
+  - AWS_ACCESS_KEY_ID
+  - AWS_SECRET_ACCESS_KEY
+  - AWS_SESSION_TOKEN
+  - AWS_EC2_METADATA_DISABLED=true
+
 services:
   controller:
     build:
       args:
         PROVIDER_INSTALL_MODE: ${PROVIDER_INSTALL_MODE:-native}
         PROVIDER_RUNTIME_COMPONENT: amazon-braket-qdmi-device_Runtime
-    environment:
-      - AWS_ACCESS_KEY_ID
-      - AWS_SECRET_ACCESS_KEY
-      - AWS_SESSION_TOKEN
-      - AWS_EC2_METADATA_DISABLED=true
+    environment: *device-environment
+  login:
+    environment: *device-environment

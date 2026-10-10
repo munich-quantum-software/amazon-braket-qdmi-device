@@ -60,10 +60,11 @@ circuit.measure_all()
 print(backend.run(circuit, shots=100).result().get_counts())
 ```
 
-With the site environment and your credentials available, submit the job:
+With the site environment and your credentials available, submit the job to the
+site's quantum-access partition (`braket` in the shared cluster example):
 
 ```console
-srun --licenses=amazon.braket.sv1 python bell.py
+srun --partition=braket --licenses=amazon.braket.sv1 python bell.py
 ```
 
 For PennyLane, pass the selected device to MQT Core's adapter:
