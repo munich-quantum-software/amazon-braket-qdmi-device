@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License along
 # with this program. If not, see <https://www.gnu.org/licenses/>.
 
-"""Submit short circuits through both adapters to the local Braket fixture."""
+"""Submit eight-shot SV1 circuits through both adapters."""
 
 from __future__ import annotations
 
@@ -31,8 +31,6 @@ from amazon.braket.qdmi.qiskit import AmazonBraketBackend
 def main() -> None:
     """Reuse the licensed handle and retrieve results through each adapter."""
     device = open_device_from_license()
-    assert device.name() == "Local SV1"
-    assert device.qubits_num() == 2
 
     backend = AmazonBraketBackend(device=device)
     circuit = QuantumCircuit(2)
@@ -40,7 +38,8 @@ def main() -> None:
     circuit.cx(0, 1)
     circuit.measure_all()
     counts = backend.run(circuit, shots=8).result().get_counts()
-    assert counts == {"00": 4, "11": 4}
+    assert sum(counts.values()) == 8
+    assert set(counts) <= {"00", "11"}
 
     adapter = QDMIDevice(device=device, wires=2)
 
@@ -50,7 +49,9 @@ def main() -> None:
         qp.CNOT(wires=[0, 1])
         return qp.counts(wires=[0, 1])
 
-    assert bell() == {"00": 4, "11": 4}
+    counts = bell()
+    assert sum(counts.values()) == 8
+    assert set(counts) <= {"00", "11"}
 
 
 if __name__ == "__main__":

@@ -82,8 +82,9 @@ concurrently in the same checkout. For dependency-only setup, use
   `uvx nox -s tests minimums` for the supported Python matrix.
 - Use Google-style Python docstrings. Preserve the `amazon.braket.qdmi`
   namespace and stable entry point. Fix Ruff and ty findings where possible.
-- Use MQT Core's shared Slurm runner with the provider fixtures documented in
-  `test/slurm/README.md` to validate Slurm integration without live AWS access.
+- The shared Slurm smoke test in `test/slurm/README.md` submits two eight-shot
+  SV1 tasks per installation mode. It requires AWS credentials and explicit live
+  AWS authorization.
 
 ### Live AWS Access
 

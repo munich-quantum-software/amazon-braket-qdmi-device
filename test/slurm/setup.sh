@@ -31,5 +31,6 @@ if os.environ["PROVIDER_INSTALL_MODE"] == "native":
 configuration = json.loads(catalogue.read_text())
 for definition in configuration["qdmi"]["devices"]:
     definition["library"] = str((catalogue.parent / definition["library"]).resolve())
+    definition["enabled"] = definition["id"] == "amazon.braket.sv1"
 Path("/opt/provider-catalogue.json").write_text(json.dumps(configuration))
 CATALOGUE

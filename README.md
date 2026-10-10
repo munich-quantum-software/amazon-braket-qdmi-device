@@ -80,5 +80,4 @@ for security and support contacts.
 The provider is licensed under the Apache License 2.0 with LLVM exceptions; see
 [LICENSE](LICENSE). Provider integration fixtures in [test/slurm/](test/slurm/)
 retain their GPL-3.0-or-later license; see
-[test/slurm/LICENSE.md](test/slurm/LICENSE.md). The optional shared SPANK
-component is maintained by MQT Core.
+[test/slurm/LICENSE.md](test/slurm/LICENSE.md).

@@ -22,30 +22,8 @@ services:
       args:
         PROVIDER_INSTALL_MODE: ${PROVIDER_INSTALL_MODE:-native}
         PROVIDER_RUNTIME_COMPONENT: amazon-braket-qdmi-device_Runtime
-    depends_on:
-      braket:
-        condition: service_healthy
-  node:
-    depends_on:
-      braket:
-        condition: service_healthy
-  braket:
-    image: python:3.14-slim
-    command:
-      [python, /workload/test/slurm/mock_braket_backend.py, --host, 0.0.0.0]
-    volumes:
-      - ${MQT_CORE_SLURM_WORKLOAD}:/workload:ro
-    healthcheck:
-      test:
-        [
-          CMD,
-          python,
-          -c,
-          "import urllib.request; urllib.request.urlopen('http://localhost:18080/health')",
-        ]
-      interval: 2s
-      timeout: 2s
-      retries: 30
-    networks:
-      default:
-        aliases: [fixture-bucket.braket]
+    environment:
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
+      - AWS_EC2_METADATA_DISABLED=true

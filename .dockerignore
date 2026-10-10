@@ -1,0 +1,20 @@
+# Provider wheel sources and image setup for MQT Core's Slurm build.
+**
+!CMakeLists.txt
+!pyproject.toml
+!README.md
+!LICENSE
+!cmake/
+!cmake/**
+!include/
+!include/**
+!src/
+!src/**
+!python/
+!python/**
+!test/
+!test/slurm/
+!test/slurm/LICENSE.md
+!test/slurm/setup.sh
+**/__pycache__/
+**/*.py[cod]
