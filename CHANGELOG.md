@@ -25,10 +25,11 @@ releases may include breaking changes.
 
 ### Changed
 
-- 💥 Use MQT Core's shared Slurm 25.11+ setup and remove the provider SPANK
-  plugin. Jobs inherit AWS credentials through Slurm's environment; native and
-  wheel smoke tests each submit eight shots through Qiskit and PennyLane to SV1
-  ([#237]) ([**@flowerthrower**], [**@burgholzer**])
+- 💥 Use MQT Core's shared Slurm 25.11+ setup with Python 3.15 and availability
+  monitoring. All QDMI device implementations share one environment; no device
+  SPANK plugin is required. Jobs inherit AWS credentials through Slurm's
+  environment; native and wheel smoke tests each submit eight shots through
+  Qiskit and PennyLane to SV1 ([#237]) ([**@flowerthrower**], [**@burgholzer**])
 
 - 👷 Run GitHub Actions, documentation, and Slurm fixture builds on Ubuntu 26.04
   with Slurm 25.11, shared OpenSSL on Linux, and OpenSSL 3 in macOS C++ CI

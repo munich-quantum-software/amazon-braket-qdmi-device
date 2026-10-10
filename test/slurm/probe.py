@@ -20,9 +20,13 @@
 
 from __future__ import annotations
 
+import json
+import os
+from pathlib import Path
+
 import pennylane as qp
 from mqt.core.plugins.pennylane import QDMIDevice
-from provider_probe import open_device_from_license  # ty: ignore[unresolved-import]
+from mqt.core.qdmi import slurm
 from qiskit import QuantumCircuit
 
 from amazon.braket.qdmi.qiskit import AmazonBraketBackend
@@ -30,7 +34,10 @@ from amazon.braket.qdmi.qiskit import AmazonBraketBackend
 
 def main() -> None:
     """Reuse the licensed handle and retrieve results through each adapter."""
-    device = open_device_from_license()
+    device = slurm.open_device_from_license()
+    catalogue = json.loads(Path(os.environ["MQT_CORE_QDMI_CONFIG_FILE"]).read_text(encoding="utf-8"))
+    library = next(item["library"] for item in catalogue["qdmi"]["devices"] if item["id"] == "amazon.braket.sv1")
+    assert str(Path(library).resolve()) in Path("/proc/self/maps").read_text(encoding="utf-8")
 
     backend = AmazonBraketBackend(device=device)
     circuit = QuantumCircuit(2)
