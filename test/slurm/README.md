@@ -37,3 +37,8 @@ arguments, and logs. CI receives the same three secrets and reports an explicit
 skip when the access key or secret key is unavailable.
 
 See [Amazon Braket on Slurm](../../docs/slurm.md) for deployment.
+
+For IQM and Braket jobs on the same cluster, use the
+[MQT Core multi-vendor example](https://github.com/munich-quantum-toolkit/core/tree/main/docker/slurm#multiple-device-implementations).
+Each device environment has its own catalogue and credentials.
+`setup.sh [OUTPUT]` writes the catalogue to the chosen path.

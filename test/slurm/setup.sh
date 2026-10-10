@@ -19,9 +19,10 @@
 
 set -eu
 
-python3 - <<'CATALOGUE'
+python3 - "${1:-/opt/provider-catalogue.json}" <<'CATALOGUE'
 import json
 import os
+import sys
 from pathlib import Path
 from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_CATALOG_PATH
 
@@ -32,5 +33,5 @@ configuration = json.loads(catalogue.read_text())
 for definition in configuration["qdmi"]["devices"]:
     definition["library"] = str((catalogue.parent / definition["library"]).resolve())
     definition["enabled"] = definition["id"] == "amazon.braket.sv1"
-Path("/opt/provider-catalogue.json").write_text(json.dumps(configuration))
+Path(sys.argv[1]).write_text(json.dumps(configuration))
 CATALOGUE
