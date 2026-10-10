@@ -147,11 +147,10 @@ device ARN. Also restrict task inspection and result-bucket access to the
 required resources. See the [Amazon Braket service authorization reference] and
 the [device access guide].
 
-MQT Core's optional SPANK module supplies default catalogue paths and AWS
-configuration references. It does not distribute credentials, load the device
-implementation, or grant AWS permissions. A profile, file, workload identity, or
-node role that it references must already be available to the job user. See
-{doc}`slurm` for cluster setup and job examples.
+Set catalogue paths and AWS configuration in the job environment. The selected
+profile, credential file, workload identity, or node role must be available to
+the job user on the compute node. See {doc}`slurm` for cluster setup and job
+examples.
 
 ## CMake options
 

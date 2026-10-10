@@ -19,6 +19,5 @@ The core Amazon Braket QDMI library and Python package are licensed under the
 Apache License 2.0 with LLVM exceptions; see the repository's
 [LICENSE](../LICENSE).
 
-The shared optional SPANK component is maintained and licensed by MQT Core.
 Provider integration fixtures retain their GPL-3.0-or-later license in
 [test/slurm/LICENSE.md](https://github.com/munich-quantum-software/amazon-braket-qdmi-device/blob/main/test/slurm/LICENSE.md).

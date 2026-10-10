@@ -1,9 +1,9 @@
 # Amazon Braket Slurm smoke test
 
-This test runs Qiskit and PennyLane workloads against local Braket/S3 HTTP
-responses in
+This test runs Qiskit and PennyLane workloads against Amazon Braket SV1 in
 [MQT Core's Docker Slurm cluster](https://github.com/munich-quantum-toolkit/core/tree/main/docker/slurm).
-All AWS requests stay inside the fixture network.
+It requires AWS credentials with Braket and S3 access in `us-east-1`. Each
+installation mode submits two tasks with eight shots each; AWS charges apply.
 
 Use the MQT Core revision pinned in the Slurm workflow and build its Linux wheel
 with `uv build --wheel --out-dir "$CORE_DIST" -Ccmake.define.DEPLOY=ON` from
@@ -19,23 +19,21 @@ PROVIDER_INSTALL_MODE=native uv run --no-project \
   --compose-file test/slurm/compose.yml \
   --device-license amazon.braket.sv1 \
   --qdmi-config-file /opt/provider-catalogue.json \
-  --reference AWS_EC2_METADATA_DISABLED=true \
-  --reference AWS_ENDPOINT_URL_BRAKET=http://braket:18080 \
-  --reference AWS_ENDPOINT_URL_S3=http://braket:18080 \
-  --reference AWS_PROFILE=spank-test \
-  --reference AWS_CONFIG_FILE=/workload/test/slurm/aws_config \
-  --reference AMZN_BRAKET_TASK_RESULTS_S3_URI=s3://fixture-bucket/tasks \
-  -- python3 /workload/test/slurm/probe.py
+  -- sh -ec 'mqt-core-qdmi-check --device amazon.braket.sv1 --timeout 30; exec python3 /workload/test/slurm/probe.py'
 ```
 
 Repeat with `PROVIDER_INSTALL_MODE=wheel`. Both modes install the Python
 adapters. Native mode selects the separately installed Runtime catalogue; wheel
 mode selects the bundled library. The workload checks the loaded library path
 and submits and retrieves eight Bell-state shots through each SDK. The workload
-runs as an unprivileged user, once with explicit job configuration and once with
-site defaults.
+runs as an unprivileged user. Only the `amazon.braket.sv1` catalogue entry is
+enabled, using the standard regional S3 result bucket.
 
-The mock accepts only dummy AWS credentials returned by the local credential
-process. Do not pass real AWS credentials or endpoints to this fixture.
+Export `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and, for temporary
+credentials, `AWS_SESSION_TOKEN` before running the command. The Compose overlay
+passes them to the controller at runtime; Slurm exports them to the job. Use
+short-lived credentials and keep their values out of command arguments, build
+arguments, and logs. CI receives the same three secrets and reports an explicit
+skip when the access key or secret key is unavailable.
 
 See [Amazon Braket on Slurm](../../docs/slurm.md) for deployment.

@@ -2,9 +2,9 @@
 
 Use
 [MQT Core's Slurm integration](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm.html)
-for cluster setup, device licenses, optional site defaults, and a reusable
-Docker cluster. Slurm schedules the job; the Amazon Braket QDMI device
-implementation handles AWS authentication and quantum tasks.
+for cluster setup, device licenses, job environments, and a reusable Docker
+cluster. Slurm schedules the job; the Amazon Braket QDMI device implementation
+handles AWS authentication and quantum tasks.
 
 ## Install and configure the device
 
@@ -39,9 +39,9 @@ the job environment when selecting a profile. Make its configuration and
 credential sources available on compute nodes.
 
 Use [result-storage configuration](configuration.md) for S3 permissions and
-optional destination overrides. Keep credentials out of Slurm configuration. MQT
-Core's optional SPANK module can supply non-secret defaults such as profile
-names and paths; the job environment takes precedence.
+optional destination overrides. Keep credentials out of Slurm configuration. Set
+profile names and configuration paths in the job environment; Slurm exports the
+submission environment to the workload.
 
 ## Run a job
 
@@ -85,6 +85,6 @@ quantum tasks independently of Slurm accounting.
 
 The
 [Slurm smoke test](https://github.com/munich-quantum-software/amazon-braket-qdmi-device/tree/main/test/slurm)
-uses local Braket/S3 HTTP responses and MQT Core's Docker cluster. It checks
-native and wheel installations through Qiskit and PennyLane without contacting
-AWS. Follow its README to run it.
+uses SV1 and MQT Core's Docker cluster. It checks native and wheel installations
+through Qiskit and PennyLane, submitting two eight-shot tasks per mode. It
+requires AWS credentials, and AWS charges apply. Follow its README to run it.

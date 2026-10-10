@@ -157,7 +157,7 @@ remote_device = QDMIDevice(
 )
 ```
 
-See {doc}`slurm` for the complete deployment and optional plugin setup.
+See {doc}`slurm` for the complete deployment and job setup.
 
 ## Execution boundary
 
