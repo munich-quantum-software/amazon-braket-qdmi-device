@@ -28,10 +28,11 @@ releases may include breaking changes.
 - ⬆️ Pin QDMI v1.4.0 and the matching MQT Core main commit while keeping the
   Core source build temporary until 4.1.0 ([#263]) ([**@burgholzer**]).
 - 💥 Use MQT Core's shared Slurm 25.11+ setup with Python 3.15 and availability
-  monitoring. All QDMI device implementations share one environment; no device
-  SPANK plugin is required. Jobs inherit AWS credentials through Slurm's
-  environment; native and wheel smoke tests each submit eight shots through
-  Qiskit and PennyLane to SV1 ([#237]) ([**@flowerthrower**], [**@burgholzer**])
+  monitoring. Jobs use vendor-specific quantum-access partitions and one shared
+  environment for all QDMI device implementations; no device SPANK plugin is
+  required. Jobs inherit AWS credentials through Slurm's environment; native and
+  wheel smoke tests each submit eight shots through Qiskit and PennyLane to SV1
+  ([#237]) ([**@flowerthrower**], [**@burgholzer**])
 
 - 👷 Run GitHub Actions, documentation, and Slurm fixture builds on Ubuntu 26.04
   with Slurm 25.11, shared OpenSSL on Linux, and OpenSSL 3 in macOS C++ CI
