@@ -1,11 +1,15 @@
 # Amazon Braket on Slurm
 
-[MQT Core's Slurm integration](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm.html)
-provides the cluster configuration, device licenses, and availability monitor.
-Cluster administrators install Amazon Braket alongside the other QDMI device
-implementations in one workload environment on login and compute nodes. MQT
-Core's driver opens the device selected by the job's license; the Amazon Braket
-implementation handles AWS authentication and quantum tasks.
+[MQT Core's shared Slurm example](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm.html)
+configures device licenses and availability monitoring. Cluster administrators
+install Amazon Braket alongside the other QDMI device implementations in one
+workload environment on login and quantum access nodes. Applications open a
+catalogue ID through MQT Core's driver; the Amazon Braket implementation handles
+AWS authentication and quantum tasks.
+
+The shared `quantum` partition contains interchangeable quantum access nodes.
+Each node can reach every configured device; the catalogue ID selects the device
+independently of the node running the job.
 
 ## Configure AWS access
 
@@ -48,11 +52,11 @@ committed scripts.
 Save this Qiskit workload as `bell.py`:
 
 ```python
-from mqt.core.qdmi import slurm
+from mqt.core.qdmi import builtin_driver
 from qiskit import QuantumCircuit
 from amazon.braket.qdmi.qiskit import AmazonBraketBackend
 
-backend = AmazonBraketBackend(device=slurm.open_device_from_license())
+backend = AmazonBraketBackend(device=builtin_driver.open_device("amazon.braket.sv1"))
 circuit = QuantumCircuit(2)
 circuit.h(0)
 circuit.cx(0, 1)
@@ -61,19 +65,20 @@ print(backend.run(circuit, shots=100).result().get_counts())
 ```
 
 With the site environment and your credentials available, submit the job to the
-site's quantum-access partition (`braket` in the shared cluster example):
+site's quantum partition (`quantum` in the shared cluster example). Request the
+license matching the device ID opened by the application:
 
 ```console
-srun --partition=braket --licenses=amazon.braket.sv1 python bell.py
+srun --partition=quantum --licenses=amazon.braket.sv1 python bell.py
 ```
 
 For PennyLane, pass the selected device to MQT Core's adapter:
 
 ```python
 from mqt.core.plugins.pennylane import QDMIDevice
-from mqt.core.qdmi import slurm
+from mqt.core.qdmi import builtin_driver
 
-device = QDMIDevice(device=slurm.open_device_from_license(), wires=2)
+device = QDMIDevice(device=builtin_driver.open_device("amazon.braket.sv1"), wires=2)
 ```
 
 See the [PennyLane guide](pennylane.md) for circuits and result handling. AWS

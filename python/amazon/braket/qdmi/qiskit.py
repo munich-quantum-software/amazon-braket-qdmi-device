@@ -66,8 +66,7 @@ class AmazonBraketBackend(QDMIBackend):
 
     Args:
         device_id: Stable ID from the packaged Amazon Braket device catalogue.
-        device: An already-open Amazon Braket QDMI device, such as a device
-            selected from a Slurm license.
+        device: An already-open Amazon Braket QDMI device.
         device_arn: Optional ARN override. The generic device requires an ARN.
         region: Optional AWS Region override.
         reservation_arn: Optional Amazon Braket reservation ARN.
