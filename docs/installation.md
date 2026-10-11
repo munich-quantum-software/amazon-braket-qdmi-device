@@ -94,9 +94,10 @@ cmake --build build
 
 The installed CMake target identifies its device manifest through
 `QDMI_MANIFEST_NAME`. The manifest contains the stable device IDs, symbol
-prefix, and relative library paths. An application using MQT Core can copy the
-device library and manifest beside its executable. This integration requires
-CMake 3.28 or later:
+prefix, and relative library paths. An application using the pinned MQT Core
+source build can copy the device library and manifest beside its executable.
+Released Core 4.0.x packages lack this helper. This integration requires CMake
+3.28 or later:
 
 ```cmake
 find_package(mqt-core 4.0.0 CONFIG REQUIRED)
@@ -174,9 +175,8 @@ role that it references must already be available to the job user. See
 
 ## Temporary development dependencies
 
-This repository currently pins QDMI #509 and MQT Core #2373 commits to exercise
-native multi-program jobs and installed device discovery. Replace both pins with
-suitable releases and regenerate `uv.lock` before publishing. Remove the
-temporary LLVM/MLIR setup from Python CI, Read the Docs, and Linux wheel-test
-containers once Core wheels are available for these APIs. Native-only device
-builds do not require LLVM/MLIR.
+This repository pins the QDMI v1.4.0 release commit and a current MQT Core
+source commit. Replace the Core pin with a 4.1 release and regenerate `uv.lock`
+before publishing. Remove the temporary LLVM/MLIR setup from Python CI, Read the
+Docs, and Linux wheel-test containers once Core wheels are available for these
+APIs. Native-only device builds do not require LLVM/MLIR.
