@@ -19,6 +19,8 @@ permissions:
 jobs:
   slurm-tests:
     name: Slurm native and wheel smoke tests
+    # Only a manual run from main may override the event commit.
+    if: inputs.reviewed-sha == '' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-26.04
     timeout-minutes: 45
     steps:
@@ -26,7 +28,7 @@ jobs:
         with:
           persist-credentials: false
           path: provider
-          ref: ${{ inputs.reviewed-sha }}
+          ref: ${{ inputs.reviewed-sha || github.sha }}
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
