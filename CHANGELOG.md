@@ -30,6 +30,7 @@ releases may include breaking changes.
 
 - ⬆️ Pin QDMI v1.4.0 and the matching MQT Core main commit while keeping the
   Core source build temporary until 4.1.0 ([#263]) ([**@burgholzer**]).
+
 - 💥 Run Amazon Braket jobs in MQT Core's shared Slurm example, using one
   `quantum` partition and one environment for all QDMI device implementations.
   Slurm licenses schedule access, and the cluster monitors device availability

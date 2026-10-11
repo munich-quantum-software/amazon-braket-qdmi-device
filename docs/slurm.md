@@ -9,7 +9,9 @@ use, then open that device through the QDMI Client Interface.
 Save this Qiskit workload as `bell.py`. The Python example uses MQT Core's
 builtin QDMI driver and the Amazon Braket adapter:
 
-```python
+```{code-block} python
+:caption: bell.py
+
 import os
 
 from mqt.core.qdmi import builtin_driver as qdmi_driver
@@ -28,7 +30,7 @@ print(backend.run(circuit, shots=100).result().get_counts())
 
 Submit it to your site's quantum access partition, named `quantum` here:
 
-```console
+```bash
 srun --partition=quantum --licenses=amazon.braket.sv1 python bell.py
 ```
 
@@ -66,7 +68,7 @@ committed scripts.
 Administrators install the [Python package](installation.md) and adapters in the
 workload environment available on login and quantum access nodes:
 
-```console
+```bash
 uv pip install 'amazon-braket-qdmi[qiskit,pennylane]'
 ```
 

@@ -90,12 +90,12 @@ cmake --build build
 ## MQT Core integration
 
 MQT Core implements the QDMI Client Interface and loads this device library
-through its builtin driver. The installed CMake target identifies its device manifest through
-`QDMI_MANIFEST_NAME`. The manifest contains the stable device IDs, symbol
-prefix, and relative library paths. An application using the pinned MQT Core
-source build can copy the device library and manifest beside its executable.
-Released Core 4.0.x packages lack this helper. This integration requires CMake
-3.28 or later:
+through its builtin driver. The installed CMake target identifies its device
+manifest through `QDMI_MANIFEST_NAME`. The manifest contains the stable device
+IDs, symbol prefix, and relative library paths. An application using the pinned
+MQT Core source build can copy the device library and manifest beside its
+executable. This integration requires CMake 3.28 or later and the pinned MQT
+Core source build until MQT Core 4.1 is released:
 
 ```cmake
 find_package(mqt-core 4.0.0 CONFIG REQUIRED)
@@ -137,9 +137,6 @@ setup and job examples.
 | `BUILD_AMAZON_BRAKET_LIVE_TESTS`          | `OFF`   | Register tests that access AWS and may submit paid tasks      |
 | `USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE` | `OFF`   | Use an installed device library when building tests           |
 | `CMAKE_PREFIX_PATH`                       | --      | Search prefix for installed dependencies                      |
-
-[Amazon Braket service authorization reference]: https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonbraket.html
-[device access guide]: https://docs.aws.amazon.com/braket/latest/developerguide/restrict-access.html
 
 ## Temporary development dependencies
 
