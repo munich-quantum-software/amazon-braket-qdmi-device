@@ -122,7 +122,7 @@ jobs:
     name: 🐍 Lint
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-python-linter)
-    # Temporary local setup while Core is built from source for PR #2229.
+    # Temporary local setup while Core requires a source build before 4.1.
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -156,7 +156,7 @@ jobs:
     uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-cibuildwheel.yml@fd3d75dece69c363989347869529a5e99cdcfffc # v2.5.1
     with:
       runs-on: ${{ matrix.runs-on }}
-      # Temporary while MQT Core is pinned to PR #2229.
+      # Temporary while MQT Core is pinned to a pre-4.1 source commit.
       setup-mlir: true
       llvm-version: 23.1.2
 
