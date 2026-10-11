@@ -25,6 +25,9 @@ releases may include breaking changes.
 
 ### Changed
 
+- ⬆️ Pin QDMI v1.4.0 and the matching MQT Core main commit while keeping the
+  Core source build temporary until 4.1.0 ([#263]) ([**@burgholzer**]).
+
 - 👷 Run GitHub Actions, documentation, and Slurm fixture builds on Ubuntu 26.04
   with Slurm 25.11, shared OpenSSL on Linux, and OpenSSL 3 in macOS C++ CI
   ([#233]) ([**@denialhaag**], [**@burgholzer**])
@@ -189,6 +192,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#263]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/263
 [#258]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/258
 [#245]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/245
 [#244]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/244
