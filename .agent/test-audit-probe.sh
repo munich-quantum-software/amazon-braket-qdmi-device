@@ -44,7 +44,6 @@ readonly runner_log="${scratch_directory}/runner.log"
 readonly command_output="${scratch_directory}/command.out"
 
 mkdir -p "${primary_repository}/.agent" "${primary_repository}/src" \
-  "${primary_repository}/spank" \
   "${primary_repository}/test/python" "${stub_directory}" \
   "${probe_tmp_directory}"
 cp -- "${probe_source}" "${primary_repository}/.agent/audit-probe.sh"
@@ -61,14 +60,6 @@ EOF
 cat >"${primary_repository}/CMakeLists.txt" <<'EOF'
 cmake_minimum_required(VERSION 3.20)
 project(audit_probe_fixture LANGUAGES CXX)
-EOF
-cat >"${primary_repository}/spank/Dockerfile" <<'EOF'
-FROM scratch
-EOF
-cat >"${primary_repository}/spank/spank.cpp" <<'EOF'
-int spank_probe() {
-  return 1;
-}
 EOF
 cat >"${primary_repository}/.gitignore" <<'EOF'
 .env-private
@@ -99,7 +90,6 @@ readonly baseline
 readonly source_file="${audit_worktree}/src/sample.py"
 readonly expected_source=$'def answer():\n    return 1'
 readonly expected_cmake=$'cmake_minimum_required(VERSION 3.20)\nproject(audit_probe_fixture LANGUAGES CXX)'
-readonly expected_spank_source=$'int spank_probe() {\n  return 1;\n}'
 
 cat >"${stub_directory}/verify-offline-aws" <<'EOF'
 #!/usr/bin/env bash
@@ -267,89 +257,6 @@ exit 98
 EOF
 chmod +x "${stub_directory}/ctest"
 
-cat >"${stub_directory}/docker" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-
-verify-offline-aws
-
-printf 'docker' >>"${AUDIT_PROBE_SELF_TEST_LOG}"
-printf ' <%s>' "$@" >>"${AUDIT_PROBE_SELF_TEST_LOG}"
-printf '\n' >>"${AUDIT_PROBE_SELF_TEST_LOG}"
-
-case "${1-}" in
-  image)
-    [[ "${2-}" == "rm" ]] || exit 99
-    exit 0
-    ;;
-  build)
-    iid_file=""
-    previous=""
-    for argument in "$@"; do
-      if [[ "${previous}" == "--iidfile" ]]; then
-        iid_file=${argument}
-      fi
-      previous=${argument}
-    done
-    context=${!#}
-    [[ -n "${iid_file}" ]] || exit 100
-    [[ ! -e "${context}/.git" ]] || {
-      echo "Docker context leaked Git metadata" >&2
-      exit 101
-    }
-    [[ ! -e "${context}/.env-private" ]] || {
-      echo "Docker context leaked an ignored private environment file" >&2
-      exit 102
-    }
-    [[ ! -e "${context}/build-private" ]] || {
-      echo "Docker context leaked an ignored build cache" >&2
-      exit 103
-    }
-    if grep -Fxq "  return 1;" "${context}/spank/spank.cpp"; then
-      echo "docker-phase baseline-build" >>"${AUDIT_PROBE_SELF_TEST_LOG}"
-      echo "sha256:baseline" >"${iid_file}"
-      exit 0
-    fi
-    grep -Fxq "  return 0;" "${context}/spank/spank.cpp" || exit 104
-    echo "docker-phase fault-build" >>"${AUDIT_PROBE_SELF_TEST_LOG}"
-    if [[ "${AUDIT_PROBE_SELF_TEST_DOCKER_BUILD_ERROR-}" == "yes" ]]; then
-      exit 1
-    fi
-    if [[ "${AUDIT_PROBE_SELF_TEST_DOCKER_MISSING_IID-}" == "yes" ]]; then
-      exit 0
-    fi
-    echo "sha256:fault" >"${iid_file}"
-    exit 0
-    ;;
-  run)
-    image_id=${!#}
-    case "${image_id}" in
-      sha256:baseline)
-        echo "docker-phase baseline-suite" >>"${AUDIT_PROBE_SELF_TEST_LOG}"
-        exit 0
-        ;;
-      sha256:fault)
-        echo "docker-phase fault-suite" >>"${AUDIT_PROBE_SELF_TEST_LOG}"
-        if [[ -n "${AUDIT_PROBE_SELF_TEST_DOCKER_FAULT_STATUS-}" ]]; then
-          exit "${AUDIT_PROBE_SELF_TEST_DOCKER_FAULT_STATUS}"
-        fi
-        if [[ "${AUDIT_PROBE_SELF_TEST_DOCKER_FAULT_ERROR-}" == "yes" ]]; then
-          exit 125
-        fi
-        if [[ "${AUDIT_PROBE_SELF_TEST_DOCKER_MUTANT_KILLED-}" == "yes" ]]; then
-          echo "=== Verifying configuration references stay out of Slurm daemons ==="
-          exit 1
-        fi
-        exit 0
-        ;;
-      *) exit 105 ;;
-    esac
-    ;;
-  *) exit 106 ;;
-esac
-EOF
-chmod +x "${stub_directory}/docker"
-
 clear_live_environment() {
   unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
   unset AWS_SECURITY_TOKEN AWS_WEB_IDENTITY_TOKEN_FILE AWS_ROLE_ARN
@@ -374,11 +281,6 @@ run_probe_from() {
   readonly fault_runner_error=${AUDIT_PROBE_SELF_TEST_FAULT_RUNNER_ERROR-}
   readonly collateral_mutation=${AUDIT_PROBE_SELF_TEST_COLLATERAL_MUTATION-}
   readonly ctest_no_match=${AUDIT_PROBE_SELF_TEST_CTEST_NO_MATCH-}
-  readonly docker_fault_error=${AUDIT_PROBE_SELF_TEST_DOCKER_FAULT_ERROR-}
-  readonly docker_mutant_killed=${AUDIT_PROBE_SELF_TEST_DOCKER_MUTANT_KILLED-}
-  readonly docker_build_error=${AUDIT_PROBE_SELF_TEST_DOCKER_BUILD_ERROR-}
-  readonly docker_missing_iid=${AUDIT_PROBE_SELF_TEST_DOCKER_MISSING_IID-}
-  readonly docker_fault_status=${AUDIT_PROBE_SELF_TEST_DOCKER_FAULT_STATUS-}
   readonly wait_after_fault=${AUDIT_PROBE_SELF_TEST_WAIT_AFTER_FAULT-}
   readonly start_new_session=${AUDIT_PROBE_SELF_TEST_NEW_SESSION-}
   clear_live_environment
@@ -395,11 +297,6 @@ run_probe_from() {
   export AUDIT_PROBE_SELF_TEST_FAULT_RUNNER_ERROR="${fault_runner_error}"
   export AUDIT_PROBE_SELF_TEST_COLLATERAL_MUTATION="${collateral_mutation}"
   export AUDIT_PROBE_SELF_TEST_CTEST_NO_MATCH="${ctest_no_match}"
-  export AUDIT_PROBE_SELF_TEST_DOCKER_FAULT_ERROR="${docker_fault_error}"
-  export AUDIT_PROBE_SELF_TEST_DOCKER_MUTANT_KILLED="${docker_mutant_killed}"
-  export AUDIT_PROBE_SELF_TEST_DOCKER_BUILD_ERROR="${docker_build_error}"
-  export AUDIT_PROBE_SELF_TEST_DOCKER_MISSING_IID="${docker_missing_iid}"
-  export AUDIT_PROBE_SELF_TEST_DOCKER_FAULT_STATUS="${docker_fault_status}"
   export AUDIT_PROBE_SELF_TEST_WAIT_AFTER_FAULT="${wait_after_fault}"
   export AUDIT_PROBE_SELF_TEST_FAULT_MARKER="${scratch_directory}/fault-started"
   cd -- "${target_worktree}"
@@ -422,8 +319,6 @@ assert_clean_and_restored() {
     fail "probe did not restore the injected source file"
   [[ "$(<"${audit_worktree}/CMakeLists.txt")" == "${expected_cmake}" ]] ||
     fail "probe did not restore collateral tracked-file changes"
-  [[ "$(<"${audit_worktree}/spank/spank.cpp")" == "${expected_spank_source}" ]] ||
-    fail "probe did not restore the SPANK production source"
   [[ ! -e "${audit_worktree}/generated-collateral.txt" ]] ||
     fail "probe did not remove a command-created untracked file"
   grep -Fxq 'private-value-must-not-enter-context' "${audit_worktree}/.env-private" ||
@@ -498,10 +393,6 @@ expect_failure "invalid omission range" 'omit|line|range|beyond' \
   run_probe t1 --expected-baseline "${baseline}" --lang python \
   --source src --tests test/python --omit src/sample.py:999
 [[ ! -s "${runner_log}" ]] || fail "invalid omission still ran a test tool"
-expect_failure "unsafe SPANK injection target" 'SPANK|production|source|spank' \
-  run_probe t2 --expected-baseline "${baseline}" --lang spank \
-  --inject spank/Dockerfile:1 --with 'FROM scratch'
-[[ ! -s "${runner_log}" ]] || fail "unsafe SPANK injection target still ran Docker"
 assert_clean_and_restored
 
 echo "=== Reporting exact source-scoped T1 totals and deltas ==="
@@ -685,98 +576,6 @@ grep -Fxq 'ctest-phase baseline-suite' "${runner_log}" ||
 ! grep -Fq '=== SpecAudit probe:' "${command_output}" ||
   fail "empty CTest selection produced a verdict evidence block"
 assert_clean_and_restored
-
-echo "=== Building SPANK from a tracked-only Docker context ==="
-: >"${runner_log}"
-run_probe t2 --expected-baseline "${baseline}" --lang spank \
-  --inject spank/spank.cpp:2 --with "  return 0;" \
-  >"${command_output}" 2>&1
-for phase in baseline-build baseline-suite fault-build fault-suite; do
-  grep -Fxq "docker-phase ${phase}" "${runner_log}" ||
-    fail "SPANK probe missed Docker phase ${phase}"
-done
-grep -Fxq 'fault suite     : pass' "${command_output}" ||
-  fail "SPANK probe did not record the surviving mutant"
-assert_clean_and_restored
-
-echo "=== Treating a SPANK container failure as infrastructure failure ==="
-: >"${runner_log}"
-AUDIT_PROBE_SELF_TEST_DOCKER_FAULT_ERROR=yes \
-  expect_failure "SPANK infrastructure failure" 'Docker|infrastructure|complete|valid' \
-    run_probe t2 --expected-baseline "${baseline}" --lang spank \
-    --inject spank/spank.cpp:2 --with "  return 0;"
-grep -Fxq 'fault suite     : infrastructure-error' "${command_output}" ||
-  fail "SPANK container failure was not classified as infrastructure failure"
-grep -Fxq 'failing tests   : 0' "${command_output}" ||
-  fail "SPANK infrastructure failure invented a failing test"
-! grep -Fq 'detects the injected fault' "${command_output}" ||
-  fail "SPANK infrastructure failure incorrectly supported a detection verdict"
-assert_clean_and_restored
-
-echo "=== Treating a signalled SPANK container as infrastructure failure ==="
-: >"${runner_log}"
-AUDIT_PROBE_SELF_TEST_DOCKER_FAULT_STATUS=137 \
-  expect_failure "SPANK signalled-container failure" 'Docker|infrastructure|complete|valid' \
-    run_probe t2 --expected-baseline "${baseline}" --lang spank \
-    --inject spank/spank.cpp:2 --with "  return 0;"
-grep -Fxq 'fault suite     : infrastructure-error' "${command_output}" ||
-  fail "SPANK signal exit was not classified as infrastructure failure"
-grep -Fxq 'failing tests   : 0' "${command_output}" ||
-  fail "SPANK signal exit invented a failing test"
-! grep -Fq 'detects the injected fault' "${command_output}" ||
-  fail "SPANK signal exit incorrectly supported a detection verdict"
-assert_clean_and_restored
-
-echo "=== Treating a SPANK Docker build failure as infrastructure ==="
-: >"${runner_log}"
-AUDIT_PROBE_SELF_TEST_DOCKER_BUILD_ERROR=yes \
-  expect_failure "SPANK build infrastructure failure" 'Docker|build|valid|infrastructure' \
-    run_probe t2 --expected-baseline "${baseline}" --lang spank \
-    --inject spank/spank.cpp:2 --with "  return 0;"
-grep -Fxq 'fault build     : infrastructure-error' "${command_output}" ||
-  fail "SPANK build failure was not classified as infrastructure"
-grep -Fxq 'fault suite     : not-run' "${command_output}" ||
-  fail "SPANK build failure incorrectly ran or classified the suite"
-! grep -Fq 'detects the injected fault' "${command_output}" ||
-  fail "SPANK build failure incorrectly supported a detection verdict"
-assert_clean_and_restored
-
-echo "=== Treating a missing SPANK image ID as build infrastructure ==="
-: >"${runner_log}"
-AUDIT_PROBE_SELF_TEST_DOCKER_MISSING_IID=yes \
-  expect_failure "SPANK missing image ID" 'Docker|build|valid|infrastructure' \
-    run_probe t2 --expected-baseline "${baseline}" --lang spank \
-    --inject spank/spank.cpp:2 --with "  return 0;"
-grep -Fxq 'fault build     : infrastructure-error' "${command_output}" ||
-  fail "missing SPANK image ID was not classified as build infrastructure"
-grep -Fxq 'fault suite     : not-run' "${command_output}" ||
-  fail "missing SPANK image ID incorrectly ran or classified the suite"
-! grep -Fq 'docker-phase fault-suite' "${runner_log}" ||
-  fail "missing SPANK image ID still ran the container suite"
-! grep -Fq 'detects the injected fault' "${command_output}" ||
-  fail "missing SPANK image ID incorrectly supported a detection verdict"
-assert_clean_and_restored
-
-echo "=== Treating an ordinary SPANK test exit as a killed mutant ==="
-: >"${runner_log}"
-AUDIT_PROBE_SELF_TEST_DOCKER_MUTANT_KILLED=yes \
-  run_probe t2 --expected-baseline "${baseline}" --lang spank \
-  --inject spank/spank.cpp:2 --with "  return 0;" \
-  >"${command_output}" 2>&1
-grep -Fxq 'fault suite     : fail' "${command_output}" ||
-  fail "ordinary SPANK test exit was not classified as a killed mutant"
-grep -Fxq 'failing tests   : 1' "${command_output}" ||
-  fail "SPANK killed-mutant evidence omitted its failing script count"
-grep -Fxq '  - spank: Verifying configuration references stay out of Slurm daemons' \
-  "${command_output}" || fail "SPANK killed-mutant evidence omitted its sanitized phase"
-grep -Fq 'detects the injected fault' "${command_output}" ||
-  fail "SPANK killed mutant did not produce a detection reading"
-assert_clean_and_restored
-
-echo "=== Documenting Docker cache cleanup limits ==="
-run_probe --help >"${command_output}" 2>&1
-grep -Fq 'BuildKit layers and cache' "${command_output}" ||
-  fail "probe help omitted Docker cache cleanup limitations"
 
 echo "=== Keeping offline probes separated from live AWS state ==="
 : >"${runner_log}"

@@ -1,62 +1,24 @@
 # Amazon Braket on Slurm
 
-[MQT Core's shared Slurm example](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm.html)
-configures device licenses and availability monitoring. Cluster administrators
-install Amazon Braket alongside the other QDMI device implementations in one
-workload environment on login and quantum access nodes. Applications open a
-catalogue ID through MQT Core's driver; the Amazon Braket implementation handles
-AWS authentication and quantum tasks.
+Run a Braket workload in your site's QDMI environment with AWS credentials
+available to the job. Request the Slurm license for the device you intend to
+use, then open that device through the QDMI Client Interface.
 
-The shared `quantum` partition contains interchangeable quantum access nodes.
-Each node can reach every configured device; the catalogue ID selects the device
-independently of the node running the job.
+## Submit a job
 
-## Configure AWS access
-
-Install the [Python package](installation.md) with its Qiskit adapter:
-
-```console
-uv pip install 'amazon-braket-qdmi[qiskit]'
-```
-
-MQT Core discovers the installed device catalogue from the Python package. For
-the unreleased QDMI 1.4 and MQT Core 4.1 interfaces, build the repositories'
-current source revisions together as shown in the
-[shared cluster example](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm_cluster.html).
-Native installations need a readable catalogue and library on each compute node;
-retain the Python package for framework adapters. Administrators can put shared
-non-secret settings in `/etc/mqt-core/qdmi.json`, which MQT Core reads
-automatically, and make the workload environment available through the site
-defaults or a software module.
-
-Choose a [catalogue ID](device_catalog.md), such as `amazon.braket.sv1`, and
-register it as a Slurm license. `Licenses=amazon.braket.sv1:2` permits two
-concurrent allocations. The cluster's availability monitor reserves the licenses
-while this device is unavailable. Slurm license counts are separate from AWS
-quotas and authorization.
-
-The device implementation uses the [AWS credential chain](configuration.md).
-Prefer short-lived credentials through a role or profile. Select your profile
-with `AWS_PROFILE` in the submission environment when needed, and make its
-configuration and credential sources available on compute nodes. Configure the
-availability monitor with separate site-owned AWS credentials. Slurm exports the
-submission environment; AWS credentials and other devices' credentials can
-coexist in the same job environment.
-
-See [result-storage configuration](configuration.md) for S3 permissions and
-optional destination overrides. Keep credentials out of Slurm configuration and
-committed scripts.
-
-## Run a job
-
-Save this Qiskit workload as `bell.py`:
+Save this Qiskit workload as `bell.py`. The Python example uses MQT Core's
+builtin QDMI driver and the Amazon Braket adapter:
 
 ```python
-from mqt.core.qdmi import builtin_driver
+import os
+
+from mqt.core.qdmi import builtin_driver as qdmi_driver
 from qiskit import QuantumCircuit
+
 from amazon.braket.qdmi.qiskit import AmazonBraketBackend
 
-backend = AmazonBraketBackend(device=builtin_driver.open_device("amazon.braket.sv1"))
+device_id = os.environ["SLURM_JOB_LICENSES"].removesuffix(":1")
+backend = AmazonBraketBackend(device=qdmi_driver.open_device(device_id))
 circuit = QuantumCircuit(2)
 circuit.h(0)
 circuit.cx(0, 1)
@@ -64,31 +26,75 @@ circuit.measure_all()
 print(backend.run(circuit, shots=100).result().get_counts())
 ```
 
-With the site environment and your credentials available, submit the job to the
-site's quantum partition (`quantum` in the shared cluster example). Request the
-license matching the device ID opened by the application:
+Submit it to your site's quantum access partition, named `quantum` here:
 
 ```console
 srun --partition=quantum --licenses=amazon.braket.sv1 python bell.py
 ```
 
-For PennyLane, pass the selected device to MQT Core's adapter:
+This example requests one device license. Slurm exposes its ID, optionally with
+the count `:1`, in `SLURM_JOB_LICENSES`. Applications using several devices
+should receive their catalogue IDs explicitly.
+
+For PennyLane, pass the selected device to the adapter:
 
 ```python
 from mqt.core.plugins.pennylane import QDMIDevice
-from mqt.core.qdmi import builtin_driver
+from mqt.core.qdmi import builtin_driver as qdmi_driver
 
-device = QDMIDevice(device=builtin_driver.open_device("amazon.braket.sv1"), wires=2)
+device = QDMIDevice(device=qdmi_driver.open_device(device_id), wires=2)
 ```
 
 See the [PennyLane guide](pennylane.md) for circuits and result handling. AWS
 charges apply to submitted quantum tasks independently of Slurm accounting.
 
-## Exercise the integration
+## Configure AWS access
+
+The device implementation uses the [AWS credential chain](configuration.md).
+Prefer short-lived credentials through a role or profile. Select your profile
+with `AWS_PROFILE` in the submission environment when needed, and make its
+configuration and credential sources available on compute nodes. Slurm exports
+the submission environment; credentials for several device implementations can
+coexist in the same job environment.
+
+See [result-storage configuration](configuration.md) for S3 permissions and
+optional destination overrides. Keep credentials out of Slurm configuration and
+committed scripts.
+
+## Configure the device catalogue
+
+Administrators install the [Python package](installation.md) and adapters in the
+workload environment available on login and quantum access nodes:
+
+```console
+uv pip install 'amazon-braket-qdmi[qiskit,pennylane]'
+```
+
+The Python package advertises its installed device catalogue to MQT Core. Native
+installations need a readable catalogue and library on each compute node; retain
+the Python package for framework adapters. Administrators can put shared
+non-secret settings in `/etc/mqt-core/qdmi.json`, which the builtin driver reads
+automatically, and expose the workload environment through site defaults or a
+software module.
+
+Choose a [catalogue ID](device_catalog.md), such as `amazon.braket.sv1`, and
+register it as a Slurm license. `Licenses=amazon.braket.sv1:2` permits two
+concurrent allocations. Slurm license counts are independent of AWS quotas and
+authorization. An availability monitor can reserve these licenses while the
+device is unavailable; configure it with site-owned AWS credentials separate
+from user credentials.
+
+## Try the shared cluster example
+
+[MQT Core's Slurm cluster example](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm_cluster.html)
+is a demonstrator with one `quantum` partition and one workload environment for
+all QDMI device implementations. Its quantum access nodes can reach every
+configured device, and its availability monitor updates Slurm reservations. The
+guide describes installation from the current QDMI and MQT Core sources.
 
 The
-[Slurm smoke test](https://github.com/munich-quantum-software/amazon-braket-qdmi-device/tree/main/test/slurm)
-runs Qiskit and PennyLane workloads on SV1 for both native and wheel
-installations, submitting two eight-shot tasks per mode. It uses MQT Core's
-shared cluster example, with real Slurm scheduling and AWS authentication. Its
-README describes the credentials and commands; AWS charges apply.
+[Braket Slurm smoke test](https://github.com/munich-quantum-software/amazon-braket-qdmi-device/tree/main/test/slurm)
+uses that cluster to run Qiskit and PennyLane workloads on SV1 for native and
+wheel installations. It submits two eight-shot tasks per mode with real AWS
+authentication. Its README gives the credentials and commands; AWS charges
+apply.

@@ -841,10 +841,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS try {
     return QDMI_ERROR_BADSTATE;
   }
 
-  // Slurm/SPANK can provide session metadata through the environment. These
-  // fallbacks are deliberately applied only when the application did not set
-  // the corresponding API parameter, so explicit application configuration
-  // takes precedence.
+  // Explicit API parameters take precedence over environment configuration.
   const auto applyEnvironmentFallback = [](std::string& destination,
                                            const char* variable) {
     if (destination.empty()) {

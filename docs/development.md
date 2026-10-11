@@ -72,8 +72,8 @@ AWS_PROFILE=hpc-quantum AMAZON_BRAKET_PENNYLANE_LIVE=1 \
   test/python/test_pennylane_qaoa.py -k cost_capped_on_sv1
 ```
 
-The Python version, platform, and explicit-secret restrictions apply only to the
-dedicated CI lane. Local runs use the standard AWS credential provider chain.
+The dedicated CI job sets this opt-in and supplies AWS credentials. An enabled
+test reports authentication failures instead of skipping them.
 
 ## Documentation
 
@@ -90,7 +90,9 @@ Use the same session for link validation:
 uvx nox --non-interactive -s docs -- -b linkcheck
 ```
 
-Generated HTML is written to `docs/_build/html`.
+The documentation executes its notebooks, including a ten-shot SV1 circuit.
+Configure AWS credentials with Braket and S3 access before building. Generated
+HTML is written to `docs/_build/html`.
 
 ## Repository structure
 

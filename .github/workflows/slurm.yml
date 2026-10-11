@@ -3,9 +3,9 @@ on:
   workflow_call:
     secrets:
       AWS_ACCESS_KEY_ID:
-        required: false
+        required: true
       AWS_SECRET_ACCESS_KEY:
-        required: false
+        required: true
       AWS_SESSION_TOKEN:
         required: false
 
@@ -27,7 +27,7 @@ jobs:
         with:
           repository: munich-quantum-toolkit/core
           # Shared Slurm integration from MQT Core #2599 until it is merged.
-          ref: c9be8c8f73e8dca842a5a405cac57b46c0238873
+          ref: db1a6459c1667943fad1bac9c870babb16a6251f
           fetch-depth: 0
           persist-credentials: false
           path: core
@@ -51,11 +51,6 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
         run: |
-          if [[ -z "$AWS_ACCESS_KEY_ID" || -z "$AWS_SECRET_ACCESS_KEY" ]]; then
-            echo "::notice::Skipping Slurm live tests: AWS credentials are unavailable."
-            echo "Slurm live tests skipped: AWS credentials are unavailable." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
           for mode in native wheel; do
             PROVIDER_INSTALL_MODE="$mode" uv run \
               --no-project core/test/slurm/run_integration.py \
@@ -65,6 +60,6 @@ jobs:
               --compose-file provider/test/slurm/compose.yml \
               --device-license amazon.braket.sv1 \
               --qdmi-config-file /opt/provider-catalogue.json \
-              -- python3 /workload/test/slurm/probe.py amazon.braket.sv1
+              -- python3 /workload/test/slurm/workload.py
             echo "Slurm $mode: eight SV1 shots through each of Qiskit and PennyLane passed." >> "$GITHUB_STEP_SUMMARY"
           done

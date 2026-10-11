@@ -41,7 +41,7 @@ The pre-release campaign proceeds in four stages:
    framework and pull request `#183` are on `main`, pin one exact `main` commit
    as the campaign baseline. It must descend from
    `8c2d17eaba1ee4dc87a8da7a751527c451da0086` and contain both changes.
-2. Audit each of the seven scopes below in an independent pull request from the
+2. Audit each of the six scopes below in an independent pull request from the
    same baseline.
 3. After all audits merge, run a fresh cross-scope architecture and release
    review.
@@ -100,8 +100,7 @@ For example, the first distribution assertion at baseline `0123456789ab...` is
 - `AWS` for `aws-auth-region-and-storage`;
 - `TASK` for `quantum-task-jobs-and-results`;
 - `DIST` for `distribution-catalog-and-python-shell`;
-- `PL` for `pennylane-adapter`;
-- `SPANK` for `spank-integration`.
+- `PL` for `pennylane-adapter`.
 
 An ID never changes during reconciliation. New assertions found at a later
 baseline receive IDs with that baseline. If a mixed test belongs to several
@@ -155,12 +154,6 @@ Owns lazy and concrete PennyLane entry points, catalogue and session mapping,
 override precedence, QDMI translation, shots and wires, QAOA behavior, and
 deferred QPU-compilation claims.
 
-### `spank-integration`
-
-Owns the Slurm ABI, licence applicability, environment precedence, credential
-references, failure behavior, container integration, installation, and the
-GPL-3.0-or-later boundary.
-
 Documentation is normally a published promise source for these scopes. CI,
 documentation consistency, and release configuration are examined in the later
 cross-scope review unless they directly assert behavior owned above.
@@ -178,8 +171,8 @@ strongest first.
 1. **External and machine-checked.** A specification this repository does not
    own, or one a tool verifies. Examples include the QDMI revision pinned by
    `cmake/ExternalDependencies.cmake`, the QDMI C ABI, AWS service API
-   contracts, Slurm's SPANK ABI, package metadata schemas, CMake package rules,
-   and the OpenQASM formats advertised through QDMI.
+   contracts, package metadata schemas, CMake package rules, and the OpenQASM
+   formats advertised through QDMI.
 2. **Published.** A promise this project made to users in `README.md`,
    `CHANGELOG.md`, `docs/`, public headers, installed CMake metadata, the device
    catalogue, Python exports, CLI help, or registered entry points.
@@ -351,8 +344,7 @@ uvx nox -s tests -- <pytest-path-or--k-expression>
 ```
 
 Do not use a bare `uv run pytest` against an environment where the compiled
-package was not installed. Run SPANK evidence through its isolated Docker test
-suite.
+package was not installed.
 
 No coverage change is evidence of possible redundancy, not proof. An assertion
 may duplicate line coverage while remaining the only useful oracle.
@@ -387,7 +379,7 @@ evidence.
 
 T3 is a selected set of repeated T2 fault-injection experiments, not a separate
 mutation engine. Use it only for high-value findings. Select several independent
-faults in the one translation unit, Python module, or SPANK unit under audit.
+faults in the one translation unit or Python module under audit.
 
 For each fault, create two disposable detached worktrees at the same immutable
 evidence SHA `E`. In the first, apply only the fault and run the fixed scope
@@ -597,13 +589,12 @@ record before merge. Merging an audit record does not accept its findings.
 
 ## Cross-scope architecture review
 
-After all seven audits merge, use entirely fresh agents to trace:
+After all six audits merge, use entirely fresh agents to trace:
 
 - QDMI ABI through device, session, and job implementation to AWS services;
 - catalogue and install layout through Python discovery and MQT Core to
   PennyLane;
-- Slurm and SPANK configuration through environment transport to the native
-  provider; and
+- environment configuration through transport to the native provider; and
 - documentation and CI promises through executable configuration to release
   artifacts.
 
@@ -651,7 +642,7 @@ accepted verdict and architecture IDs, and the repository instructions.
 
 Group accepted findings by coherent ownership and file overlap. Serialize the
 overlapping native sequence: ABI and session, capabilities, AWS and storage,
-then jobs and results. Order distribution, PennyLane, and SPANK work from the
+then jobs and results. Order distribution and PennyLane work from the
 architecture dependency graph.
 
 Keep separate signed commits for assertion narrowing or removal, production
@@ -666,8 +657,8 @@ not rewrite old experiments. A partial application narrows a finding; it does
 not close the remainder without the maintainer decision described above.
 
 Run targeted offline tests first, then every affected offline C++, Python,
-documentation, SPANK, and lint suite. Run live evidence only when an accepted
-finding requires it and its batch has fresh approval.
+documentation, and lint suite. Run live evidence only when an accepted finding
+requires it and its batch has fresh approval.
 
 No audit assumes a public API change. A change to the QDMI C ABI, stable device
 ID, catalogue entries, custom parameters, Python exports, or PennyLane entry
@@ -677,7 +668,7 @@ migration plan.
 The v1.1.0 release gate closes only when all of these are true:
 
 - Every assertion ID has exactly one owning scope, every census has no pending
-  entries, and all seven audit records plus the architecture review are merged.
+  entries, and all six audit records plus the architecture review are merged.
 - Every verdict and architecture finding has an `Accepted`, `Rejected`, or
   `Deferred` decision and a maintainer-authored reason.
 - Every accepted correctness, contract, ABI, safety, security,
@@ -689,8 +680,8 @@ The v1.1.0 release gate closes only when all of these are true:
   `uv.lock` is regenerated from the declarations, and neither declaration nor
   lockfile retains the temporary Git source.
 - One exact final release-candidate SHA is recorded. The complete offline C++
-  suite, supported Python and minimum-dependency sessions, SPANK Docker suite,
-  documentation build, and `uvx nox -s lint` pass at that SHA.
+  suite, supported Python and minimum-dependency sessions, documentation build,
+  and `uvx nox -s lint` pass at that SHA.
 - Every required live-AWS batch has fresh approval and passes at the same final
   SHA within its Region, task, and shot caps. Batches that are not required are
   recorded as not run, never implied to have passed.

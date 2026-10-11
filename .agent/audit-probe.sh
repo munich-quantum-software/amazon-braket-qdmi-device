@@ -23,10 +23,8 @@ repository_root=$(
 probe_directory=""
 edited_file=""
 edit_backup=""
-docker_images_file=""
 baseline_tree_directory=""
 baseline_backup_ready=no
-spank_context=""
 
 usage() {
   cat <<'EOF'
@@ -39,8 +37,6 @@ Usage:
     --tests TESTS --inject FILE:LINE[-END] --with TEXT
   .agent/audit-probe.sh t2 --expected-baseline SHA --lang cpp \
     --target TARGET --inject FILE:LINE[-END] --with TEXT [--ctest REGEX]
-  .agent/audit-probe.sh t2 --expected-baseline SHA --lang spank \
-    --inject FILE:LINE[-END] --with TEXT
 
 Tiers:
   t1  Coverage delta. Run the selected suite with and without an assertion.
@@ -56,7 +52,7 @@ Required safety option:
       requires a clean, detached linked Git worktree dedicated to the audit.
 
 Selection options:
-  --lang LANG       python, cpp, or spank (SPANK supports t2 only).
+  --lang LANG       python or cpp.
   --source SRC      Repository-relative source file or directory for t1.
   --tests TESTS     Repository-relative pytest path.
   --target TARGET   CMake target for the C++ suite.
@@ -70,8 +66,7 @@ Temporary-edit options:
   --omit SPEC       Repository-relative FILE:LINE or FILE:LINE-END to delete
                     during the second t1 run.
   --inject SPEC     Repository-relative FILE:LINE or FILE:LINE-END to replace
-                    during a t2 run. SPANK probes accept only production
-                    .cpp/.h/.hpp files directly under spank/.
+                    during a t2 run.
   --with TEXT       Replacement text for --inject. An empty value deletes the
                     selected lines. Literal newlines are supported.
 
@@ -80,19 +75,12 @@ Live evidence:
       Acknowledge one bounded live-evidence batch. Both options are required
       together. Offline probes refuse exported AWS credential, Region, result,
       reservation, endpoint, and live-test variables before running anything.
-      SPANK probes always use the repository's local Docker fixture and cannot
-      be live. Its real Slurm/cgroup-v2 suite requires Docker --privileged.
 
 The probe never has a keep mode. It restores its one temporary edit and removes
 all isolated probe state on normal exit, failure, signal, or external timeout.
 It suppresses raw command output so credentials and private AWS identifiers are
 never copied into an audit evidence block.
 
-SPANK builds receive a probe-owned context made exclusively from tracked files
-at the expected baseline, with only the selected fault overlaid. The probe asks
-Docker to remove each resulting image, but shared BuildKit layers and cache are
-daemon-managed and may remain after the probe exits. No worktree-private,
-ignored, Git-metadata, AWS, environment, or build-cache files enter the context.
 Offline child processes also receive probe-owned empty AWS config and credential
 files, no selected profile, and disabled EC2 metadata discovery, so an
 implicit profile in the invoking user's home directory cannot authorize work.
@@ -114,14 +102,6 @@ cleanup() {
 
   restore_all_tracked_state >/dev/null 2>&1 || true
   remove_untracked_additions >/dev/null 2>&1 || true
-
-  if [ -n "${docker_images_file}" ] && [ -f "${docker_images_file}" ] &&
-    command -v docker >/dev/null 2>&1; then
-    while IFS= read -r image_id; do
-      [ -n "${image_id}" ] || continue
-      docker image rm "${image_id}" >/dev/null 2>&1 || true
-    done <"${docker_images_file}"
-  fi
 
   if [ -n "${probe_directory}" ] && [ -d "${probe_directory}" ]; then
     rm -rf -- "${probe_directory}"
@@ -621,56 +601,6 @@ cpp_failure_ids() {
     sanitize_failure_ids
 }
 
-spank_failure_ids() {
-  log=$1
-  candidates=${probe_directory}/spank-failure-candidates
-  sed -n 's/^FAILED \(.*\) - .*/\1/p' "${log}" >"${candidates}"
-  if [ ! -s "${candidates}" ]; then
-    sed -n 's/^=== \(.*\) ===$/spank: \1/p' "${log}" | tail -n 1 >"${candidates}"
-  fi
-  if [ ! -s "${candidates}" ]; then
-    echo "spank/test/run_docker_tests.sh" >"${candidates}"
-  fi
-  sanitize_failure_ids <"${candidates}"
-}
-
-run_spank_suite() {
-  phase=$1
-  spank_failure_stage=none
-  build_log=${probe_directory}/spank-${phase}-build.log
-  suite_log=${probe_directory}/spank-${phase}-suite.log
-  iid_file=${probe_directory}/spank-${phase}.iid
-
-  if docker build --iidfile "${iid_file}" --file "${spank_context}/spank/Dockerfile" \
-    "${spank_context}" >"${build_log}" 2>&1; then
-    command_status=0
-  else
-    command_status=$?
-  fi
-  verify_tracked_state "${edited_file}"
-  if [ "${command_status}" -ne 0 ]; then
-    spank_failure_stage=build
-    return "${command_status}"
-  fi
-  image_id=$(sed -n '1p' "${iid_file}")
-  if [ -z "${image_id}" ]; then
-    spank_failure_stage=build
-    return 2
-  fi
-  printf '%s\n' "${image_id}" >>"${docker_images_file}"
-  if docker run --rm --privileged "${image_id}" >"${suite_log}" 2>&1; then
-    command_status=0
-  else
-    command_status=$?
-  fi
-  verify_tracked_state "${edited_file}"
-  if [ "${command_status}" -ne 0 ]; then
-    spank_failure_stage=suite
-    return "${command_status}"
-  fi
-  return 0
-}
-
 print_header() {
   title=$1
   echo "=== SpecAudit probe: ${title} ==="
@@ -795,8 +725,8 @@ done
 
 [ -n "${expected_baseline}" ] || fail "--expected-baseline is required"
 case "${lang}" in
-  python | cpp | spank) ;;
-  *) fail "--lang must be python, cpp, or spank" ;;
+  python | cpp) ;;
+  *) fail "--lang must be python or cpp" ;;
 esac
 case "${nox_session}" in
   tests | tests-3.11 | tests-3.12 | tests-3.13 | tests-3.14) ;;
@@ -811,7 +741,6 @@ if [ "${live}" = yes ]; then
   case "${batch_id}" in
     *[!A-Za-z0-9_.-]* | [-.]* | '') fail "--batch-id contains unsupported characters" ;;
   esac
-  [ "${lang}" != spank ] || fail "SPANK probes use a local fixture and cannot be live"
   if [ "${lang}" = cpp ]; then
     [ -n "${ctest_filter}" ] || fail "live C++ probes require a bounded --ctest selection"
   fi
@@ -826,7 +755,6 @@ if [ "${live}" = no ] && risky_environment_is_set; then
 fi
 
 if [ "${tier}" = t1 ]; then
-  [ "${lang}" != spank ] || fail "t1 does not support SPANK; use the Docker-backed t2 probe"
   [ -n "${source_path}" ] || fail "t1 requires --source"
   validate_relative_path "${source_path}" "--source"
   if [ "${lang}" = python ]; then
@@ -853,9 +781,6 @@ else
     cpp)
       [ -n "${target}" ] || fail "t2 --lang cpp requires --target"
       ;;
-    spank)
-      command -v docker >/dev/null 2>&1 || fail "SPANK probes require Docker"
-      ;;
   esac
 fi
 
@@ -865,23 +790,10 @@ if [ "${tier}" = t1 ]; then
   fi
 else
   parse_edit_spec "${inject_spec}" "--inject"
-  if [ "${lang}" = spank ]; then
-    case "${parsed_file}" in
-      spank/*.cpp | spank/*.h | spank/*.hpp)
-        spank_relative_file=${parsed_file#spank/}
-        case "${spank_relative_file}" in
-          */*) fail "SPANK probes accept only production source files directly under spank/" ;;
-        esac
-        ;;
-      *) fail "SPANK probes accept only production .cpp/.h/.hpp files directly under spank/" ;;
-    esac
-  fi
 fi
 
 probe_directory=$(mktemp -d "${TMPDIR:-/tmp}/amazon-braket-audit-probe.XXXXXX") ||
   fail "could not create the isolated probe directory"
-docker_images_file=${probe_directory}/docker-images
-: >"${docker_images_file}"
 if [ "${live}" = no ]; then
   offline_aws_config=${probe_directory}/empty-aws-config
   offline_aws_credentials=${probe_directory}/empty-aws-credentials
@@ -895,13 +807,6 @@ if [ "${live}" = no ]; then
   export AWS_EC2_METADATA_DISABLED
 fi
 prepare_baseline_tree
-if [ "${lang}" = spank ]; then
-  spank_context=${probe_directory}/spank-context
-  mkdir -p -- "${spank_context}"
-  cp -pPR -- "${baseline_tree_directory}/." "${spank_context}/" ||
-    fail "could not create the tracked-only SPANK Docker context"
-  verify_tracked_state ""
-fi
 
 if [ "${tier}" = t1 ]; then
   if [ "${lang}" = python ]; then
@@ -1071,47 +976,6 @@ case "${lang}" in
     fi
     suite_label=${target}
     ;;
-  spank)
-    set +e
-    run_spank_suite baseline
-    baseline_status=$?
-    set -e
-    [ "${baseline_status}" -eq 0 ] ||
-      fail "baseline SPANK Docker build or suite failed; no evidence block was produced"
-    apply_edit "${inject_spec}" "${replacement}"
-    cp -pP -- "${repository_root}/${edited_file}" "${spank_context}/${edited_file}" ||
-      fail "could not overlay the selected edit onto the tracked-only SPANK context"
-    verify_tracked_state "${edited_file}"
-    set +e
-    run_spank_suite fault
-    fault_status=$?
-    set -e
-    fault_failures_file=${probe_directory}/fault-failures
-    : >"${fault_failures_file}"
-    fault_failure_count=0
-    if [ "${spank_failure_stage}" = build ]; then
-      fault_build=infrastructure-error
-      fault_result=not-run
-    else
-      case "${fault_status}" in
-      0)
-        fault_build=pass
-        fault_result=pass
-        ;;
-      1)
-        fault_build=pass
-        fault_result=fail
-        spank_failure_ids "${probe_directory}/spank-fault-suite.log" >"${fault_failures_file}"
-        fault_failure_count=$(grep -c . "${fault_failures_file}" || true)
-        ;;
-      *)
-        fault_build=pass
-        fault_result=infrastructure-error
-        ;;
-      esac
-    fi
-    suite_label="SPANK Docker suite"
-    ;;
 esac
 
 print_header "T2 fault injection"
@@ -1127,19 +991,14 @@ if [ "${fault_failure_count}" -gt 0 ]; then
 fi
 if [ "${fault_build}" = fail ]; then
   echo "reading         : the injected fault does not compile; the run is non-adjudicable"
-elif [ "${fault_build}" = infrastructure-error ]; then
-  echo "reading         : the Docker build failed; no detection verdict is valid"
 elif [ "${fault_result}" = fail ]; then
   echo "reading         : the selected suite detects the injected fault"
 elif [ "${fault_result}" = runner-error ]; then
   echo "reading         : the test runner failed without identifying a failing test"
-elif [ "${fault_result}" = infrastructure-error ]; then
-  echo "reading         : the Docker suite did not complete; no detection verdict is valid"
 else
   echo "reading         : the selected suite does not detect the injected fault"
 fi
 echo "privacy         : raw output and replacement text suppressed"
-if [ "${fault_build}" != pass ] || [ "${fault_result}" = runner-error ] ||
-  [ "${fault_result}" = infrastructure-error ]; then
+if [ "${fault_build}" != pass ] || [ "${fault_result}" = runner-error ]; then
   exit 1
 fi

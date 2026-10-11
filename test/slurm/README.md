@@ -19,7 +19,7 @@ PROVIDER_INSTALL_MODE=native uv run --no-project \
   --compose-file test/slurm/compose.yml \
   --device-license amazon.braket.sv1 \
   --qdmi-config-file /opt/provider-catalogue.json \
-  -- python3 /workload/test/slurm/probe.py amazon.braket.sv1
+  -- python3 /workload/test/slurm/workload.py
 ```
 
 Repeat with `PROVIDER_INSTALL_MODE=wheel`. Both modes install the Python
@@ -36,15 +36,15 @@ availability monitoring. Slurm exports the login node's submission environment
 to the job. This smoke test uses one identity for both roles; production
 deployments should configure separate site-owned monitor credentials. Use
 short-lived credentials and keep their values out of command arguments, build
-arguments, and logs. CI receives the same three secrets and reports an explicit
-skip when the access key or secret key is unavailable.
+arguments, and logs. CI receives the same three secrets and runs both
+installation modes.
 
 See [Amazon Braket on Slurm](../../docs/slurm.md) for deployment.
 
 For IQM and Braket jobs on the same cluster, use the
 [MQT Core multi-vendor example](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm_cluster.html#multiple-device-implementations).
 MQT Core and all device implementations share one Python environment. Each job
-opens an explicit device ID through the driver, with the credentials that device
-needs. All quantum access nodes share the `quantum` partition and can reach
-every configured device. The cluster monitors each device before admitting its
-jobs. `setup.sh [OUTPUT]` writes the catalogue to the chosen path.
+opens its allocated device through the QDMI Client Interface, with that device's
+credentials. All quantum access nodes share the `quantum` partition and can
+reach every configured device. The cluster monitors each device before admitting
+its jobs. `setup.sh [OUTPUT]` writes the catalogue to the chosen path.

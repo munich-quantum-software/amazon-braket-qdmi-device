@@ -12,6 +12,9 @@ releases may include breaking changes.
 
 ### Added
 
+- 🧪 Execute authenticated SV1 smoke tests through Qiskit and PennyLane for
+  native and wheel installations on the shared Slurm cluster ([#237])
+  ([**@flowerthrower**], [**@burgholzer**])
 - ✨ Publish an installed QDMI manifest so MQT Core can discover
   `amazon.braket.default` without loading the provider library ([#239])
   ([**@burgholzer**]).
@@ -29,10 +32,8 @@ releases may include breaking changes.
   Core source build temporary until 4.1.0 ([#263]) ([**@burgholzer**]).
 - 💥 Run Amazon Braket jobs in MQT Core's shared Slurm example, using one
   `quantum` partition and one environment for all QDMI device implementations.
-  Applications open an explicit catalogue ID, while Slurm licenses schedule
-  access and the cluster monitors device availability. Remove the device SPANK
-  plugin. Native and wheel smoke tests each submit eight shots through Qiskit
-  and PennyLane to SV1 ([#237]) ([**@flowerthrower**], [**@burgholzer**])
+  Slurm licenses schedule access, and the cluster monitors device availability
+  ([#237]) ([**@flowerthrower**], [**@burgholzer**])
 
 - 👷 Run GitHub Actions, documentation, and Slurm fixture builds on Ubuntu 26.04
   with Slurm 25.11, shared OpenSSL on Linux, and OpenSSL 3 in macOS C++ CI
@@ -55,8 +56,16 @@ releases may include breaking changes.
   default to 10 request attempts while honoring AWS retry settings ([#241])
   ([**@burgholzer**])
 
+### Removed
+
+- 🗑️ Remove the device-specific SPANK plugin and its duplicated Slurm cluster
+  configuration ([#237]) ([**@flowerthrower**], [**@burgholzer**])
+
 ### Fixed
 
+- 🐛 Report authentication failures in live CI tests and executable
+  documentation instead of treating them as skipped or successful execution
+  ([#237]) ([**@burgholzer**])
 - 🐛 Accept live device connectivity graphs that omit unavailable qubits while
   retaining the advertised qubit count ([#236]) ([**@burgholzer**])
 - 🐛 Cancel queued submissions locally without creating unwanted QuantumTasks

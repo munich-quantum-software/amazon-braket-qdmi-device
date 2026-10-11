@@ -145,14 +145,14 @@ counts, parameter-shift evaluations, and optimizer iterations should therefore
 be selected explicitly before execution.
 
 MQT Core also accepts an open QDMI device. Select its catalogue ID through the
-driver and pass the device to the adapter:
+QDMI Client Interface and pass the device to the adapter:
 
 ```python
 from mqt.core.plugins.pennylane import QDMIDevice
-from mqt.core.qdmi import builtin_driver
+from mqt.core.qdmi import builtin_driver as qdmi_driver
 
 remote_device = QDMIDevice(
-    device=builtin_driver.open_device("amazon.braket.sv1"),
+    device=qdmi_driver.open_device("amazon.braket.sv1"),
 )
 ```
 

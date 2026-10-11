@@ -9,7 +9,7 @@ A source build requires:
 - network access during initial configuration to obtain the AWS SDK for C++ and
   QDMI dependencies.
 
-Slurm integration uses MQT Core and Slurm 25.11 or newer; see {doc}`slurm`.
+For Slurm job submission and cluster setup, see {doc}`slurm`.
 
 ## Python package
 
@@ -89,7 +89,8 @@ cmake --build build
 
 ## MQT Core integration
 
-The installed CMake target identifies its device manifest through
+MQT Core implements the QDMI Client Interface and loads this device library
+through its builtin driver. The installed CMake target identifies its device manifest through
 `QDMI_MANIFEST_NAME`. The manifest contains the stable device IDs, symbol
 prefix, and relative library paths. An application using the pinned MQT Core
 source build can copy the device library and manifest beside its executable.
@@ -110,49 +111,23 @@ statically into the executable. A dynamically linked Driver searches beside its
 own shared library. In that case, place the generated manifest there or register
 the definition explicitly.
 
-Python consumers can select the installed catalogue before the first QDMI driver
-operation. Each definition contains the exact device ARN and AWS Region; the AWS
-SDK resolves credentials when MQT Core opens the device.
+Python discovers the installed catalogue automatically. Each definition contains
+the device ARN and AWS Region; the AWS SDK resolves credentials when MQT Core
+opens the device.
 
 ```python
-import os
+from mqt.core.qdmi import builtin_driver as qdmi_driver
 
-from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_CATALOG_PATH
-from mqt.core.qdmi import driver
-
-os.environ["MQT_CORE_QDMI_CONFIG_FILE"] = str(AMAZON_BRAKET_QDMI_CATALOG_PATH)
-device = driver.open_device("amazon.braket.sv1")
+device = qdmi_driver.open_device("amazon.braket.sv1")
 ```
 
-MQT Core resolves the catalogue's relative library path from the directory that
-contains the catalogue. An explicit catalogue augments built-in MQT Core device
-definitions and overrides only definitions with the same ID.
+For a native installation outside the driver's search paths, set
+`MQT_CORE_QDMI_CONFIG_FILE` to its catalogue before opening a device. Relative
+library paths are resolved from the catalogue directory. Site configuration
+augments the installed definitions and overrides entries with the same ID.
 
-Cluster administrators may configure local Slurm licenses for concrete catalogue
-IDs such as `amazon.braket.sv1`. Do not configure `amazon.braket.default` as a
-license because that generic device still requires runtime configuration.
-License counts are cluster-admission limits, not Amazon Braket QuantumTask
-quotas.
-
-## Slurm admission and AWS authorization
-
-Slurm licenses and AWS IAM are independent controls. Slurm uses the local
-license count to limit admitted jobs and to account for that shared resource.
-MQT Core uses the process-mutable `SLURM_JOB_LICENSES` value to select the QDMI
-device. This value does not attest the Slurm allocation and does not authorize
-AWS access.
-
-AWS IAM authorizes calls to Amazon Braket, STS, and S3. Apply least-privilege
-policies to IAM users and groups, and to workload or node roles. In particular,
-`braket:CreateQuantumTask` supports resource-level permissions for a Braket
-device ARN. Also restrict task inspection and result-bucket access to the
-required resources. See the [Amazon Braket service authorization reference] and
-the [device access guide].
-
-Set catalogue paths and AWS configuration in the job environment. The selected
-profile, credential file, workload identity, or node role must be available to
-the job user on the compute node. See {doc}`slurm` for cluster setup and job
-examples.
+See {doc}`configuration` for AWS authentication and {doc}`slurm` for cluster
+setup and job examples.
 
 ## CMake options
 
