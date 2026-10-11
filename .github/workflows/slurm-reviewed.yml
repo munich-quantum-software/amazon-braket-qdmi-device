@@ -1,0 +1,52 @@
+name: Reviewed Slurm test
+run-name: "Authenticated Slurm PR #${{ inputs.pull-request }} at ${{ inputs.reviewed-sha }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      pull-request:
+        description: "Pull request whose code and dependencies have been reviewed."
+        required: true
+        type: string
+      reviewed-sha:
+        description: "Full 40-character commit SHA approved to receive credentials."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  reviewed-commit:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-slim
+    outputs:
+      sha: ${{ steps.verify.outputs.sha }}
+    steps:
+      - name: Verify the reviewed pull request commit
+        id: verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pull-request }}
+          REVIEWED_SHA: ${{ inputs.reviewed-sha }}
+        run: |
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
+          [[ "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          current_sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
+          if [[ "$current_sha" != "$REVIEWED_SHA" ]]; then
+            echo "The PR changed after review. Review its current head before running authenticated tests." >&2
+            exit 1
+          fi
+          echo "sha=$REVIEWED_SHA" >> "$GITHUB_OUTPUT"
+          echo "Authenticated Slurm test of PR #$PR_NUMBER at $REVIEWED_SHA" >> "$GITHUB_STEP_SUMMARY"
+
+  slurm-tests:
+    needs: reviewed-commit
+    uses: $/.github/workflows/slurm.yml
+    with:
+      reviewed-sha: ${{ needs.reviewed-commit.outputs.sha }}
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}

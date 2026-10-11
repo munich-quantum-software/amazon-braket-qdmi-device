@@ -5,19 +5,18 @@ This test runs Qiskit and PennyLane workloads against Amazon Braket SV1 in
 It requires AWS credentials with Braket and S3 access in `us-east-1`. Each
 installation mode submits two tasks with eight shots each; AWS charges apply.
 
-Use the MQT Core revision pinned in the Slurm workflow and build its Linux wheel
-with `uv build --wheel --out-dir "$CORE_DIST" -Ccmake.define.DEPLOY=ON` from
-that checkout. The wheel must match the host architecture and the cluster's
-Python interpreter. Run the build and test commands on a Linux cgroup-v2 host
-with rootful Docker. On macOS, use the
-[Linux virtual machine setup](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm_cluster.html#prepare-a-linux-host-or-an-apple-silicon-mac)
-and run all commands inside that guest, including the wheel build. Keep the
-checkout in the guest filesystem; a macOS wheel cannot run in these containers.
+Check out the MQT Core revision pinned in the Slurm workflow and set
+`CORE_SOURCE` to that checkout. Run the commands below from this repository.
+Docker builds MQT Core and the device implementation inside the Linux image. Use
+Docker Engine on Linux or Docker Desktop on macOS, with uv on the host. Follow
+the
+[cluster setup](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm_cluster.html#start-the-cluster-and-log-in)
+for the Docker configuration and host requirements.
 
 ```sh
 PROVIDER_INSTALL_MODE=native uv run --no-project \
   "$CORE_SOURCE/test/slurm/run_integration.py" \
-  --workload . --dist "$CORE_DIST" \
+  --workload . \
   --setup-script test/slurm/setup.sh \
   --compose-file test/slurm/compose.yml \
   --device-license amazon.braket.sv1 \
@@ -51,3 +50,32 @@ opens its allocated device through the QDMI Client Interface, with that device's
 credentials. All quantum access nodes share the `quantum` partition and can
 reach every configured device. The cluster monitors each device before admitting
 its jobs. `setup.sh [OUTPUT]` writes the catalogue to the chosen path.
+
+## Credentialed checks for pull requests from forks
+
+Fork and Dependabot CI runs without cloud credentials. Credentialed jobs are
+visibly skipped; passing those offline checks does not establish device
+integration. For a reviewed fork commit, a maintainer can run the upstream Slurm
+workflow without copying the branch into the upstream repository:
+
+```bash
+gh workflow run slurm-reviewed.yml --repo munich-quantum-software/amazon-braket-qdmi-device --ref main \
+  -f pull-request=237 -f reviewed-sha=FULL_REVIEWED_COMMIT_SHA
+```
+
+Review the exact commit, including its build scripts, dependencies, setup and
+workload, before dispatching: that code will receive the test credentials. The
+workflow verifies that the SHA is still the PR head and checks out that
+immutable commit. A later push requires another review and dispatch. The
+workflow itself and its reusable job come from upstream `main`; this entry point
+becomes available after the workflow is merged there. Attach the run URL to the
+PR as separate Slurm evidence. Full credentialed CI and executable notebooks
+continue to run on trusted branches and main.
+
+GitHub's
+[fork-run approval](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/approve-runs-from-forks)
+does not grant repository secrets. A protected
+[environment](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
+can add a reviewer gate and hold environment secrets, but requires administrator
+configuration. It does not make unreviewed code safe to execute with
+credentials.

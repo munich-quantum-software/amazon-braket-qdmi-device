@@ -1,6 +1,10 @@
 name: Slurm smoke test
 on:
   workflow_call:
+    inputs:
+      reviewed-sha:
+        description: "Immutable commit approved for authenticated testing."
+        type: string
     secrets:
       AWS_ACCESS_KEY_ID:
         required: true
@@ -16,18 +20,19 @@ jobs:
   slurm-tests:
     name: Slurm native and wheel smoke tests
     runs-on: ubuntu-26.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           path: provider
+          ref: ${{ inputs.reviewed-sha }}
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: munich-quantum-toolkit/core
           # Shared Slurm integration from MQT Core #2599 until it is merged.
-          ref: 24278155f13c58031efc9dfbf00d675c47f3dc2e
+          ref: 7ba67c7914e7e801391bd825e6a5a50c7b4dfa86
           fetch-depth: 0
           persist-credentials: false
           path: core
@@ -36,16 +41,8 @@ jobs:
         with:
           python-version: "3.15"
 
-      - name: Set up MLIR
-        uses: munich-quantum-software/setup-mlir@8d3eae73d0f0196fd30c787d91ebd2018cb6c709 # v1.5.0
-        with:
-          llvm-version: 23.1.2
-
-      - name: Build MQT Core
-        working-directory: core
-        run: uv build --wheel --out-dir ../dist -Ccmake.define.DEPLOY=ON
-
       - name: Run native and wheel workloads
+        timeout-minutes: 40
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -55,7 +52,6 @@ jobs:
             PROVIDER_INSTALL_MODE="$mode" uv run \
               --no-project core/test/slurm/run_integration.py \
               --workload provider \
-              --dist dist \
               --setup-script test/slurm/setup.sh \
               --compose-file provider/test/slurm/compose.yml \
               --device-license amazon.braket.sv1 \

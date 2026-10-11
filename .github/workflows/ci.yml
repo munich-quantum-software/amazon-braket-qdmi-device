@@ -14,14 +14,16 @@ concurrency:
 permissions:
   contents: read
 
+# Fork and Dependabot PRs run without cloud credentials.
 jobs:
   change-detection:
     name: 🔍 Change
     uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-change-detection.yml@fd3d75dece69c363989347869529a5e99cdcfffc # v2.5.1
     with:
       additional-cpp-files: |
+        .dockerignore
         test/slurm/**
-        .github/workflows/slurm.yml
+        .github/workflows/slurm*.yml
 
   cpp-tests-ubuntu:
     name: 🇨 Test 🐧
@@ -43,7 +45,7 @@ jobs:
   slurm-tests:
     name: 🇸 Slurm 🐧
     needs: change-detection
-    if: fromJSON(needs.change-detection.outputs.run-cpp-tests) || fromJSON(needs.change-detection.outputs.run-python-tests)
+    if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) && (fromJSON(needs.change-detection.outputs.run-cpp-tests) || fromJSON(needs.change-detection.outputs.run-python-tests))
     uses: $/.github/workflows/slurm.yml
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -99,7 +101,7 @@ jobs:
   cpp-coverage:
     name: 🇨 Coverage
     needs: change-detection
-    if: fromJSON(needs.change-detection.outputs.run-cpp-tests)
+    if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) && (fromJSON(needs.change-detection.outputs.run-cpp-tests))
     uses: $/.github/workflows/cpp-coverage.yml
     permissions:
       contents: read
@@ -202,7 +204,7 @@ jobs:
   pennylane-live-tests:
     name: 🐍 PennyLane Live
     needs: change-detection
-    if: fromJSON(needs.change-detection.outputs.run-python-tests) || fromJSON(needs.change-detection.outputs.run-cd)
+    if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) && (fromJSON(needs.change-detection.outputs.run-python-tests) || fromJSON(needs.change-detection.outputs.run-cd))
     runs-on: ubuntu-26.04
     env:
       AMAZON_BRAKET_PENNYLANE_LIVE: "1"
@@ -265,6 +267,10 @@ jobs:
         uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
         with:
           allowed-skips: >-
+            ${{
+              (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]'))
+              && 'cpp-coverage,slurm-tests,pennylane-live-tests,' || ''
+            }}
             ${{
               !fromJSON(needs.change-detection.outputs.run-cpp-tests)
               && 'cpp-tests-ubuntu,cpp-tests-macos,cpp-tests-windows,cpp-install-tests,cpp-coverage,' || ''

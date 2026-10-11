@@ -33,8 +33,10 @@ releases may include breaking changes.
 
 - 💥 Run Amazon Braket jobs in MQT Core's shared Slurm example, using one
   `quantum` partition and one environment for all QDMI device implementations.
-  Slurm licenses schedule access, and the cluster monitors device availability
-  ([#237]) ([**@flowerthrower**], [**@burgholzer**])
+  Slurm licenses schedule access, and the cluster monitors device availability.
+  Build MQT Core inside the cluster image and provide a reviewed-commit workflow
+  for credentialed fork tests, alongside offline fork CI ([#237])
+  ([**@flowerthrower**], [**@burgholzer**])
 
 - 👷 Run GitHub Actions, documentation, and Slurm fixture builds on Ubuntu 26.04
   with Slurm 25.11, shared OpenSSL on Linux, and OpenSSL 3 in macOS C++ CI
