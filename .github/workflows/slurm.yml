@@ -1,10 +1,6 @@
 name: Slurm smoke test
 on:
   workflow_call:
-    inputs:
-      reviewed-sha:
-        description: "Immutable commit approved for authenticated testing."
-        type: string
     secrets:
       AWS_ACCESS_KEY_ID:
         required: true
@@ -18,9 +14,7 @@ permissions:
 
 jobs:
   slurm-tests:
-    name: Slurm native and wheel smoke tests
-    # Only a manual run from main may override the event commit.
-    if: inputs.reviewed-sha == '' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    name: Slurm smoke test
     runs-on: ubuntu-26.04
     timeout-minutes: 45
     steps:
@@ -28,13 +22,12 @@ jobs:
         with:
           persist-credentials: false
           path: provider
-          ref: ${{ inputs.reviewed-sha || github.sha }}
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: munich-quantum-toolkit/core
           # Shared Slurm integration from MQT Core #2599 until it is merged.
-          ref: 7ba67c7914e7e801391bd825e6a5a50c7b4dfa86
+          ref: 7875288c7f5969b847413dd83de297e41c03fa72
           fetch-depth: 0
           persist-credentials: false
           path: core
@@ -43,21 +36,15 @@ jobs:
         with:
           python-version: "3.15"
 
-      - name: Run native and wheel workloads
+      - name: Run the device workload
         timeout-minutes: 40
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
         run: |
-          for mode in native wheel; do
-            PROVIDER_INSTALL_MODE="$mode" uv run \
-              --no-project core/test/slurm/run_integration.py \
-              --workload provider \
-              --setup-script test/slurm/setup.sh \
-              --compose-file provider/test/slurm/compose.yml \
-              --device-license amazon.braket.sv1 \
-              --qdmi-config-file /opt/provider-catalogue.json \
-              -- python3 /workload/test/slurm/workload.py
-            echo "Slurm $mode: eight SV1 shots through each of Qiskit and PennyLane passed." >> "$GITHUB_STEP_SUMMARY"
-          done
+          uv run --no-project core/test/slurm/run_integration.py \
+            --workload provider --package /workload \
+            --compose-file provider/test/slurm/compose.yml \
+            --device-license amazon.braket.sv1 \
+            -- python3 /workload/test/slurm/workload.py

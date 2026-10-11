@@ -12,9 +12,8 @@ releases may include breaking changes.
 
 ### Added
 
-- 🧪 Execute authenticated SV1 smoke tests through Qiskit and PennyLane for
-  native and wheel installations on the shared Slurm cluster ([#237])
-  ([**@flowerthrower**], [**@burgholzer**])
+- 🧪 Run authenticated eight-shot SV1 jobs through Qiskit and PennyLane in the
+  shared Slurm cluster ([#237]) ([**@flowerthrower**], [**@burgholzer**])
 - ✨ Publish an installed QDMI manifest so MQT Core can discover
   `amazon.braket.default` without loading the provider library ([#239])
   ([**@burgholzer**]).
@@ -31,12 +30,8 @@ releases may include breaking changes.
 - ⬆️ Pin QDMI v1.4.0 and the matching MQT Core main commit while keeping the
   Core source build temporary until 4.1.0 ([#263]) ([**@burgholzer**]).
 
-- 💥 Run Amazon Braket jobs in MQT Core's shared Slurm example, using one
-  `quantum` partition and one environment for all QDMI device implementations.
-  Slurm licenses schedule access, and the cluster monitors device availability.
-  Build MQT Core inside the cluster image and provide a reviewed-commit workflow
-  for credentialed fork tests, alongside offline fork CI ([#237])
-  ([**@flowerthrower**], [**@burgholzer**])
+- ♻️ Use MQT Core's shared Slurm deployment and device-wheel discovery in one
+  environment ([#237]) ([**@flowerthrower**], [**@burgholzer**])
 
 - 👷 Run GitHub Actions, documentation, and Slurm fixture builds on Ubuntu 26.04
   with Slurm 25.11, shared OpenSSL on Linux, and OpenSSL 3 in macOS C++ CI

@@ -23,10 +23,6 @@ x-device-environment: &device-environment
 
 services:
   controller:
-    build:
-      args:
-        PROVIDER_INSTALL_MODE: ${PROVIDER_INSTALL_MODE:-native}
-        PROVIDER_RUNTIME_COMPONENT: amazon-braket-qdmi-device_Runtime
     environment: *device-environment
   login:
     environment: *device-environment

@@ -14,7 +14,7 @@ concurrency:
 permissions:
   contents: read
 
-# Fork and Dependabot PRs run without cloud credentials.
+# Fork PRs run without upstream cloud credentials.
 jobs:
   change-detection:
     name: 🔍 Change
@@ -23,7 +23,7 @@ jobs:
       additional-cpp-files: |
         .dockerignore
         test/slurm/**
-        .github/workflows/slurm*.yml
+        .github/workflows/slurm.yml
 
   cpp-tests-ubuntu:
     name: 🇨 Test 🐧
@@ -45,7 +45,7 @@ jobs:
   slurm-tests:
     name: 🇸 Slurm 🐧
     needs: change-detection
-    if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) && (fromJSON(needs.change-detection.outputs.run-cpp-tests) || fromJSON(needs.change-detection.outputs.run-python-tests))
+    if: github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id && (fromJSON(needs.change-detection.outputs.run-cpp-tests) || fromJSON(needs.change-detection.outputs.run-python-tests))
     uses: $/.github/workflows/slurm.yml
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -101,7 +101,7 @@ jobs:
   cpp-coverage:
     name: 🇨 Coverage
     needs: change-detection
-    if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) && (fromJSON(needs.change-detection.outputs.run-cpp-tests))
+    if: github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id && fromJSON(needs.change-detection.outputs.run-cpp-tests)
     uses: $/.github/workflows/cpp-coverage.yml
     permissions:
       contents: read
@@ -204,7 +204,7 @@ jobs:
   pennylane-live-tests:
     name: 🐍 PennyLane Live
     needs: change-detection
-    if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]')) && (fromJSON(needs.change-detection.outputs.run-python-tests) || fromJSON(needs.change-detection.outputs.run-cd))
+    if: github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id && (fromJSON(needs.change-detection.outputs.run-python-tests) || fromJSON(needs.change-detection.outputs.run-cd))
     runs-on: ubuntu-26.04
     env:
       AMAZON_BRAKET_PENNYLANE_LIVE: "1"
@@ -268,7 +268,7 @@ jobs:
         with:
           allowed-skips: >-
             ${{
-              (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.event.pull_request.user.login == 'dependabot[bot]'))
+              (github.event.pull_request.head.repo.id != github.event.pull_request.base.repo.id)
               && 'cpp-coverage,slurm-tests,pennylane-live-tests,' || ''
             }}
             ${{

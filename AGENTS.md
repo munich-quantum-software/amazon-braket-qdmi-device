@@ -82,8 +82,7 @@ concurrently in the same checkout. For dependency-only setup, use
 - Use Google-style Python docstrings. Preserve the `amazon.braket.qdmi`
   namespace and stable entry point. Fix Ruff and ty findings where possible.
 - The shared Slurm smoke test in `test/slurm/README.md` submits two eight-shot
-  SV1 tasks per installation mode. It requires AWS credentials and explicit live
-  AWS authorization.
+  SV1 tasks. It requires AWS credentials and explicit live AWS authorization.
 
 ### Live AWS Access
 

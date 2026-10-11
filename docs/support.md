@@ -13,8 +13,7 @@
 Do not include AWS access keys, session tokens, credentials files, or other
 secrets in an issue report.
 
-## Licenses
+## License
 
-The Amazon Braket QDMI library, Python package, and test workloads are licensed
-under the Apache License 2.0 with LLVM exceptions; see the repository's
+This project is licensed under the Apache License 2.0 with LLVM exceptions; see
 [LICENSE](../LICENSE).

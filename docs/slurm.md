@@ -88,7 +88,7 @@ from user credentials.
 
 ## Try the shared cluster example
 
-[MQT Core's Slurm cluster example](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm_cluster.html)
+[MQT Core's Slurm cluster example](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm.html)
 is a demonstrator with one `quantum` partition and one workload environment for
 all QDMI device implementations. Its quantum access nodes can reach every
 configured device, and its availability monitor updates Slurm reservations. The
@@ -96,7 +96,6 @@ guide describes installation from the current QDMI and MQT Core sources.
 
 The
 [Braket Slurm smoke test](https://github.com/munich-quantum-software/amazon-braket-qdmi-device/tree/main/test/slurm)
-uses that cluster to run Qiskit and PennyLane workloads on SV1 for native and
-wheel installations. It submits two eight-shot tasks per mode with real AWS
-authentication. Its README gives the credentials and commands; AWS charges
-apply.
+uses that cluster to run Qiskit and PennyLane workloads through the installed
+wheel. It submits two eight-shot SV1 tasks with real AWS authentication. Its
+README gives the credentials and commands; AWS charges apply.
