@@ -26,8 +26,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: munich-quantum-toolkit/core
-          # Shared Slurm integration from MQT Core #2599 until it is merged.
-          ref: 7875288c7f5969b847413dd83de297e41c03fa72
+          ref: ee1e8911a90b3d1d006f2fc26bc02b655f5313b2
           fetch-depth: 0
           persist-credentials: false
           path: core
