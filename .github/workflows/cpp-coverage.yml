@@ -3,9 +3,9 @@ on:
   workflow_call:
     secrets:
       AWS_ACCESS_KEY_ID:
-        required: false
+        required: true
       AWS_SECRET_ACCESS_KEY:
-        required: false
+        required: true
       AWS_SESSION_TOKEN:
         required: false
 
@@ -27,6 +27,7 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+      AMAZON_BRAKET_QDMI_RUN_LIVE_CATALOG: "1"
       CMAKE_BUILD_PARALLEL_LEVEL: 4
       CTEST_PARALLEL_LEVEL: 4
       FORCE_COLOR: 3
@@ -75,13 +76,8 @@ jobs:
 
       - name: Configure CMake
         run: |
-          live_tests=OFF
-          if [[ -n "${AWS_ACCESS_KEY_ID}" && -n "${AWS_SECRET_ACCESS_KEY}" ]]; then
-            live_tests=ON
-            echo "AMAZON_BRAKET_QDMI_RUN_LIVE_CATALOG=1" >> "${GITHUB_ENV}"
-          fi
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON \
-            "-DBUILD_AMAZON_BRAKET_LIVE_TESTS=${live_tests}"
+            -DBUILD_AMAZON_BRAKET_LIVE_TESTS=ON
 
       - name: Build
         run: cmake --build build --config Debug

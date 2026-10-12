@@ -43,10 +43,8 @@ AWS credentials come from the AWS SDK default credential provider chain.
 
 ## Run a circuit on SV1
 
-Running the following example submits one 10-shot QuantumTask to SV1. The AWS
-SDK uses any credentials available through its default provider chain. Without
-permission to access Amazon Braket, the example reports that live execution is
-unavailable.
+Running the following example submits one 10-shot QuantumTask to SV1. Configure
+AWS credentials with Braket and S3 access before running it.
 
 ```{code-cell} python
 :tags: [remove-stderr]
@@ -55,20 +53,15 @@ from qiskit import QuantumCircuit, transpile
 
 from amazon.braket.qdmi.qiskit import AmazonBraketBackend
 
-try:
-    backend = AmazonBraketBackend("amazon.braket.sv1")
-    circuit = QuantumCircuit(2)
-    circuit.h(0)
-    circuit.cx(0, 1)
-    circuit.measure_all()
+backend = AmazonBraketBackend("amazon.braket.sv1")
+circuit = QuantumCircuit(2)
+circuit.h(0)
+circuit.cx(0, 1)
+circuit.measure_all()
 
-    counts = backend.run(transpile(circuit, backend), shots=10).result().get_counts()
-    assert sum(counts.values()) == 10
-    print(counts)
-except RuntimeError as error:
-    if "Permission denied" not in str(error):
-        raise
-    print("Live SV1 execution requires AWS credentials with Amazon Braket access.")
+counts = backend.run(transpile(circuit, backend), shots=10).result().get_counts()
+assert sum(counts.values()) == 10
+print(counts)
 ```
 
 The device uses the standard regional result bucket when submitting the task.
@@ -112,16 +105,16 @@ Jobs use the standard regional result bucket automatically. Set
 `AMZN_BRAKET_TASK_RESULTS_S3_URI` to an existing `s3://bucket/prefix` only when
 a pre-provisioned destination is required.
 
-## Use a Slurm-selected device
+## Use an open QDMI device
 
-The Slurm adapter returns an already-open QDMI device. Pass it directly to the
-Amazon Braket backend; no second device lookup is needed.
+Open a catalogue ID through the QDMI Client Interface and pass the device to the
+Amazon Braket backend:
 
 ```python
 from amazon.braket.qdmi.qiskit import AmazonBraketBackend
-from mqt.core.qdmi import slurm
+from mqt.core.qdmi import builtin_driver as qdmi_driver
 
-backend = AmazonBraketBackend(device=slurm.open_device_from_license())
+backend = AmazonBraketBackend(device=qdmi_driver.open_device("amazon.braket.sv1"))
 ```
 
 See {doc}`slurm` for the complete cluster and job setup.

@@ -9,8 +9,8 @@ or private device details.
 
 ## Audit identity
 
-- **Scope:** `<one of the seven scopes in .agent/AUDITS.md>`
-- **Scope code:** `<ABI|META|AWS|TASK|DIST|PL|SPANK>`
+- **Scope:** `<one of the six scopes in .agent/AUDITS.md>`
+- **Scope code:** `<ABI|META|AWS|TASK|DIST|PL>`
 - **Campaign baseline B:** `<full 40-character main commit SHA>`
 - **Evidence SHA E:** `<full 40-character detached main commit SHA>`
 - **Audit date:** `<YYYY-MM-DD>`
@@ -149,7 +149,7 @@ and closure result.
 - **Evidence worktree:** `detached at E; no branch or commits`
 - **Authoring worktree:** `<audit branch; audit file only>`
 - **Platform:** `<portable platform facts; no local paths or account data>`
-- **Build mode:** `<C++ Debug coverage, nox session, or SPANK Docker>`
+- **Build mode:** `<C++ Debug coverage or nox session>`
 - **AWS mode:** `offline`
 
 ### Commands

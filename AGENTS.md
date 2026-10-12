@@ -11,8 +11,8 @@ commands. Keep this file focused on repository-specific guardrails.
 - `python/amazon/braket/qdmi/` contains the Python package; `config/` contains
   the installed device catalogue.
 - `test/` contains GoogleTest and pytest tests, including optional live tests.
-- `spank/` contains the optional Slurm plugin under GPL-3.0-or-later. The main
-  library uses Apache-2.0 WITH LLVM-exception; keep their source separate.
+- `test/slurm/` contains device workloads for MQT Core's shared Slurm setup.
+  These files use the repository's Apache-2.0 WITH LLVM-exception license.
 - `cmake/`, `CMakeLists.txt`, and `pyproject.toml` define builds. Keep generated
   output in `build/` and `docs/_build/`, never in commits.
 
@@ -29,7 +29,7 @@ commands. Keep this file focused on repository-specific guardrails.
   approaches unless users still need that context.
 - Use short sentences, active voice, and one established term per concept.
   Remove words that add no meaning. Preserve the capitalization of QDMI, Amazon
-  Braket, QuantumTask, OpenQASM, AWS, S3, and SPANK.
+  Braket, QuantumTask, OpenQASM, AWS, and S3.
 - Add tests for changed behavior or a concrete regression, not provisional
   implementation choices. Keep tests in `test/` and start with focused checks.
 - Keep cleanup separate from behavior changes unless correctness requires both.
@@ -81,8 +81,8 @@ concurrently in the same checkout. For dependency-only setup, use
   `uvx nox -s tests minimums` for the supported Python matrix.
 - Use Google-style Python docstrings. Preserve the `amazon.braket.qdmi`
   namespace and stable entry point. Fix Ruff and ty findings where possible.
-- Build SPANK only when it is in scope. Keep its build output separate from the
-  native library build and validate changes with its Docker tests.
+- The shared Slurm smoke test in `test/slurm/README.md` submits two eight-shot
+  SV1 tasks. It requires AWS credentials and explicit live AWS authorization.
 
 ### Live AWS Access
 

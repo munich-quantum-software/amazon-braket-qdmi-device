@@ -13,12 +13,7 @@
 Do not include AWS access keys, session tokens, credentials files, or other
 secrets in an issue report.
 
-## Licenses
+## License
 
-The core Amazon Braket QDMI library and Python package are licensed under the
-Apache License 2.0 with LLVM exceptions; see the repository's
+This project is licensed under the Apache License 2.0 with LLVM exceptions; see
 [LICENSE](../LICENSE).
-
-The optional Slurm SPANK plugin links against GPL-licensed Slurm libraries and
-is therefore licensed separately under GPL-3.0-or-later. Its license is in
-[spank/LICENSE.md](https://github.com/munich-quantum-software/amazon-braket-qdmi-device/blob/main/spank/LICENSE.md).
