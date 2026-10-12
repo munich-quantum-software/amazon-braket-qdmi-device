@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 from mqt.core.plugins.qiskit.backend import QDMIBackend
+from mqt.core.plugins.qiskit.serializers import program_serializer
 from mqt.core.qdmi import ProgramFormat
 from qiskit import QuantumCircuit, transpile
 from qiskit.transpiler import CouplingMap, Target
@@ -170,6 +171,7 @@ def test_serializes_openqasm_without_includes() -> None:
     circuit = transpile(circuit, basis_gates=["h", "cx"], coupling_map=CouplingMap.from_full(4))
     assert circuit.layout is not None
 
+    assert "_serialize_circuit" not in vars(AmazonBraketBackend)
     backend = object.__new__(AmazonBraketBackend)
     backend._device = cast(  # ruff: ignore[private-member-access]
         "QDMIDeviceHandle",
@@ -182,6 +184,7 @@ def test_serializes_openqasm_without_includes() -> None:
     )
 
     assert program_format is ProgramFormat.QASM3
+    assert isinstance(program, str)
     assert "include" not in program
     assert "$" not in program
     assert "qubit[2] q;" in program
@@ -212,3 +215,19 @@ def test_reports_all_to_all_target_without_connectivity_constraint(monkeypatch: 
     line = CouplingMap.from_line(3)
     monkeypatch.setattr(QDMIBackend, "coupling_map", property(lambda _backend: line))
     assert backend.coupling_map is line
+
+
+def test_preserves_core_serializer_for_other_backends(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Delegate other backends to the original Core OpenQASM 3 serializer."""
+    circuit = QuantumCircuit(1)
+    backend = object.__new__(QDMIBackend)
+
+    def serialize(incoming_circuit: QuantumCircuit, incoming_backend: QDMIBackend) -> str:
+        assert incoming_circuit is circuit
+        assert incoming_backend is backend
+        return "Core OpenQASM 3"
+
+    monkeypatch.setattr(braket_qiskit, "_CORE_QASM3_SERIALIZER", serialize)
+    serializer = program_serializer(ProgramFormat.QASM3)
+    assert serializer is not None
+    assert serializer(circuit, backend) == "Core OpenQASM 3"
