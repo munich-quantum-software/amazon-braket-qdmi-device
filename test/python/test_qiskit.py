@@ -24,7 +24,11 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 from mqt.core.plugins.qiskit.backend import QDMIBackend
-from mqt.core.plugins.qiskit.serializers import program_serializer
+from mqt.core.plugins.qiskit.serializers import (
+    program_serializer,
+    register_program_serializer,
+    unregister_program_serializer,
+)
 from mqt.core.qdmi import ProgramFormat
 from qiskit import QuantumCircuit, transpile
 from qiskit.transpiler import CouplingMap, Target
@@ -162,8 +166,8 @@ def test_maps_braket_operation_names(operation_name: str, gate_name: str) -> Non
     assert gate.name == gate_name
 
 
-def test_serializes_openqasm_without_includes() -> None:
-    """Emit self-contained OpenQASM because Amazon Braket rejects includes."""
+def test_registers_external_program_serializer() -> None:
+    """Register the device's serializer alongside MQT Core's built-in formats."""
     circuit = QuantumCircuit(2)
     circuit.h(0)
     circuit.cx(0, 1)
@@ -171,7 +175,6 @@ def test_serializes_openqasm_without_includes() -> None:
     circuit = transpile(circuit, basis_gates=["h", "cx"], coupling_map=CouplingMap.from_full(4))
     assert circuit.layout is not None
 
-    assert "_serialize_circuit" not in vars(AmazonBraketBackend)
     backend = object.__new__(AmazonBraketBackend)
     backend._device = cast(  # ruff: ignore[private-member-access]
         "QDMIDeviceHandle",
@@ -179,11 +182,25 @@ def test_serializes_openqasm_without_includes() -> None:
             operations=lambda: tuple(SimpleNamespace(name=lambda name=name: name) for name in ("cnot", "h", "measure"))
         ),
     )
-    program, program_format = backend._serialize_circuit(  # ruff: ignore[private-member-access]
-        circuit, [ProgramFormat.QASM3]
-    )
 
-    assert program_format is ProgramFormat.QASM3
+    def serialize(circuit: QuantumCircuit, selected_backend: QDMIBackend) -> str:
+        assert selected_backend is backend
+        program, _ = backend._serialize_circuit(circuit, [ProgramFormat.QASM3])  # ruff: ignore[private-member-access]
+        assert isinstance(program, str)
+        return program
+
+    # CUSTOM1 stands in for an additional format such as IQM JSON
+    register_program_serializer(ProgramFormat.CUSTOM1, serialize)
+    try:
+        assert program_serializer(ProgramFormat.QASM2) is not None
+        assert program_serializer(ProgramFormat.QASM3) is not None
+        program, program_format = QDMIBackend._serialize_circuit(  # ruff: ignore[private-member-access]
+            backend, circuit, [ProgramFormat.QASM3, ProgramFormat.CUSTOM1]
+        )
+    finally:
+        unregister_program_serializer(ProgramFormat.CUSTOM1)
+
+    assert program_format is ProgramFormat.CUSTOM1
     assert isinstance(program, str)
     assert "include" not in program
     assert "$" not in program
@@ -215,19 +232,3 @@ def test_reports_all_to_all_target_without_connectivity_constraint(monkeypatch: 
     line = CouplingMap.from_line(3)
     monkeypatch.setattr(QDMIBackend, "coupling_map", property(lambda _backend: line))
     assert backend.coupling_map is line
-
-
-def test_preserves_core_serializer_for_other_backends(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Delegate other backends to the original Core OpenQASM 3 serializer."""
-    circuit = QuantumCircuit(1)
-    backend = object.__new__(QDMIBackend)
-
-    def serialize(incoming_circuit: QuantumCircuit, incoming_backend: QDMIBackend) -> str:
-        assert incoming_circuit is circuit
-        assert incoming_backend is backend
-        return "Core OpenQASM 3"
-
-    monkeypatch.setattr(braket_qiskit, "_CORE_QASM3_SERIALIZER", serialize)
-    serializer = program_serializer(ProgramFormat.QASM3)
-    assert serializer is not None
-    assert serializer(circuit, backend) == "Core OpenQASM 3"
