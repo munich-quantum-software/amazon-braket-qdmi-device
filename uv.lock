@@ -96,7 +96,7 @@ requires-dist = [
 provides-extras = ["pennylane", "qiskit"]
 
 [package.metadata.requires-dev]
-build = [{ name = "scikit-build-core", specifier = ">=1.0.3" }]
+build = [{ name = "scikit-build-core", specifier = ">=1.1" }]
 dev = [
     { name = "mqt-core", extras = ["pennylane", "qiskit"], git = "https://github.com/munich-quantum-toolkit/core.git?rev=ee1e8911a90b3d1d006f2fc26bc02b655f5313b2" },
     { name = "nox", specifier = ">=2026.8.10" },
@@ -105,7 +105,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=7.1" },
     { name = "pytest-sugar", specifier = ">=1.1.1" },
     { name = "pytest-xdist", specifier = ">=3.8" },
-    { name = "scikit-build-core", specifier = ">=1.0.3" },
+    { name = "scikit-build-core", specifier = ">=1.1" },
 ]
 docs = [
     { name = "furo", specifier = ">=2025.12.19" },
