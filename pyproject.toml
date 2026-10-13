@@ -100,6 +100,7 @@ amazon-braket-qdmi = "amazon.braket.qdmi.__main__:main"
 [dependency-groups]
 dev = [
   { include-group = "build" },
+  { include-group = "docs" },
   { include-group = "test" },
   "nox>=2026.8.10",
 ]
@@ -126,11 +127,6 @@ docs = [
   "sphinx-design>=0.7",
 ]
 build = [ "scikit-build-core>=1.1" ]
-typecheck = [
-  { include-group = "test" },
-  { include-group = "docs" },
-  "nox>=2026.8.10",
-]
 
 
 [tool.scikit-build]
