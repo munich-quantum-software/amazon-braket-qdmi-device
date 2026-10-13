@@ -43,25 +43,28 @@ AWS credentials come from the AWS SDK default credential provider chain.
 
 ## Run a circuit on SV1
 
-Running the following example submits one 10-shot QuantumTask to SV1. The AWS
-SDK uses any credentials available through its default provider chain. Without
-permission to query the device, the example reports that live execution is
-unavailable.
+Running the following example submits one 10-shot QuantumTask to SV1. Configure
+AWS credentials with Braket and S3 access before running it.
 
 ```{code-cell} python
-:tags: [remove-stderr]
-
 from qiskit import QuantumCircuit, transpile
 
 from amazon.braket.qdmi.qiskit import AmazonBraketBackend
+```
+
+```{code-cell} python
+:tags: [remove-cell]
 
 try:
+    # [sv1-initialization-start]
     backend = AmazonBraketBackend("amazon.braket.sv1")
+    # [sv1-initialization-end]
 except RuntimeError as e:
     if "Permission denied" not in str(e):
         raise
     print("Live SV1 execution requires AWS credentials with Amazon Braket access.")
 else:
+    # [sv1-circuit-start]
     circuit = QuantumCircuit(2)
     circuit.h(0)
     circuit.cx(0, 1)
@@ -70,6 +73,23 @@ else:
     counts = backend.run(transpile(circuit, backend), shots=10).result().get_counts()
     assert sum(counts.values()) == 10
     print(counts)
+    # [sv1-circuit-end]
+```
+
+```{literalinclude} qiskit.md
+:language: python
+:start-after: sv1-initialization-start
+:end-before: sv1-initialization-end
+:dedent: 4
+```
+
+Then prepare and execute a Bell-state circuit:
+
+```{literalinclude} qiskit.md
+:language: python
+:start-after: sv1-circuit-start
+:end-before: sv1-circuit-end
+:dedent: 4
 ```
 
 The device uses the standard regional result bucket when submitting the task.
