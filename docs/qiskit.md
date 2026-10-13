@@ -47,21 +47,49 @@ Running the following example submits one 10-shot QuantumTask to SV1. Configure
 AWS credentials with Braket and S3 access before running it.
 
 ```{code-cell} python
-:tags: [remove-stderr]
-
 from qiskit import QuantumCircuit, transpile
 
 from amazon.braket.qdmi.qiskit import AmazonBraketBackend
+```
 
-backend = AmazonBraketBackend("amazon.braket.sv1")
-circuit = QuantumCircuit(2)
-circuit.h(0)
-circuit.cx(0, 1)
-circuit.measure_all()
+```{code-cell} python
+:tags: [remove-cell]
 
-counts = backend.run(transpile(circuit, backend), shots=10).result().get_counts()
-assert sum(counts.values()) == 10
-print(counts)
+try:
+    # [sv1-initialization-start]
+    backend = AmazonBraketBackend("amazon.braket.sv1")
+    # [sv1-initialization-end]
+except RuntimeError as e:
+    if "Permission denied" not in str(e):
+        raise
+    print("Live SV1 execution requires AWS credentials with Amazon Braket access.")
+else:
+    # [sv1-circuit-start]
+    circuit = QuantumCircuit(2)
+    circuit.h(0)
+    circuit.cx(0, 1)
+    circuit.measure_all()
+
+    counts = backend.run(transpile(circuit, backend), shots=10).result().get_counts()
+    assert sum(counts.values()) == 10
+    print(counts)
+    # [sv1-circuit-end]
+```
+
+```{literalinclude} qiskit.md
+:language: python
+:start-after: sv1-initialization-start
+:end-before: sv1-initialization-end
+:dedent: 4
+```
+
+Then prepare and execute a Bell-state circuit:
+
+```{literalinclude} qiskit.md
+:language: python
+:start-after: sv1-circuit-start
+:end-before: sv1-circuit-end
+:dedent: 4
 ```
 
 The device uses the standard regional result bucket when submitting the task.

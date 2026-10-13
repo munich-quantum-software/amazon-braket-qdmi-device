@@ -91,8 +91,9 @@ uvx nox --non-interactive -s docs -- -b linkcheck
 ```
 
 The documentation executes its notebooks, including a ten-shot SV1 circuit.
-Configure AWS credentials with Braket and S3 access before building. Generated
-HTML is written to `docs/_build/html`.
+Configure AWS credentials with Braket and S3 access to execute the SV1 example.
+Permission errors during backend initialization are reported without failing the
+build. Generated HTML is written to `docs/_build/html`.
 
 ## Repository structure
 
