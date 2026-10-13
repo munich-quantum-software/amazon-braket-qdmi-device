@@ -100,7 +100,6 @@ amazon-braket-qdmi = "amazon.braket.qdmi.__main__:main"
 [dependency-groups]
 dev = [
   { include-group = "build" },
-  { include-group = "docs" },
   { include-group = "test" },
   "nox>=2026.8.10",
 ]
@@ -274,6 +273,11 @@ ket = "ket"
 optin = "optin"
 nd = "nd"
 
+
+[tool.ty.src]
+exclude = [
+  "docs/**",
+]
 
 [tool.ty.terminal]
 # Error if ty emits any warning-level diagnostics.
