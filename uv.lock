@@ -72,21 +72,6 @@ test = [
     { name = "pytest-sugar" },
     { name = "pytest-xdist" },
 ]
-typecheck = [
-    { name = "furo" },
-    { name = "mqt-core", extra = ["pennylane", "qiskit"] },
-    { name = "myst-nb" },
-    { name = "nox" },
-    { name = "pytest" },
-    { name = "pytest-console-scripts" },
-    { name = "pytest-cov" },
-    { name = "pytest-sugar" },
-    { name = "pytest-xdist" },
-    { name = "sphinx", version = "9.0.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "sphinx", version = "9.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
-    { name = "sphinx-copybutton" },
-    { name = "sphinx-design" },
-]
 
 [package.metadata]
 requires-dist = [
@@ -96,7 +81,7 @@ requires-dist = [
 provides-extras = ["pennylane", "qiskit"]
 
 [package.metadata.requires-dev]
-build = [{ name = "scikit-build-core", specifier = ">=1.0.3" }]
+build = [{ name = "scikit-build-core", specifier = ">=1.1" }]
 dev = [
     { name = "mqt-core", extras = ["pennylane", "qiskit"], git = "https://github.com/munich-quantum-toolkit/core.git?rev=ee1e8911a90b3d1d006f2fc26bc02b655f5313b2" },
     { name = "nox", specifier = ">=2026.8.10" },
@@ -105,7 +90,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=7.1" },
     { name = "pytest-sugar", specifier = ">=1.1.1" },
     { name = "pytest-xdist", specifier = ">=3.8" },
-    { name = "scikit-build-core", specifier = ">=1.0.3" },
+    { name = "scikit-build-core", specifier = ">=1.1" },
 ]
 docs = [
     { name = "furo", specifier = ">=2025.12.19" },
@@ -122,20 +107,6 @@ test = [
     { name = "pytest-cov", specifier = ">=7.1" },
     { name = "pytest-sugar", specifier = ">=1.1.1" },
     { name = "pytest-xdist", specifier = ">=3.8" },
-]
-typecheck = [
-    { name = "furo", specifier = ">=2025.12.19" },
-    { name = "mqt-core", extras = ["pennylane", "qiskit"], git = "https://github.com/munich-quantum-toolkit/core.git?rev=ee1e8911a90b3d1d006f2fc26bc02b655f5313b2" },
-    { name = "myst-nb", specifier = ">=1.4" },
-    { name = "nox", specifier = ">=2026.8.10" },
-    { name = "pytest", specifier = ">=9.1.1" },
-    { name = "pytest-console-scripts", specifier = ">=1.4.1" },
-    { name = "pytest-cov", specifier = ">=7.1" },
-    { name = "pytest-sugar", specifier = ">=1.1.1" },
-    { name = "pytest-xdist", specifier = ">=3.8" },
-    { name = "sphinx", specifier = ">=9" },
-    { name = "sphinx-copybutton", specifier = ">=0.5.2" },
-    { name = "sphinx-design", specifier = ">=0.7" },
 ]
 
 [[package]]

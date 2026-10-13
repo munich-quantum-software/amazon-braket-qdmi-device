@@ -17,7 +17,7 @@
 
 [build-system]
 build-backend = "scikit_build_core.build"
-requires = [ "scikit-build-core>=1.0.3" ]
+requires = [ "scikit-build-core>=1.1" ]
 
 
 [project]
@@ -48,6 +48,7 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Quantum Computing",
   "Typing :: Typed",
 ]
+dynamic = [ "import-names", "import-namespaces" ]
 
 [[project.authors]]
 name = "Patrick Hopf"
@@ -124,12 +125,7 @@ docs = [
   "sphinx-copybutton>=0.5.2",
   "sphinx-design>=0.7",
 ]
-build = [ "scikit-build-core>=1.0.3" ]
-typecheck = [
-  { include-group = "test" },
-  { include-group = "docs" },
-  "nox>=2026.8.10",
-]
+build = [ "scikit-build-core>=1.1" ]
 
 
 [tool.scikit-build]
@@ -210,8 +206,6 @@ environment = { MACOSX_DEPLOYMENT_TARGET = "13.3" }
 
 [tool.cibuildwheel.windows]
 repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel} --namespace-pkg amazon"
-before-test = "uv pip install --group test"
-test-groups = []
 
 
 [tool.ruff]
@@ -279,6 +273,11 @@ ket = "ket"
 optin = "optin"
 nd = "nd"
 
+
+[tool.ty.src]
+exclude = [
+  "docs/**",
+]
 
 [tool.ty.terminal]
 # Error if ty emits any warning-level diagnostics.
