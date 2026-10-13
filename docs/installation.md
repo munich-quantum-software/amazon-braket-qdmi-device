@@ -28,7 +28,7 @@ uv pip install "amazon-braket-qdmi[qiskit,pennylane]"
 ```
 
 Use only the `qiskit` or `pennylane` extra when the environment needs one
-application stack. Both extras require MQT Core 4.
+application stack. Both extras require MQT Core 4.1.
 
 The command-line entry point reports the installed catalogue path:
 
@@ -92,13 +92,12 @@ cmake --build build
 MQT Core implements the QDMI Client Interface and loads this device library
 through its builtin driver. The installed CMake target identifies its device
 manifest through `QDMI_MANIFEST_NAME`. The manifest contains the stable device
-IDs, symbol prefix, and relative library paths. An application using the pinned
-MQT Core source build can copy the device library and manifest beside its
-executable. This integration requires CMake 3.28 or later and the pinned MQT
-Core source build until MQT Core 4.1 is released:
+IDs, symbol prefix, and relative library paths. An application can copy the
+device library and manifest beside its executable. This integration requires
+CMake 3.28 or later and MQT Core 4.1:
 
 ```cmake
-find_package(mqt-core 4.0.0 CONFIG REQUIRED)
+find_package(mqt-core 4.1.0 CONFIG REQUIRED)
 find_package(amazon-braket-qdmi-device CONFIG REQUIRED)
 
 add_executable(my_app main.cpp)
@@ -137,11 +136,3 @@ setup and job examples.
 | `BUILD_AMAZON_BRAKET_LIVE_TESTS`          | `OFF`   | Register tests that access AWS and may submit paid tasks      |
 | `USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE` | `OFF`   | Use an installed device library when building tests           |
 | `CMAKE_PREFIX_PATH`                       | --      | Search prefix for installed dependencies                      |
-
-## Temporary development dependencies
-
-This repository pins the QDMI v1.4.0 release commit and a current MQT Core
-source commit. Replace the Core pin with a 4.1 release and regenerate `uv.lock`
-before publishing. Remove the temporary LLVM/MLIR setup from Python CI, Read the
-Docs, and Linux wheel-test containers once Core wheels are available for these
-APIs. Native-only device builds do not require LLVM/MLIR.

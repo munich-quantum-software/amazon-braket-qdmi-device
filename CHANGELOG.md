@@ -27,8 +27,8 @@ releases may include breaking changes.
 
 ### Changed
 
-- ⬆️ Pin QDMI v1.4.0 and the matching MQT Core main commit while keeping the
-  Core source build temporary until 4.1.0 ([#263]) ([**@burgholzer**]).
+- ⬆️ Pin QDMI v1.4.0 and require MQT Core 4.1 ([#263], [#268])
+  ([**@burgholzer**], [**@denialhaag**]).
 
 - ♻️ Use MQT Core's shared Slurm deployment and device-wheel discovery in one
   environment ([#237]) ([**@flowerthrower**], [**@burgholzer**])
@@ -38,8 +38,7 @@ releases may include breaking changes.
   ([#233]) ([**@denialhaag**], [**@burgholzer**])
 
 - ✨ Open Braket devices in independent MQT Core driver sessions while retaining
-  stable-ID SDK entry points. Temporary Core source pins and LLVM/MLIR CI setup
-  remain until a suitable release ([#239]) ([**@burgholzer**]).
+  stable-ID SDK entry points ([#239]) ([**@burgholzer**]).
 
 - 👷 Enable testing on Python 3.15 ([#258]) ([**@denialhaag**])
 
@@ -205,6 +204,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#268]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/268
 [#263]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/263
 [#258]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/258
 [#245]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/245
