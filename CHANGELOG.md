@@ -10,6 +10,8 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-14
+
 ### Added
 
 - 🧪 Run authenticated eight-shot SV1 jobs through Qiskit and PennyLane in the
@@ -27,29 +29,22 @@ releases may include breaking changes.
 
 ### Changed
 
-- ⬆️ Pin QDMI v1.4.0 and the matching MQT Core main commit while keeping the
-  Core source build temporary until 4.1.0 ([#263]) ([**@burgholzer**]).
-
+- ⬆️ Update MQT Core to 4.1.1 ([#263], [#268]) ([**@burgholzer**],
+  [**@denialhaag**]).
+- ⬆️ Update QDMI to 1.4.0 ([#263]) ([**@burgholzer**]).
 - ♻️ Use MQT Core's shared Slurm deployment and device-wheel discovery in one
   environment ([#237]) ([**@flowerthrower**], [**@burgholzer**])
-
 - 👷 Run GitHub Actions, documentation, and Slurm fixture builds on Ubuntu 26.04
   with Slurm 25.11, shared OpenSSL on Linux, and OpenSSL 3 in macOS C++ CI
   ([#233]) ([**@denialhaag**], [**@burgholzer**])
-
 - ✨ Open Braket devices in independent MQT Core driver sessions while retaining
-  stable-ID SDK entry points. Temporary Core source pins and LLVM/MLIR CI setup
-  remain until a suitable release ([#239]) ([**@burgholzer**]).
-
+  stable-ID SDK entry points ([#239]) ([**@burgholzer**]).
 - 👷 Enable testing on Python 3.15 ([#258]) ([**@denialhaag**])
-
 - 💥 Adopt QDMI 1.4 headers and remove the calibration advisory property while
   preserving the remaining enum values for binary compatibility with existing
   QDMI clients ([#236]) ([**@burgholzer**]).
-
 - ⬆️ Update the AWS SDK for C++ to 1.11.908 ([#241]) ([#233])
   ([**@burgholzer**])
-
 - 🛡️ Enable the SDK's 2026 retry behavior unless explicitly configured, and
   default to 10 request attempts while honoring AWS retry settings ([#241])
   ([**@burgholzer**])
@@ -61,9 +56,9 @@ releases may include breaking changes.
 
 ### Fixed
 
-- 🐛 Report authentication failures in live CI tests and executable
-  documentation instead of treating them as skipped or successful execution
-  ([#237]) ([**@burgholzer**])
+- 🐛 Report authentication failures in live CI tests. Executable documentation
+  reports missing Amazon Braket permissions without failing the build ([#237],
+  [#267]) ([**@flowerthrower**], [**@burgholzer**], [**@denialhaag**])
 - 🐛 Accept live device connectivity graphs that omit unavailable qubits while
   retaining the advertised qubit count ([#236]) ([**@burgholzer**])
 - 🐛 Cancel queued submissions locally without creating unwanted QuantumTasks
@@ -196,7 +191,8 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- Version links -->
 
-[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.2.0...HEAD
+[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.0.1...v1.1.0
@@ -205,6 +201,8 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#268]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/268
+[#267]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/267
 [#263]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/263
 [#258]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/258
 [#245]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/245

@@ -22,7 +22,7 @@ requires = [ "scikit-build-core>=1.1" ]
 
 [project]
 name = "amazon-braket-qdmi"
-version = "1.2.0"
+version = "1.3.0"
 description = "Amazon Braket QDMI Device Implementation"
 readme = "README.md"
 license = "Apache-2.0 WITH LLVM-exception"
@@ -58,15 +58,12 @@ email = "patrick@mq.sc"
 name = "Lukas Burgholzer"
 email = "lukas@mq.sc"
 
-# Temporary Core source pin: replace with the 4.1 release before publishing.
 [project.optional-dependencies]
 pennylane = [
-  """\
-  mqt-core[pennylane] @ git+https://github.com/munich-quantum-toolkit/core.git@ee1e8911a90b3d1d006f2fc26bc02b655f5313b2\
-  """,
+  "mqt-core[pennylane]~=4.1.1",
 ]
 qiskit = [
-  "mqt-core[qiskit] @ git+https://github.com/munich-quantum-toolkit/core.git@ee1e8911a90b3d1d006f2fc26bc02b655f5313b2",
+  "mqt-core[qiskit]~=4.1.1",
 ]
 
 [project.urls]
@@ -104,10 +101,7 @@ dev = [
   "nox>=2026.8.10",
 ]
 test = [
-  """\
-  mqt-core[pennylane,qiskit] @ \
-  git+https://github.com/munich-quantum-toolkit/core.git@ee1e8911a90b3d1d006f2fc26bc02b655f5313b2\
-  """,
+  "mqt-core[pennylane,qiskit]~=4.1.1",
   "pytest>=9.1.1",
   "pytest-console-scripts>=1.4.1",
   "pytest-cov>=7.1",
@@ -116,10 +110,7 @@ test = [
 ]
 docs = [
   "furo>=2025.12.19",
-  """\
-  mqt-core[pennylane,qiskit] @ \
-  git+https://github.com/munich-quantum-toolkit/core.git@ee1e8911a90b3d1d006f2fc26bc02b655f5313b2\
-  """,
+  "mqt-core[pennylane,qiskit]~=4.1.1",
   "myst-nb>=1.4",
   "sphinx>=9",
   "sphinx-copybutton>=0.5.2",
@@ -192,14 +183,7 @@ test-groups = [ "test" ]
 test-sources = [ "test/python" ]
 
 [tool.cibuildwheel.linux]
-# Temporary: Core builds from source. Remove with the 4.1 release pin.
-environment = { MLIR_DIR = "/opt/llvm-23.1.2/lib/cmake/mlir" }
-before-all = """
-set -e
-yum clean metadata
-yum install -y curl-devel openssl-devel
-curl -LsSf https://github.com/munich-quantum-software/setup-mlir/releases/download/v1.4.2/setup-mlir.sh | bash -s -- -v 23.1.2 -p /opt/llvm-23.1.2
-"""
+before-all = "yum install -y curl-devel openssl-devel"
 
 [tool.cibuildwheel.macos]
 environment = { MACOSX_DEPLOYMENT_TARGET = "13.3" }
