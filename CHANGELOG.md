@@ -29,8 +29,10 @@ releases may include breaking changes.
 
 ### Changed
 
-- ⬆️ Pin QDMI v1.4.0 and require MQT Core 4.1 ([#263], [#268])
-  ([**@burgholzer**], [**@denialhaag**]).
+- ⬆️ Update MQT Core to 4.1.1 ([#263], [#268]) ([**@burgholzer**],
+  [**@denialhaag**]).
+
+- ⬆️ Update QDMI to 1.4.0 ([#263]) ([**@burgholzer**]).
 
 - ♻️ Use MQT Core's shared Slurm deployment and device-wheel discovery in one
   environment ([#237]) ([**@flowerthrower**], [**@burgholzer**])
@@ -63,8 +65,8 @@ releases may include breaking changes.
 ### Fixed
 
 - 🐛 Report authentication failures in live CI tests. Executable documentation
-  reports missing Braket permissions without failing the build ([#237], [#267])
-  ([**@flowerthrower**], [**@burgholzer**], [**@denialhaag**])
+  reports missing Amazon Braket permissions without failing the build ([#237],
+  [#267]) ([**@flowerthrower**], [**@burgholzer**], [**@denialhaag**])
 - 🐛 Accept live device connectivity graphs that omit unavailable qubits while
   retaining the advertised qubit count ([#236]) ([**@burgholzer**])
 - 🐛 Cancel queued submissions locally without creating unwanted QuantumTasks
