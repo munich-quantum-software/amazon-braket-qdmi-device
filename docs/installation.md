@@ -90,14 +90,16 @@ cmake --build build
 ## MQT Core integration
 
 MQT Core implements the QDMI Client Interface and loads this device library
-through its builtin driver. The installed CMake target identifies its device
-manifest through `QDMI_MANIFEST_NAME`. The manifest contains the stable device
-IDs, symbol prefix, and relative library paths. An application can copy the
-device library and manifest beside its executable. This integration requires
+through its builtin driver. The C++ client requires an
+[MQT Core source installation](https://mqt.readthedocs.io/projects/core/en/latest/installation.html#integrating-mqt-core-into-your-project)
+with the `Development` component. The installed CMake target identifies its
+device manifest through `QDMI_MANIFEST_NAME`. The manifest contains the stable
+device IDs, symbol prefix, and relative library paths. An application can copy
+the device library and manifest beside its executable. This integration requires
 CMake 3.28 or later and MQT Core 4.1:
 
 ```cmake
-find_package(mqt-core 4.1.1 CONFIG REQUIRED)
+find_package(mqt-core 4.1.1 CONFIG REQUIRED COMPONENTS Development)
 find_package(amazon-braket-qdmi-device CONFIG REQUIRED)
 
 add_executable(my_app main.cpp)
