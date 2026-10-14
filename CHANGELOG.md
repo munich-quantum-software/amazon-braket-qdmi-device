@@ -31,28 +31,20 @@ releases may include breaking changes.
 
 - ⬆️ Update MQT Core to 4.1.1 ([#263], [#268]) ([**@burgholzer**],
   [**@denialhaag**]).
-
 - ⬆️ Update QDMI to 1.4.0 ([#263]) ([**@burgholzer**]).
-
 - ♻️ Use MQT Core's shared Slurm deployment and device-wheel discovery in one
   environment ([#237]) ([**@flowerthrower**], [**@burgholzer**])
-
 - 👷 Run GitHub Actions, documentation, and Slurm fixture builds on Ubuntu 26.04
   with Slurm 25.11, shared OpenSSL on Linux, and OpenSSL 3 in macOS C++ CI
   ([#233]) ([**@denialhaag**], [**@burgholzer**])
-
 - ✨ Open Braket devices in independent MQT Core driver sessions while retaining
   stable-ID SDK entry points ([#239]) ([**@burgholzer**]).
-
 - 👷 Enable testing on Python 3.15 ([#258]) ([**@denialhaag**])
-
 - 💥 Adopt QDMI 1.4 headers and remove the calibration advisory property while
   preserving the remaining enum values for binary compatibility with existing
   QDMI clients ([#236]) ([**@burgholzer**]).
-
 - ⬆️ Update the AWS SDK for C++ to 1.11.908 ([#241]) ([#233])
   ([**@burgholzer**])
-
 - 🛡️ Enable the SDK's 2026 retry behavior unless explicitly configured, and
   default to 10 request attempts while honoring AWS retry settings ([#241])
   ([**@burgholzer**])
