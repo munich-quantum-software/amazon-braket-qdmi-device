@@ -398,7 +398,8 @@ public:
         Aws::Http::HttpResponseCode::REQUEST_NOT_MADE;
     std::string exceptionName = "StubError";
     std::string errorMessage = "stubbed S3 failure";
-    std::string resultJson = R"({"measurements":[[0,0],[1,1]]})";
+    std::string resultJson =
+        R"({"measuredQubits":[0,1],"measurements":[[0,0],[1,1]]})";
     std::optional<std::string> failingKey = std::nullopt;
   };
 
@@ -2999,12 +3000,14 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   task.WithQuantumTaskArn(taskArn)
       .WithDeviceArn("arn:aws:braket:::device/quantum-simulator/amazon/sv1")
       .WithStatus(Aws::Braket::Model::QuantumTaskStatus::COMPLETED)
-      .WithShots(2)
+      .WithShots(3)
       .WithOutputS3Bucket("task-returned-results")
       .WithOutputS3Directory("returned/task-id");
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
       session, std::make_unique<StubBraketClient>(std::move(task)));
-  auto s3Client = std::make_unique<StubS3Client>();
+  auto s3Client = std::make_unique<StubS3Client>(StubS3Client::Configuration{
+      .resultJson =
+          R"({"measuredQubits":[2,1,0],"measurements":[[0,0,1],[1,0,1],[0,0,1]]})"});
   const auto* s3 = s3Client.get();
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
       session, std::move(s3Client));
@@ -3022,7 +3025,19 @@ TEST_F(AmazonBraketQDMILocalJobTest,
       AMAZON_BRAKET_QDMI_device_job_get_results(
           job, 0, QDMI_JOB_RESULT_SHOTS, resultSize, result.data(), nullptr),
       QDMI_SUCCESS);
-  EXPECT_EQ(result, "00,11");
+  EXPECT_EQ(result, "001,101,001");
+  std::array<char, 8> keys{};
+  EXPECT_EQ(
+      AMAZON_BRAKET_QDMI_device_job_get_results(
+          job, 0, QDMI_JOB_RESULT_HIST_KEYS, keys.size(), keys.data(), nullptr),
+      QDMI_SUCCESS);
+  EXPECT_STREQ(keys.data(), "001,101");
+  std::array<size_t, 2> counts{};
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_get_results(
+                job, 0, QDMI_JOB_RESULT_HIST_VALUES, sizeof(counts),
+                counts.data(), nullptr),
+            QDMI_SUCCESS);
+  EXPECT_EQ(counts, (std::array<size_t, 2>{2, 1}));
   EXPECT_EQ(s3->getObjectCalls(), 1U);
   EXPECT_EQ(s3->getObjectBucket(), "task-returned-results");
   EXPECT_EQ(s3->getObjectKey(), "returned/task-id/results.json");
@@ -3108,9 +3123,23 @@ TEST_P(InvalidResultDocumentTest, IsRejected) {
   AMAZON_BRAKET_QDMI_device_job_free(job);
 }
 
-INSTANTIATE_TEST_SUITE_P(AmazonBraketQDMILocalJobTest,
-                         InvalidResultDocumentTest,
-                         testing::Values("not-json", R"({"metadata":{}})"));
+INSTANTIATE_TEST_SUITE_P(
+    AmazonBraketQDMILocalJobTest, InvalidResultDocumentTest,
+    testing::Values(
+        "not-json", R"({"metadata":{}})", R"({"measurements":[[0,1]]})",
+        R"({"measuredQubits":null,"measurements":[[0,1]]})",
+        R"({"measuredQubits":0,"measurements":[[0,1]]})",
+        R"({"measuredQubits":[0,0],"measurements":[[0,1]]})",
+        R"({"measuredQubits":[-1,0],"measurements":[[0,1]]})",
+        R"({"measuredQubits":["0",1],"measurements":[[0,1]]})",
+        R"({"measuredQubits":[0,1],"measurements":null})",
+        R"({"measuredQubits":[0,1],"measurements":0})",
+        R"({"measuredQubits":[0,1],"measurements":[0]})",
+        R"({"measuredQubits":[0,1],"measurements":[[0]]})",
+        R"({"measuredQubits":[0,1],"measurements":[[0,1,0]]})",
+        R"({"measuredQubits":[0,1],"measurements":[[0,2]]})",
+        R"({"measuredQubits":[0,1],"measurements":[[0,true]]})",
+        R"({"measuredQubits":[0,1],"measurements":[[0,4294967296]]})"));
 
 // =============================================================================
 // DeviceParser offline error-path tests
@@ -3977,7 +4006,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, ProgramSetsUseOneTaskAndOrderedResults) {
                                                           std::move(client));
   auto s3 = std::make_unique<StubS3Client>(StubS3Client::Configuration{
       .resultJson =
-          R"({"taskMetadata":{"programMetadata":[{"executables":[{}]},{"executables":[{}]}]},"programResults":[{"executableResults":[{"inputsIndex":0,"measurements":[[0,1]]}]},{"executableResults":[{"inputsIndex":0,"measurements":[[1,0]]}]}]})"});
+          R"({"taskMetadata":{"programMetadata":[{"executables":[{}]},{"executables":[{}]}]},"programResults":[{"executableResults":[{"inputsIndex":0,"measuredQubits":[1,0],"measurements":[[1,0]]}]},{"executableResults":[{"inputsIndex":0,"measuredQubits":[0,1],"measurements":[[1,0]]}]}]})"});
   const auto* observedS3 = s3.get();
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(session,
                                                             std::move(s3));
@@ -4185,8 +4214,9 @@ TEST_F(AmazonBraketQDMILocalJobTest,
       R"({"programMetadata":[{"executables":[{}]},{"executables":[{"failureReason":"compilation failed","retryable":false,"category":"COMPILATION"}]},{"executables":[{"status":"CANCELLED"}]}]})");
   s3->setResult("tasks/set/0/results.json",
                 R"({"executableResults":["0.json"]})");
-  s3->setResult("tasks/set/0/0.json",
-                R"({"inputsIndex":0,"measurements":[[1,1],[0,0]]})");
+  s3->setResult(
+      "tasks/set/0/0.json",
+      R"({"inputsIndex":0,"measuredQubits":[0,1],"measurements":[[1,1],[0,0]]})");
   const auto* observed = s3.get();
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(session,
                                                             std::move(s3));

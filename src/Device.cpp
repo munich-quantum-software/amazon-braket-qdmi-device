@@ -2260,11 +2260,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal(
                ? QDMI_ERROR_NOTSUPPORTED
                : QDMI_ERROR_FATAL;
   }
-  if (!root.GetObject("measurements").IsListType()) {
-    return QDMI_ERROR_FATAL;
-  }
-  const auto measurements = amazon::braket::qdmi::parseMeasurementResults(
-      root.GetArray("measurements"));
+  const auto measurements = amazon::braket::qdmi::parseMeasurementResults(root);
   ProgramResult result;
   for (const auto& measurement : measurements) {
     if (!result.shots.empty()) {

@@ -10,6 +10,14 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-16
+
+### Fixed
+
+- 🐛 Use Braket's `measuredQubits` metadata to order shots and histogram keys
+  consistently across devices, including Rigetti, and reject malformed
+  measurement results ([#270]) ([**@burgholzer**]).
+
 ## [1.3.0] - 2026-10-14
 
 ### Added
@@ -191,7 +199,8 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- Version links -->
 
-[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.3.0...HEAD
+[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.1.0...v1.1.1
@@ -201,6 +210,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#270]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/270
 [#268]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/268
 [#267]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/267
 [#263]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/263
