@@ -49,6 +49,10 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install openssl@3
+          # Use the SDK's bundled s2n with the selected OpenSSL version.
+          if brew list --versions s2n >/dev/null; then
+            brew unlink s2n
+          fi
           echo "OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
           echo "CMAKE_PREFIX_PATH=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
 
