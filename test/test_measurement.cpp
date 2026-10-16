@@ -24,13 +24,20 @@
 #include <string>
 #include <vector>
 
-TEST(MeasurementResultParserTest, UsesQDMIOrderForShotsAndCounts) {
-  const Aws::Utils::Json::JsonValue json(
-      R"({"measurements":[[1,0,0],[1,0,1],[1,0,0]]})");
-  ASSERT_TRUE(json.WasParseSuccessful());
+TEST(MeasurementResultParserTest, OrdersColumnsByMeasuredQubit) {
+  for (
+      const auto* response : {
+          R"({"measuredQubits":[0,1,2],"measurements":[[1,0,0],[1,0,1],[1,0,0]]})",
+          R"({"measuredQubits":[2,1,0],"measurements":[[0,0,1],[1,0,1],[0,0,1]]})",
+          R"({"measuredQubits":[17,2,9],"measurements":[[0,1,0],[1,1,0],[0,1,0]]})",
+      }) {
+    SCOPED_TRACE(response);
+    const Aws::Utils::Json::JsonValue json(response);
+    ASSERT_TRUE(json.WasParseSuccessful());
 
-  const auto results = amazon::braket::qdmi::parseMeasurementResults(
-      json.View().GetArray("measurements"));
+    const auto results =
+        amazon::braket::qdmi::parseMeasurementResults(json.View());
 
-  EXPECT_EQ(results, (std::vector<std::string>{"001", "101", "001"}));
+    EXPECT_EQ(results, (std::vector<std::string>{"001", "101", "001"}));
+  }
 }

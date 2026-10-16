@@ -27,7 +27,6 @@
 // public header. Implementations include the full header in their .cpp file.
 namespace Aws {
 namespace Utils {
-template <typename T> class Array;
 namespace Json {
 class JsonView;
 } // namespace Json
@@ -97,11 +96,9 @@ struct ParsedDeviceProperties {
 
 namespace amazon::braket::qdmi {
 
-/**
- * @brief Convert Amazon Braket measurement rows to QDMI basis-state order.
- */
-auto parseMeasurementResults(
-    const Aws::Utils::Array<Aws::Utils::Json::JsonView>& measurements)
+/// Convert measurement columns to descending measured-qubit order.
+/// Throws std::runtime_error for malformed backend results.
+auto parseMeasurementResults(const Aws::Utils::Json::JsonView& result)
     -> std::vector<std::string>;
 
 } // namespace amazon::braket::qdmi

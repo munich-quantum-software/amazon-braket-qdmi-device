@@ -39,6 +39,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <iostream>
 #include <limits>
 #include <map>
@@ -46,6 +47,7 @@
 #include <optional>
 #include <ranges>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -57,20 +59,42 @@
 // ============================================================================
 
 auto amazon::braket::qdmi::parseMeasurementResults(
-    const Aws::Utils::Array<Aws::Utils::Json::JsonView>& measurements)
-    -> std::vector<std::string> {
+    const Aws::Utils::Json::JsonView& result) -> std::vector<std::string> {
+  if (!result.IsObject() || !result.ValueExists("measuredQubits") ||
+      !result.GetObject("measuredQubits").IsListType() ||
+      !result.ValueExists("measurements") ||
+      !result.GetObject("measurements").IsListType()) {
+    throw std::runtime_error("Missing measurement arrays");
+  }
+  std::map<int64_t, size_t, std::greater<>> columns;
+  const auto qubits = result.GetArray("measuredQubits");
+  for (size_t i = 0; i < qubits.GetLength(); ++i) {
+    if (!qubits[i].IsIntegerType() || qubits[i].AsInt64() < 0 ||
+        !columns.emplace(qubits[i].AsInt64(), i).second) {
+      throw std::runtime_error("Invalid measuredQubits metadata");
+    }
+  }
+  const auto measurements = result.GetArray("measurements");
   std::vector<std::string> results;
   results.reserve(measurements.GetLength());
   for (size_t i = 0; i < measurements.GetLength(); ++i) {
-    const auto shot = measurements[i].AsArray();
-    std::string bitstring;
-
-    // QDMI bit strings use conventional basis-state order: the
-    // highest-index site is the left-most bit.
-    for (size_t q = shot.GetLength(); q > 0; --q) {
-      bitstring += std::to_string(shot[q - 1].AsInteger());
+    if (!measurements[i].IsListType()) {
+      throw std::runtime_error("Invalid measurement row");
     }
-
+    const auto shot = measurements[i].AsArray();
+    if (shot.GetLength() != columns.size()) {
+      throw std::runtime_error(
+          "Measurement width does not match measuredQubits");
+    }
+    std::string bitstring;
+    bitstring.reserve(columns.size());
+    for (const auto column : columns | std::views::values) {
+      if (!shot[column].IsIntegerType() ||
+          (shot[column].AsInt64() != 0 && shot[column].AsInt64() != 1)) {
+        throw std::runtime_error("Nonbinary backend measurement");
+      }
+      bitstring += shot[column].AsInt64() == 0 ? '0' : '1';
+    }
     results.emplace_back(std::move(bitstring));
   }
   return results;
