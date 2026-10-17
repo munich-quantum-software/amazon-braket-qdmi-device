@@ -171,15 +171,13 @@ def test_serializes_openqasm_without_includes() -> None:
     assert circuit.layout is not None
 
     backend = object.__new__(AmazonBraketBackend)
-    backend._device = cast(  # ruff: ignore[private-member-access]
+    backend._device = cast(
         "QDMIDeviceHandle",
         SimpleNamespace(
             operations=lambda: tuple(SimpleNamespace(name=lambda name=name: name) for name in ("cnot", "h", "measure"))
         ),
     )
-    program, program_format = backend._serialize_circuit(  # ruff: ignore[private-member-access]
-        circuit, [ProgramFormat.QASM3]
-    )
+    program, program_format = backend._serialize_circuit(circuit, [ProgramFormat.QASM3])
 
     assert program_format is ProgramFormat.QASM3
     assert "include" not in program
