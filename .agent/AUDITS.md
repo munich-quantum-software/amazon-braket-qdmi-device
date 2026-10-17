@@ -198,8 +198,8 @@ the ledger.
 For the initial campaign, requested-behavior cartographers should inspect the
 human-authored issues and review discussions around pull requests `#147`,
 `#148`, `#150`, `#156` through `#160`, `#166` through `#168`, and `#171` through
-`#176`. Verify the live source and author before treating text as rung
-3. Pull-request summaries and retrospective text are not substitutes.
+`#176`. Verify the live source and author before treating text as rung 3.
+Pull-request summaries and retrospective text are not substitutes.
 
 ## Verdict classes
 
