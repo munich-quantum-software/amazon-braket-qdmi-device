@@ -215,6 +215,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#278]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/278
 [#270]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/270
 [#268]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/268
 [#267]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/267
@@ -268,4 +269,3 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 [Keep a Changelog]: https://keepachangelog.com/en/1.1.0/
 [Common Changelog]: https://common-changelog.org
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
-[#278]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/278

@@ -32,38 +32,30 @@ Custom bundles require an AWS SDK curl backend with OpenSSL. Initialization
 fails if the bundle cannot be loaded, the backend cannot enforce it, or another
 component already initialized the AWS SDK. Keep the selection unchanged until
 device finalization. Without an explicit bundle, the existing host trust and SDK
-defaults apply. Configure external `credential_process` tools separately.
+defaults apply. An inherited `SSL_CERT_FILE` counts as an explicit selection.
+Configure external `credential_process` tools separately. The selected trust
+policy also applies to other AWS SDK clients created in the same process while
+the device owns SDK initialization. HTTPS proxy trust is configured separately.
 
-### eMudhra CA compromise: October 2026
+### Trust-store updates
 
-The [eMudhra incident advisory](https://emudhra.we-have-a-problem.com/) reports
-compromised intermediate CA keys that can impersonate HTTPS services, including
-AWS endpoints. Exposure depends on the trust stores used at runtime; valid
-certificates on AWS endpoints do not prevent this attack.
+Keep host and container CA packages current. For the
+[October 2026 eMudhra incident](https://emudhra.we-have-a-problem.com/), follow
+the advisory for the deployed TLS backend and update custom PEM bundles and
+hashed CA directories too. Browser updates, Python CA bundle updates, and
+reinstalling the device wheel alone do not update native AWS SDK trust stores.
 
-Update the CA trust stores on every execution host and inside every container
-before using the device. Install your platform's patched CA package listed in
-the advisory. Update custom PEM bundles and hashed CA directories too; libcurl
-can consult a CA directory alongside the selected bundle. Browser updates and
-reinstalling the device wheel do not update these stores.
-
-For a custom PEM bundle, use the curl CA bundle dated **2026-10-20** or newer,
-or another bundle that removes the affected trust paths. Select it before
-starting the process:
+Select a patched custom bundle before starting the process, for example the
+[curl CA bundle](https://curl.se/docs/caextract.html) dated 2026-10-20 or newer:
 
 ```console
 export AWS_CA_BUNDLE=/absolute/path/to/patched-ca-bundle.pem
 ```
 
-This setting covers the device's native service and credential clients. Update
-external `credential_process` tools separately. Updating Python's CA bundle
-alone does not update native AWS SDK trust stores.
-
-Restart applications and workers after updating trust stores. Use the advisory's
-offline certificate chains to check rejection with the deployed TLS libraries
-and their actual trust configuration. Do not disable certificate verification.
-If the runtime trust stores cannot be patched or verified, stop remote device
-use until they can.
+Preserve required private CAs and update external `credential_process` tools
+separately. Rebuild affected images and restart clients after updating stores.
+Verify rejection of all advisory test chains with the deployed TLS libraries and
+their actual trust configuration. Keep certificate verification enabled.
 
 ## Retries and quotas
 
