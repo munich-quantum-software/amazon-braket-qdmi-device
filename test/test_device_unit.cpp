@@ -33,6 +33,7 @@
 #include "amazon-braket-qdmi-device/Device.hpp"
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
 #include "amazon-braket-qdmi-device/Queue.hpp"
+#include "amazon-braket-qdmi-device/Trust.hpp"
 #include "amazon-braket-qdmi-device/Wait.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
@@ -78,6 +79,7 @@
 #include <aws/core/utils/memory/stl/AWSStringStream.h>
 #include <aws/core/utils/stream/ResponseStream.h>
 #include <aws/crt/http/HttpConnection.h>
+#include <aws/io/io.h>
 #include <aws/s3/S3Client.h>
 #include <aws/s3/S3Errors.h>
 #include <aws/s3/S3ServiceClientModel.h>
@@ -1097,6 +1099,23 @@ TEST(AwsTrustInitializationTest, LocalTlsServiceCredentialsAndCrt) {
   if (!port.has_value()) {
     GTEST_SKIP() << "Run the local TLS fixture with a curl/OpenSSL SDK build.";
   }
+  const auto policy =
+      std::make_shared<amazon::braket::qdmi::detail::TrustPolicy>();
+  policy->bundle = amazon::braket::qdmi::detail::getCaBundle();
+  Aws::SDKOptions probeOptions;
+  const auto configured =
+      amazon::braket::qdmi::detail::configureTrust(probeOptions, policy);
+  if (configured) {
+    Aws::InitAPI(probeOptions);
+    Aws::ShutdownAPI(probeOptions);
+  }
+  std::cout << "SDK custom trust available: HTTP=" << policy->httpConfigured
+            << "; CRT=" << policy->crtConfigured << '\n';
+  if (!policy->httpConfigured) {
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_ERROR_FATAL);
+    return;
+  }
+  ASSERT_TRUE(policy->crtConfigured);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
   {
     const auto expectation = amazon::braket::qdmi::detail::getEnvironment(
@@ -1141,7 +1160,7 @@ TEST(AwsTrustInitializationTest, LocalTlsServiceCredentialsAndCrt) {
       }
     }
 
-    const auto connected = std::make_shared<std::promise<bool>>();
+    const auto connected = std::make_shared<std::promise<int>>();
     auto result = connected->get_future();
     Aws::Crt::Http::HttpClientConnectionOptions options;
     options.Bootstrap = Aws::GetDefaultClientBootstrap();
@@ -1158,18 +1177,24 @@ TEST(AwsTrustInitializationTest, LocalTlsServiceCredentialsAndCrt) {
           if (connection) {
             connection->Close();
           }
-          connected->set_value(error == 0);
+          connected->set_value(error);
         };
     options.OnConnectionShutdownCallback =
         [](const Aws::Crt::Http::HttpClientConnection&, int) {};
     ASSERT_TRUE(Aws::Crt::Http::HttpClientConnection::CreateConnection(
         options, Aws::Crt::ApiAllocator()));
-    ASSERT_EQ(result.wait_for(std::chrono::seconds(10)),
+    // Linux s2n blinds failed handshakes by delaying shutdown for 10-30
+    // seconds.
+    ASSERT_EQ(result.wait_for(std::chrono::seconds(40)),
               std::future_status::ready);
-    const auto crtAccepted = result.get();
+    const auto crtError = result.get();
+    const auto crtAccepted = crtError == 0;
     std::cout << "CRT TLS accepted: " << crtAccepted << '\n';
     if (expectation != "observe") {
       EXPECT_EQ(crtAccepted, accepted);
+      if (!accepted) {
+        EXPECT_EQ(crtError, AWS_IO_TLS_ERROR_NEGOTIATION_FAILURE);
+      }
     }
   }
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);

@@ -42,10 +42,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "Token": "test",
             "Expiration": "2099-01-01T00:00:00Z",
         }).encode()
-        self.send_response(200)
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
+        # TLS-only probes close after the handshake without reading a response.
+        with contextlib.suppress(BrokenPipeError, ConnectionResetError):
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
 
     def log_message(self, format: str, *args: object) -> None:  # ruff: ignore[builtin-argument-shadowing] - Base class signature.
         """Keep the test output free of request data."""
