@@ -34,6 +34,11 @@ import threading
 class Handler(http.server.BaseHTTPRequestHandler):
     """Serve synthetic credentials without recording requests."""
 
+    def handle(self) -> None:
+        """Allow TLS-only probes to close without sending or reading HTTP data."""
+        with contextlib.suppress(BrokenPipeError, ConnectionResetError):
+            super().handle()
+
     def do_GET(self) -> None:
         """Return dummy credentials; these never leave the loopback interface."""
         data = json.dumps({
@@ -42,19 +47,32 @@ class Handler(http.server.BaseHTTPRequestHandler):
             "Token": "test",
             "Expiration": "2099-01-01T00:00:00Z",
         }).encode()
-        # TLS-only probes close after the handshake without reading a response.
-        with contextlib.suppress(BrokenPipeError, ConnectionResetError):
-            self.send_response(200)
-            self.send_header("Content-Length", str(len(data)))
-            self.end_headers()
-            self.wfile.write(data)
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def log_message(self, format: str, *args: object) -> None:  # ruff: ignore[builtin-argument-shadowing] - Base class signature.
         """Keep the test output free of request data."""
 
 
+class CountingHandler(Handler):
+    """Count plain HTTP requests to detect transmission after an option error."""
+
+    requests = 0
+
+    def do_GET(self) -> None:
+        """Count requests before serving the same synthetic response."""
+        type(self).requests += 1
+        super().do_GET()
+
+
 def main() -> None:
-    """Generate two roots and check trust isolation in fresh native processes."""
+    """Generate two roots and check trust isolation in fresh native processes.
+
+    Raises:
+        AssertionError: If a failed curl option allows an HTTP request through.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("executable", type=pathlib.Path)
     parser.add_argument("--openssl", default="openssl")
@@ -134,6 +152,23 @@ def main() -> None:
                 env=environment,
                 timeout=60,
             )
+        plain = http.server.ThreadingHTTPServer(("127.0.0.1", 0), CountingHandler)
+        plain.daemon_threads = True
+        stack.callback(plain.server_close)
+        worker = threading.Thread(target=plain.serve_forever, daemon=True)
+        worker.start()
+        stack.callback(worker.join)
+        stack.callback(plain.shutdown)
+        environment["AMAZON_BRAKET_QDMI_TEST_HTTP_PORT"] = str(plain.server_port)
+        subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - Caller-selected native test executable, no shell.
+            [str(executable), "--gtest_filter=AwsTrustInitializationTest.CurlOptionFailurePreventsTransmission"],
+            check=True,
+            env=environment,
+            timeout=15,
+        )
+        if CountingHandler.requests != 1:
+            message = f"Expected only the control HTTP request, received {CountingHandler.requests}"
+            raise AssertionError(message)
 
 
 if __name__ == "__main__":

@@ -22,15 +22,21 @@
 #include <aws/core/Aws.h>
 #include <memory>
 #include <string>
+#include <utility>
 
 #ifdef AMAZON_BRAKET_QDMI_CURL_TRUST
 #include <aws/core/client/ClientConfiguration.h>
 #include <aws/core/http/HttpClientFactory.h>
+#include <aws/core/http/HttpTypes.h>
 #include <aws/core/http/URI.h>
 #include <aws/core/http/curl/CurlHttpClient.h>
 #include <aws/core/http/standard/StandardHttpRequest.h>
+#include <aws/core/utils/memory/stl/AWSStreamFwd.h>
+#include <aws/core/utils/memory/stl/AWSString.h>
+#include <aws/crt/io/TlsOptions.h>
 #include <cstdio>
 #include <curl/curl.h>
+#include <curl/easy.h>
 #include <string_view>
 #endif
 
@@ -66,21 +72,22 @@ public:
   explicit BundleHttpFactory(std::shared_ptr<TrustPolicy> policy)
       : policy_(std::move(policy)) {}
 
-  auto
+  [[nodiscard]] auto
   CreateHttpClient(const Aws::Client::ClientConfiguration& configuration) const
       -> std::shared_ptr<Aws::Http::HttpClient> override {
     return std::make_shared<BundleHttpClient>(configuration, policy_->bundle);
   }
 
-  auto CreateHttpRequest(const Aws::String& uri, Aws::Http::HttpMethod method,
-                         const Aws::IOStreamFactory& streamFactory) const
+  [[nodiscard]] auto
+  CreateHttpRequest(const Aws::String& uri, Aws::Http::HttpMethod method,
+                    const Aws::IOStreamFactory& streamFactory) const
       -> std::shared_ptr<Aws::Http::HttpRequest> override {
     return CreateHttpRequest(Aws::Http::URI{uri}, method, streamFactory);
   }
 
-  auto CreateHttpRequest(const Aws::Http::URI& uri,
-                         Aws::Http::HttpMethod method,
-                         const Aws::IOStreamFactory& streamFactory) const
+  [[nodiscard]] auto
+  CreateHttpRequest(const Aws::Http::URI& uri, Aws::Http::HttpMethod method,
+                    const Aws::IOStreamFactory& streamFactory) const
       -> std::shared_ptr<Aws::Http::HttpRequest> override {
     auto request =
         std::make_shared<Aws::Http::Standard::StandardHttpRequest>(uri, method);
@@ -115,7 +122,8 @@ auto configureTrust(Aws::SDKOptions& options,
   }
 #ifdef AMAZON_BRAKET_QDMI_CURL_TRUST
   const auto factory = std::make_shared<BundleHttpFactory>(policy);
-  options.httpOptions.httpClientFactory_create_fn = [factory] {
+  options.httpOptions.httpClientFactory_create_fn =
+      [factory]() -> std::shared_ptr<Aws::Http::HttpClientFactory> {
     return factory;
   };
   options.ioOptions.tlsConnectionOptions_create_fn = [policy] {
@@ -126,7 +134,7 @@ auto configureTrust(Aws::SDKOptions& options,
                                                     policy->bundle.c_str())) {
         return std::shared_ptr<TlsConnectionOptions>{};
       }
-      TlsContext context(contextOptions, TlsMode::CLIENT);
+      const TlsContext context(contextOptions, TlsMode::CLIENT);
       if (!context) {
         return std::shared_ptr<TlsConnectionOptions>{};
       }

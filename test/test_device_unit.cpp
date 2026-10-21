@@ -67,7 +67,6 @@
 #include <aws/core/config/ConfigAndCredentialsCacheManager.h>
 #include <aws/core/http/HttpClient.h>
 #include <aws/core/http/HttpClientFactory.h>
-#include <aws/core/http/HttpRequest.h>
 #include <aws/core/http/HttpResponse.h>
 #include <aws/core/http/HttpTypes.h>
 #include <aws/core/http/standard/StandardHttpResponse.h>
@@ -78,6 +77,8 @@
 #include <aws/core/utils/memory/AWSMemory.h>
 #include <aws/core/utils/memory/stl/AWSStringStream.h>
 #include <aws/core/utils/stream/ResponseStream.h>
+#include <aws/crt/Allocator.h>
+#include <aws/crt/Types.h>
 #include <aws/crt/http/HttpConnection.h>
 #include <aws/io/io.h>
 #include <aws/s3/S3Client.h>
@@ -1037,11 +1038,11 @@ TEST(AwsTrustInitializationTest,
      RejectsOverrideAfterApplicationInitialization) {
   const ScopedEnvironment awsCaBundle("AWS_CA_BUNDLE", "/custom-ca.pem");
   const ScopedEnvironment sslCertificateFile("SSL_CERT_FILE", "");
-  Aws::SDKOptions options;
+  const Aws::SDKOptions options;
   Aws::InitAPI(options);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_ERROR_FATAL);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);
-  Aws::Client::ClientConfiguration configuration;
+  const Aws::Client::ClientConfiguration configuration;
   EXPECT_NE(Aws::Http::CreateHttpClient(configuration), nullptr);
   Aws::ShutdownAPI(options);
 }
@@ -1133,7 +1134,7 @@ TEST(AwsTrustInitializationTest, LocalTlsServiceCredentialsAndCrt) {
     std::cout << "AWS SDK: " << Aws::Version::GetVersionString()
               << "; HTTP backend: " << typeid(*client).name() << '\n';
     auto request = Aws::Http::CreateHttpRequest(
-        Aws::String{url.c_str()}, Aws::Http::HttpMethod::HTTP_GET,
+        Aws::String{url}, Aws::Http::HttpMethod::HTTP_GET,
         Aws::Utils::Stream::DefaultResponseStreamFactoryMethod);
     const auto serviceAccepted =
         !client->MakeRequest(request)->HasClientError();
@@ -1142,7 +1143,8 @@ TEST(AwsTrustInitializationTest, LocalTlsServiceCredentialsAndCrt) {
       EXPECT_EQ(serviceAccepted, accepted);
     }
 
-    Aws::Internal::ECSCredentialsClient credentialsClient("", url.c_str());
+    const Aws::Internal::ECSCredentialsClient credentialsClient("",
+                                                                url.c_str());
     const auto credentialsAccepted =
         !credentialsClient.GetECSCredentials().empty();
     std::cout << "Credential transport TLS accepted: " << credentialsAccepted
@@ -1151,8 +1153,8 @@ TEST(AwsTrustInitializationTest, LocalTlsServiceCredentialsAndCrt) {
       EXPECT_EQ(credentialsAccepted, accepted);
     }
     if (host == "localhost") {
-      Aws::Auth::GeneralHTTPCredentialsProvider credentials(
-          Aws::String{}, Aws::String{url.c_str()});
+      Aws::Auth::GeneralHTTPCredentialsProvider credentials(Aws::String{},
+                                                            Aws::String{url});
       const auto providerAccepted = !credentials.GetAWSCredentials().IsEmpty();
       std::cout << "Credential provider accepted: " << providerAccepted << '\n';
       if (expectation != "observe") {
@@ -1164,7 +1166,7 @@ TEST(AwsTrustInitializationTest, LocalTlsServiceCredentialsAndCrt) {
     auto result = connected->get_future();
     Aws::Crt::Http::HttpClientConnectionOptions options;
     options.Bootstrap = Aws::GetDefaultClientBootstrap();
-    options.HostName = host.c_str();
+    options.HostName = host;
     options.Port = static_cast<uint16_t>(std::stoul(*port));
     options.TlsOptions = *Aws::GetDefaultTlsConnectionOptions();
     auto serverName = Aws::Crt::ByteCursorFromCString(host.c_str());
@@ -1198,6 +1200,46 @@ TEST(AwsTrustInitializationTest, LocalTlsServiceCredentialsAndCrt) {
     }
   }
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);
+}
+
+TEST(AwsTrustInitializationTest, CurlOptionFailurePreventsTransmission) {
+  const auto port = amazon::braket::qdmi::detail::getEnvironment(
+      "AMAZON_BRAKET_QDMI_TEST_HTTP_PORT");
+  if (!port.has_value()) {
+    GTEST_SKIP() << "Run the local TLS fixture with a curl SDK build.";
+  }
+  const auto policy =
+      std::make_shared<amazon::braket::qdmi::detail::TrustPolicy>();
+  // libcurl rejects option strings longer than CURL_MAX_INPUT_LENGTH (8 MB).
+  policy->bundle.assign(8'000'001, 'x');
+  Aws::SDKOptions trustOptions;
+  if (!amazon::braket::qdmi::detail::configureTrust(trustOptions, policy)) {
+    GTEST_SKIP() << "The SDK does not provide a curl HTTP backend.";
+  }
+  const Aws::SDKOptions options;
+  Aws::InitAPI(options);
+  {
+    Aws::Client::ClientConfiguration configuration;
+    configuration.connectTimeoutMs = 1000;
+    configuration.requestTimeoutMs = 1000;
+    const auto url = "http://localhost:" + *port + "/";
+    const auto send = [&url](const auto& client) {
+      const auto request = Aws::Http::CreateHttpRequest(
+          Aws::String{url}, Aws::Http::HttpMethod::HTTP_GET,
+          Aws::Utils::Stream::DefaultResponseStreamFactoryMethod);
+      return client->MakeRequest(request);
+    };
+    // Plain HTTP succeeds even with an invalid CA path unless the hook resets
+    // the URL. The Python fixture also verifies only this control reaches it.
+    EXPECT_FALSE(
+        send(Aws::Http::CreateHttpClient(configuration))->HasClientError());
+    const auto factory = trustOptions.httpOptions.httpClientFactory_create_fn();
+    const auto client = factory->CreateHttpClient(configuration);
+    for (int attempt = 0; attempt < 2; ++attempt) {
+      EXPECT_TRUE(send(client)->HasClientError());
+    }
+  }
+  Aws::ShutdownAPI(options);
 }
 
 #ifdef __linux__
