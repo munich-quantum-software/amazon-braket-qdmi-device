@@ -26,6 +26,39 @@ nonstandard location. `SSL_CERT_FILE` is also supported when `AWS_CA_BUNDLE` is
 not set. An invalid explicit path is reported by the AWS client; certificate
 verification is never disabled.
 
+### eMudhra CA compromise: October 2026
+
+The [eMudhra incident advisory](https://emudhra.we-have-a-problem.com/) reports
+compromised intermediate CA keys that can impersonate HTTPS services, including
+AWS endpoints. Exposure depends on the trust stores used at runtime; valid
+certificates on AWS endpoints do not prevent this attack.
+
+Update the CA trust stores on every execution host and inside every container
+before using the device. Install your platform's patched CA package listed in
+the advisory. Update custom PEM bundles and hashed CA directories too; libcurl
+can consult a CA directory alongside the selected bundle. Browser updates and
+reinstalling the device wheel do not update these stores.
+
+For a custom PEM bundle, use the curl CA bundle dated **2026-10-20** or newer,
+or another bundle that removes the affected trust paths. Select it before
+starting the process:
+
+```console
+export AWS_CA_BUNDLE=/absolute/path/to/patched-ca-bundle.pem
+```
+
+This setting selects the bundle for the device's Braket, S3, and STS clients. It
+does not configure every credential provider: web identity uses AWS CRT TLS
+defaults, and SSO creates separate clients. Update their trust stores and any
+external `credential_process` tool separately. Updating Python's CA bundle alone
+does not update the native AWS SDK's trust stores.
+
+Restart applications and workers after updating trust stores. Use the advisory's
+offline certificate chains to check rejection with the deployed TLS libraries
+and their actual trust configuration. Do not disable certificate verification.
+If the runtime trust stores cannot be patched or verified, stop remote device
+use until they can.
+
 ## Retries and quotas
 
 The device uses AWS SDK retries, defaulting to `standard` mode and up to
