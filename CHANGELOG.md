@@ -10,6 +10,11 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+### Fixed
+
+- 🐛 Apply custom CA bundles to AWS SDK service and credential clients, and
+  reject unsupported trust configurations ([#278]) ([**@marcelwa**]).
+
 ## [1.3.1] - 2026-10-16
 
 ### Fixed
@@ -252,6 +257,8 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- Contributor -->
 
+[**@marcelwa**]: https://github.com/marcelwa
+
 [**@flowerthrower**]: https://github.com/flowerthrower
 [**@burgholzer**]: https://github.com/burgholzer
 [**@denialhaag**]: https://github.com/denialhaag
@@ -261,3 +268,4 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 [Keep a Changelog]: https://keepachangelog.com/en/1.1.0/
 [Common Changelog]: https://common-changelog.org
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
+[#278]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/278

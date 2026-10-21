@@ -150,16 +150,23 @@ inline auto configureRetries(Aws::Client::ClientConfiguration& configuration)
   }
 }
 
-inline auto configureCaBundle(Aws::Client::ClientConfiguration& configuration)
-    -> void {
+inline auto getCaBundle() -> std::string {
   for (const auto* variable : {"AWS_CA_BUNDLE", "SSL_CERT_FILE"}) {
     if (const auto value = getEnvironment(variable);
         value.has_value() && !value->empty()) {
-      configuration.caFile = value->c_str();
-      return;
+      return *value;
     }
   }
 
+  return {};
+}
+
+inline auto configureCaBundle(Aws::Client::ClientConfiguration& configuration)
+    -> void {
+  if (const auto bundle = getCaBundle(); !bundle.empty()) {
+    configuration.caFile = bundle.c_str();
+    return;
+  }
 #ifdef __linux__
   constexpr std::array bundles{
       "/etc/ssl/certs/ca-certificates.crt",

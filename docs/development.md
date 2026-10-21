@@ -14,6 +14,11 @@ The hermetic tests use injected AWS clients and need no credentials or network
 access. CMake does not register tests that access AWS unless
 `BUILD_AMAZON_BRAKET_LIVE_TESTS=ON` is set explicitly.
 
+For SDK curl builds, CTest also checks custom trust against local HTTPS peers
+when Python and OpenSSL are available. It uses synthetic credentials and never
+contacts AWS. Run it directly with
+`python test/python/tls_check.py build/test/amazon-braket-qdmi-device-test`.
+
 When live Amazon Braket tests are intentionally required, select an AWS SDK
 credential source before configuring the test-specific opt-in:
 

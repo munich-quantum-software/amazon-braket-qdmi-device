@@ -63,6 +63,7 @@
 
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
 #include "amazon-braket-qdmi-device/Queue.hpp"
+#include "amazon-braket-qdmi-device/Trust.hpp"
 #include "amazon-braket-qdmi-device/Wait.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
@@ -209,6 +210,13 @@
 // NOLINTEND(bugprone-macro-parentheses)
 
 namespace {
+
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+Aws::SDKOptions gAWSOptions;
+bool gAWSInitialized = false;
+std::mutex gAWSInitMutex;
+std::shared_ptr<amazon::braket::qdmi::detail::TrustPolicy> gAWSTrustPolicy;
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 constexpr std::array<QDMI_Program_Format, 2> SUPPORTED_PROGRAM_FORMATS = {
     QDMI_PROGRAM_FORMAT_QASM2, QDMI_PROGRAM_FORMAT_QASM3};
@@ -839,6 +847,18 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture(
 auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS try {
   if (initialized_) {
     return QDMI_ERROR_BADSTATE;
+  }
+  {
+    const std::scoped_lock sdkLock(gAWSInitMutex);
+    if (!gAWSInitialized) {
+      return QDMI_ERROR_BADSTATE;
+    }
+    if (amazon::braket::qdmi::detail::getCaBundle() !=
+        gAWSTrustPolicy->bundle) {
+      std::fputs("AWS CA bundle changed after device initialization.\n",
+                 stderr);
+      return QDMI_ERROR_INVALIDARGUMENT;
+    }
   }
 
   // Explicit API parameters take precedence over environment configuration.
@@ -2388,16 +2408,6 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::getResults(
 // These functions provide the C interface required by QDMI specification.
 // They wrap the C++ implementation classes above.
 
-// Global SDK state - must be in same translation unit for safe init/shutdown
-// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
-namespace {
-Aws::SDKOptions gAWSOptions;
-bool gAWSInitialized = false;
-std::mutex gAWSInitMutex;
-
-// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
-} // namespace
-
 /**
  * Initialize the QDMI device library.
  *
@@ -2410,6 +2420,11 @@ std::mutex gAWSInitMutex;
  */
 int AMAZON_BRAKET_QDMI_device_initialize() try {
   const std::scoped_lock lock(gAWSInitMutex);
+  const auto bundle = amazon::braket::qdmi::detail::getCaBundle();
+  if (gAWSInitialized && bundle != gAWSTrustPolicy->bundle) {
+    std::fputs("AWS CA bundle changed after device initialization.\n", stderr);
+    return QDMI_ERROR_INVALIDARGUMENT;
+  }
   if (!gAWSInitialized) {
     using Aws::Utils::Logging::LogLevel;
     auto logLevel = LogLevel::Off;
@@ -2438,6 +2453,15 @@ int AMAZON_BRAKET_QDMI_device_initialize() try {
       logLevel = match->second;
     }
     gAWSOptions.loggingOptions.logLevel = logLevel;
+    const auto policy =
+        std::make_shared<amazon::braket::qdmi::detail::TrustPolicy>();
+    policy->bundle = bundle;
+    if (!amazon::braket::qdmi::detail::configureTrust(gAWSOptions, policy)) {
+      std::fputs(
+          "An explicit AWS CA bundle requires an AWS SDK curl backend.\n",
+          stderr);
+      return QDMI_ERROR_FATAL;
+    }
     /// The SDK reads this process-wide opt-in when initializing error maps.
     /// Preserve explicit values and leave it set for subsequent AWS clients.
     if (!amazon::braket::qdmi::detail::getEnvironment("AWS_NEW_RETRIES_2026")
@@ -2452,7 +2476,24 @@ int AMAZON_BRAKET_QDMI_device_initialize() try {
         return QDMI_ERROR_FATAL;
       }
     }
-    Aws::InitAPI(gAWSOptions);
+    try {
+      Aws::InitAPI(gAWSOptions);
+    } catch (...) {
+      Aws::ShutdownAPI(gAWSOptions);
+      throw;
+    }
+    if (!bundle.empty() &&
+        (!policy->httpConfigured || !policy->crtConfigured)) {
+      Aws::ShutdownAPI(gAWSOptions);
+      gAWSOptions = Aws::SDKOptions{};
+      std::fputs(
+          "Could not enforce the AWS CA bundle. Initialize the device before "
+          "other AWS clients and use a readable PEM bundle with "
+          "curl/OpenSSL.\n",
+          stderr);
+      return QDMI_ERROR_FATAL;
+    }
+    gAWSTrustPolicy = policy;
     gAWSInitialized = true;
   }
   std::ignore = amazon::braket::qdmi::Device::get();
@@ -2482,6 +2523,8 @@ int AMAZON_BRAKET_QDMI_device_finalize() try {
     amazon::braket::qdmi::Device::get().clear();
     Aws::ShutdownAPI(gAWSOptions);
     gAWSInitialized = false;
+    gAWSTrustPolicy.reset();
+    gAWSOptions = Aws::SDKOptions{};
   }
   return QDMI_SUCCESS;
 } catch (...) {

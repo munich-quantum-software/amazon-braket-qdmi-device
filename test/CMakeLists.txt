@@ -50,6 +50,17 @@ target_compile_features(${QDMI_TEST_TARGET_NAME} PRIVATE cxx_std_20)
 
 add_dependencies(${QDMI_TEST_TARGET_NAME} qdmi_test_amazon_braket_device_defs)
 
+if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE AND AMAZON_BRAKET_SDK_HAS_CURL)
+  find_package(Python3 QUIET COMPONENTS Interpreter)
+  find_program(AMAZON_BRAKET_TEST_OPENSSL openssl)
+  if(Python3_Interpreter_FOUND AND AMAZON_BRAKET_TEST_OPENSSL)
+    add_test(
+      NAME amazon-braket-ca-bundle
+      COMMAND Python3::Interpreter ${CMAKE_CURRENT_SOURCE_DIR}/python/tls_check.py
+              $<TARGET_FILE:${QDMI_TEST_TARGET_NAME}> --openssl ${AMAZON_BRAKET_TEST_OPENSSL})
+  endif()
+endif()
+
 set(QDMI_LIVE_TEST_FILTER
     "AmazonBraketQDMISpecificationTest.*:AmazonBraketQDMIJobSpecificationTest.*:AmazonBraketQDMIPerJobS3Test.*:DeviceParsingTestFixture.*:AmazonBraketQDMIWaitTimeoutTest.JobWaitTimeout"
 )

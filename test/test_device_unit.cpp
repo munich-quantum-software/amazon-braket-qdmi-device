@@ -56,21 +56,28 @@
 #include <aws/braket/model/GetQuantumTaskResult.h>
 #include <aws/braket/model/QuantumTaskStatus.h>
 #include <aws/core/Aws.h>
+#include <aws/core/Globals.h>
+#include <aws/core/Version.h>
+#include <aws/core/auth/GeneralHTTPCredentialsProvider.h>
 #include <aws/core/client/AWSError.h>
 #include <aws/core/client/ClientConfiguration.h>
 #include <aws/core/client/CoreErrors.h>
 #include <aws/core/client/RetryStrategy.h>
 #include <aws/core/config/ConfigAndCredentialsCacheManager.h>
+#include <aws/core/http/HttpClient.h>
 #include <aws/core/http/HttpClientFactory.h>
+#include <aws/core/http/HttpRequest.h>
 #include <aws/core/http/HttpResponse.h>
 #include <aws/core/http/HttpTypes.h>
 #include <aws/core/http/standard/StandardHttpResponse.h>
+#include <aws/core/internal/AWSHttpResourceClient.h>
 #include <aws/core/utils/logging/AWSLogging.h>
 #include <aws/core/utils/logging/LogLevel.h>
 #include <aws/core/utils/logging/LogSystemInterface.h>
 #include <aws/core/utils/memory/AWSMemory.h>
 #include <aws/core/utils/memory/stl/AWSStringStream.h>
 #include <aws/core/utils/stream/ResponseStream.h>
+#include <aws/crt/http/HttpConnection.h>
 #include <aws/s3/S3Client.h>
 #include <aws/s3/S3Errors.h>
 #include <aws/s3/S3ServiceClientModel.h>
@@ -92,6 +99,7 @@
 #include <future>
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
+#include <iostream>
 #include <iterator>
 #include <limits>
 #include <map>
@@ -103,6 +111,7 @@
 #include <string>
 #include <thread>
 #include <tuple>
+#include <typeinfo>
 #include <utility>
 #include <vector>
 
@@ -1020,6 +1029,150 @@ TEST(AwsLoggingInitializationTest, PreservesApplicationLogging) {
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);
   EXPECT_EQ(Aws::Utils::Logging::GetLogSystem(), logger);
   Aws::ShutdownAPI(options);
+}
+
+TEST(AwsTrustInitializationTest,
+     RejectsOverrideAfterApplicationInitialization) {
+  const ScopedEnvironment awsCaBundle("AWS_CA_BUNDLE", "/custom-ca.pem");
+  const ScopedEnvironment sslCertificateFile("SSL_CERT_FILE", "");
+  Aws::SDKOptions options;
+  Aws::InitAPI(options);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_ERROR_FATAL);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);
+  Aws::Client::ClientConfiguration configuration;
+  EXPECT_NE(Aws::Http::CreateHttpClient(configuration), nullptr);
+  Aws::ShutdownAPI(options);
+}
+
+TEST(AwsTrustInitializationTest, RejectsChangedBundleUntilFinalization) {
+  const ScopedEnvironment awsCaBundle("AWS_CA_BUNDLE", "");
+  const ScopedEnvironment sslCertificateFile("SSL_CERT_FILE", "");
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+  AMAZON_BRAKET_QDMI_Device_Session session = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&session), QDMI_SUCCESS);
+  {
+    const ScopedEnvironment changed("AWS_CA_BUNDLE", "/custom-ca.pem");
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(),
+              QDMI_ERROR_INVALIDARGUMENT);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session),
+              QDMI_ERROR_INVALIDARGUMENT);
+  }
+  AMAZON_BRAKET_QDMI_device_session_free(session);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);
+}
+
+TEST(AwsTrustInitializationTest, RejectsUnreadableBundleBeforeRequests) {
+  const ScopedEnvironment sslCertificateFile("SSL_CERT_FILE", "");
+  {
+    const ScopedEnvironment awsCaBundle("AWS_CA_BUNDLE", "/missing-ca.pem");
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_ERROR_FATAL);
+  }
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);
+  const ScopedEnvironment awsCaBundle("AWS_CA_BUNDLE", "");
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);
+}
+
+TEST(AwsTrustInitializationTest, RejectsMalformedBundleAndRecovers) {
+  const auto path = testing::TempDir() + "amazon-braket-invalid-ca.pem";
+  {
+    std::ofstream file{path};
+    file << "not a PEM certificate\n";
+  }
+  const ScopedEnvironment sslCertificateFile("SSL_CERT_FILE", "");
+  {
+    const ScopedEnvironment awsCaBundle("AWS_CA_BUNDLE", path.c_str());
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_ERROR_FATAL);
+  }
+  EXPECT_EQ(std::remove(path.c_str()), 0);
+  const ScopedEnvironment awsCaBundle("AWS_CA_BUNDLE", "");
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);
+}
+
+TEST(AwsTrustInitializationTest, LocalTlsServiceCredentialsAndCrt) {
+  const auto port = amazon::braket::qdmi::detail::getEnvironment(
+      "AMAZON_BRAKET_QDMI_TEST_TLS_PORT");
+  if (!port.has_value()) {
+    GTEST_SKIP() << "Run the local TLS fixture with a curl/OpenSSL SDK build.";
+  }
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+  {
+    const auto expectation = amazon::braket::qdmi::detail::getEnvironment(
+        "AMAZON_BRAKET_QDMI_TEST_TLS_ACCEPT");
+    const auto accepted = expectation == "1";
+    const auto host = amazon::braket::qdmi::detail::getEnvironment(
+                          "AMAZON_BRAKET_QDMI_TEST_TLS_HOST")
+                          .value_or("localhost");
+    const auto url = "https://" + host + ":" + *port + "/";
+    Aws::Client::ClientConfiguration configuration;
+    configuration.connectTimeoutMs = 1000;
+    configuration.requestTimeoutMs = 1000;
+    amazon::braket::qdmi::detail::configureCaBundle(configuration);
+    auto client = Aws::Http::CreateHttpClient(configuration);
+    std::cout << "AWS SDK: " << Aws::Version::GetVersionString()
+              << "; HTTP backend: " << typeid(*client).name() << '\n';
+    auto request = Aws::Http::CreateHttpRequest(
+        Aws::String{url.c_str()}, Aws::Http::HttpMethod::HTTP_GET,
+        Aws::Utils::Stream::DefaultResponseStreamFactoryMethod);
+    const auto serviceAccepted =
+        !client->MakeRequest(request)->HasClientError();
+    std::cout << "Service TLS accepted: " << serviceAccepted << '\n';
+    if (expectation != "observe") {
+      EXPECT_EQ(serviceAccepted, accepted);
+    }
+
+    Aws::Internal::ECSCredentialsClient credentialsClient("", url.c_str());
+    const auto credentialsAccepted =
+        !credentialsClient.GetECSCredentials().empty();
+    std::cout << "Credential transport TLS accepted: " << credentialsAccepted
+              << '\n';
+    if (expectation != "observe") {
+      EXPECT_EQ(credentialsAccepted, accepted);
+    }
+    if (host == "localhost") {
+      Aws::Auth::GeneralHTTPCredentialsProvider credentials(
+          Aws::String{}, Aws::String{url.c_str()});
+      const auto providerAccepted = !credentials.GetAWSCredentials().IsEmpty();
+      std::cout << "Credential provider accepted: " << providerAccepted << '\n';
+      if (expectation != "observe") {
+        EXPECT_EQ(providerAccepted, accepted);
+      }
+    }
+
+    const auto connected = std::make_shared<std::promise<bool>>();
+    auto result = connected->get_future();
+    Aws::Crt::Http::HttpClientConnectionOptions options;
+    options.Bootstrap = Aws::GetDefaultClientBootstrap();
+    options.HostName = host.c_str();
+    options.Port = static_cast<uint16_t>(std::stoul(*port));
+    options.TlsOptions = *Aws::GetDefaultTlsConnectionOptions();
+    auto serverName = Aws::Crt::ByteCursorFromCString(host.c_str());
+    ASSERT_TRUE(options.TlsOptions->SetServerName(serverName));
+    options.OnConnectionSetupCallback =
+        [connected](const std::shared_ptr<Aws::Crt::Http::HttpClientConnection>&
+                        connection,
+                    const int error) {
+          std::cout << "CRT connection error: " << error << '\n';
+          if (connection) {
+            connection->Close();
+          }
+          connected->set_value(error == 0);
+        };
+    options.OnConnectionShutdownCallback =
+        [](const Aws::Crt::Http::HttpClientConnection&, int) {};
+    ASSERT_TRUE(Aws::Crt::Http::HttpClientConnection::CreateConnection(
+        options, Aws::Crt::ApiAllocator()));
+    ASSERT_EQ(result.wait_for(std::chrono::seconds(10)),
+              std::future_status::ready);
+    const auto crtAccepted = result.get();
+    std::cout << "CRT TLS accepted: " << crtAccepted << '\n';
+    if (expectation != "observe") {
+      EXPECT_EQ(crtAccepted, accepted);
+    }
+  }
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);
 }
 
 #ifdef __linux__

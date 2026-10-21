@@ -23,8 +23,16 @@ Linux wheels contain their HTTP and TLS libraries but use the host's CA trust
 store. The provider discovers the standard system CA bundle automatically. Set
 `AWS_CA_BUNDLE` to an explicit PEM bundle when the host uses a private CA or a
 nonstandard location. `SSL_CERT_FILE` is also supported when `AWS_CA_BUNDLE` is
-not set. An invalid explicit path is reported by the AWS client; certificate
-verification is never disabled.
+not set. Select the bundle before device initialization. The device applies it
+to Amazon Braket, S3, STS, and AWS SDK credential clients, including SSO and web
+identity. Custom bundles replace origin trust; CA directories and native stores
+do not add certificates. Certificate verification stays enabled.
+
+Custom bundles require an AWS SDK curl backend with OpenSSL. Initialization
+fails if the bundle cannot be loaded, the backend cannot enforce it, or another
+component already initialized the AWS SDK. Keep the selection unchanged until
+device finalization. Without an explicit bundle, the existing host trust and SDK
+defaults apply. Configure external `credential_process` tools separately.
 
 ### eMudhra CA compromise: October 2026
 
@@ -47,11 +55,9 @@ starting the process:
 export AWS_CA_BUNDLE=/absolute/path/to/patched-ca-bundle.pem
 ```
 
-This setting selects the bundle for the device's Braket, S3, and STS clients. It
-does not configure every credential provider: web identity uses AWS CRT TLS
-defaults, and SSO creates separate clients. Update their trust stores and any
-external `credential_process` tool separately. Updating Python's CA bundle alone
-does not update the native AWS SDK's trust stores.
+This setting covers the device's native service and credential clients. Update
+external `credential_process` tools separately. Updating Python's CA bundle
+alone does not update native AWS SDK trust stores.
 
 Restart applications and workers after updating trust stores. Use the advisory's
 offline certificate chains to check rejection with the deployed TLS libraries

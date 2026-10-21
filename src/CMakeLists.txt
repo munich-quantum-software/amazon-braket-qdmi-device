@@ -21,12 +21,13 @@ include(GNUInstallDirs)
 generate_prefixed_qdmi_headers(${QDMI_PREFIX})
 
 # Collect source files
-set(DEVICE_SRC "${CMAKE_CURRENT_SOURCE_DIR}/Device.cpp")
+set(DEVICE_SRC "${CMAKE_CURRENT_SOURCE_DIR}/Device.cpp" "${CMAKE_CURRENT_SOURCE_DIR}/Trust.cpp")
 # Private header files (internal implementation only)
 set(PRIVATE_HEADER_FILES
     "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/Device.hpp"
     "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/DeviceParser.hpp"
     "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/Queue.hpp"
+    "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/Trust.hpp"
     "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/Wait.hpp")
 # Public header files (user-facing API): Generated QDMI headers (device.h),
 file(GLOB_RECURSE PUBLIC_HEADER_FILES "${CMAKE_CURRENT_BINARY_DIR}/include/*.h")
@@ -75,6 +76,34 @@ target_link_libraries(
   ${QDMI_DEVICE_OBJECTS}
   PUBLIC AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-sts AWS::aws-cpp-sdk-braket
   PRIVATE qdmi::qdmi_project_warnings)
+
+# SDK HTTP backend macros are private; verify curl support before compiling its hook.
+get_target_property(AWS_CORE_IMPORTED AWS::aws-cpp-sdk-core IMPORTED)
+if(AWS_CORE_IMPORTED)
+  include(CheckCXXSourceCompiles)
+  include(CMakePushCheckState)
+  cmake_push_check_state(RESET)
+  set(CMAKE_REQUIRED_LIBRARIES AWS::aws-cpp-sdk-core)
+  check_cxx_source_compiles(
+    "#include <aws/core/http/curl/CurlHttpClient.h>
+     int main() { Aws::Http::CurlHttpClient::InitGlobalState();
+                  Aws::Http::CurlHttpClient::CleanupGlobalState(); }" AMAZON_BRAKET_SDK_HAS_CURL)
+  cmake_pop_check_state()
+else()
+  get_target_property(AWS_CORE_SOURCE_DIR AWS::aws-cpp-sdk-core SOURCE_DIR)
+  get_directory_property(AWS_CORE_DEFINITIONS DIRECTORY "${AWS_CORE_SOURCE_DIR}"
+                                                        COMPILE_DEFINITIONS)
+  if("ENABLE_CURL_CLIENT" IN_LIST AWS_CORE_DEFINITIONS)
+    set(AMAZON_BRAKET_SDK_HAS_CURL TRUE)
+  endif()
+endif()
+if(AMAZON_BRAKET_SDK_HAS_CURL)
+  target_compile_definitions(${QDMI_DEVICE_OBJECTS} PRIVATE AMAZON_BRAKET_QDMI_CURL_TRUST)
+  target_include_directories(${QDMI_DEVICE_OBJECTS} PRIVATE ${CURL_INCLUDE_DIRS})
+endif()
+set(AMAZON_BRAKET_SDK_HAS_CURL
+    "${AMAZON_BRAKET_SDK_HAS_CURL}"
+    PARENT_SCOPE)
 
 add_library(${QDMI_TARGET_NAME} SHARED)
 target_compile_features(${QDMI_TARGET_NAME} PRIVATE cxx_std_20)
