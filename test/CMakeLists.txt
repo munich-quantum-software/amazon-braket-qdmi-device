@@ -41,6 +41,39 @@ else()
   target_compile_definitions(${QDMI_TEST_TARGET_NAME} PRIVATE ${QDMI_PREFIX}_QDMI_device_EXPORTS)
 endif()
 
+if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
+  add_qdmi_device_query_tests(
+    braket_query_tests
+    PREFIX
+    ${QDMI_PREFIX}
+    TARGET
+    ${QDMI_TARGET_NAME}-internals
+    FIXTURE_HEADER
+    "${CMAKE_CURRENT_SOURCE_DIR}/QueryFixture.hpp")
+  target_link_libraries(braket_query_tests PRIVATE ${QDMI_TARGET_NAME}-parser-objects)
+  target_compile_definitions(braket_query_tests PRIVATE ${QDMI_PREFIX}_QDMI_device_EXPORTS)
+endif()
+
+if(BUILD_AMAZON_BRAKET_LIVE_TESTS)
+  add_qdmi_device_query_tests(
+    braket_live_query_tests
+    PREFIX
+    ${QDMI_PREFIX}
+    TARGET
+    ${QDMI_TARGET_NAME}
+    FIXTURE_HEADER
+    "${CMAKE_CURRENT_SOURCE_DIR}/LiveQueryFixture.hpp")
+  file(
+    WRITE "${CMAKE_CURRENT_BINARY_DIR}/live-query-labels.cmake"
+    "foreach(query_test IN LISTS braket_live_query_tests_TESTS)\n"
+    "  set_tests_properties(\"\${query_test}\" PROPERTIES LABELS \"qdmi-query;amazon-braket-live\" RUN_SERIAL TRUE)\n"
+    "endforeach()\n")
+  set_property(
+    DIRECTORY
+    APPEND
+    PROPERTY TEST_INCLUDE_FILES "${CMAKE_CURRENT_BINARY_DIR}/live-query-labels.cmake")
+endif()
+
 # link the Google test infrastructure to the test executable.
 target_link_libraries(${QDMI_TEST_TARGET_NAME} PRIVATE GTest::gtest_main GTest::gmock qdmi::qdmi
                                                        qdmi::qdmi_project_warnings)
