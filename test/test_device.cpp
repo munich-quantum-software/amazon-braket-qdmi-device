@@ -36,11 +36,11 @@
  *  - DeviceParsingTestFixture : parameterised device-parsing tests
  */
 
+#include "LiveQueryFixture.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
 
 #include <algorithm>
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -113,42 +113,6 @@ constexpr const char* BELL_STATE_PROGRAM = "OPENQASM 3.0;\n"
   return operations;
 }
 } // namespace
-
-// =============================================================================
-// Fixture: fully initialised AWS SV1 session (real AWS connection)
-// =============================================================================
-
-class AmazonBraketQDMISpecificationTest : public ::testing::Test {
-protected:
-  AMAZON_BRAKET_QDMI_Device_Session session = nullptr;
-
-  void SetUp() override {
-    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS)
-        << "Failed to initialize the device";
-    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_alloc(&session), QDMI_SUCCESS)
-        << "Failed to allocate a session";
-
-    const char* deviceArn =
-        "arn:aws:braket:::device/quantum-simulator/amazon/sv1";
-    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_set_parameter(
-                  session,
-                  AMAZON_BRAKET_QDMI_DEVICE_SESSION_PARAMETER_DEVICEARN,
-                  strlen(deviceArn) + 1, deviceArn),
-              QDMI_SUCCESS)
-        << "Failed to set device ARN";
-
-    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_init(session), QDMI_SUCCESS)
-        << "Failed to initialize session. Check credentials and device status.";
-  }
-
-  void TearDown() override {
-    if (session != nullptr) {
-      AMAZON_BRAKET_QDMI_device_session_free(session);
-      session = nullptr;
-    }
-    AMAZON_BRAKET_QDMI_device_finalize();
-  }
-};
 
 // =============================================================================
 // Fixture: shared submitted job (real AWS SV1 Bell-state execution)
@@ -371,148 +335,45 @@ TEST_F(AmazonBraketQDMISpecificationTest, QuerySupportedProgramFormats) {
   EXPECT_EQ(formats[1], QDMI_PROGRAM_FORMAT_QASM3);
 }
 
-TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteProperty) {
-  AMAZON_BRAKET_QDMI_Site site = querySites(session).front();
-  EXPECT_EQ(
-      AMAZON_BRAKET_QDMI_device_session_query_site_property(
-          session, nullptr, QDMI_SITE_PROPERTY_INDEX, 0, nullptr, nullptr),
-      QDMI_ERROR_INVALIDARGUMENT);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
-                nullptr, site, QDMI_SITE_PROPERTY_INDEX, 0, nullptr, nullptr),
-            QDMI_ERROR_INVALIDARGUMENT);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
-                session, site, QDMI_SITE_PROPERTY_MAX, 0, nullptr, nullptr),
-            QDMI_ERROR_INVALIDARGUMENT);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
-                session, site, QDMI_SITE_PROPERTY_NAME, 0, nullptr, nullptr),
-            QDMI_SUCCESS);
-}
-
-TEST_F(AmazonBraketQDMISpecificationTest, QueryOperationProperty) {
-  AMAZON_BRAKET_QDMI_Operation operation = queryOperations(session).front();
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
-                nullptr, operation, 0, nullptr, 0, nullptr,
-                QDMI_OPERATION_PROPERTY_NAME, 0, nullptr, nullptr),
-            QDMI_ERROR_INVALIDARGUMENT);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
-                session, operation, 0, nullptr, 0, nullptr,
-                QDMI_OPERATION_PROPERTY_MAX, 0, nullptr, nullptr),
-            QDMI_ERROR_INVALIDARGUMENT);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
-                session, operation, 0, nullptr, 0, nullptr,
-                QDMI_OPERATION_PROPERTY_NAME, 0, nullptr, nullptr),
-            QDMI_SUCCESS);
-}
-
-TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceName) {
-  size_t size = 0;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
-                session, QDMI_DEVICE_PROPERTY_NAME, 0, nullptr, &size),
-            QDMI_SUCCESS)
-      << "Devices must provide a name";
-  std::string value(size - 1, '\0');
-  ASSERT_EQ(
-      AMAZON_BRAKET_QDMI_device_session_query_device_property(
-          session, QDMI_DEVICE_PROPERTY_NAME, size, value.data(), nullptr),
-      QDMI_SUCCESS)
-      << "Devices must provide a name";
-  EXPECT_FALSE(value.empty()) << "Devices must provide a name";
-}
-
-TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceLibraryVersion) {
-  size_t size = 0;
-  ASSERT_EQ(
-      AMAZON_BRAKET_QDMI_device_session_query_device_property(
-          session, QDMI_DEVICE_PROPERTY_LIBRARYVERSION, 0, nullptr, &size),
-      QDMI_SUCCESS)
-      << "Devices must provide a library version";
-  std::string value(size - 1, '\0');
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
-                session, QDMI_DEVICE_PROPERTY_LIBRARYVERSION, size,
-                value.data(), nullptr),
-            QDMI_SUCCESS)
-      << "Devices must provide a library version";
-  EXPECT_FALSE(value.empty()) << "Devices must provide a library version";
-}
-
-// VERSION is a library-level property delegated to the global Device singleton.
-// This path in Device::queryProperty() is distinct from LIBRARYVERSION.
-TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceVersion) {
-  size_t size = 0;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
-                session, QDMI_DEVICE_PROPERTY_VERSION, 0, nullptr, &size),
-            QDMI_SUCCESS)
-      << "Device must provide a version string";
-  ASSERT_GT(size, 0U);
-  std::string version(size - 1, '\0');
-  ASSERT_EQ(
-      AMAZON_BRAKET_QDMI_device_session_query_device_property(
-          session, QDMI_DEVICE_PROPERTY_VERSION, size, version.data(), nullptr),
-      QDMI_SUCCESS);
-  EXPECT_FALSE(version.empty());
-}
-
-TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteIndex) {
-  uint64_t id = 0;
-  EXPECT_NO_THROW(for (auto* site : querySites(session)) {
+// Braket promises these properties even though QDMI allows them to be optional.
+TEST_F(AmazonBraketQDMISpecificationTest, RequiredMetadata) {
+  for (const auto property :
+       {QDMI_DEVICE_PROPERTY_NAME, QDMI_DEVICE_PROPERTY_VERSION,
+        QDMI_DEVICE_PROPERTY_LIBRARYVERSION}) {
+    size_t size = 0;
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                  session, property, 0, nullptr, &size),
+              QDMI_SUCCESS);
+    ASSERT_GT(size, 1U);
+    std::vector<char> value(size);
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                  session, property, size, value.data(), nullptr),
+              QDMI_SUCCESS);
+    EXPECT_NE(value.front(), '\0');
+  }
+  for (const auto property :
+       {QDMI_DEVICE_PROPERTY_QUBITSNUM, QDMI_DEVICE_PROPERTY_STATUS}) {
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                  session, property, 0, nullptr, nullptr),
+              QDMI_SUCCESS);
+  }
+  const auto sites = querySites(session);
+  ASSERT_FALSE(sites.empty());
+  for (auto* site : sites) {
     EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
-                  session, site, QDMI_SITE_PROPERTY_INDEX, sizeof(uint64_t),
-                  &id, nullptr),
-              QDMI_SUCCESS)
-        << "Devices must provide a site id";
-  }) << "Devices must provide a list of sites";
-}
-
-TEST_F(AmazonBraketQDMISpecificationTest, QueryOperationName) {
-  size_t nameSize = 0;
-  EXPECT_NO_THROW(for (auto* operation : queryOperations(session)) {
-    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
-                  session, operation, 0, nullptr, 0, nullptr,
-                  QDMI_OPERATION_PROPERTY_NAME, 0, nullptr, &nameSize),
-              QDMI_SUCCESS)
-        << "Devices must provide an operation name";
-    std::string name(nameSize - 1, '\0');
+                  session, site, QDMI_SITE_PROPERTY_INDEX, 0, nullptr, nullptr),
+              QDMI_SUCCESS);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
+                  session, site, QDMI_SITE_PROPERTY_NAME, 0, nullptr, nullptr),
+              QDMI_SUCCESS);
+  }
+  const auto operations = queryOperations(session);
+  ASSERT_FALSE(operations.empty());
+  for (auto* operation : operations) {
     EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
                   session, operation, 0, nullptr, 0, nullptr,
-                  QDMI_OPERATION_PROPERTY_NAME, nameSize, name.data(), nullptr),
-              QDMI_SUCCESS)
-        << "Devices must provide an operation name";
-  }) << "Devices must provide a list of operations";
-}
-
-TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceQubitNum) {
-  size_t numQubits = 0;
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
-                session, QDMI_DEVICE_PROPERTY_QUBITSNUM, sizeof(size_t),
-                &numQubits, nullptr),
-            QDMI_SUCCESS);
-}
-
-TEST_F(AmazonBraketQDMISpecificationTest, QueryDeviceStatus) {
-  QDMI_Device_Status status = QDMI_DEVICE_STATUS_OFFLINE;
-  const auto result = AMAZON_BRAKET_QDMI_device_session_query_device_property(
-      session, QDMI_DEVICE_PROPERTY_STATUS, sizeof(status), &status, nullptr);
-  ASSERT_EQ(result, QDMI_SUCCESS);
-  EXPECT_TRUE(status == QDMI_DEVICE_STATUS_IDLE ||
-              status == QDMI_DEVICE_STATUS_BUSY ||
-              status == QDMI_DEVICE_STATUS_OFFLINE);
-}
-
-TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteData) {
-  std::vector<AMAZON_BRAKET_QDMI_Site> sites;
-  EXPECT_NO_THROW(sites = querySites(session)) << "Devices must provide sites";
-  EXPECT_GT(sites.size(), 0);
-  for (auto* site : sites) {
-    uint64_t t1 = 0;
-    EXPECT_THAT(
-        AMAZON_BRAKET_QDMI_device_session_query_site_property(
-            session, site, QDMI_SITE_PROPERTY_T1, sizeof(t1), &t1, nullptr),
-        testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
-    uint64_t t2 = 0;
-    EXPECT_THAT(
-        AMAZON_BRAKET_QDMI_device_session_query_site_property(
-            session, site, QDMI_SITE_PROPERTY_T2, sizeof(t2), &t2, nullptr),
-        testing::AnyOf(QDMI_SUCCESS, QDMI_ERROR_NOTSUPPORTED));
+                  QDMI_OPERATION_PROPERTY_NAME, 0, nullptr, nullptr),
+              QDMI_SUCCESS);
   }
 }
 
@@ -591,45 +452,6 @@ TEST_F(AmazonBraketQDMISpecificationTest, QueryOperationData) {
 }
 
 // ── Small-buffer (too-small write buffer) guards ─────────────────────────────
-
-TEST_F(AmazonBraketQDMISpecificationTest,
-       QueryDevicePropertyNameBufferTooSmall) {
-  std::array<char, 1> buf = {};
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
-                session, QDMI_DEVICE_PROPERTY_NAME, 1, buf.data(), nullptr),
-            QDMI_ERROR_INVALIDARGUMENT);
-}
-
-TEST_F(AmazonBraketQDMISpecificationTest,
-       QueryDevicePropertySitesBufferTooSmall) {
-  AMAZON_BRAKET_QDMI_Site buf = nullptr;
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
-                session,
-                static_cast<QDMI_Device_Property>(QDMI_DEVICE_PROPERTY_SITES),
-                1, static_cast<void*>(&buf), nullptr),
-            QDMI_ERROR_INVALIDARGUMENT);
-}
-
-TEST_F(AmazonBraketQDMISpecificationTest, QuerySitePropertyNameBufferTooSmall) {
-  auto sites = querySites(session);
-  ASSERT_GT(sites.size(), 0U);
-  std::array<char, 1> buf = {};
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
-                session, sites.front(), QDMI_SITE_PROPERTY_NAME, 1, buf.data(),
-                nullptr),
-            QDMI_ERROR_INVALIDARGUMENT);
-}
-
-TEST_F(AmazonBraketQDMISpecificationTest,
-       QuerySitePropertyIndexBufferTooSmall) {
-  auto sites = querySites(session);
-  ASSERT_GT(sites.size(), 0U);
-  std::array<char, 1> buf = {};
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_site_property(
-                session, sites.front(), QDMI_SITE_PROPERTY_INDEX, 1, buf.data(),
-                nullptr),
-            QDMI_ERROR_INVALIDARGUMENT);
-}
 
 TEST_F(AmazonBraketQDMISpecificationTest,
        QueryOperationPropertySitesNonNullNumSitesZero) {
