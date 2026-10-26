@@ -10,6 +10,12 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+### Fixed
+
+- 🐛 Reconstruct terminal OpenQASM classical outputs in native shots and
+  histograms, preserving output destinations, initialized bits, and overwritten
+  values across submitted and reopened tasks ([#288]) ([**@burgholzer**]).
+
 ## [1.3.1] - 2026-10-16
 
 ### Fixed
@@ -261,3 +267,5 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 [Keep a Changelog]: https://keepachangelog.com/en/1.1.0/
 [Common Changelog]: https://common-changelog.org
 [Semantic Versioning]: https://semver.org/spec/v2.0.0.html
+
+[#288]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/288
