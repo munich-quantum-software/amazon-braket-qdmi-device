@@ -62,6 +62,7 @@
 #include "amazon-braket-qdmi-device/Device.hpp"
 
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
+#include "amazon-braket-qdmi-device/ProgramOutput.hpp"
 #include "amazon-braket-qdmi-device/Queue.hpp"
 #include "amazon-braket-qdmi-device/Wait.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
