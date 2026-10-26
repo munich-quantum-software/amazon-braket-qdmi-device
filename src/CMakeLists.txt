@@ -26,6 +26,7 @@ set(DEVICE_SRC "${CMAKE_CURRENT_SOURCE_DIR}/Device.cpp")
 set(PRIVATE_HEADER_FILES
     "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/Device.hpp"
     "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/DeviceParser.hpp"
+    "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/ProgramOutput.hpp"
     "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/Queue.hpp"
     "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/Wait.hpp")
 # Public header files (user-facing API): Generated QDMI headers (device.h),
@@ -39,7 +40,8 @@ get_target_property(qdmi_library_VERSION qdmi::qdmi VERSION)
 # Internal object library for DeviceParser. Both the shared library and the unit-test target consume
 # it, so private parser classes need not be exported from the shared library ABI.
 set(QDMI_PARSER_OBJECTS "${QDMI_TARGET_NAME}-parser-objects")
-add_library(${QDMI_PARSER_OBJECTS} OBJECT "${CMAKE_CURRENT_SOURCE_DIR}/DeviceParser.cpp")
+add_library(${QDMI_PARSER_OBJECTS} OBJECT "${CMAKE_CURRENT_SOURCE_DIR}/DeviceParser.cpp"
+                                          "${CMAKE_CURRENT_SOURCE_DIR}/ProgramOutput.cpp")
 add_library(amazon-braket-qdmi-device::parser-objects ALIAS ${QDMI_PARSER_OBJECTS})
 target_compile_features(${QDMI_PARSER_OBJECTS} PRIVATE cxx_std_20)
 set_target_properties(${QDMI_PARSER_OBJECTS} PROPERTIES POSITION_INDEPENDENT_CODE ON)

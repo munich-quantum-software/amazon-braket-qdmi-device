@@ -94,15 +94,6 @@ struct ParsedDeviceProperties {
       operationsMap;
 };
 
-namespace amazon::braket::qdmi {
-
-/// Convert measurement columns to descending measured-qubit order.
-/// Throws std::runtime_error for malformed backend results.
-auto parseMeasurementResults(const Aws::Utils::Json::JsonView& result)
-    -> std::vector<std::string>;
-
-} // namespace amazon::braket::qdmi
-
 /**
  * @brief Common parser for Amazon Braket gate-model device capabilities.
  */

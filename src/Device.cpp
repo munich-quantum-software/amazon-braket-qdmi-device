@@ -1702,8 +1702,20 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
     if (programs_.empty() || session_->getDeviceArn().empty()) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
+    std::vector<amazon::braket::qdmi::ProgramOutput> outputs;
+    outputs.reserve(programs_.size());
+    try {
+      for (const auto& program : programs_) {
+        outputs.push_back(amazon::braket::qdmi::prepareProgram(program));
+      }
+    } catch (const std::invalid_argument&) {
+      return QDMI_ERROR_NOTSUPPORTED;
+    }
+    for (const auto& output : outputs) {
+      localPrograms.push_back(output.source);
+    }
+    programOutputs_ = std::move(outputs);
     submitting_ = true;
-    localPrograms = programs_;
     localS3Uri = jobS3Uri_;
     localReservationArn = reservationArn_.empty()
                               ? session_->getReservationArn()
@@ -2260,7 +2272,46 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal(
                ? QDMI_ERROR_NOTSUPPORTED
                : QDMI_ERROR_FATAL;
   }
-  const auto measurements = amazon::braket::qdmi::parseMeasurementResults(root);
+  amazon::braket::qdmi::ProgramOutput output;
+  if (retrieved_) {
+    if (!root.ValueExists("additionalMetadata") ||
+        !root.GetObject("additionalMetadata").IsObject()) {
+      return QDMI_ERROR_NOTSUPPORTED;
+    }
+    const auto metadata = root.GetObject("additionalMetadata");
+    if (!metadata.ValueExists("action") ||
+        !metadata.GetObject("action").IsObject() ||
+        !metadata.GetObject("action").ValueExists("source") ||
+        !metadata.GetObject("action").GetObject("source").IsString()) {
+      return QDMI_ERROR_NOTSUPPORTED;
+    }
+    std::string source = metadata.GetObject("action").GetString("source");
+    constexpr std::string_view prefix = "// QDMI_SOURCE ";
+    if (source.starts_with(prefix)) {
+      const Aws::Utils::Json::JsonValue original(
+          source.substr(prefix.size(), source.find('\n') - prefix.size()));
+      if (!original.WasParseSuccessful() ||
+          !original.View().ValueExists("source") ||
+          !original.View().GetObject("source").IsString()) {
+        return QDMI_ERROR_FATAL;
+      }
+      source = original.View().GetString("source");
+    }
+    try {
+      output = amazon::braket::qdmi::prepareProgram(source);
+    } catch (const std::invalid_argument&) {
+      return QDMI_ERROR_NOTSUPPORTED;
+    }
+  } else {
+    output = programOutputs_.at(programIndex);
+  }
+  std::vector<std::string> measurements;
+  try {
+    measurements =
+        amazon::braket::qdmi::parseMeasurementResults(root, output, shots_);
+  } catch (const std::invalid_argument&) {
+    return QDMI_ERROR_FATAL;
+  }
   ProgramResult result;
   for (const auto& measurement : measurements) {
     if (!result.shots.empty()) {

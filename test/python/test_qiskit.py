@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, cast
 import pytest
 from mqt.core.plugins.qiskit.backend import QDMIBackend
 from mqt.core.qdmi import ProgramFormat
-from qiskit import QuantumCircuit, transpile
+from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister, transpile
 from qiskit.transpiler import CouplingMap, Target
 
 from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_DEVICE_ID
@@ -210,3 +210,20 @@ def test_reports_all_to_all_target_without_connectivity_constraint(monkeypatch: 
     line = CouplingMap.from_line(3)
     monkeypatch.setattr(QDMIBackend, "coupling_map", property(lambda _backend: line))
     assert backend.coupling_map is line
+
+
+@pytest.mark.parametrize("name", ["classical", "if", "with space"])
+def test_initializes_unmeasured_classical_bits(name: str) -> None:
+    """Preserve Qiskit zero initialization even when QASM renames a register."""
+    circuit = QuantumCircuit(QuantumRegister(2, "q"), ClassicalRegister(4, name))
+    circuit.x(0)
+    circuit.measure(0, 3)
+    backend = object.__new__(AmazonBraketBackend)
+    backend._device = cast(
+        "QDMIDeviceHandle",
+        SimpleNamespace(
+            operations=lambda: tuple(SimpleNamespace(name=lambda name=name: name) for name in ("x", "measure"))
+        ),
+    )
+    source, _ = backend._serialize_circuit(circuit, [ProgramFormat.QASM3])
+    assert ' = "0000";' in source

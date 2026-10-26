@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, ClassVar
 
 try:
@@ -142,7 +143,15 @@ class AmazonBraketBackend(QDMIBackend):
                 basis_gates.add(translated_name)
             if translated_name != name:
                 translated.data[index] = instruction.replace(operation=instruction.operation.copy(name=translated_name))
-        return qasm3.dumps(translated, includes=(), basis_gates=sorted(basis_gates)), ProgramFormat.QASM3
+        program = qasm3.dumps(translated, includes=(), basis_gates=sorted(basis_gates))
+        # Qiskit initializes classical bits to zero, including unmeasured bits.
+        program = re.sub(
+            r"^(bit(?:\[(\d+)\])? [^;]+);$",
+            lambda match: match[1] + (f' = "{"0" * int(match[2])}";' if match[2] else " = 0;"),
+            program,
+            flags=re.MULTILINE,
+        )
+        return program, ProgramFormat.QASM3
 
     def __init__(
         self,
