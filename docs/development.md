@@ -45,18 +45,6 @@ To test a pre-provisioned destination instead, set
 `AMZN_BRAKET_TASK_RESULTS_S3_URI`. The dedicated per-job S3 fixture exercises
 the job-parameter override.
 
-For independent output-order parity, build the native test target above and run
-this offline check with Qiskit and Amazon's local simulator:
-
-```console
-uv run --no-project --python 3.14 --with qiskit==2.5.2 --with amazon-braket-sdk==1.127.5 --with amazon-braket-default-simulator==1.41.2 python test/check_output.py build/test/amazon-braket-output-probe
-```
-
-It compares all four-qubit basis states with reversed classical destinations,
-multiple registers, initialized holes, overwritten bits, and a circuit with
-nontrivial amplitudes. Both original and reversed backend column orders must
-agree with Qiskit's independent simulator.
-
 ## Python tests
 
 Run a single supported Python version during development:

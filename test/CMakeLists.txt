@@ -122,9 +122,3 @@ if(BUILD_AMAZON_BRAKET_LIVE_TESTS)
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     PROPERTIES RUN_SERIAL TRUE LABELS amazon-braket-live DISCOVERY_TIMEOUT 60)
 endif()
-
-# Exercise the native source/output code with independent SDK simulators.
-add_executable(amazon-braket-output-probe output_probe.cpp)
-target_compile_features(amazon-braket-output-probe PRIVATE cxx_std_20)
-target_link_libraries(amazon-braket-output-probe PRIVATE amazon-braket-qdmi-device::parser-objects
-                                                         AWS::aws-cpp-sdk-core)

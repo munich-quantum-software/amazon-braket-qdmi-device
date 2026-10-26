@@ -19,6 +19,15 @@ to the names accepted by Amazon Braket. A circuit list uses one native
 ProgramSet when the device advertises support and accepts the common shot count.
 Otherwise, MQT Core submits separate tasks and retains the input order.
 
+Braket returns measured qubits, so the adapter requires terminal measurements of
+every active qubit into the matching classical-bit position. Idle qubits are
+removed before this check. Each classical bit must be measured exactly once;
+permuted destinations, unmeasured bits, and operations after measurement (except
+barriers) raise `ValueError` before submission. For example,
+`circuit.measure(range(n), range(n))` is supported, while measuring qubit 0 into
+classical bit 1 is not. [Native results](api.md#job-results) retain Braket's
+measured-qubit convention.
+
 ## Select a catalogue device
 
 Concrete IDs use the packaged device ARN and Region. Optional arguments override

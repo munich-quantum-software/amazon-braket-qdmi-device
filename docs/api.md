@@ -118,30 +118,11 @@ job-lifetime behavior.
 | `QDMI_JOB_RESULT_HIST_KEYS`   | Comma-separated histogram keys              |
 | `QDMI_JOB_RESULT_HIST_VALUES` | `size_t` counts matching the histogram keys |
 
-Shot strings and histogram keys represent final classical values, rather than
-physical qubits. Bit zero of the first selected declaration is the rightmost
-bit; later declarations extend the string to the left. Leading zeros and
-unmeasured initialized bits are retained. `measuredQubits` identifies response
-columns and does not define classical destinations.
-
-The native device accepts straight-line OpenQASM with terminal measurements,
-bit/bit-array/bool declarations, literal assignments, and repeated assignments
-to a classical destination. Explicit `output` declarations select the outputs;
-otherwise all classical declarations are selected. Selected OpenQASM 3 values
-must be defined. OpenQASM 2 classical registers start at zero. The Qiskit
-serializer explicitly initializes its classical bits to preserve that frontend's
-zero initialization. Programs without classical declarations or measurements
-retain implicit measurement in ascending qubit order (qubit zero at the right).
-
-Control flow, classical expressions, numeric outputs, custom gate definitions,
-and gates after measurement are unsupported. Submission returns
-`QDMI_ERROR_NOTSUPPORTED` before creating an AWS task. The provider prepares
-Braket-compatible terminal measurements and retains the original source in a
-comment in the submitted action. `get_program` still returns the original input.
-Reopening a task reconstructs its output contract from
-`additionalMetadata.action.source`; missing or unsupported source metadata
-returns `QDMI_ERROR_NOTSUPPORTED`. Malformed measurement arrays return
-`QDMI_ERROR_FATAL`. The QDMI 1.4 ABI is unchanged.
+Shot strings and histogram keys use descending measured-qubit order: the lowest
+measured qubit ID is the rightmost bit. The native device uses Braket's
+`measuredQubits` metadata to locate response columns; it does not reconstruct
+classical OpenQASM variables. The [Qiskit backend](qiskit.md) requires matching
+qubit and classical-bit positions.
 
 ## Lifecycle functions
 

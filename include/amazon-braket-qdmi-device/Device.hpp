@@ -67,7 +67,6 @@
 #pragma once
 
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
-#include "amazon-braket-qdmi-device/ProgramOutput.hpp"
 #include "amazon-braket-qdmi-device/Wait.hpp"
 #include "amazon_braket_qdmi/device.h"
 
@@ -403,7 +402,6 @@ private:
 
   QDMI_Program_Format format_ = QDMI_PROGRAM_FORMAT_QASM3;
   std::vector<std::string> programs_;
-  std::vector<amazon::braket::qdmi::ProgramOutput> programOutputs_;
   bool programSet_ = false;
   size_t shots_ = 100;
   std::string taskArn_;

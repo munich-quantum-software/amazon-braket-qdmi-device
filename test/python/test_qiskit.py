@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, cast
 import pytest
 from mqt.core.plugins.qiskit.backend import QDMIBackend
 from mqt.core.qdmi import ProgramFormat
-from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister, transpile
+from qiskit import QuantumCircuit, transpile
 from qiskit.transpiler import CouplingMap, Target
 
 from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_DEVICE_ID
@@ -212,18 +212,63 @@ def test_reports_all_to_all_target_without_connectivity_constraint(monkeypatch: 
     assert backend.coupling_map is line
 
 
-@pytest.mark.parametrize("name", ["classical", "if", "with space"])
-def test_initializes_unmeasured_classical_bits(name: str) -> None:
-    """Preserve Qiskit zero initialization even when QASM renames a register."""
-    circuit = QuantumCircuit(QuantumRegister(2, "q"), ClassicalRegister(4, name))
-    circuit.x(0)
-    circuit.measure(0, 3)
+@pytest.fixture
+def serialization_backend() -> AmazonBraketBackend:
+    """Provide native operation names without contacting AWS.
+
+    Returns:
+        Backend with local device metadata.
+    """
     backend = object.__new__(AmazonBraketBackend)
-    backend._device = cast(
-        "QDMIDeviceHandle",
-        SimpleNamespace(
-            operations=lambda: tuple(SimpleNamespace(name=lambda name=name: name) for name in ("x", "measure"))
-        ),
-    )
-    source, _ = backend._serialize_circuit(circuit, [ProgramFormat.QASM3])
-    assert ' = "0000";' in source
+    backend._device = cast("QDMIDeviceHandle", SimpleNamespace(operations=lambda: ()))
+    return backend
+
+
+@pytest.mark.parametrize("order", [[0, 1], [1, 0]])
+@pytest.mark.parametrize("offset", [0, 1])
+def test_accepts_matching_terminal_readout(
+    serialization_backend: AmazonBraketBackend, order: list[int], offset: int
+) -> None:
+    """Keep canonical asymmetric readout in either measurement execution order."""
+    circuit = QuantumCircuit(3, 2)
+    circuit.x(offset)
+    for bit in order:
+        circuit.measure(bit + offset, bit)
+        circuit.barrier(offset, offset + 1)
+
+    source, _ = serialization_backend._serialize_circuit(circuit, [ProgramFormat.QASM3])  # ruff: ignore[private-member-access]
+
+    assert "qubit[2] q;" in source  # Idle wires do not consume result positions.
+    assert "c[0] = measure q[0];" in source
+    assert "c[1] = measure q[1];" in source
+
+
+@pytest.mark.parametrize(
+    ("readout", "width", "trailing_gate"),
+    [
+        ([(0, 1), (1, 0)], 2, False),  # Permuted destinations.
+        ([(0, 0), (1, 1)], 3, False),  # Unmeasured classical bit.
+        ([(0, 0), (0, 0), (1, 1)], 2, False),  # Repeated measurement.
+        ([(0, 0), (1, 0)], 2, False),  # Overwritten destination.
+        ([(0, 0)], 2, False),  # Partial measurement of active qubits.
+        ([(0, 0), (1, 1)], 2, True),  # Nonterminal measurement.
+    ],
+)
+def test_rejects_unsupported_readout(
+    serialization_backend: AmazonBraketBackend,
+    readout: list[tuple[int, int]],
+    width: int,
+    *,
+    trailing_gate: bool,
+) -> None:
+    """Reject layouts that cannot preserve the Qiskit result bit positions."""
+    circuit = QuantumCircuit(2, width)
+    circuit.x(0)
+    circuit.x(1)
+    for qubit, bit in readout:
+        circuit.measure(qubit, bit)
+    if trailing_gate:
+        circuit.x(0)
+
+    with pytest.raises(ValueError, match="terminal measurements"):
+        serialization_backend._serialize_circuit(circuit, [ProgramFormat.QASM3])  # ruff: ignore[private-member-access]

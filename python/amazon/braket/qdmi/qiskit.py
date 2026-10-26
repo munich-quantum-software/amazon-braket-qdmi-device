@@ -19,7 +19,6 @@
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING, ClassVar
 
 try:
@@ -126,12 +125,29 @@ class AmazonBraketBackend(QDMIBackend):
 
         Returns:
             The serialized program and its format.
+
+        Raises:
+            ValueError: If readout cannot preserve classical-bit positions.
         """
         assert ProgramFormat.QASM3 in supported_program_formats
         available = {operation.name().lower() for operation in self.device.operations()}
         dag = circuit_to_dag(circuit)
         dag.remove_qubits(*(set(dag.idle_wires()) & set(dag.qubits)))
         translated = dag_to_circuit(dag)
+        # Braket returns measured qubits, so require matching classical positions.
+        msg = "Braket requires terminal measurements of every active qubit into the matching classical bit."
+        measured: set[int] = set()
+        for instruction in translated.data:
+            if instruction.operation.name == "measure":
+                qubit = translated.find_bit(instruction.qubits[0]).index
+                bit = translated.find_bit(instruction.clbits[0]).index
+                if qubit != bit or qubit in measured:
+                    raise ValueError(msg)
+                measured.add(qubit)
+            elif measured and instruction.operation.name != "barrier":
+                raise ValueError(msg)
+        if len(measured) != translated.num_qubits or translated.num_clbits != translated.num_qubits:
+            raise ValueError(msg)
         if translated.qubits and not translated.qregs:
             translated.add_register(QuantumRegister(bits=translated.qubits, name="q"))
         basis_gates = set()
@@ -143,15 +159,7 @@ class AmazonBraketBackend(QDMIBackend):
                 basis_gates.add(translated_name)
             if translated_name != name:
                 translated.data[index] = instruction.replace(operation=instruction.operation.copy(name=translated_name))
-        program = qasm3.dumps(translated, includes=(), basis_gates=sorted(basis_gates))
-        # Qiskit initializes classical bits to zero, including unmeasured bits.
-        program = re.sub(
-            r"^(bit(?:\[(\d+)\])? [^;]+);$",
-            lambda match: match[1] + (f' = "{"0" * int(match[2])}";' if match[2] else " = 0;"),
-            program,
-            flags=re.MULTILINE,
-        )
-        return program, ProgramFormat.QASM3
+        return qasm3.dumps(translated, includes=(), basis_gates=sorted(basis_gates)), ProgramFormat.QASM3
 
     def __init__(
         self,
