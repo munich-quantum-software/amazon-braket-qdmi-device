@@ -19,11 +19,6 @@ jobs:
   change-detection:
     name: 🔍 Change
     uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-change-detection.yml@a4b4977405c7685f95e127cdb6db396bbadce787 # v2.5.5
-    with:
-      additional-cpp-files: |
-        .dockerignore
-        test/slurm/**
-        .github/workflows/slurm.yml
 
   cpp-tests-ubuntu:
     name: 🇨 Test 🐧
@@ -41,16 +36,6 @@ jobs:
     with:
       runs-on: ${{ matrix.runs-on }}
       config: ${{ matrix.config }}
-
-  slurm-tests:
-    name: 🇸 Slurm 🐧
-    needs: change-detection
-    if: github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id && (fromJSON(needs.change-detection.outputs.run-cpp-tests) || fromJSON(needs.change-detection.outputs.run-python-tests))
-    uses: $/.github/workflows/slurm.yml
-    secrets:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
 
   cpp-tests-macos:
     name: 🇨 Test 🍎
@@ -181,7 +166,7 @@ jobs:
         run: uvx nox -s tests --verbose
 
   pennylane-live-tests:
-    name: 🐍 PennyLane Live
+    name: 🐍 SV1 Live
     needs: change-detection
     if: github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id && (fromJSON(needs.change-detection.outputs.run-python-tests) || fromJSON(needs.change-detection.outputs.run-cd))
     runs-on: ubuntu-26.04
@@ -211,10 +196,10 @@ jobs:
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           python-version: "3.14"
-      - name: Run the cost-capped SV1 smoke test
+      - name: Run the cost-capped SV1 smoke tests
         run: >-
           uvx nox -s tests-3.14 --
-          test/python/test_pennylane_qaoa.py -k cost_capped_on_sv1
+          test/python/test_pennylane.py test/python/test_qiskit.py -k sv1_live
 
   # this job does nothing and is only used for branch protection
   required-checks-pass:
@@ -223,7 +208,6 @@ jobs:
     needs:
       - change-detection
       - cpp-tests-ubuntu
-      - slurm-tests
       - cpp-tests-macos
       - cpp-tests-windows
       - cpp-install-tests
@@ -242,15 +226,11 @@ jobs:
           allowed-skips: >-
             ${{
               (github.event.pull_request.head.repo.id != github.event.pull_request.base.repo.id)
-              && 'cpp-coverage,slurm-tests,pennylane-live-tests,' || ''
+              && 'cpp-coverage,pennylane-live-tests,' || ''
             }}
             ${{
               !fromJSON(needs.change-detection.outputs.run-cpp-tests)
               && 'cpp-tests-ubuntu,cpp-tests-macos,cpp-tests-windows,cpp-install-tests,cpp-coverage,' || ''
-            }}
-            ${{
-              !fromJSON(needs.change-detection.outputs.run-cpp-tests) && !fromJSON(needs.change-detection.outputs.run-python-tests)
-              && 'slurm-tests,' || ''
             }}
             ${{
               !fromJSON(needs.change-detection.outputs.run-cpp-linter)

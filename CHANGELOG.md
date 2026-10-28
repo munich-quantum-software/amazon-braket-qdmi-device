@@ -10,6 +10,12 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+### Changed
+
+- ♻️ Use MQT Core's shared Slurm playground and application examples instead of
+  maintaining copies. Build static documentation without quantum execution and
+  keep two eight-shot SV1 integration checks ([#288]) ([**@burgholzer**]).
+
 ### Fixed
 
 - 🐛 Accept the standard OpenQASM library include and remove it only from the

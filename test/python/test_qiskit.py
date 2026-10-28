@@ -15,10 +15,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Offline tests for the Amazon Braket Qiskit backend."""
+"""Tests for the Amazon Braket Qiskit backend, with an opt-in SV1 check."""
 
 from __future__ import annotations
 
+import os
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
@@ -240,6 +241,20 @@ def test_core_measure_all_transport_fixture() -> None:
         'OPENQASM 3;\ninclude "stdgates.inc";\n\nbit[2] c;\n\nprx(1.0, 0.0) $1;\n'
         "cz $1, $2;\nbarrier $1, $2;\nc[0] = measure $1;\nc[1] = measure $2;\n"
     )
+
+
+def test_sv1_live() -> None:
+    """Compile and submit one eight-shot circuit through the Qiskit backend."""
+    if os.environ.get("AMAZON_BRAKET_PENNYLANE_LIVE") != "1":
+        pytest.skip("Set AMAZON_BRAKET_PENNYLANE_LIVE=1 to run the SV1 smoke tests.")
+
+    backend = AmazonBraketBackend("amazon.braket.sv1")
+    circuit = QuantumCircuit(2)
+    circuit.x(0)
+    circuit.measure_all()
+
+    native = compile_program(circuit, target=backend)
+    assert backend.run(native, shots=8).result().get_counts() == {"01": 8}
 
 
 def test_adds_variable_width_barrier_to_target(monkeypatch: pytest.MonkeyPatch) -> None:

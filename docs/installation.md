@@ -9,7 +9,8 @@ A source build requires:
 - network access during initial configuration to obtain the AWS SDK for C++ and
   QDMI dependencies.
 
-For Slurm job submission and cluster setup, see {doc}`slurm`.
+For cluster setup and job submission, use
+[MQT Core's Slurm playground](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm.html).
 
 ## Python package
 
@@ -127,8 +128,10 @@ For a native installation outside the driver's search paths, set
 library paths are resolved from the catalogue directory. Site configuration
 augments the installed definitions and overrides entries with the same ID.
 
-See {doc}`configuration` for AWS authentication and {doc}`slurm` for cluster
-setup and job examples.
+See {doc}`configuration` for AWS authentication. On a cluster, make the package
+and credential source available on every quantum access node. Register the
+selected catalogue ID as a Slurm license in the shared Core setup; Slurm license
+counts are independent of AWS quotas and authorization.
 
 ## CMake options
 

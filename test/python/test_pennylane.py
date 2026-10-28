@@ -15,10 +15,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Offline tests for the Amazon Braket PennyLane specialization."""
+"""Tests for the Amazon Braket PennyLane specialization, with an opt-in SV1 check."""
 
 from __future__ import annotations
 
+import os
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
@@ -244,3 +245,18 @@ def test_samples_with_qnode_shots(monkeypatch: pytest.MonkeyPatch) -> None:
         return qp.counts(wires=["right", "left"])
 
     assert circuit() == {"01": 5}
+
+
+def test_sv1_live() -> None:
+    """Submit one eight-shot circuit through the installed PennyLane adapter."""
+    if os.environ.get("AMAZON_BRAKET_PENNYLANE_LIVE") != "1":
+        pytest.skip("Set AMAZON_BRAKET_PENNYLANE_LIVE=1 to run the SV1 smoke tests.")
+
+    device = qp.device("amazon.braket.sv1", wires=["left", "right"])
+
+    @qp.qnode(device, shots=8)
+    def circuit() -> qp.measurements.CountsMP:
+        qp.PauliX("left")
+        return qp.counts(wires=["right", "left"])
+
+    assert circuit() == {"01": 8}

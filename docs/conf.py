@@ -19,11 +19,7 @@
 
 from __future__ import annotations
 
-import sys
 from importlib import metadata
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent / "_ext"))
 
 try:
     version = metadata.version("amazon-braket-qdmi")
@@ -40,8 +36,7 @@ language = "en"
 master_doc = "index"
 
 extensions = [
-    "native_api",
-    "myst_nb",
+    "myst_parser",
     "sphinx_copybutton",
     "sphinx_design",
     "sphinx.ext.intersphinx",
@@ -50,9 +45,6 @@ extensions = [
 source_suffix = [".rst", ".md"]
 exclude_patterns = [
     "_build",
-    "**.ipynb_checkpoints",
-    "**.jupyter_cache",
-    "**.jupyter_execute",
     "Thumbs.db",
     ".DS_Store",
 ]
@@ -79,9 +71,6 @@ myst_enable_extensions = [
 ]
 myst_heading_anchors = 3
 myst_substitutions = {"version": version}
-
-nb_execution_mode = "cache"
-nb_execution_raise_on_error = True
 
 copybutton_prompt_text = r"(?:\(\.?venv\) )?(?:\[.*\] )?\$ "
 copybutton_prompt_is_regexp = True
