@@ -22,6 +22,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, ClassVar
 
 try:
+    from mqt.core.mlir import serialize_program
     from mqt.core.plugins.qiskit.backend import QDMIBackend
     from mqt.core.qdmi import Device as QDMIDeviceHandle
     from mqt.core.qdmi import ProgramFormat
@@ -31,18 +32,18 @@ except ImportError as error:
     raise ImportError(msg) from error
 
 try:
-    from qiskit import qasm3
-    from qiskit.circuit import Barrier, Gate, Instruction, Parameter, QuantumCircuit, QuantumRegister
-    from qiskit.converters import circuit_to_dag, dag_to_circuit
+    from qiskit.circuit import Barrier, Gate, Instruction, Parameter, QuantumCircuit
 except ImportError as error:
     msg = "Install 'amazon-braket-qdmi[qiskit]' to use the Qiskit backend."
     raise ImportError(msg) from error
 
 from . import AMAZON_BRAKET_QDMI_DEVICE_ID
+from ._serialization import serialization_options
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from mqt.core.mlir import CompiledProgram
     from qiskit.transpiler import CouplingMap, Target
 
 __all__ = ["AmazonBraketBackend"]
@@ -120,29 +121,23 @@ class AmazonBraketBackend(QDMIBackend):
         self,
         circuit: QuantumCircuit,
         supported_program_formats: Iterable[ProgramFormat],
-    ) -> tuple[str, ProgramFormat]:
-        """Serialize a circuit to Amazon Braket's self-contained OpenQASM 3 dialect.
+    ) -> tuple[CompiledProgram, ProgramFormat]:
+        """Serialize a native circuit and retain its classical result layout.
 
         Returns:
-            The serialized program and its format.
+            The program, result layout, and submission format.
+
         """
         assert ProgramFormat.QASM3 in supported_program_formats
-        available = {operation.name().lower() for operation in self.device.operations()}
-        dag = circuit_to_dag(circuit)
-        dag.remove_qubits(*(set(dag.idle_wires()) & set(dag.qubits)))
-        translated = dag_to_circuit(dag)
-        if translated.qubits and not translated.qregs:
-            translated.add_register(QuantumRegister(bits=translated.qubits, name="q"))
-        basis_gates = set()
-        for index, instruction in enumerate(translated.data):
-            name = instruction.operation.name.lower()
-            aliases = self._map_qiskit_gate_to_operation_names(name)
-            translated_name = name if name in available else min(aliases & available, default=name)
-            if translated_name not in {"barrier", "measure", "reset"}:
-                basis_gates.add(translated_name)
-            if translated_name != name:
-                translated.data[index] = instruction.replace(operation=instruction.operation.copy(name=translated_name))
-        return qasm3.dumps(translated, includes=(), basis_gates=sorted(basis_gates)), ProgramFormat.QASM3
+        terminal_readout, physical_qubits = serialization_options(self.device)
+        program = serialize_program(
+            circuit,
+            target=self.device,
+            program_format=ProgramFormat.QASM3,
+            terminal_readout=terminal_readout,
+            physical_qubits=physical_qubits,
+        )
+        return program, ProgramFormat.QASM3
 
     def __init__(
         self,

@@ -17,22 +17,18 @@
 
 PROJECT_NAME           = "Amazon Braket QDMI Device"
 PROJECT_BRIEF          = "Native C++ and QDMI implementation reference"
-OUTPUT_DIRECTORY       = _build/doxygen
-INPUT                  = ../build/src/include/amazon_braket_qdmi/device.h \
-                         ../build/src/include/amazon_braket_qdmi/constants.h \
-                         ../build/src/include/amazon_braket_qdmi/types.h \
-                         ../build/src/include/amazon_braket_qdmi/export.h \
-                         ../include/amazon-braket-qdmi-device/constants.hpp
+OUTPUT_DIRECTORY       = "$(AMAZON_BRAKET_QDMI_DOCS_OUTPUT)"
+INPUT                  = "$(AMAZON_BRAKET_QDMI_DOCS_INCLUDE)"
 FILE_PATTERNS          = *.h *.hpp
-RECURSIVE              = NO
+RECURSIVE              = YES
 EXTRACT_ALL            = YES
 EXTRACT_PRIVATE        = NO
 EXTRACT_STATIC         = NO
 SOURCE_BROWSER         = NO
 INLINE_SOURCES         = NO
-STRIP_FROM_PATH        = ..
+STRIP_FROM_PATH        = "$(AMAZON_BRAKET_QDMI_DOCS_INCLUDE)"
 GENERATE_HTML          = YES
-HTML_OUTPUT            = html
+HTML_OUTPUT            = cpp
 GENERATE_TREEVIEW      = YES
 DISABLE_INDEX          = NO
 GENERATE_XML           = NO

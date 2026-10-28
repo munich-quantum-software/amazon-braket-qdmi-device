@@ -15,11 +15,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Offline tests for the Amazon Braket PennyLane specialization."""
+"""Tests for the Amazon Braket PennyLane specialization, with an opt-in SV1 check."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import os
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
@@ -28,7 +30,9 @@ try:
 except ImportError:
     pytest.skip("Install the PennyLane extra to run these tests.", allow_module_level=True)
 
+from mqt.core.mlir import TerminalReadout
 from mqt.core.plugins.pennylane import PennyLaneConfigurationError, QDMIDevice
+from mqt.core.qdmi import CustomProperty, ProgramFormat
 from mqt.core.qdmi import builtin_driver as driver
 
 from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_DEVICE_ID
@@ -48,6 +52,8 @@ from amazon.braket.qdmi.pennylane import (
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
+    from mqt.core.qdmi import Device
+
 
 @pytest.fixture
 def device_configuration(
@@ -59,17 +65,38 @@ def device_configuration(
         The captured device ID, session parameters, and job parameters.
     """
     calls: list[tuple[str, Mapping[str, object], Mapping[str, object]]] = []
+    opened: list[tuple[str, Mapping[str, object]]] = []
+    handle = cast(
+        "Device",
+        SimpleNamespace(
+            query_custom_property=lambda prop, kind: (
+                "simulator" if prop is CustomProperty.CUSTOM2 and kind is str else None
+            )
+        ),
+    )
+
+    def open_native(device_id: str, **parameters: object) -> Device:
+        opened.append((device_id, parameters))
+        return handle
 
     def initialize(
         _device: QDMIDevice,
         *,
-        device_id: str,
-        session_parameters: Mapping[str, object] | None = None,
+        device: Device,
+        program_format: ProgramFormat,
+        terminal_readout: TerminalReadout,
+        physical_qubits: bool,
         job_parameters: Mapping[str, object] | None = None,
         **_kwargs: object,
     ) -> None:
-        calls.append((device_id, dict(session_parameters or {}), dict(job_parameters or {})))
+        assert device is handle
+        assert program_format is ProgramFormat.QASM3
+        assert terminal_readout is TerminalReadout.ALL
+        assert not physical_qubits
+        device_id, session_parameters = opened[-1]
+        calls.append((device_id, session_parameters, dict(job_parameters or {})))
 
+    monkeypatch.setattr("amazon.braket.qdmi.pennylane.open_device", open_native)
     monkeypatch.setattr(QDMIDevice, "__init__", initialize)
     return calls
 
@@ -203,14 +230,33 @@ def test_overrides_catalogue_configuration(
 def test_samples_with_qnode_shots(monkeypatch: pytest.MonkeyPatch) -> None:
     """Execute through MQT Core with the QNode's explicit shot count."""
     monkeypatch.setattr(
-        "mqt.core.plugins.pennylane.device.open_device",
+        "amazon.braket.qdmi.pennylane.open_device",
         lambda _device_id, **_kwargs: driver.open_device("mqt.ddsim.default"),
     )
-    device = AmazonBraketSV1Device(wires=2)
+    monkeypatch.setattr(
+        "amazon.braket.qdmi.pennylane.serialization_options", lambda _device: (TerminalReadout.ALL, False)
+    )
+    device = AmazonBraketSV1Device(wires=["left", "right"])
+    assert device.device_id == "amazon.braket.sv1"
 
     @qp.qnode(device, shots=5)
     def circuit() -> qp.measurements.CountsMP:
-        qp.PauliX(0)
-        return qp.counts(wires=[0, 1])
+        qp.PauliX("left")
+        return qp.counts(wires=["right", "left"])
 
-    assert circuit() == {"10": 5}
+    assert circuit() == {"01": 5}
+
+
+def test_sv1_live() -> None:
+    """Submit one eight-shot circuit through the installed PennyLane adapter."""
+    if os.environ.get("AMAZON_BRAKET_PENNYLANE_LIVE") != "1":
+        pytest.skip("Set AMAZON_BRAKET_PENNYLANE_LIVE=1 to run the SV1 smoke tests.")
+
+    device = qp.device("amazon.braket.sv1", wires=["left", "right"])
+
+    @qp.qnode(device, shots=8)
+    def circuit() -> qp.measurements.CountsMP:
+        qp.PauliX("left")
+        return qp.counts(wires=["right", "left"])
+
+    assert circuit() == {"01": 8}

@@ -190,6 +190,7 @@ inline auto configureCaBundle(Aws::Client::ClientConfiguration& configuration)
  */
 struct DeviceArchitecture {
   std::optional<ProgramSetLimits> programSetLimits;
+  std::string openQasm3Profile;
   std::string name;     // Specific device name (e.g., "Garnet")
   std::string provider; // Provider name (e.g., "IQM")
   Aws::Braket::Model::DeviceType deviceType; // QPU or SIMULATOR

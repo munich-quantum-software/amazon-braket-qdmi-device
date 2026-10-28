@@ -109,6 +109,7 @@
 #include <aws/sts/STSClient.h>
 #include <aws/sts/STSServiceClientModel.h>
 #include <aws/sts/model/GetCallerIdentityRequest.h>
+#include <cctype>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -123,7 +124,9 @@
 #include <mutex>
 #include <new>
 #include <optional>
+#include <regex>
 #include <span>
+#include <sstream>
 #include <stdexcept>
 #include <stdlib.h> /// NOLINT(modernize-deprecated-headers): POSIX setenv
 #include <string>
@@ -227,6 +230,152 @@ struct UtcTimeOfWeek {
  * QDMI_DEVICE_STATUS_IDLE.
  */
 constexpr int QUEUE_BUSY_THRESHOLD = 5;
+
+auto nextQasmToken(std::string_view source, size_t& position)
+    -> std::string_view {
+  while (position < source.size()) {
+    if (std::isspace(static_cast<unsigned char>(source[position])) != 0) {
+      ++position;
+    } else if (source.substr(position, 2) == "//") {
+      const auto end = source.find('\n', position + 2);
+      position = end == std::string_view::npos ? source.size() : end;
+    } else if (source.substr(position, 2) == "/*") {
+      const auto end = source.find("*/", position + 2);
+      position = end == std::string_view::npos ? source.size() : end + 2;
+    } else {
+      break;
+    }
+  }
+  const auto start = position;
+  if (position == source.size()) {
+    return {};
+  }
+  const auto first = source[position++];
+  if (first == '"' || first == '\'') {
+    while (position < source.size()) {
+      const auto character = source[position++];
+      if (character == '\\' && position < source.size()) {
+        ++position;
+      } else if (character == first) {
+        break;
+      }
+    }
+  } else if (std::isalnum(static_cast<unsigned char>(first)) != 0 ||
+             first == '_' || first == '#') {
+    while (position < source.size() &&
+           (std::isalnum(static_cast<unsigned char>(source[position])) != 0 ||
+            source[position] == '_')) {
+      ++position;
+    }
+  }
+  return source.substr(start, position - start);
+}
+
+auto prepareOpenQasm(std::string_view source) -> std::pair<std::string, bool> {
+  std::string result;
+  result.reserve(source.size());
+  size_t position = 0;
+  size_t copied = 0;
+  size_t previousEnd = 0;
+  bool verbatim = false;
+  for (auto token = nextQasmToken(source, position); !token.empty();
+       token = nextQasmToken(source, position)) {
+    const auto start = static_cast<size_t>(token.data() - source.data());
+    const bool startsLine =
+        previousEnd == 0 ||
+        source.substr(previousEnd, start - previousEnd).find('\n') !=
+            std::string_view::npos;
+    if (token == "include") {
+      auto end = position;
+      const auto file = nextQasmToken(source, end);
+      if ((file == "\"stdgates.inc\"" || file == "'stdgates.inc'") &&
+          nextQasmToken(source, end) == ";") {
+        // Braket supplies native gates but rejects the standard library
+        // include.
+        result.append(source.substr(copied, start - copied));
+        copied = position = end;
+      }
+    } else if (token == "pragma" || token == "#pragma") {
+      const auto end = source.find('\n', position);
+      const auto line = source.substr(position, end - position);
+      size_t cursor = 0;
+      if (token == "#pragma" && startsLine &&
+          nextQasmToken(line, cursor) == "braket" &&
+          nextQasmToken(line, cursor) == "verbatim" &&
+          nextQasmToken(line, cursor).empty()) {
+        verbatim = true;
+      }
+      position = end == std::string_view::npos ? source.size() : end;
+    }
+    previousEnd = position;
+  }
+  result.append(source.substr(copied));
+  return {std::move(result), verbatim};
+}
+
+auto verbatimProgram(
+    const std::string& source,
+    const amazon::braket::qdmi::DeviceArchitecture& architecture,
+    bool alreadyVerbatim) -> std::optional<std::string> {
+  if (alreadyVerbatim) {
+    return source;
+  }
+  static const std::regex DECLARATION{
+      R"(bit\[[0-9]+\] [a-zA-Z_][a-zA-Z_0-9]*;)"};
+  static const std::regex MEASUREMENT{
+      R"([a-zA-Z_][a-zA-Z_0-9]*\[[0-9]+\] = measure \$[0-9]+;)"};
+  static const std::regex BARRIER{R"(barrier( \$[0-9]+(, *\$[0-9]+)*)?;)"};
+  static const std::regex GATE{
+      R"(([a-zA-Z_][a-zA-Z_0-9]*)(\([0-9eEpi+*/.,() \t-]+\))? \$[0-9]+(, *\$[0-9]+)*;)"};
+  std::istringstream lines{source};
+  std::string prefix;
+  std::string body;
+  std::string readout;
+  bool declared = false;
+  for (std::string line; std::getline(lines, line);) {
+    line = Aws::Utils::StringUtils::Trim(line.c_str());
+    if (line.empty() || line.starts_with("//")) {
+      continue;
+    }
+    if (prefix.empty()) {
+      if (line != "OPENQASM 3;" && line != "OPENQASM 3.0;") {
+        return std::nullopt;
+      }
+      prefix = line + '\n';
+      continue;
+    }
+    if (!declared && std::regex_match(line, DECLARATION)) {
+      prefix += line + '\n';
+      declared = true;
+      continue;
+    }
+    if (!declared) {
+      return std::nullopt;
+    }
+    if (std::regex_match(line, BARRIER)) {
+      // A whole-program verbatim box already preserves the gate order.
+      continue;
+    }
+    if (std::regex_match(line, MEASUREMENT)) {
+      readout += line + '\n';
+      continue;
+    }
+    std::smatch match;
+    if (!readout.empty() || !std::regex_match(line, match, GATE) ||
+        match[1] == "measure" ||
+        !std::ranges::any_of(architecture.operationsPtr,
+                             [&match](const auto* operation) {
+                               return operation->name_ == match[1];
+                             })) {
+      return std::nullopt;
+    }
+    body += line + '\n';
+  }
+  if (readout.empty()) {
+    return std::nullopt;
+  }
+  return prefix + "#pragma braket verbatim\nbox {\n" + body + "}\n" + readout;
+}
 
 } // anonymous namespace
 
@@ -771,6 +920,25 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture(
     return static_cast<QDMI_STATUS>(status);
   }
 
+  const auto openqasm =
+      json.View().GetObject("action").GetObject("braket.ir.openqasm.program");
+  if (architecture->deviceType == Aws::Braket::Model::DeviceType::SIMULATOR) {
+    architecture->openQasm3Profile = "simulator";
+  } else if (openqasm.ValueExists("supportPhysicalQubits") &&
+             openqasm.GetObject("supportPhysicalQubits").IsBool() &&
+             openqasm.GetBool("supportPhysicalQubits") &&
+             openqasm.ValueExists("supportedPragmas") &&
+             openqasm.GetObject("supportedPragmas").IsListType()) {
+    const auto pragmas = openqasm.GetArray("supportedPragmas");
+    for (const auto& pragma :
+         std::span{pragmas.GetUnderlyingData(), pragmas.GetLength()}) {
+      if (pragma.IsString() && pragma.AsString() == "verbatim") {
+        architecture->openQasm3Profile = "native";
+        break;
+      }
+    }
+  }
+
   // Transfer Parsed Data to Cached Architecture
   architecture->qubitsNum = properties.qubitCount;
   architecture->programSetLimits = properties.programSetLimits;
@@ -1241,6 +1409,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
   case QDMI_DEVICE_PROPERTY_SITES:
   case QDMI_DEVICE_PROPERTY_OPERATIONS:
   case AMAZON_BRAKET_QDMI_DEVICE_PROPERTY_SUPPORTEDOPERATIONS:
+  case AMAZON_BRAKET_QDMI_DEVICE_PROPERTY_OPENQASM3PROFILE:
   case QDMI_DEVICE_PROPERTY_COUPLINGMAP:
   case QDMI_DEVICE_PROPERTY_STATUS:
   case QDMI_DEVICE_PROPERTY_QUEUELENGTH:
@@ -1281,6 +1450,11 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
                             arch->qubitsNum, prop, size, value, sizeRet)
   ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_NAME, arch->name.c_str(), prop, size,
                       value, sizeRet)
+  if (!arch->openQasm3Profile.empty()) {
+    ADD_STRING_PROPERTY(AMAZON_BRAKET_QDMI_DEVICE_PROPERTY_OPENQASM3PROFILE,
+                        arch->openQasm3Profile.c_str(), prop, size, value,
+                        sizeRet)
+  }
 
   // Return device status from Amazon Braket (mutable, per-query)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_STATUS, QDMI_Device_Status,
@@ -1364,6 +1538,13 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryOperationProperty(
                     architecture->sitesPtr.end();
            }))) {
     return QDMI_ERROR_INVALIDARGUMENT;
+  }
+
+  if (architecture->provider == "Rigetti" && operation->name_ == "rx") {
+    constexpr auto constraints =
+        R"({"schema":"mqt.operation-parameters.v1","alternatives":[{"fixed":[-3.141592653589793]},{"fixed":[-1.5707963267948966]},{"fixed":[1.5707963267948966]},{"fixed":[3.141592653589793]}]})";
+    ADD_STRING_PROPERTY(AMAZON_BRAKET_QDMI_OPERATION_PROPERTY_PARAMETERS,
+                        constraints, prop, size, value, sizeRet)
   }
 
   ADD_STRING_PROPERTY(QDMI_OPERATION_PROPERTY_NAME, operation->name_.c_str(),
@@ -1702,8 +1883,37 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
     if (programs_.empty() || session_->getDeviceArn().empty()) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
-    submitting_ = true;
+    if (const auto result = session_->fetchDeviceArchitecture(false);
+        result != QDMI_SUCCESS) {
+      return result;
+    }
     localPrograms = programs_;
+    {
+      const std::scoped_lock architectureLock(
+          session_->cachedArchitectureMutex_);
+      const auto& architecture = *session_->cachedArchitecture_;
+      const bool qpu =
+          architecture.deviceType == Aws::Braket::Model::DeviceType::QPU;
+      if (qpu && architecture.openQasm3Profile != "native") {
+        return QDMI_ERROR_NOTSUPPORTED;
+      }
+      for (auto& source : localPrograms) {
+        auto [prepared, verbatim] = prepareOpenQasm(source);
+        source = std::move(prepared);
+        if (qpu) {
+          auto native = verbatimProgram(source, architecture, verbatim);
+          if (!native) {
+            std::cerr
+                << "Braket QPU submission requires flat native OpenQASM 3 "
+                   "with physical qubits and terminal measurements, or "
+                   "an existing verbatim block.\n";
+            return QDMI_ERROR_NOTSUPPORTED;
+          }
+          source = std::move(*native);
+        }
+      }
+    }
+    submitting_ = true;
     localS3Uri = jobS3Uri_;
     localReservationArn = reservationArn_.empty()
                               ? session_->getReservationArn()

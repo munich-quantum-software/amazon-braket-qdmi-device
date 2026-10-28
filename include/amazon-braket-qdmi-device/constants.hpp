@@ -46,6 +46,19 @@
 #define AMAZON_BRAKET_QDMI_DEVICE_PROPERTY_SUPPORTEDOPERATIONS                 \
   QDMI_DEVICE_PROPERTY_CUSTOM1
 
+/// Null-terminated UTF-8 OpenQASM receiver profile: "simulator" or "native".
+/// Native requires physical-qubit addressing and verbatim support. Returns
+/// QDMI_ERROR_NOTSUPPORTED when the device metadata establishes neither
+/// profile.
+#define AMAZON_BRAKET_QDMI_DEVICE_PROPERTY_OPENQASM3PROFILE                    \
+  QDMI_DEVICE_PROPERTY_CUSTOM2
+
+/// NUL-terminated UTF-8 mqt.operation-parameters.v1 JSON constraints.
+/// Rigetti RX exposes its four fixed native angles through this temporary
+/// cross-provider contract; other operations return QDMI_ERROR_NOTSUPPORTED.
+#define AMAZON_BRAKET_QDMI_OPERATION_PROPERTY_PARAMETERS                       \
+  QDMI_OPERATION_PROPERTY_CUSTOM2
+
 /**
  * @brief Amazon Braket-specific device session parameters.
  * @details These extend the standard QDMI parameters using the CUSTOM slots.

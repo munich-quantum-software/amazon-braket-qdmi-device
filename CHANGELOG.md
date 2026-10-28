@@ -10,6 +10,23 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+### Changed
+
+- ♻️ Use MQT Core's shared Slurm playground and application examples instead of
+  maintaining copies. Build static documentation without quantum execution and
+  keep two eight-shot SV1 integration checks ([#288]) ([**@burgholzer**]).
+
+### Fixed
+
+- 🐛 Accept the standard OpenQASM library include and remove it only from the
+  Braket request, preserving stored source ([#288]) ([**@burgholzer**]).
+- 🐛 Preserve Qiskit classical readout and PennyLane wire order through MQT
+  Core's shared compiler, native serializer, and result layout, including
+  permuted destinations and unused classical bits ([#288]) ([**@burgholzer**]).
+- 🐛 Submit compiled native QPU programs in Braket verbatim mode while
+  preserving physical site indices. Unsupported non-native source is rejected
+  before task creation ([#288]) ([**@burgholzer**]).
+
 ## [1.3.1] - 2026-10-16
 
 ### Fixed
@@ -210,6 +227,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#288]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/288
 [#270]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/270
 [#268]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/268
 [#267]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/267

@@ -63,13 +63,14 @@ The regular Python tests build the native package through the repository's nox
 session and exercise the optional PennyLane and Qiskit integrations. The tested
 Python 3.11 through 3.15 matrix is available as `uvx nox -s tests`.
 
-The PennyLane SV1 smoke test is opt-in because it submits paid QuantumTasks. To
-run it with any credential source supported by the AWS SDK, use:
+The SV1 smoke tests submit one eight-shot task through each of the Qiskit and
+PennyLane adapters. They are opt-in because AWS charges apply. To run them with
+a credential source supported by the AWS SDK, use:
 
 ```console
 AWS_PROFILE=hpc-quantum AMAZON_BRAKET_PENNYLANE_LIVE=1 \
   uvx nox -s tests-3.14 -- \
-  test/python/test_pennylane_qaoa.py -k cost_capped_on_sv1
+  test/python/test_pennylane.py test/python/test_qiskit.py -k sv1_live
 ```
 
 The dedicated CI job sets this opt-in and supplies AWS credentials. An enabled
@@ -90,21 +91,17 @@ Use the same session for link validation:
 uvx nox --non-interactive -s docs -- -b linkcheck
 ```
 
-The documentation executes its notebooks, including a ten-shot SV1 circuit.
-Configure AWS credentials with Braket and S3 access to execute the SV1 example.
-Permission errors during backend initialization are reported without failing the
-build. Generated HTML is written to `docs/_build/html`.
+Documentation examples are static and never submit quantum tasks during a build.
+Generated HTML, including the native API, is written to `docs/_build/html`.
 
 ## Repository structure
 
 ```text
 amazon-braket-qdmi-device/
 ├── cmake/       CMake package configuration and dependencies
-├── config/      Installed device catalogue
 ├── docs/        Sphinx and MyST documentation
 ├── include/     Amazon Braket-specific public and internal headers
 ├── python/      Python package and installed-artifact discovery
-├── test/slurm/  Provider fixtures for MQT Core’s shared Slurm tests
 ├── src/         QDMI device implementation and schema parser
 └── test/        Hermetic, integration, and Python tests
 ```

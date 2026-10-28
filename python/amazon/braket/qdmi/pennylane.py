@@ -24,10 +24,13 @@ import unicodedata
 from typing import TYPE_CHECKING, ClassVar
 
 from mqt.core.plugins.pennylane import PennyLaneConfigurationError, QDMIDevice
+from mqt.core.qdmi import ProgramFormat
+from mqt.core.qdmi.builtin_driver import open_device
 
 from . import (
     AMAZON_BRAKET_QDMI_DEVICE_ID,
 )
+from ._serialization import serialization_options
 
 if TYPE_CHECKING:
     from collections.abc import Hashable, Sequence
@@ -121,12 +124,24 @@ class AmazonBraketDevice(QDMIDevice):
 
         self._device_arn = device_arn
         self._s3_destination_folder = s3_destination_folder
+        try:
+            device = open_device(self.qdmi_device_id, **session_parameters)
+            terminal_readout, physical_qubits = serialization_options(device)
+        except (IndexError, RuntimeError, ValueError) as exc:
+            raise PennyLaneConfigurationError(str(exc)) from exc
         super().__init__(
-            device_id=self.qdmi_device_id,
-            session_parameters=session_parameters,
+            device=device,
             wires=wires,
             job_parameters=job_parameters,
+            program_format=ProgramFormat.QASM3,
+            terminal_readout=terminal_readout,
+            physical_qubits=physical_qubits,
         )
+
+    @property
+    def device_id(self) -> str:
+        """Stable QDMI catalogue ID used to open the device."""
+        return self.qdmi_device_id
 
     @property
     def device_arn(self) -> str | None:

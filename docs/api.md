@@ -39,6 +39,12 @@ AMAZON_BRAKET_QDMI_device_session_query_device_property(
 | `QDMI_DEVICE_PROPERTY_OPERATIONS`     | Native gate handles               |
 | `QDMI_DEVICE_PROPERTY_COUPLINGMAP`    | Flat source-target site pairs     |
 
+`AMAZON_BRAKET_QDMI_DEVICE_PROPERTY_OPENQASM3PROFILE` (`CUSTOM2`) returns a
+null-terminated UTF-8 string: `simulator` for virtual-qubit OpenQASM, or
+`native` for physical-qubit OpenQASM with verbatim execution. The latter
+requires both capabilities in the device's metadata. An unavailable profile
+returns `QDMI_ERROR_NOTSUPPORTED`. This query uses the cached device metadata.
+
 ## Site properties
 
 | Property                   | Meaning                                         |
@@ -49,6 +55,14 @@ AMAZON_BRAKET_QDMI_device_session_query_device_property(
 | `QDMI_SITE_PROPERTY_T2`    | Dephasing time, when reported by Amazon Braket  |
 
 ## Operation properties
+
+`AMAZON_BRAKET_QDMI_OPERATION_PROPERTY_PARAMETERS` (`CUSTOM2`) returns a
+NUL-terminated JSON string using the temporary `mqt.operation-parameters.v1`
+contract. Rigetti RX advertises four `alternatives`, each with a one-element
+`fixed` array containing an allowed angle in radians (±π or ±π/2). Other
+operations return `QDMI_ERROR_NOTSUPPORTED`. Core consumes this property for
+both compiler targets and Qiskit targets; it is not a standardized QDMI
+property.
 
 | Property                                | Meaning                                                     |
 | --------------------------------------- | ----------------------------------------------------------- |
@@ -65,6 +79,25 @@ are applicable to all ordered tuples of distinct sites, independent of two-qubit
 connectivity.
 
 ## Job properties
+
+QPU programs must be compiled to the device's native gates and physical site
+indices before submission. The device wraps flat OpenQASM 3 gate statements in
+`#pragma braket verbatim` and leaves terminal measurements outside the box. This
+applies to individual programs and ProgramSets. Before sending any program, the
+device removes `include "stdgates.inc";`: Braket supplies its native gates but
+rejects this standard declaration. Whitespace and comments may separate the
+include's tokens. Stored source is unchanged. Source outside removed include
+statements, including other includes, gate definitions, comments, strings, and
+pragma payloads, is preserved. Existing verbatim and simulator programs are
+otherwise forwarded unchanged.
+
+Automatic wrapping accepts one statement per line: an `OPENQASM 3` header, one
+plain `bit[N]` register, native gate calls with constant parameters and `$N`
+qubits, then assigned terminal measurements. Physical-qubit barriers are removed
+because the verbatim box already preserves gate order. Other includes, gate
+definitions, virtual qubits, and control flow are unsupported on this path.
+Unsupported source returns `QDMI_ERROR_NOTSUPPORTED` before creating a
+QuantumTask. No compiler or qubit routing runs inside the device implementation.
 
 | Property                                             | Meaning                              |
 | ---------------------------------------------------- | ------------------------------------ |
@@ -117,6 +150,13 @@ job-lifetime behavior.
 | `QDMI_JOB_RESULT_SHOTS`       | Comma-separated shot bitstrings             |
 | `QDMI_JOB_RESULT_HIST_KEYS`   | Comma-separated histogram keys              |
 | `QDMI_JOB_RESULT_HIST_VALUES` | `size_t` counts matching the histogram keys |
+
+Shot strings and histogram keys use descending measured-qubit order: the lowest
+measured qubit ID is the rightmost bit. The native device uses Braket's
+`measuredQubits` metadata to locate response columns; it does not reconstruct
+classical OpenQASM variables. The [Qiskit backend](qiskit.md) retains MQT Core's
+result layout alongside each submitted program to restore classical-bit
+positions.
 
 ## Lifecycle functions
 

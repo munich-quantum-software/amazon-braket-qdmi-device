@@ -29,6 +29,7 @@ import contextlib
 import os
 import shutil
 import tempfile
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import nox
@@ -70,43 +71,16 @@ def _run_tests(
     session: nox.Session,
     *,
     install_args: Sequence[str] = (),
-    extra_command: Sequence[str] = (),
     pytest_run_args: Sequence[str] = (),
 ) -> None:
     env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location}
-    if shutil.which("cmake") is None:
-        session.install("cmake")
-    if shutil.which("ninja") is None:
-        session.install("ninja")
-
-    # install build and test dependencies on top of the existing environment
-    session.run(
-        "uv",
-        "sync",
-        "--inexact",
-        "--only-group",
-        "build",
-        "--only-group",
-        "test",
-        *install_args,
-        env=env,
-    )
-    session.run(
-        "uv",
-        "sync",
-        "--inexact",
-        "--no-dev",  # do not auto-install dev dependencies
-        "--no-build-isolation-package",
-        "amazon-braket-qdmi",  # build the project without isolation
-        *install_args,
-        env=env,
-    )
-    if extra_command:
-        session.run(*extra_command, env=env)
     session.run(
         "uv",
         "run",
-        "--no-sync",  # do not sync as everything is already installed
+        "--no-editable",
+        "--no-dev",
+        "--group",
+        "test",
         *install_args,
         "pytest",
         *pytest_run_args,
@@ -143,29 +117,28 @@ def docs(session: nox.Session) -> None:
     args, posargs = parser.parse_known_args(session.posargs)
 
     env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location}
-    if shutil.which("cmake") is None:
-        session.install("cmake")
-    if shutil.which("ninja") is None:
-        session.install("ninja")
     session.run(
         "uv",
         "sync",
-        "--inexact",
-        "--only-group",
-        "build",
-        "--only-group",
+        "--no-editable",
+        "--no-dev",
+        "--group",
         "docs",
         env=env,
     )
-    session.run(
-        "uv",
-        "sync",
-        "--inexact",
-        "--no-dev",
-        "--no-build-isolation-package",
-        "amazon-braket-qdmi",
-        env=env,
-    )
+    output = Path(f"docs/_build/{args.builder}").resolve()
+    output.mkdir(parents=True, exist_ok=True)
+    include = session.run("uv", "run", "--no-sync", "amazon-braket-qdmi", "--include_dir", env=env, silent=True)
+    with session.chdir("docs"):
+        session.run(
+            "doxygen",
+            "Doxyfile",
+            env={
+                "AMAZON_BRAKET_QDMI_DOCS_OUTPUT": str(output),
+                "AMAZON_BRAKET_QDMI_DOCS_INCLUDE": include.strip(),
+            },
+            external=True,
+        )
     session.run(
         "uv",
         "run",

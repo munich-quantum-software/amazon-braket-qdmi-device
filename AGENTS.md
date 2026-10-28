@@ -11,8 +11,6 @@ commands. Keep this file focused on repository-specific guardrails.
 - `python/amazon/braket/qdmi/` contains the Python package; `config/` contains
   the installed device catalogue.
 - `test/` contains GoogleTest and pytest tests, including optional live tests.
-- `test/slurm/` contains device workloads for MQT Core's shared Slurm setup.
-  These files use the repository's Apache-2.0 WITH LLVM-exception license.
 - `cmake/`, `CMakeLists.txt`, and `pyproject.toml` define builds. Keep generated
   output in `build/` and `docs/_build/`, never in commits.
 
@@ -81,8 +79,6 @@ concurrently in the same checkout. For dependency-only setup, use
   `uvx nox -s tests minimums` for the supported Python matrix.
 - Use Google-style Python docstrings. Preserve the `amazon.braket.qdmi`
   namespace and stable entry point. Fix Ruff and ty findings where possible.
-- The shared Slurm smoke test in `test/slurm/README.md` submits two eight-shot
-  SV1 tasks. It requires AWS credentials and explicit live AWS authorization.
 
 ### Live AWS Access
 

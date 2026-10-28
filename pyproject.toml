@@ -60,10 +60,12 @@ email = "lukas@mq.sc"
 
 [project.optional-dependencies]
 pennylane = [
-  "mqt-core[pennylane]~=4.1.1",
+  """\
+  mqt-core[pennylane] @ git+https://github.com/munich-quantum-toolkit/core.git@6992bf9e3604a9fbf038f323e9b9b999016eca28\
+  """,
 ]
 qiskit = [
-  "mqt-core[qiskit]~=4.1.1",
+  "mqt-core[qiskit] @ git+https://github.com/munich-quantum-toolkit/core.git@6992bf9e3604a9fbf038f323e9b9b999016eca28",
 ]
 
 [project.urls]
@@ -101,7 +103,10 @@ dev = [
   "nox>=2026.8.10",
 ]
 test = [
-  "mqt-core[pennylane,qiskit]~=4.1.1",
+  """\
+  mqt-core[pennylane,qiskit] @ \
+  git+https://github.com/munich-quantum-toolkit/core.git@6992bf9e3604a9fbf038f323e9b9b999016eca28\
+  """,
   "pytest>=9.1.1",
   "pytest-console-scripts>=1.4.1",
   "pytest-cov>=7.1",
@@ -110,8 +115,7 @@ test = [
 ]
 docs = [
   "furo>=2025.12.19",
-  "mqt-core[pennylane,qiskit]~=4.1.1",
-  "myst-nb>=1.4",
+  "myst-parser>=5",
   "sphinx>=9",
   "sphinx-copybutton>=0.5.2",
   "sphinx-design>=0.7",
@@ -166,8 +170,13 @@ required-version = ">=0.13.4"
 cache-keys = [
   { file = "pyproject.toml" },
   { git = { commit = true, tags = true } },
+  { file = "python/**/*.py" },
+  { file = "python/**/*.pyi" },
+  { file = "python/**/py.typed" },
   { file = "src/**/*" },
-  { file = "include/**/*.hpp" },
+  { file = "include/**/*" },
+  { file = "CMakeLists.txt" },
+  { file = "cmake/**/*" },
 ]
 
 [tool.uv.sources]
@@ -206,7 +215,6 @@ show-fixes = true
 "docs/**" = [ "INP001", "T20" ]
 "python/amazon/braket/qdmi/__main__.py" = [ "T201" ]
 "test/python/**" = [ "INP001", "T20" ]
-"test/slurm/**" = [ "INP001" ]
 
 [tool.ruff.lint.isort]
 known-first-party = [ "amazon.braket.qdmi" ]
@@ -294,6 +302,9 @@ disable_warnings = [
   "no-sysmon",
 ]
 core = "sysmon"
+
+[tool.coverage.paths]
+source = [ "python/amazon/braket/qdmi", "*/site-packages/amazon/braket/qdmi" ]
 
 [tool.coverage.report]
 exclude_also = [
