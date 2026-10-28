@@ -21,25 +21,23 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from mqt.core.mlir import SerializationProfile
+from mqt.core.mlir import TerminalReadout
 from mqt.core.qdmi import CustomProperty
 
 if TYPE_CHECKING:
     from mqt.core.qdmi import Device
 
 
-def serialization_profile(device: Device) -> SerializationProfile:
-    """Return the native receiver profile.
+def serialization_options(device: Device) -> tuple[TerminalReadout, bool]:
+    """Return terminal readout and physical addressing for the device.
 
     Raises:
         ValueError: If the device does not advertise a supported receiver.
     """
     name = device.query_custom_property(CustomProperty.CUSTOM2, str)
-    profiles = {
-        "simulator": SerializationProfile.BRAKET_SIMULATOR,
-        "native": SerializationProfile.BRAKET_NATIVE,
-    }
-    if name not in profiles:
-        msg = f"Unsupported Braket OpenQASM receiver profile: {name!r}."
-        raise ValueError(msg)
-    return profiles[name]
+    if name == "simulator":
+        return TerminalReadout.ALL, False
+    if name == "native":
+        return TerminalReadout.MEASURED, True
+    msg = f"Unsupported Braket OpenQASM receiver: {name!r}."
+    raise ValueError(msg)

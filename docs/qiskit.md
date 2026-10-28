@@ -22,7 +22,8 @@ The adapter exposes the selected Amazon Braket device as a Qiskit `BackendV2`.
 Compile a circuit for that backend before submitting it. `run` serializes the
 native circuit with MQT Core; it does not compile or reroute it. Device metadata
 selects virtual-qubit OpenQASM for simulators or physical-qubit verbatim
-OpenQASM for supported hardware.
+execution for supported hardware. The native QDMI device adds the
+[Braket submission wrapper](api.md#job-properties).
 
 MQT Core retains a result layout with each program to reconstruct classical-bit
 positions, including permuted measurement destinations and unused bits. Readout

@@ -38,7 +38,7 @@ except ImportError as error:
     raise ImportError(msg) from error
 
 from . import AMAZON_BRAKET_QDMI_DEVICE_ID
-from ._serialization import serialization_profile
+from ._serialization import serialization_options
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -129,8 +129,13 @@ class AmazonBraketBackend(QDMIBackend):
 
         """
         assert ProgramFormat.QASM3 in supported_program_formats
+        terminal_readout, physical_qubits = serialization_options(self.device)
         program = serialize_program(
-            circuit, target=self.device, program_format=ProgramFormat.QASM3, profile=serialization_profile(self.device)
+            circuit,
+            target=self.device,
+            program_format=ProgramFormat.QASM3,
+            terminal_readout=terminal_readout,
+            physical_qubits=physical_qubits,
         )
         return program, ProgramFormat.QASM3
 

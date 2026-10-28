@@ -29,9 +29,9 @@ try:
 except ImportError:
     pytest.skip("Install the PennyLane extra to run these tests.", allow_module_level=True)
 
-from mqt.core.mlir import SerializationProfile
+from mqt.core.mlir import TerminalReadout
 from mqt.core.plugins.pennylane import PennyLaneConfigurationError, QDMIDevice
-from mqt.core.qdmi import CustomProperty
+from mqt.core.qdmi import CustomProperty, ProgramFormat
 from mqt.core.qdmi import builtin_driver as driver
 
 from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_DEVICE_ID
@@ -82,12 +82,16 @@ def device_configuration(
         _device: QDMIDevice,
         *,
         device: Device,
-        profile: SerializationProfile,
+        program_format: ProgramFormat,
+        terminal_readout: TerminalReadout,
+        physical_qubits: bool,
         job_parameters: Mapping[str, object] | None = None,
         **_kwargs: object,
     ) -> None:
         assert device is handle
-        assert profile is SerializationProfile.BRAKET_SIMULATOR
+        assert program_format is ProgramFormat.QASM3
+        assert terminal_readout is TerminalReadout.ALL
+        assert not physical_qubits
         device_id, session_parameters = opened[-1]
         calls.append((device_id, session_parameters, dict(job_parameters or {})))
 
@@ -229,7 +233,7 @@ def test_samples_with_qnode_shots(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda _device_id, **_kwargs: driver.open_device("mqt.ddsim.default"),
     )
     monkeypatch.setattr(
-        "amazon.braket.qdmi.pennylane.serialization_profile", lambda _device: SerializationProfile.BRAKET_SIMULATOR
+        "amazon.braket.qdmi.pennylane.serialization_options", lambda _device: (TerminalReadout.ALL, False)
     )
     device = AmazonBraketSV1Device(wires=["left", "right"])
     assert device.device_id == "amazon.braket.sv1"

@@ -123,7 +123,9 @@
 #include <mutex>
 #include <new>
 #include <optional>
+#include <regex>
 #include <span>
+#include <sstream>
 #include <stdexcept>
 #include <stdlib.h> /// NOLINT(modernize-deprecated-headers): POSIX setenv
 #include <string>
@@ -227,6 +229,107 @@ struct UtcTimeOfWeek {
  * QDMI_DEVICE_STATUS_IDLE.
  */
 constexpr int QUEUE_BUSY_THRESHOLD = 5;
+
+auto hasVerbatimPragma(const std::string& source) -> bool {
+  static const std::regex PRAGMA{
+      R"([ \t]*#pragma[ \t]+braket[ \t]+verbatim[ \t\r]*)"};
+  bool blockComment = false;
+  std::istringstream lines{source};
+  for (std::string line; std::getline(lines, line);) {
+    std::string code;
+    for (size_t i = 0; i < line.size(); ++i) {
+      if (blockComment) {
+        if (line.compare(i, 2, "*/") == 0) {
+          blockComment = false;
+          ++i;
+        }
+      } else if (line.compare(i, 2, "//") == 0) {
+        break;
+      } else if (line.compare(i, 2, "/*") == 0) {
+        blockComment = true;
+        code += ' ';
+        ++i;
+      } else if (line[i] == '"') {
+        code += '"';
+        for (++i; i < line.size() && line[i] != '"'; ++i) {
+          if (line[i] == '\\' && i + 1 < line.size()) {
+            ++i;
+          }
+        }
+      } else {
+        code += line[i];
+      }
+    }
+    if (std::regex_match(code, PRAGMA)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+auto verbatimProgram(
+    const std::string& source,
+    const amazon::braket::qdmi::DeviceArchitecture& architecture)
+    -> std::optional<std::string> {
+  if (hasVerbatimPragma(source)) {
+    return source;
+  }
+  static const std::regex DECLARATION{
+      R"(bit\[[0-9]+\] [a-zA-Z_][a-zA-Z_0-9]*;)"};
+  static const std::regex MEASUREMENT{
+      R"([a-zA-Z_][a-zA-Z_0-9]*\[[0-9]+\] = measure \$[0-9]+;)"};
+  static const std::regex BARRIER{R"(barrier( \$[0-9]+(, *\$[0-9]+)*)?;)"};
+  static const std::regex GATE{
+      R"(([a-zA-Z_][a-zA-Z_0-9]*)(\([0-9eEpi+*/.,() \t-]+\))? \$[0-9]+(, *\$[0-9]+)*;)"};
+  std::istringstream lines{source};
+  std::string prefix;
+  std::string body;
+  std::string readout;
+  bool declared = false;
+  for (std::string line; std::getline(lines, line);) {
+    line = Aws::Utils::StringUtils::Trim(line.c_str());
+    if (line.empty() || line.starts_with("//")) {
+      continue;
+    }
+    if (prefix.empty()) {
+      if (line != "OPENQASM 3;" && line != "OPENQASM 3.0;") {
+        return std::nullopt;
+      }
+      prefix = line + '\n';
+      continue;
+    }
+    if (!declared && std::regex_match(line, DECLARATION)) {
+      prefix += line + '\n';
+      declared = true;
+      continue;
+    }
+    if (!declared) {
+      return std::nullopt;
+    }
+    if (std::regex_match(line, BARRIER)) {
+      // A whole-program verbatim box already preserves the gate order.
+      continue;
+    }
+    if (std::regex_match(line, MEASUREMENT)) {
+      readout += line + '\n';
+      continue;
+    }
+    std::smatch match;
+    if (!readout.empty() || !std::regex_match(line, match, GATE) ||
+        match[1] == "measure" ||
+        !std::ranges::any_of(architecture.operationsPtr,
+                             [&match](const auto* operation) {
+                               return operation->name_ == match[1];
+                             })) {
+      return std::nullopt;
+    }
+    body += line + '\n';
+  }
+  if (readout.empty()) {
+    return std::nullopt;
+  }
+  return prefix + "#pragma braket verbatim\nbox {\n" + body + "}\n" + readout;
+}
 
 } // anonymous namespace
 
@@ -1734,8 +1837,33 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
     if (programs_.empty() || session_->getDeviceArn().empty()) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
-    submitting_ = true;
+    if (const auto result = session_->fetchDeviceArchitecture(false);
+        result != QDMI_SUCCESS) {
+      return result;
+    }
     localPrograms = programs_;
+    {
+      const std::scoped_lock architectureLock(
+          session_->cachedArchitectureMutex_);
+      const auto& architecture = *session_->cachedArchitecture_;
+      if (architecture.deviceType == Aws::Braket::Model::DeviceType::QPU) {
+        if (architecture.openQasm3Profile != "native") {
+          return QDMI_ERROR_NOTSUPPORTED;
+        }
+        for (auto& source : localPrograms) {
+          auto native = verbatimProgram(source, architecture);
+          if (!native) {
+            std::cerr
+                << "Braket QPU submission requires flat native OpenQASM 3 "
+                   "with physical qubits and terminal measurements, or "
+                   "an existing verbatim block.\n";
+            return QDMI_ERROR_NOTSUPPORTED;
+          }
+          source = std::move(*native);
+        }
+      }
+    }
+    submitting_ = true;
     localS3Uri = jobS3Uri_;
     localReservationArn = reservationArn_.empty()
                               ? session_->getReservationArn()

@@ -2334,7 +2334,7 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   EXPECT_EQ(s3->createCalls(), 0U);
   EXPECT_EQ(braket->outputBucket(), "explicit-results");
   EXPECT_EQ(braket->outputPrefix(), "experiments/run-42");
-  EXPECT_EQ(braket->deviceCalls(), 0U);
+  EXPECT_EQ(braket->deviceCalls(), 1U);
   AMAZON_BRAKET_QDMI_device_job_free(job);
 }
 
@@ -4095,6 +4095,119 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobGetResultsInvalidResultType) {
                 freshJob, 0, QDMI_JOB_RESULT_MAX, 0, nullptr, nullptr),
             QDMI_ERROR_INVALIDARGUMENT);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
+}
+
+class AmazonBraketQDMINativeJobTest : public AmazonBraketQDMILocalJobTest {
+protected:
+  void SetUp() override {
+    AmazonBraketQDMILocalJobTest::SetUp();
+    ParsedDeviceProperties properties;
+    ASSERT_EQ(GateModelCapabilityParser{}.parseProperties(
+                  Aws::Braket::Model::DeviceType::QPU,
+                  std::string{amazon::braket::qdmi::test::IQM_GARNET},
+                  properties),
+              QDMI_SUCCESS);
+    auto architecture =
+        installParsedArchitecture(session, std::move(properties));
+    architecture->deviceType = Aws::Braket::Model::DeviceType::QPU;
+    architecture->openQasm3Profile = "native";
+    architecture->programSetLimits =
+        ProgramSetLimits{.maximumExecutables = 2, .maximumTotalShots = 1000};
+  }
+};
+
+TEST_F(AmazonBraketQDMINativeJobTest, WrapsSingleAndBatchedNativePrograms) {
+  // Emitted by compile_program/serialize_program for the measure_all fixture
+  // in test_qiskit.py, including its native physical sites and barrier.
+  constexpr auto* flat =
+      "OPENQASM 3;\n\nbit[2] c;\n\nprx(1.0, 0.0) $1;\n"
+      "cz $1, $2;\nbarrier $1, $2;\nc[0] = measure $1;\nc[1] = measure $2;\n";
+  constexpr auto* wrapped =
+      "OPENQASM 3;\nbit[2] c;\n#pragma braket verbatim\nbox {\n"
+      "prx(1.0, 0.0) $1;\ncz $1, $2;\n}\n"
+      "c[0] = measure $1;\nc[1] = measure $2;\n";
+  constexpr auto* explicitVerbatim =
+      "OPENQASM 3; bit[1] a;\nbit[1] b;\n#pragma braket verbatim\n"
+      "box { prx(3.141592653589793, 0.0) $5; }\n"
+      "a[0] = measure $1;\nb[0] = measure $5;\n";
+  for (const auto count : {1U, 2U}) {
+    auto client = std::make_unique<StubBraketClient>(
+        Aws::Braket::Model::GetQuantumTaskResult{}.WithStatus(
+            Aws::Braket::Model::QuantumTaskStatus::FAILED));
+    const auto* observed = client.get();
+    AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                            std::move(client));
+    auto* const job = createConfiguredJob(session);
+    ASSERT_NE(job, nullptr);
+    const std::array<const void*, 2> programs{flat, explicitVerbatim};
+    const std::array sizes{strlen(flat) + 1, strlen(explicitVerbatim) + 1};
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(
+                  job, QDMI_PROGRAM_FORMAT_QASM3, count, sizes.data(),
+                  programs.data()),
+              QDMI_SUCCESS);
+    constexpr auto* destination = "s3://results/tasks";
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                  job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
+                  strlen(destination) + 1, destination),
+              QDMI_SUCCESS);
+    ASSERT_EQ(submitAndAwaitAcceptance(job), QDMI_SUCCESS);
+    const Aws::Utils::Json::JsonValue action(observed->action());
+    ASSERT_TRUE(action.WasParseSuccessful());
+    if (count == 1) {
+      EXPECT_EQ(action.View().GetString("source"), wrapped);
+    } else {
+      const auto payloads = action.View().GetArray("programs");
+      ASSERT_EQ(payloads.GetLength(), 2U);
+      EXPECT_EQ(payloads[0].GetString("source"), wrapped);
+      EXPECT_EQ(payloads[1].GetString("source"), explicitVerbatim);
+    }
+    EXPECT_EQ(observed->createCalls(), 1U);
+    EXPECT_EQ(observed->deviceCalls(), 0U);
+    AMAZON_BRAKET_QDMI_device_job_free(job);
+  }
+}
+
+TEST_F(AmazonBraketQDMINativeJobTest, RejectsNonNativeProgramsBeforeNetwork) {
+  auto client = std::make_unique<StubBraketClient>(
+      Aws::Braket::Model::GetQuantumTaskResult{});
+  const auto* observed = client.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                          std::move(client));
+  auto sts = std::make_unique<StubStsClient>();
+  const auto* observedSts = sts.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setStsClient(session,
+                                                             std::move(sts));
+  constexpr auto* includes =
+      "OPENQASM 3;\ninclude \"stdgates.inc\";\nbit[1] c;\nc[0] = measure $1;\n";
+  constexpr auto* commentedPragma =
+      "/*\n#pragma braket verbatim\n*/\nOPENQASM 3;\nbit[1] c;\nh $1;\n"
+      "c[0] = measure $1;\n";
+  for (const auto* program :
+       {BELL_STATE_PROGRAM, commentedPragma,
+        "OPENQASM 3;\n\"#pragma braket verbatim\"\n",
+        "OPENQASM 3;\nbit[1] c;\nh $1;\nc[0] = measure $1;\n",
+        "OPENQASM 3;\nbit[1] c;\nmeasure $1;\nc[0] = measure $1;\n",
+        "OPENQASM 3;\nbit[1] c;\nbarrier q[0];\nc[0] = measure $1;\n",
+        "OPENQASM 3;\nbit[1] c;\nc[0] = measure $1;\nprx(1.0, 0.0) $1;\n",
+        includes,
+        "OPENQASM 3;\nbit[1] c;\nif (true) { prx(1.0, 0.0) $1; }\n"}) {
+    SCOPED_TRACE(program);
+    auto* const job = createConfiguredJob(session);
+    ASSERT_NE(job, nullptr);
+    constexpr auto* valid = "OPENQASM 3;\nbit[1] c;\nc[0] = measure $1;\n";
+    const std::array<const void*, 2> programs{valid, program};
+    const std::array sizes{strlen(valid) + 1, strlen(program) + 1};
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(
+                  job, QDMI_PROGRAM_FORMAT_QASM3, programs.size(), sizes.data(),
+                  programs.data()),
+              QDMI_SUCCESS);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_submit(job),
+              QDMI_ERROR_NOTSUPPORTED);
+    AMAZON_BRAKET_QDMI_device_job_free(job);
+  }
+  EXPECT_EQ(observed->createCalls(), 0U);
+  EXPECT_EQ(observed->deviceCalls(), 0U);
+  EXPECT_EQ(observedSts->calls(), 0U);
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest, ProgramSetsUseOneTaskAndOrderedResults) {

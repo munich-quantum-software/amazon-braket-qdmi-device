@@ -15,6 +15,9 @@ releases may include breaking changes.
 - 🐛 Preserve Qiskit classical readout and PennyLane wire order through MQT
   Core's shared compiler, native serializer, and result layout, including
   permuted destinations and unused classical bits ([#288]) ([**@burgholzer**]).
+- 🐛 Submit compiled native QPU programs in Braket verbatim mode while
+  preserving physical site indices. Unsupported non-native source is rejected
+  before task creation ([#288]) ([**@burgholzer**]).
 
 ## [1.3.1] - 2026-10-16
 

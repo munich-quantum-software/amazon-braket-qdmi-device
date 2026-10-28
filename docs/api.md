@@ -80,6 +80,20 @@ connectivity.
 
 ## Job properties
 
+QPU programs must be compiled to the device's native gates and physical site
+indices before submission. The device wraps flat OpenQASM 3 gate statements in
+`#pragma braket verbatim` and leaves terminal measurements outside the box. This
+applies to individual programs and ProgramSets. Existing verbatim programs are
+forwarded unchanged. Simulator programs are forwarded unchanged.
+
+Automatic wrapping accepts one statement per line: an `OPENQASM 3` header, one
+plain `bit[N]` register, native gate calls with constant parameters and `$N`
+qubits, then assigned terminal measurements. Physical-qubit barriers are removed
+because the verbatim box already preserves gate order. Includes, gate
+definitions, virtual qubits, and control flow are unsupported on this path.
+Unsupported source returns `QDMI_ERROR_NOTSUPPORTED` before creating a
+QuantumTask. No compiler or qubit routing runs inside the device implementation.
+
 | Property                                             | Meaning                              |
 | ---------------------------------------------------- | ------------------------------------ |
 | `QDMI_DEVICE_JOB_PROPERTY_ID`                        | QuantumTask ARN after submission     |
