@@ -22,18 +22,17 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, ClassVar
 
 try:
+    from mqt.core.mlir import SerializationProfile, serialize_program
     from mqt.core.plugins.qiskit.backend import QDMIBackend
+    from mqt.core.qdmi import CustomProperty, ProgramFormat
     from mqt.core.qdmi import Device as QDMIDeviceHandle
-    from mqt.core.qdmi import ProgramFormat
     from mqt.core.qdmi.builtin_driver import open_device
 except ImportError as error:
     msg = "Install 'amazon-braket-qdmi[qiskit]' to use the Qiskit backend."
     raise ImportError(msg) from error
 
 try:
-    from qiskit import qasm3
-    from qiskit.circuit import Barrier, Gate, Instruction, Parameter, QuantumCircuit, QuantumRegister
-    from qiskit.converters import circuit_to_dag, dag_to_circuit
+    from qiskit.circuit import Barrier, Gate, Instruction, Parameter, QuantumCircuit
 except ImportError as error:
     msg = "Install 'amazon-braket-qdmi[qiskit]' to use the Qiskit backend."
     raise ImportError(msg) from error
@@ -43,6 +42,7 @@ from . import AMAZON_BRAKET_QDMI_DEVICE_ID
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+    from mqt.core.mlir import CompiledProgram
     from qiskit.transpiler import CouplingMap, Target
 
 __all__ = ["AmazonBraketBackend"]
@@ -120,46 +120,28 @@ class AmazonBraketBackend(QDMIBackend):
         self,
         circuit: QuantumCircuit,
         supported_program_formats: Iterable[ProgramFormat],
-    ) -> tuple[str, ProgramFormat]:
-        """Serialize a circuit to Amazon Braket's self-contained OpenQASM 3 dialect.
+    ) -> tuple[CompiledProgram, ProgramFormat]:
+        """Serialize a native circuit and retain its classical result layout.
 
         Returns:
-            The serialized program and its format.
+            The program, result layout, and submission format.
 
         Raises:
-            ValueError: If readout cannot preserve classical-bit positions.
+            ValueError: If the receiver or a native gate parameter is unsupported.
         """
         assert ProgramFormat.QASM3 in supported_program_formats
-        available = {operation.name().lower() for operation in self.device.operations()}
-        dag = circuit_to_dag(circuit)
-        dag.remove_qubits(*(set(dag.idle_wires()) & set(dag.qubits)))
-        translated = dag_to_circuit(dag)
-        # Braket returns measured qubits, so require matching classical positions.
-        msg = "Braket requires terminal measurements of every active qubit into the matching classical bit."
-        measured: set[int] = set()
-        for instruction in translated.data:
-            if instruction.operation.name == "measure":
-                qubit = translated.find_bit(instruction.qubits[0]).index
-                bit = translated.find_bit(instruction.clbits[0]).index
-                if qubit != bit or qubit in measured:
-                    raise ValueError(msg)
-                measured.add(qubit)
-            elif measured and instruction.operation.name != "barrier":
-                raise ValueError(msg)
-        if len(measured) != translated.num_qubits or translated.num_clbits != translated.num_qubits:
+        name = self.device.query_custom_property(CustomProperty.CUSTOM2, str)
+        profiles = {
+            "simulator": SerializationProfile.BRAKET_SIMULATOR,
+            "native": SerializationProfile.BRAKET_NATIVE,
+        }
+        if name not in profiles:
+            msg = f"Unsupported Braket OpenQASM receiver profile: {name!r}."
             raise ValueError(msg)
-        if translated.qubits and not translated.qregs:
-            translated.add_register(QuantumRegister(bits=translated.qubits, name="q"))
-        basis_gates = set()
-        for index, instruction in enumerate(translated.data):
-            name = instruction.operation.name.lower()
-            aliases = self._map_qiskit_gate_to_operation_names(name)
-            translated_name = name if name in available else min(aliases & available, default=name)
-            if translated_name not in {"barrier", "measure", "reset"}:
-                basis_gates.add(translated_name)
-            if translated_name != name:
-                translated.data[index] = instruction.replace(operation=instruction.operation.copy(name=translated_name))
-        return qasm3.dumps(translated, includes=(), basis_gates=sorted(basis_gates)), ProgramFormat.QASM3
+        program = serialize_program(
+            circuit, target=self.device, program_format=ProgramFormat.QASM3, profile=profiles[name]
+        )
+        return program, ProgramFormat.QASM3
 
     def __init__(
         self,

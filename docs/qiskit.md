@@ -13,20 +13,25 @@ Install the package with the Qiskit adapter:
 uv pip install "amazon-braket-qdmi[qiskit]"
 ```
 
-The adapter exposes the selected Amazon Braket device as a Qiskit `BackendV2`.
-It serializes circuits to self-contained OpenQASM 3 and maps Qiskit operations
-to the names accepted by Amazon Braket. A circuit list uses one native
-ProgramSet when the device advertises support and accepts the common shot count.
-Otherwise, MQT Core submits separate tasks and retains the input order.
+This development branch requires MQT Core's unreleased serializer API. Use
+`uv sync --extra qiskit` from this checkout to install its pinned Core revision.
 
-Braket returns measured qubits, so the adapter requires terminal measurements of
-every active qubit into the matching classical-bit position. Idle qubits are
-removed before this check. Each classical bit must be measured exactly once;
-permuted destinations, unmeasured bits, and operations after measurement (except
-barriers) raise `ValueError` before submission. For example,
-`circuit.measure(range(n), range(n))` is supported, while measuring qubit 0 into
-classical bit 1 is not. [Native results](api.md#job-results) retain Braket's
+The adapter exposes the selected Amazon Braket device as a Qiskit `BackendV2`.
+Compile a circuit for that backend before submitting it. `run` serializes the
+native circuit with MQT Core; it does not compile or reroute it. Device metadata
+selects virtual-qubit OpenQASM for simulators or physical-qubit verbatim
+OpenQASM for supported hardware.
+
+MQT Core retains a result layout with each program to reconstruct classical-bit
+positions, including permuted measurement destinations and unused bits. Readout
+must be terminal; adaptive and mid-circuit measurement are unsupported. A
+circuit list uses one native ProgramSet when supported, otherwise separate tasks
+in input order. [Low-level native results](api.md#job-results) retain Braket's
 measured-qubit convention.
+
+For Rigetti, operation metadata supplies the native RX angles ±π and ±π/2. MQT
+Core uses these constraints for both Qiskit and direct QDMI compilation;
+unsupported angles are rejected before submission.
 
 ## Select a catalogue device
 
@@ -56,7 +61,8 @@ Running the following example submits one 10-shot QuantumTask to SV1. Configure
 AWS credentials with Braket and S3 access before running it.
 
 ```{code-cell} python
-from qiskit import QuantumCircuit, transpile
+from mqt.core.mlir import compile_program
+from qiskit import QuantumCircuit
 
 from amazon.braket.qdmi.qiskit import AmazonBraketBackend
 ```
@@ -79,7 +85,8 @@ else:
     circuit.cx(0, 1)
     circuit.measure_all()
 
-    counts = backend.run(transpile(circuit, backend), shots=10).result().get_counts()
+    native = compile_program(circuit, target=backend)
+    counts = backend.run(native, shots=10).result().get_counts()
     assert sum(counts.values()) == 10
     print(counts)
     # [sv1-circuit-end]
@@ -107,12 +114,10 @@ permissions.
 
 ## Use Qiskit primitives
 
-MQT Core exposes the Qiskit `SamplerV2` and `EstimatorV2` interfaces directly
-from the backend:
+Compile a measured circuit before passing it to MQT Core's `SamplerV2`:
 
 ```python
 from qiskit import QuantumCircuit
-from qiskit.quantum_info import SparsePauliOp
 
 sample_circuit = QuantumCircuit(2)
 sample_circuit.h(0)
@@ -120,21 +125,14 @@ sample_circuit.cx(0, 1)
 sample_circuit.measure_all()
 
 sampler = backend.sampler(default_shots=100)
-sampled = sampler.run([sample_circuit]).result()
+native = compile_program(sample_circuit, target=backend)
+sampled = sampler.run([native]).result()
 counts = sampled[0].data.meas.get_counts()
-
-estimator_circuit = QuantumCircuit(2)
-estimator_circuit.h(0)
-estimator_circuit.cx(0, 1)
-
-estimator = backend.estimator(default_precision=0.1)
-estimated = estimator.run([(estimator_circuit, SparsePauliOp("ZZ"))]).result()
-expectation_value = estimated[0].data.evs
 ```
 
-Both primitives submit Amazon Braket QuantumTasks. The estimator uses 100 shots
-per measurement circuit at this precision. Each primitive run can submit
-multiple circuits.
+This submits Amazon Braket QuantumTasks. See MQT Core's
+[Qiskit integration](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/qdmi_backend.html#qiskit-primitives)
+for sampler and estimator usage.
 
 ## Override the result destination
 

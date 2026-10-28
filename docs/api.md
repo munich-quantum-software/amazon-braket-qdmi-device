@@ -39,6 +39,12 @@ AMAZON_BRAKET_QDMI_device_session_query_device_property(
 | `QDMI_DEVICE_PROPERTY_OPERATIONS`     | Native gate handles               |
 | `QDMI_DEVICE_PROPERTY_COUPLINGMAP`    | Flat source-target site pairs     |
 
+`AMAZON_BRAKET_QDMI_DEVICE_PROPERTY_OPENQASM3PROFILE` (`CUSTOM2`) returns a
+null-terminated UTF-8 string: `simulator` for virtual-qubit OpenQASM, or
+`native` for physical-qubit OpenQASM with verbatim execution. The latter
+requires both capabilities in the device's metadata. An unavailable profile
+returns `QDMI_ERROR_NOTSUPPORTED`. This query uses the cached device metadata.
+
 ## Site properties
 
 | Property                   | Meaning                                         |
@@ -49,6 +55,14 @@ AMAZON_BRAKET_QDMI_device_session_query_device_property(
 | `QDMI_SITE_PROPERTY_T2`    | Dephasing time, when reported by Amazon Braket  |
 
 ## Operation properties
+
+`AMAZON_BRAKET_QDMI_OPERATION_PROPERTY_PARAMETERS` (`CUSTOM2`) returns a
+NUL-terminated JSON string using the temporary `mqt.operation-parameters.v1`
+contract. Rigetti RX advertises four `alternatives`, each with a one-element
+`fixed` array containing an allowed angle in radians (±π or ±π/2). Other
+operations return `QDMI_ERROR_NOTSUPPORTED`. Core consumes this property for
+both compiler targets and Qiskit targets; it is not a standardized QDMI
+property.
 
 | Property                                | Meaning                                                     |
 | --------------------------------------- | ----------------------------------------------------------- |
@@ -121,8 +135,9 @@ job-lifetime behavior.
 Shot strings and histogram keys use descending measured-qubit order: the lowest
 measured qubit ID is the rightmost bit. The native device uses Braket's
 `measuredQubits` metadata to locate response columns; it does not reconstruct
-classical OpenQASM variables. The [Qiskit backend](qiskit.md) requires matching
-qubit and classical-bit positions.
+classical OpenQASM variables. The [Qiskit backend](qiskit.md) retains MQT Core's
+result layout alongside each submitted program to restore classical-bit
+positions.
 
 ## Lifecycle functions
 

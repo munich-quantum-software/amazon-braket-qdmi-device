@@ -771,6 +771,25 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture(
     return static_cast<QDMI_STATUS>(status);
   }
 
+  const auto openqasm =
+      json.View().GetObject("action").GetObject("braket.ir.openqasm.program");
+  if (architecture->deviceType == Aws::Braket::Model::DeviceType::SIMULATOR) {
+    architecture->openQasm3Profile = "simulator";
+  } else if (openqasm.ValueExists("supportPhysicalQubits") &&
+             openqasm.GetObject("supportPhysicalQubits").IsBool() &&
+             openqasm.GetBool("supportPhysicalQubits") &&
+             openqasm.ValueExists("supportedPragmas") &&
+             openqasm.GetObject("supportedPragmas").IsListType()) {
+    const auto pragmas = openqasm.GetArray("supportedPragmas");
+    for (const auto& pragma :
+         std::span{pragmas.GetUnderlyingData(), pragmas.GetLength()}) {
+      if (pragma.IsString() && pragma.AsString() == "verbatim") {
+        architecture->openQasm3Profile = "native";
+        break;
+      }
+    }
+  }
+
   // Transfer Parsed Data to Cached Architecture
   architecture->qubitsNum = properties.qubitCount;
   architecture->programSetLimits = properties.programSetLimits;
@@ -1241,6 +1260,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
   case QDMI_DEVICE_PROPERTY_SITES:
   case QDMI_DEVICE_PROPERTY_OPERATIONS:
   case AMAZON_BRAKET_QDMI_DEVICE_PROPERTY_SUPPORTEDOPERATIONS:
+  case AMAZON_BRAKET_QDMI_DEVICE_PROPERTY_OPENQASM3PROFILE:
   case QDMI_DEVICE_PROPERTY_COUPLINGMAP:
   case QDMI_DEVICE_PROPERTY_STATUS:
   case QDMI_DEVICE_PROPERTY_QUEUELENGTH:
@@ -1281,6 +1301,11 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
                             arch->qubitsNum, prop, size, value, sizeRet)
   ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_NAME, arch->name.c_str(), prop, size,
                       value, sizeRet)
+  if (!arch->openQasm3Profile.empty()) {
+    ADD_STRING_PROPERTY(AMAZON_BRAKET_QDMI_DEVICE_PROPERTY_OPENQASM3PROFILE,
+                        arch->openQasm3Profile.c_str(), prop, size, value,
+                        sizeRet)
+  }
 
   // Return device status from Amazon Braket (mutable, per-query)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_STATUS, QDMI_Device_Status,
@@ -1364,6 +1389,13 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryOperationProperty(
                     architecture->sitesPtr.end();
            }))) {
     return QDMI_ERROR_INVALIDARGUMENT;
+  }
+
+  if (architecture->provider == "Rigetti" && operation->name_ == "rx") {
+    constexpr auto constraints =
+        R"({"schema":"mqt.operation-parameters.v1","alternatives":[{"fixed":[-3.141592653589793]},{"fixed":[-1.5707963267948966]},{"fixed":[1.5707963267948966]},{"fixed":[3.141592653589793]}]})";
+    ADD_STRING_PROPERTY(AMAZON_BRAKET_QDMI_OPERATION_PROPERTY_PARAMETERS,
+                        constraints, prop, size, value, sizeRet)
   }
 
   ADD_STRING_PROPERTY(QDMI_OPERATION_PROPERTY_NAME, operation->name_.c_str(),

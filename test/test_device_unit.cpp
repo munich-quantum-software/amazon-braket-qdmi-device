@@ -65,6 +65,7 @@
 #include <aws/core/http/HttpResponse.h>
 #include <aws/core/http/HttpTypes.h>
 #include <aws/core/http/standard/StandardHttpResponse.h>
+#include <aws/core/utils/Array.h>
 #include <aws/core/utils/logging/AWSLogging.h>
 #include <aws/core/utils/logging/LogLevel.h>
 #include <aws/core/utils/logging/LogSystemInterface.h>
@@ -3378,6 +3379,44 @@ TEST(DeviceParserOfflineTest, RejectsAliasedDecimalSiteIndices) {
       QDMI_ERROR_FATAL);
 }
 
+TEST_F(AmazonBraketQDMILocalJobTest, NativeRotationParameterConstraints) {
+  const GateModelCapabilityParser parser;
+  ParsedDeviceProperties properties;
+  ASSERT_EQ(parser.parseProperties(
+                Aws::Braket::Model::DeviceType::QPU,
+                std::string{amazon::braket::qdmi::test::RIGETTI_ANKAA_3},
+                properties),
+            QDMI_SUCCESS);
+  const auto architecture =
+      installParsedArchitecture(session, std::move(properties));
+  architecture->provider = "Rigetti";
+  for (auto* operation : architecture->operationsPtr) {
+    size_t size = 0;
+    const auto status =
+        AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+            session, operation, 0, nullptr, 0, nullptr,
+            AMAZON_BRAKET_QDMI_OPERATION_PROPERTY_PARAMETERS, 0, nullptr,
+            &size);
+    if (operation->name_ != "rx") {
+      EXPECT_EQ(status, QDMI_ERROR_NOTSUPPORTED);
+      continue;
+    }
+    ASSERT_EQ(status, QDMI_SUCCESS);
+    std::vector<char> data(size);
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+                  session, operation, 0, nullptr, 0, nullptr,
+                  AMAZON_BRAKET_QDMI_OPERATION_PROPERTY_PARAMETERS, data.size(),
+                  data.data(), nullptr),
+              QDMI_SUCCESS);
+    ASSERT_EQ(data.back(), '\0');
+    const Aws::Utils::Json::JsonValue constraints(data.data());
+    ASSERT_TRUE(constraints.WasParseSuccessful());
+    EXPECT_EQ(constraints.View().GetString("schema"),
+              "mqt.operation-parameters.v1");
+    EXPECT_EQ(constraints.View().GetArray("alternatives").GetLength(), 4U);
+  }
+}
+
 TEST(DeviceParserOfflineTest, AssignsDeterministicNonnumericSiteIndices) {
   const GateModelCapabilityParser parser;
   ParsedDeviceProperties properties;
@@ -3646,6 +3685,70 @@ TEST_F(AmazonBraketQDMILocalJobTest,
             QDMI_ERROR_FATAL);
   EXPECT_EQ(stubPtr->calls(), 1U);
 }
+
+namespace {
+class AmazonBraketQDMIProfileTest
+    : public AmazonBraketQDMILocalJobTest,
+      public ::testing::WithParamInterface<
+          std::tuple<Aws::Braket::Model::DeviceType, bool, bool>> {};
+
+TEST_P(AmazonBraketQDMIProfileTest, SelectsOnlyAdvertisedReceiver) {
+  const auto [type, physical, verbatim] = GetParam();
+  Aws::Utils::Json::JsonValue capabilities(
+      std::string{amazon::braket::qdmi::test::AQT_IBEX_Q1});
+  auto action = capabilities.View()
+                    .GetObject("action")
+                    .GetObject("braket.ir.openqasm.program")
+                    .Materialize();
+  action.WithBool("supportPhysicalQubits", physical);
+  Aws::Utils::Array<Aws::Utils::Json::JsonValue> pragmas(verbatim ? 1U : 0U);
+  if (verbatim) {
+    pragmas.GetItem(0).AsString("verbatim");
+  }
+  action.WithArray("supportedPragmas", std::move(pragmas));
+  Aws::Utils::Json::JsonValue actions;
+  actions.WithObject("braket.ir.openqasm.program", std::move(action));
+  capabilities.WithObject("action", std::move(actions));
+  Aws::Braket::Model::GetDeviceResult device;
+  device.SetDeviceType(type);
+  device.SetProviderName("Example");
+  device.SetDeviceStatus(Aws::Braket::Model::DeviceStatus::ONLINE);
+  device.SetDeviceCapabilities(capabilities.View().WriteCompact());
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::make_unique<StubGetDeviceClient>(std::move(device)));
+
+  const char* expected = nullptr;
+  if (type == Aws::Braket::Model::DeviceType::SIMULATOR) {
+    expected = "simulator";
+  } else if (physical && verbatim) {
+    expected = "native";
+  }
+  size_t size = 0;
+  const auto status = AMAZON_BRAKET_QDMI_device_session_query_device_property(
+      session, AMAZON_BRAKET_QDMI_DEVICE_PROPERTY_OPENQASM3PROFILE, 0, nullptr,
+      &size);
+  if (expected == nullptr) {
+    EXPECT_EQ(status, QDMI_ERROR_NOTSUPPORTED);
+    return;
+  }
+  ASSERT_EQ(status, QDMI_SUCCESS);
+  ASSERT_EQ(size, strlen(expected) + 1);
+  std::vector<char> profile(size);
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, AMAZON_BRAKET_QDMI_DEVICE_PROPERTY_OPENQASM3PROFILE,
+                profile.size(), profile.data(), nullptr),
+            QDMI_SUCCESS);
+  EXPECT_STREQ(profile.data(), expected);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Metadata, AmazonBraketQDMIProfileTest,
+    ::testing::Values(
+        std::tuple{Aws::Braket::Model::DeviceType::SIMULATOR, false, false},
+        std::tuple{Aws::Braket::Model::DeviceType::QPU, true, true},
+        std::tuple{Aws::Braket::Model::DeviceType::QPU, false, true},
+        std::tuple{Aws::Braket::Model::DeviceType::QPU, true, false}));
+} // namespace
 
 TEST_F(AmazonBraketQDMILocalJobTest,
        DevicePropertyPropagatesInitialGetDeviceFailure) {
