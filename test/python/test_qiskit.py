@@ -243,6 +243,9 @@ def test_core_measure_all_transport_fixture() -> None:
     )
 
 
+@pytest.mark.filterwarnings(
+    "default:Cannot represent custom or unsupported operation for .*; omitting it from the compiler target$:UserWarning"
+)
 def test_sv1_live() -> None:
     """Compile and submit one eight-shot circuit through the Qiskit backend."""
     if os.environ.get("AMAZON_BRAKET_PENNYLANE_LIVE") != "1":
