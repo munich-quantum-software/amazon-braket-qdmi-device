@@ -109,6 +109,7 @@
 #include <aws/sts/STSClient.h>
 #include <aws/sts/STSServiceClientModel.h>
 #include <aws/sts/model/GetCallerIdentityRequest.h>
+#include <cctype>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -230,48 +231,93 @@ struct UtcTimeOfWeek {
  */
 constexpr int QUEUE_BUSY_THRESHOLD = 5;
 
-auto hasVerbatimPragma(const std::string& source) -> bool {
-  static const std::regex PRAGMA{
-      R"([ \t]*#pragma[ \t]+braket[ \t]+verbatim[ \t\r]*)"};
-  bool blockComment = false;
-  std::istringstream lines{source};
-  for (std::string line; std::getline(lines, line);) {
-    std::string code;
-    for (size_t i = 0; i < line.size(); ++i) {
-      if (blockComment) {
-        if (line.compare(i, 2, "*/") == 0) {
-          blockComment = false;
-          ++i;
-        }
-      } else if (line.compare(i, 2, "//") == 0) {
-        break;
-      } else if (line.compare(i, 2, "/*") == 0) {
-        blockComment = true;
-        code += ' ';
-        ++i;
-      } else if (line[i] == '"') {
-        code += '"';
-        for (++i; i < line.size() && line[i] != '"'; ++i) {
-          if (line[i] == '\\' && i + 1 < line.size()) {
-            ++i;
-          }
-        }
-      } else {
-        code += line[i];
-      }
-    }
-    if (std::regex_match(code, PRAGMA)) {
-      return true;
+auto nextQasmToken(std::string_view source, size_t& position)
+    -> std::string_view {
+  while (position < source.size()) {
+    if (std::isspace(static_cast<unsigned char>(source[position])) != 0) {
+      ++position;
+    } else if (source.substr(position, 2) == "//") {
+      const auto end = source.find('\n', position + 2);
+      position = end == std::string_view::npos ? source.size() : end;
+    } else if (source.substr(position, 2) == "/*") {
+      const auto end = source.find("*/", position + 2);
+      position = end == std::string_view::npos ? source.size() : end + 2;
+    } else {
+      break;
     }
   }
-  return false;
+  const auto start = position;
+  if (position == source.size()) {
+    return {};
+  }
+  const auto first = source[position++];
+  if (first == '"' || first == '\'') {
+    while (position < source.size()) {
+      const auto character = source[position++];
+      if (character == '\\' && position < source.size()) {
+        ++position;
+      } else if (character == first) {
+        break;
+      }
+    }
+  } else if (std::isalnum(static_cast<unsigned char>(first)) != 0 ||
+             first == '_' || first == '#') {
+    while (position < source.size() &&
+           (std::isalnum(static_cast<unsigned char>(source[position])) != 0 ||
+            source[position] == '_')) {
+      ++position;
+    }
+  }
+  return source.substr(start, position - start);
+}
+
+auto prepareOpenQasm(std::string_view source) -> std::pair<std::string, bool> {
+  std::string result;
+  result.reserve(source.size());
+  size_t position = 0;
+  size_t copied = 0;
+  size_t previousEnd = 0;
+  bool verbatim = false;
+  for (auto token = nextQasmToken(source, position); !token.empty();
+       token = nextQasmToken(source, position)) {
+    const auto start = static_cast<size_t>(token.data() - source.data());
+    const bool startsLine =
+        previousEnd == 0 ||
+        source.substr(previousEnd, start - previousEnd).find('\n') !=
+            std::string_view::npos;
+    if (token == "include") {
+      auto end = position;
+      const auto file = nextQasmToken(source, end);
+      if ((file == "\"stdgates.inc\"" || file == "'stdgates.inc'") &&
+          nextQasmToken(source, end) == ";") {
+        // Braket supplies native gates but rejects the standard library
+        // include.
+        result.append(source.substr(copied, start - copied));
+        copied = position = end;
+      }
+    } else if (token == "pragma" || token == "#pragma") {
+      const auto end = source.find('\n', position);
+      const auto line = source.substr(position, end - position);
+      size_t cursor = 0;
+      if (token == "#pragma" && startsLine &&
+          nextQasmToken(line, cursor) == "braket" &&
+          nextQasmToken(line, cursor) == "verbatim" &&
+          nextQasmToken(line, cursor).empty()) {
+        verbatim = true;
+      }
+      position = end == std::string_view::npos ? source.size() : end;
+    }
+    previousEnd = position;
+  }
+  result.append(source.substr(copied));
+  return {std::move(result), verbatim};
 }
 
 auto verbatimProgram(
     const std::string& source,
-    const amazon::braket::qdmi::DeviceArchitecture& architecture)
-    -> std::optional<std::string> {
-  if (hasVerbatimPragma(source)) {
+    const amazon::braket::qdmi::DeviceArchitecture& architecture,
+    bool alreadyVerbatim) -> std::optional<std::string> {
+  if (alreadyVerbatim) {
     return source;
   }
   static const std::regex DECLARATION{
@@ -1846,12 +1892,16 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
       const std::scoped_lock architectureLock(
           session_->cachedArchitectureMutex_);
       const auto& architecture = *session_->cachedArchitecture_;
-      if (architecture.deviceType == Aws::Braket::Model::DeviceType::QPU) {
-        if (architecture.openQasm3Profile != "native") {
-          return QDMI_ERROR_NOTSUPPORTED;
-        }
-        for (auto& source : localPrograms) {
-          auto native = verbatimProgram(source, architecture);
+      const bool qpu =
+          architecture.deviceType == Aws::Braket::Model::DeviceType::QPU;
+      if (qpu && architecture.openQasm3Profile != "native") {
+        return QDMI_ERROR_NOTSUPPORTED;
+      }
+      for (auto& source : localPrograms) {
+        auto [prepared, verbatim] = prepareOpenQasm(source);
+        source = std::move(prepared);
+        if (qpu) {
+          auto native = verbatimProgram(source, architecture, verbatim);
           if (!native) {
             std::cerr
                 << "Braket QPU submission requires flat native OpenQASM 3 "

@@ -12,6 +12,8 @@ releases may include breaking changes.
 
 ### Fixed
 
+- 🐛 Accept the standard OpenQASM library include and remove it only from the
+  Braket request, preserving stored source ([#288]) ([**@burgholzer**]).
 - 🐛 Preserve Qiskit classical readout and PennyLane wire order through MQT
   Core's shared compiler, native serializer, and result layout, including
   permuted destinations and unused classical bits ([#288]) ([**@burgholzer**]).

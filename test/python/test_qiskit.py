@@ -237,7 +237,7 @@ def test_core_measure_all_transport_fixture() -> None:
     )
     # Also submitted through the actual C++ transport in test_device_unit.cpp.
     assert program.payload == (
-        "OPENQASM 3;\n\nbit[2] c;\n\nprx(1.0, 0.0) $1;\n"
+        'OPENQASM 3;\ninclude "stdgates.inc";\n\nbit[2] c;\n\nprx(1.0, 0.0) $1;\n'
         "cz $1, $2;\nbarrier $1, $2;\nc[0] = measure $1;\nc[1] = measure $2;\n"
     )
 
