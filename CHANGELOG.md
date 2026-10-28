@@ -12,9 +12,9 @@ releases may include breaking changes.
 
 ### Fixed
 
-- 🐛 Preserve Qiskit classical readout through MQT Core's shared native
-  serializer and result layout, including permuted destinations and unused
-  classical bits ([#288]) ([**@burgholzer**]).
+- 🐛 Preserve Qiskit classical readout and PennyLane wire order through MQT
+  Core's shared compiler, native serializer, and result layout, including
+  permuted destinations and unused classical bits ([#288]) ([**@burgholzer**]).
 
 ## [1.3.1] - 2026-10-16
 

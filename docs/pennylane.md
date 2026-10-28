@@ -11,9 +11,12 @@ The optional PennyLane integration specializes the gate-based QDMI device from
 MQT Core for Amazon Braket. PennyLane programs are preprocessed by PennyLane,
 converted to OpenQASM 3 according to the native operations advertised by the
 selected Amazon Braket device, submitted as QDMI jobs, and reconstructed as
-PennyLane results. The integration uses the packaged native device directly; it
-does not depend on the Amazon Braket Python SDK or the direct PennyLane-Braket
-plugin.
+PennyLane results. The adapter calls Core's compiler before submission and
+selects the simulator or physical/verbatim receiver from native device metadata.
+The compiled result layout preserves logical wire order; native parameter
+constraints also apply during compilation, including Rigetti's fixed RX angles.
+The integration uses the packaged native device directly; it does not depend on
+the Amazon Braket Python SDK or the direct PennyLane-Braket plugin.
 
 ```console
 uv pip install "amazon-braket-qdmi[pennylane]"

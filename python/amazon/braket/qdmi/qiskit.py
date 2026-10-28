@@ -22,10 +22,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, ClassVar
 
 try:
-    from mqt.core.mlir import SerializationProfile, serialize_program
+    from mqt.core.mlir import serialize_program
     from mqt.core.plugins.qiskit.backend import QDMIBackend
-    from mqt.core.qdmi import CustomProperty, ProgramFormat
     from mqt.core.qdmi import Device as QDMIDeviceHandle
+    from mqt.core.qdmi import ProgramFormat
     from mqt.core.qdmi.builtin_driver import open_device
 except ImportError as error:
     msg = "Install 'amazon-braket-qdmi[qiskit]' to use the Qiskit backend."
@@ -38,6 +38,7 @@ except ImportError as error:
     raise ImportError(msg) from error
 
 from . import AMAZON_BRAKET_QDMI_DEVICE_ID
+from ._serialization import serialization_profile
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -126,20 +127,10 @@ class AmazonBraketBackend(QDMIBackend):
         Returns:
             The program, result layout, and submission format.
 
-        Raises:
-            ValueError: If the receiver or a native gate parameter is unsupported.
         """
         assert ProgramFormat.QASM3 in supported_program_formats
-        name = self.device.query_custom_property(CustomProperty.CUSTOM2, str)
-        profiles = {
-            "simulator": SerializationProfile.BRAKET_SIMULATOR,
-            "native": SerializationProfile.BRAKET_NATIVE,
-        }
-        if name not in profiles:
-            msg = f"Unsupported Braket OpenQASM receiver profile: {name!r}."
-            raise ValueError(msg)
         program = serialize_program(
-            circuit, target=self.device, program_format=ProgramFormat.QASM3, profile=profiles[name]
+            circuit, target=self.device, program_format=ProgramFormat.QASM3, profile=serialization_profile(self.device)
         )
         return program, ProgramFormat.QASM3
 
