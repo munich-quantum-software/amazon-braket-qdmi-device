@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   slurm-tests:
-    name: Slurm smoke test
+    name: 🧪 Slurm workload
     runs-on: ubuntu-26.04
     timeout-minutes: 45
     steps:

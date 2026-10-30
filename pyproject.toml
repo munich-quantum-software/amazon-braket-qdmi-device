@@ -181,7 +181,7 @@ archs = "auto64"
 build-frontend = "uv"
 test-command = "pytest test/python"
 test-groups = [ "test" ]
-test-sources = [ "test/python" ]
+test-sources = [ "test/python", "pyproject.toml" ]
 
 [tool.cibuildwheel.linux]
 before-all = "yum install -y curl-devel openssl-devel"
@@ -273,9 +273,12 @@ error-on-warning = true
 minversion = "9.0"
 testpaths = [ "test/python" ]
 addopts = [
+  "-m",
+  "not live",
   "-ra",
   "--numprocesses=auto", # Automatically use all available CPU cores for parallel testing
 ]
+markers = [ "live: explicit provider access" ]
 filterwarnings = [
   "error",
   # Autograd 1.8 uses control flow that Python 3.14 reports while compiling the module.

@@ -1,14 +1,6 @@
-name: 🇨 • Coverage
+name: 📊 C++ coverage
 on:
   workflow_call:
-    secrets:
-      AWS_ACCESS_KEY_ID:
-        required: true
-      AWS_SECRET_ACCESS_KEY:
-        required: true
-      AWS_SESSION_TOKEN:
-        required: false
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}-cpp-coverage
   cancel-in-progress: true
@@ -24,10 +16,6 @@ jobs:
       contents: read # Required for the `actions/checkout` action
       id-token: write # Required for the `codecov/codecov-action` action
     env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
-      AMAZON_BRAKET_QDMI_RUN_LIVE_CATALOG: "1"
       CMAKE_BUILD_PARALLEL_LEVEL: 4
       CTEST_PARALLEL_LEVEL: 4
       FORCE_COLOR: 3
@@ -51,7 +39,7 @@ jobs:
             -o Acquire::https::Timeout=30 \
             install -y ccache libcurl4-openssl-dev
 
-      # set up ccache for faster builds
+          # set up ccache for faster builds
       - name: Set up ccache
         uses: Chocobo1/setup-ccache-action@efeb0f4b0670854c2190fd2389da92c399ff5ceb # v1.5.10
         with:
@@ -75,15 +63,14 @@ jobs:
         run: uv tool install ninja
 
       - name: Configure CMake
-        run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON \
-            -DBUILD_AMAZON_BRAKET_LIVE_TESTS=ON
+        run: |-
+          cmake --preset coverage
 
       - name: Build
-        run: cmake --build build --config Debug
+        run: cmake --build --preset coverage
 
       - name: Test
-        run: ctest -C Debug --output-on-failure --test-dir build --timeout 600
+        run: ctest --preset coverage
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1

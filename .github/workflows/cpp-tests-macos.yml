@@ -1,4 +1,4 @@
-name: 🇨 • Tests • macos
+name: 🧪 C++ tests
 on:
   workflow_call:
     inputs:
@@ -8,32 +8,33 @@ on:
           This can be any valid macOS runner image, such as 'macos-15' or 'macos-26'.
         default: "macos-latest"
         type: string
-      config:
+      preset-name:
         description: >
           The build type to use. Defaults to 'Release'.
           This can be any valid CMake build type, such as 'Debug' or 'Release'.
-        default: "Release"
+        default: "release"
         type: string
 
 jobs:
   cpp-tests-macos:
-    name: 🍎 ${{ inputs.runs-on }} ${{ inputs.config }}
+    name: 🍎 ${{ inputs.runs-on }} clang ${{ inputs.preset-name }}
     runs-on: ${{ inputs.runs-on }}
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: 4
       CTEST_PARALLEL_LEVEL: 4
       FORCE_COLOR: 3
+      PRESET_NAME: ${{ inputs.preset-name }}
     steps:
       # check out the repository
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # Set up ccache for faster C++ builds
+          # Set up ccache for faster C++ builds
       - name: Setup ccache
         uses: Chocobo1/setup-ccache-action@efeb0f4b0670854c2190fd2389da92c399ff5ceb # v1.5.10
         with:
           prepend_symlinks_to_path: false
-          override_cache_key: c++-tests-${{ inputs.runs-on }}-${{ inputs.config }}
+          override_cache_key: c++-tests-${{ inputs.runs-on }}-${{ inputs.preset-name }}
       - name: Select OpenSSL 3
         run: |
           brew install openssl@3
@@ -43,16 +44,14 @@ jobs:
           fi
           echo "OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
           echo "CMAKE_PREFIX_PATH=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
-      # configure CMake in the specified mode, optionally with additional arguments
+        # configure CMake in the specified mode, optionally with additional arguments
       - name: Configure CMake
-        env:
-          CONFIG: ${{ inputs.config }}
         run: >-
-          cmake -S . -B build -DCMAKE_BUILD_TYPE="$CONFIG"
-          -DBUILD_AMAZON_BRAKET_LIVE_TESTS=OFF
-      # build the project in the specified mode
+          cmake --preset "$PRESET_NAME"
+        # build the project in the specified mode
       - name: Build
-        run: cmake --build build
-      # run the offline tests
+        run:
+          cmake --build --preset "$PRESET_NAME"
+          # run the offline tests
       - name: Test
-        run: ctest --output-on-failure --test-dir build --timeout 600
+        run: ctest --preset "$PRESET_NAME"

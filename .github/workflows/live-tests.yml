@@ -1,0 +1,26 @@
+name: ☁️ Live tests
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Select metadata-only checks or explicitly authorize the selected paid SV1 workload
+        type: choice
+        options:
+          - metadata
+          - sv1
+          - slurm
+        default: metadata
+        required: true
+permissions:
+  contents: read
+jobs:
+  live-tests:
+    name: ☁️ Live tests
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    uses: $/.github/workflows/reusable-live-tests.yml
+    with:
+      suite: ${{ inputs.suite }}
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}

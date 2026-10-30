@@ -5,14 +5,21 @@
 Configure and build the test suite with:
 
 ```console
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release
-ctest --test-dir build --output-on-failure
+cmake --preset release
+cmake --build --preset release
+ctest --preset release
 ```
 
 The hermetic tests use injected AWS clients and need no credentials or network
 access. CMake does not register tests that access AWS unless
 `BUILD_AMAZON_BRAKET_LIVE_TESTS=ON` is set explicitly.
+
+The `release`, `debug`, `coverage` and `lint` CMake presets use separate build
+directories and disable live tests.
+
+The test presets stop after the first failure, including a test timeout. The
+configure presets enable Git long-path support for nested AWS SDK submodules
+without changing global Git configuration.
 
 When live Amazon Braket tests are intentionally required, select an AWS SDK
 credential source before configuring the test-specific opt-in:
@@ -21,7 +28,7 @@ credential source before configuring the test-specific opt-in:
 cmake -S . -B build-live -DCMAKE_BUILD_TYPE=Release \
   -DBUILD_AMAZON_BRAKET_LIVE_TESTS=ON
 cmake --build build-live --config Release
-ctest --test-dir build-live -L amazon-braket-live --output-on-failure
+ctest --test-dir build-live -L live --output-on-failure
 ```
 
 The example relies on an already selected AWS SDK credential source, such as
@@ -38,8 +45,8 @@ The test configuration has the following boundaries:
   test is serial and does not submit paid QPU tasks.
 
 The catalogue mode makes additional live AWS calls and must be enabled
-deliberately. The older SV1 and device integration fixtures are registered under
-the same `amazon-braket-live` label only in the live CMake configuration.
+deliberately. Native provider-access tests use the `live` label and are
+registered only in the live CMake configuration.
 
 To test a pre-provisioned destination instead, set
 `AMZN_BRAKET_TASK_RESULTS_S3_URI`. The dedicated per-job S3 fixture exercises
@@ -68,12 +75,14 @@ run it with any credential source supported by the AWS SDK, use:
 
 ```console
 AWS_PROFILE=hpc-quantum AMAZON_BRAKET_PENNYLANE_LIVE=1 \
-  uvx nox -s tests-3.14 -- \
-  test/python/test_pennylane_qaoa.py -k cost_capped_on_sv1
+  uv run --no-sync pytest \
+  test/python/test_pennylane_qaoa.py -m live -k cost_capped_on_sv1
 ```
 
-The dedicated CI job sets this opt-in and supplies AWS credentials. An enabled
-test reports authentication failures instead of skipping them.
+Normal tests and minimum-version sessions exclude the `live` marker even when
+credentials are present. The manual live workflow selects this test explicitly
+and supplies AWS credentials only after the candidate wheel passes offline
+tests. An enabled test reports authentication failures instead of skipping them.
 
 ## Documentation
 
@@ -90,10 +99,11 @@ Use the same session for link validation:
 uvx nox --non-interactive -s docs -- -b linkcheck
 ```
 
-The documentation executes its notebooks, including a ten-shot SV1 circuit.
-Configure AWS credentials with Braket and S3 access to execute the SV1 example.
-Permission errors during backend initialization are reported without failing the
-build. Generated HTML is written to `docs/_build/html`.
+Documentation builds render notebooks without executing them. To deliberately
+execute the examples, including the paid ten-shot SV1 circuit, use
+`uvx nox --non-interactive -s docs -- --live` with authorized AWS credentials.
+Generated HTML is written to `docs/_build/html`. Read the Docs uses the same
+offline session for PR previews and published documentation.
 
 ## Repository structure
 
@@ -108,3 +118,23 @@ amazon-braket-qdmi-device/
 ├── src/         QDMI device implementation and schema parser
 └── test/        Hermetic, integration, and Python tests
 ```
+
+## Continuous integration
+
+CI runs native and Python checks in separate jobs. Native coverage, Python
+tests, minimum-version tests, wheels and source distributions receive no AWS
+credentials. Nox runs normal and minimum-version tests across all supported
+Python versions.
+
+`live-tests.yml` accepts a fresh manual request on merged `main`. Select
+`metadata` for catalogue queries without submissions, `sv1` for the selected
+paid PennyLane smoke test, or `slurm` for the two eight-shot SV1 workloads.
+`reusable-live-tests.yml` owns these checks. Ordinary pushes, PR updates,
+release builds and workflow/job reruns never authorize paid execution. Live
+checks do not contribute to coverage, and no hardware results are uploaded.
+
+The SV1 request first runs native tests and installs a fresh candidate wheel.
+That wheel passes offline Python tests before the selected live test runs with
+credentials. It executes one fixed optimizer step on four wires at 100 shots;
+the workload currently requires at most 20 submissions. Do not automatically
+retry submissions or broaden the workload without authorizing its budget.

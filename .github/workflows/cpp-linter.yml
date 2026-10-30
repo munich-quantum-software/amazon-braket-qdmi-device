@@ -1,4 +1,4 @@
-name: 🇨 • Lint
+name: 🧹 C++ lint
 on:
   workflow_call:
     inputs:
@@ -47,9 +47,10 @@ jobs:
           save-cache: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install Ninja
-        run: uv tool install ninja
+        run:
+          uv tool install ninja
 
-      # Install build dependencies
+          # Install build dependencies
       - name: Install Dependencies
         run: |
           sudo timeout 10m apt-get \
@@ -88,16 +89,12 @@ jobs:
           echo "CC=clang-$clang_version" >> $GITHUB_ENV
           echo "CXX=clang++-$clang_version" >> $GITHUB_ENV
 
-      # generate a compilation database (assumes that the CMake project has `CMAKE_EXPORT_COMPILE_COMMANDS` set)
+          # generate a compilation database (assumes that the CMake project has `CMAKE_EXPORT_COMPILE_COMMANDS` set)
       - name: Generate compilation database
-        run: |
-          echo $CC
-          echo $CXX
-          $CC --version
-          $CXX --version
-          cmake -G Ninja -S . -B build -DCMAKE_BUILD_TYPE=Debug
+        run: |-
+          cmake -B build --preset lint
 
-      # runs the cpp-linter action using the generated compilation database and the specified clang version
+          # runs the cpp-linter action using the generated compilation database and the specified clang version
       - name: Run cpp-linter
         uses: cpp-linter/cpp-linter-action@8120e05c7fbd25fa09fa93424ec49f55f7b304ab # v2.23.1
         id: linter

@@ -1,0 +1,107 @@
+name: ☁️ Live tests
+on:
+  workflow_call:
+    inputs:
+      suite:
+        type: string
+        required: true
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      AWS_SESSION_TOKEN:
+        required: false
+permissions:
+  contents: read
+jobs:
+  metadata:
+    name: ☁️ Live metadata · Braket
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: "3.14"
+          enable-cache: true
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
+      - name: Run checks
+        run: |
+          cmake -S . -B build/live -DCMAKE_BUILD_TYPE=Release -DBUILD_AMAZON_BRAKET_LIVE_TESTS=ON
+          cmake --build build/live --parallel 4
+      - name: Query catalogue without submissions
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          AMAZON_BRAKET_QDMI_RUN_LIVE_CATALOG: "1"
+        run: ctest --test-dir build/live -R '^live::AmazonBraketQDMILiveTest.OpensInstalledCatalog$' --output-on-failure --timeout 600 --parallel 1
+    if: inputs.suite == 'metadata' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_attempt == 1)
+  sv1:
+    name: 💸 Live tests · Braket SV1
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: "3.14"
+          enable-cache: true
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
+      - name: Run checks
+        run: |
+          cmake --preset release
+          cmake --build --preset release --parallel 4
+          ctest --preset release
+      - name: Build and test candidate wheel offline
+        run: |
+          uv build --wheel --out-dir build/live/dist
+          uv venv build/live/venv
+          uv pip install --python build/live/venv/bin/python --group test build/live/dist/*.whl
+          build/live/venv/bin/python -m pytest
+      - name: Run selected SV1 smoke test
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          AMAZON_BRAKET_PENNYLANE_LIVE: "1"
+        run: build/live/venv/bin/python -m pytest test/python/test_pennylane_qaoa.py -m live -k cost_capped_on_sv1 -n 0 --tb=line --show-capture=no
+    if: inputs.suite == 'sv1' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_attempt == 1)
+    concurrency:
+      group: braket-sv1-execution
+      cancel-in-progress: false
+  slurm:
+    name: 💸 Live Slurm · Braket SV1
+    if: inputs.suite == 'slurm' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_attempt == 1)
+    uses: $/.github/workflows/slurm.yml
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+    needs: slurm-offline
+  slurm-offline:
+    name: 🧪 Offline checks before live Slurm
+    if: inputs.suite == 'slurm' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_attempt == 1)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: "3.14"
+      - run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
+      - run: uvx nox -s tests-3.14
