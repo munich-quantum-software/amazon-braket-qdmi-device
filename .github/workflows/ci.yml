@@ -12,26 +12,22 @@ concurrency:
 
 permissions:
   contents: read
+
 jobs:
   change-detection:
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-change-detection.yml@a4b4977405c7685f95e127cdb6db396bbadce787
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-change-detection.yml@a4b4977405c7685f95e127cdb6db396bbadce787 # v2.5.5
     name: 🔍 Change
     with:
       additional-cpp-files: |
         CMakePresets.json
-        .github/workflows/**
+        .github/workflows/cpp-tests-ubuntu.yml
+        .github/workflows/cpp-tests-macos.yml
+        .github/workflows/cpp-coverage.yml
+        .github/workflows/cpp-linter.yml
+        .github/workflows/cpp-install-tests.yml
       additional-python-files: |
-        .github/workflows/**
-        test/fixtures/**
+        .github/workflows/python-tests.yml
       additional-cd-files: |
-        .github/workflows/**
-        CMakeLists.txt
-        cmake/**
-        python/**
-        src/**
-        include/**
-        pyproject.toml
-        uv.lock
         LICENSE
         README.md
 
@@ -92,7 +88,7 @@ jobs:
     with:
       runs-on: ${{ matrix.runs-on }}
       preset-name: ${{ matrix.preset }}
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-tests-windows.yml@a4b4977405c7685f95e127cdb6db396bbadce787
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-tests-windows.yml@a4b4977405c7685f95e127cdb6db396bbadce787 # v2.5.5
 
   cpp-coverage:
     name: 🇨 Coverage
@@ -116,6 +112,20 @@ jobs:
       contents: read
       pull-requests: write # required to post comments on PRs
 
+  python-tests:
+    name: 🐍 Test
+    needs: change-detection
+    if: fromJSON(needs.change-detection.outputs.run-python-tests)
+    uses: $/.github/workflows/python-tests.yml
+
+  python-coverage:
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-coverage.yml@a4b4977405c7685f95e127cdb6db396bbadce787 # v2.5.5
+    name: 🐍 Coverage
+    needs: python-tests
+    permissions:
+      contents: read
+      id-token: write
+
   python-linter:
     name: 🐍 Lint
     needs: change-detection
@@ -124,20 +134,6 @@ jobs:
     with:
       enable-ty: true
       enable-mypy: false
-
-  python-tests:
-    name: 🐍 Test
-    needs: change-detection
-    if: fromJSON(needs.change-detection.outputs.run-python-tests)
-    uses: $/.github/workflows/python-tests.yml
-
-  python-coverage:
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-coverage.yml@a4b4977405c7685f95e127cdb6db396bbadce787
-    name: 🐍 Coverage
-    needs: python-tests
-    permissions:
-      contents: read
-      id-token: write
 
   cpp-install-tests:
     name: 📦 Native installation
@@ -152,13 +148,13 @@ jobs:
       runs-on: ${{ matrix.runs-on }}
 
   build-sdist:
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-sdist.yml@a4b4977405c7685f95e127cdb6db396bbadce787
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-sdist.yml@a4b4977405c7685f95e127cdb6db396bbadce787 # v2.5.5
     name: 🚀 CD
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-python-tests) || fromJSON(needs.change-detection.outputs.run-cd)
 
   build-wheel:
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-cibuildwheel.yml@a4b4977405c7685f95e127cdb6db396bbadce787
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-cibuildwheel.yml@a4b4977405c7685f95e127cdb6db396bbadce787 # v2.5.5
     name: 🚀 CD
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-python-tests) || fromJSON(needs.change-detection.outputs.run-cd)
@@ -173,6 +169,7 @@ jobs:
     with:
       runs-on: ${{ matrix.runs-on }}
 
+  # Keep documentation required until Read the Docs is required by the branch rules.
   documentation:
     name: 📚 Documentation
     uses: $/.github/workflows/documentation.yml
@@ -187,22 +184,37 @@ jobs:
       - cpp-tests-windows
       - cpp-coverage
       - cpp-linter
-      - python-linter
       - python-tests
       - python-coverage
+      - python-linter
       - cpp-install-tests
       - build-sdist
       - build-wheel
       - documentation
     runs-on: ubuntu-slim
     steps:
-      - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35
+      - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
         with:
-          allowed-skips:
-            ${{ needs.change-detection.outputs.run-cpp-tests == 'false' &&
-            'cpp-tests-ubuntu,cpp-tests-macos,cpp-tests-windows,cpp-coverage,cpp-install-tests,' || '' }} ${{
-            needs.change-detection.outputs.run-cpp-linter == 'false' && 'cpp-linter,' || '' }} ${{ needs.change-detection.outputs.run-python-linter ==
-            'false' && 'python-linter,' || '' }} ${{ needs.change-detection.outputs.run-python-tests == 'false' && 'python-tests,python-coverage,' || ''
-            }} ${{ needs.change-detection.outputs.run-python-tests == 'false' && needs.change-detection.outputs.run-cd == 'false' &&
-            'build-sdist,build-wheel,' || '' }}
+          allowed-skips: >-
+            ${{
+              !fromJSON(needs.change-detection.outputs.run-cpp-tests)
+              && 'cpp-tests-ubuntu,cpp-tests-macos,cpp-tests-windows,cpp-coverage,cpp-install-tests,' || ''
+            }}
+            ${{
+              !fromJSON(needs.change-detection.outputs.run-cpp-linter)
+              && 'cpp-linter,' || ''
+            }}
+            ${{
+              !fromJSON(needs.change-detection.outputs.run-python-tests)
+              && 'python-tests,python-coverage,' || ''
+            }}
+            ${{
+              !fromJSON(needs.change-detection.outputs.run-python-linter)
+              && 'python-linter,' || ''
+            }}
+            ${{
+              !fromJSON(needs.change-detection.outputs.run-python-tests)
+              && !fromJSON(needs.change-detection.outputs.run-cd)
+              && 'build-sdist,build-wheel,' || ''
+            }}
           jobs: ${{ toJSON(needs) }}

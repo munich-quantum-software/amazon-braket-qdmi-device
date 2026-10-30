@@ -14,6 +14,9 @@ The hermetic tests use injected AWS clients and need no credentials or network
 access. CMake does not register tests that access AWS unless
 `BUILD_AMAZON_BRAKET_LIVE_TESTS=ON` is set explicitly.
 
+The `release`, `debug`, `coverage` and `lint` CMake presets use separate build
+directories and disable live tests.
+
 The test presets stop after the first failure, including a test timeout. The
 configure presets enable Git long-path support for nested AWS SDK submodules
 without changing global Git configuration.
@@ -25,7 +28,7 @@ credential source before configuring the test-specific opt-in:
 cmake -S . -B build-live -DCMAKE_BUILD_TYPE=Release \
   -DBUILD_AMAZON_BRAKET_LIVE_TESTS=ON
 cmake --build build-live --config Release
-ctest --test-dir build-live -L amazon-braket-live --output-on-failure
+ctest --test-dir build-live -L live --output-on-failure
 ```
 
 The example relies on an already selected AWS SDK credential source, such as
@@ -42,8 +45,8 @@ The test configuration has the following boundaries:
   test is serial and does not submit paid QPU tasks.
 
 The catalogue mode makes additional live AWS calls and must be enabled
-deliberately. The older SV1 and device integration fixtures are registered under
-the same `amazon-braket-live` label only in the live CMake configuration.
+deliberately. Native provider-access tests use the `live` label and are
+registered only in the live CMake configuration.
 
 To test a pre-provisioned destination instead, set
 `AMZN_BRAKET_TASK_RESULTS_S3_URI`. The dedicated per-job S3 fixture exercises
@@ -99,7 +102,8 @@ uvx nox --non-interactive -s docs -- -b linkcheck
 Documentation builds render notebooks without executing them. To deliberately
 execute the examples, including the paid ten-shot SV1 circuit, use
 `uvx nox --non-interactive -s docs -- --live` with authorized AWS credentials.
-Generated HTML is written to `docs/_build/html`.
+Generated HTML is written to `docs/_build/html`. Read the Docs uses the same
+offline session for PR previews and published documentation.
 
 ## Repository structure
 
@@ -117,11 +121,10 @@ amazon-braket-qdmi-device/
 
 ## Continuous integration
 
-Native and Python checks run in separate jobs. The `release`, `debug`,
-`coverage` and `lint` CMake presets share the offline configuration and use
-separate build directories. Native coverage, Python tests, minimum-version
-tests, wheels and source distributions receive no AWS credentials. Nox runs
-normal and minimum-version tests across all supported Python versions.
+CI runs native and Python checks in separate jobs. Native coverage, Python
+tests, minimum-version tests, wheels and source distributions receive no AWS
+credentials. Nox runs normal and minimum-version tests across all supported
+Python versions.
 
 `live-tests.yml` accepts a fresh manual request on merged `main`. Select
 `metadata` for catalogue queries without submissions, `sv1` for the selected

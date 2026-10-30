@@ -140,7 +140,7 @@ def minimums(session: nox.Session) -> None:
 
 @nox.session(python="3.14", reuse_venv=True)
 def docs(session: nox.Session) -> None:
-    """Build the documentation. Pass ``-b linkcheck`` to check links."""
+    """Build documentation; pass --live to execute notebook examples."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--live", action="store_true", help="Execute provider-backed notebook examples")
     parser.add_argument("-b", dest="builder", default="html", help="Build target (default: html)")
