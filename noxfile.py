@@ -74,6 +74,7 @@ def _run_tests(
     pytest_run_args: Sequence[str] = (),
 ) -> None:
     env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location}
+    env.update(AMAZON_BRAKET_PENNYLANE_LIVE="0", AWS_EC2_METADATA_DISABLED="true")
     if shutil.which("cmake") is None:
         session.install("cmake")
     if shutil.which("ninja") is None:
@@ -111,6 +112,8 @@ def _run_tests(
         "pytest",
         *pytest_run_args,
         *session.posargs,
+        "-m",
+        "not live",
         "--cov-config=pyproject.toml",
         env=env,
     )
@@ -139,6 +142,7 @@ def minimums(session: nox.Session) -> None:
 def docs(session: nox.Session) -> None:
     """Build the documentation. Pass ``-b linkcheck`` to check links."""
     parser = argparse.ArgumentParser()
+    parser.add_argument("--live", action="store_true", help="Execute provider-backed notebook examples")
     parser.add_argument("-b", dest="builder", default="html", help="Build target (default: html)")
     args, posargs = parser.parse_known_args(session.posargs)
 
@@ -177,6 +181,7 @@ def docs(session: nox.Session) -> None:
         f"-b={args.builder}",
         "docs",
         f"docs/_build/{args.builder}",
+        *([] if args.live else ["-D", "nb_execution_mode=off"]),
         *posargs,
         env=env,
     )

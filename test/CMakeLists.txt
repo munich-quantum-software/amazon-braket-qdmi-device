@@ -94,7 +94,9 @@ if(WIN32)
     PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY
                "${CMAKE_CURRENT_BINARY_DIR}"
                ENVIRONMENT
-               "PATH=${DLL_PATH};$ENV{PATH};AWS_EC2_METADATA_DISABLED=true"
+               "AWS_EC2_METADATA_DISABLED=true"
+               ENVIRONMENT_MODIFICATION
+               "PATH=path_list_prepend:${DLL_PATH}"
                DISCOVERY_TIMEOUT
                60
                DISCOVERY_MODE
