@@ -27,9 +27,6 @@ jobs:
         .github/workflows/cpp-install-tests.yml
       additional-python-files: |
         .github/workflows/python-tests.yml
-      additional-cd-files: |
-        LICENSE
-        README.md
 
   cpp-tests-ubuntu:
     name: 🇨 Test 🐧
@@ -142,7 +139,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: [ubuntu-26.04, macos-26, windows-2025]
+        runs-on: [ubuntu-26.04, ubuntu-26.04-arm, macos-26, windows-2025]
     uses: $/.github/workflows/cpp-install-tests.yml
     with:
       runs-on: ${{ matrix.runs-on }}

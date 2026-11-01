@@ -23,7 +23,7 @@ jobs:
       - name: Run checks
         run: uvx nox -s $SESSIONS --verbose -- --cov --cov-report=xml:coverage.xml --cov-append
         env:
-          SESSIONS: ${{ github.event.pull_request.draft && 'tests-3.14 minimums-3.14' || 'tests minimums' }}
+          SESSIONS: ${{ github.event.pull_request.draft && 'tests-3.15 minimums-3.15' || 'tests minimums' }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-ubuntu-26.04

@@ -68,7 +68,8 @@ uvx nox -s minimums-3.14
 
 The regular Python tests build the native package through the repository's nox
 session and exercise the optional PennyLane and Qiskit integrations. The tested
-Python 3.11 through 3.15 matrix is available as `uvx nox -s tests`.
+Python 3.11 through 3.15 matrix is available as `uvx nox -s tests`. Draft PRs
+run `tests-3.15` and `minimums-3.15`; ready PRs run the full matrix.
 
 The PennyLane SV1 smoke test is opt-in because it submits paid QuantumTasks. To
 run it with any credential source supported by the AWS SDK, use:
