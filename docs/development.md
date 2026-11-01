@@ -17,6 +17,17 @@ access. CMake does not register tests that access AWS unless
 The `release`, `debug`, `coverage` and `lint` CMake presets use separate build
 directories and disable live tests.
 
+On Linux, collect native coverage with the instrumented build:
+
+```console
+cmake --preset coverage
+cmake --build --preset coverage
+ctest --preset coverage
+```
+
+CI uploads the native gcov data under Codecov's `cpp` flag. This configuration
+runs the hermetic tests and does not register live AWS tests.
+
 The test presets stop after the first failure, including a test timeout. The
 configure presets enable Git long-path support for nested AWS SDK submodules
 without changing global Git configuration.
@@ -70,6 +81,16 @@ The regular Python tests build the native package through the repository's nox
 session and exercise the optional PennyLane and Qiskit integrations. The tested
 Python 3.11 through 3.15 matrix is available as `uvx nox -s tests`. Draft PRs
 run `tests-3.15` and `minimums-3.15`; ready PRs run the full matrix.
+
+Python test sessions produce a separate report under Codecov's `python` flag. To
+collect it locally:
+
+```console
+uvx nox -s tests-3.14 -- --cov --cov-report=xml:coverage.xml
+```
+
+`pyproject.toml` limits Python measurement to `amazon.braket.qdmi`;
+`.github/codecov.yml` defines the source paths and reporting thresholds.
 
 The PennyLane SV1 smoke test is opt-in because it submits paid QuantumTasks. To
 run it with any credential source supported by the AWS SDK, use:

@@ -29,10 +29,8 @@ flag_management:
     - name: python
       paths:
         - "python/amazon/**/*.py"
-      carryforward: true
       statuses:
         - type: project
-          target: auto
           threshold: 0.5%
           removed_code_behavior: adjust_base
         - type: patch
