@@ -39,14 +39,15 @@
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
 
+#include "gmock/gmock-matchers.h"
+#include "gtest/gtest.h"
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <gmock/gmock-matchers.h>
-#include <gtest/gtest.h>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>

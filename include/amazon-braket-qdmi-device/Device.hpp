@@ -70,17 +70,18 @@
 #include "amazon-braket-qdmi-device/Wait.hpp"
 #include "amazon_braket_qdmi/device.h"
 
+#include "aws/braket/BraketClient.h"
+#include "aws/braket/model/DeviceType.h"
+#include "aws/core/auth/AWSCredentialsProvider.h"
+#include "aws/core/client/ClientConfiguration.h"
+#include "aws/core/config/ConfigAndCredentialsCacheManager.h"
+#include "aws/core/utils/json/JsonSerializer.h"
+#include "aws/core/utils/threading/Executor.h"
+#include "aws/s3/S3Client.h"
+#include "aws/sts/STSClient.h"
+
 #include <array>
 #include <atomic>
-#include <aws/braket/BraketClient.h>
-#include <aws/braket/model/DeviceType.h>
-#include <aws/core/auth/AWSCredentialsProvider.h>
-#include <aws/core/client/ClientConfiguration.h>
-#include <aws/core/config/ConfigAndCredentialsCacheManager.h>
-#include <aws/core/utils/json/JsonSerializer.h>
-#include <aws/core/utils/threading/Executor.h>
-#include <aws/s3/S3Client.h>
-#include <aws/sts/STSClient.h>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdlib>

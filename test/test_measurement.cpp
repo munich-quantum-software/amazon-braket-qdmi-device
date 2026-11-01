@@ -19,8 +19,9 @@
 
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
 
-#include <aws/core/utils/json/JsonSerializer.h>
-#include <gtest/gtest.h>
+#include "aws/core/utils/json/JsonSerializer.h"
+#include "gtest/gtest.h"
+
 #include <string>
 #include <vector>
 

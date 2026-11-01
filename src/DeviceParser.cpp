@@ -30,10 +30,11 @@
 
 #include "amazon_braket_qdmi/device.h"
 
+#include "aws/braket/model/DeviceType.h"
+#include "aws/core/utils/json/JsonSerializer.h"
+
 #include <algorithm>
 #include <array>
-#include <aws/braket/model/DeviceType.h>
-#include <aws/core/utils/json/JsonSerializer.h>
 #include <cctype>
 #include <charconv>
 #include <cmath>

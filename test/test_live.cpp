@@ -20,11 +20,12 @@
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
 
+#include "gtest/gtest.h"
+
 #include <array>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
-#include <gtest/gtest.h>
 #include <string_view>
 
 namespace {
