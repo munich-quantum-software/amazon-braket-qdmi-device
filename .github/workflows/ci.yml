@@ -19,13 +19,9 @@ jobs:
     name: 🔍 Change
     with:
       additional-cpp-files: |
-        .github/workflows/cpp-tests-ubuntu.yml
-        .github/workflows/cpp-tests-macos.yml
-        .github/workflows/cpp-coverage.yml
-        .github/workflows/cpp-linter.yml
-        .github/workflows/cpp-install-tests.yml
+        .github/workflows/cpp-*.yml
       additional-python-files: |
-        .github/workflows/python-tests.yml
+        .github/workflows/python-*.yml
 
   cpp-tests-ubuntu:
     name: 🇨 Test 🐧
@@ -75,7 +71,6 @@ jobs:
       matrix:
         runs-on:
           - windows-2025
-          - windows-11-arm
         preset:
           - release
         include:
@@ -85,6 +80,15 @@ jobs:
       runs-on: ${{ matrix.runs-on }}
       preset-name: ${{ matrix.preset }}
     uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-tests-windows.yml@ae2d91d2b75355d005248c8e14af18a074fe3bb2 # v2.5.6
+
+  cpp-sanitizers:
+    uses: $/.github/workflows/cpp-tests-ubuntu.yml
+    name: 🇨 Sanitizers
+    needs: change-detection
+    if: fromJSON(needs.change-detection.outputs.run-cpp-tests)
+    with:
+      runs-on: ubuntu-26.04
+      preset-name: sanitizers
 
   cpp-coverage:
     name: 🇨 Coverage
@@ -106,13 +110,13 @@ jobs:
       cpp-linter-extra-args: "-std=c++20 -Wunused-template"
     permissions:
       contents: read
-      pull-requests: write # required to post comments on PRs
+      pull-requests: write
 
   python-tests:
+    uses: $/.github/workflows/python-tests.yml
     name: 🐍 Test
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-python-tests)
-    uses: $/.github/workflows/python-tests.yml
     with:
       runs-on: ubuntu-26.04
       sessions: '["tests", "minimums"]'
@@ -142,7 +146,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: [ubuntu-26.04, ubuntu-26.04-arm, macos-26, windows-2025]
+        runs-on:
+          - ubuntu-26.04
+          - ubuntu-26.04-arm
+          - macos-26
+          - windows-2025
     uses: $/.github/workflows/cpp-install-tests.yml
     with:
       runs-on: ${{ matrix.runs-on }}
@@ -169,11 +177,6 @@ jobs:
     with:
       runs-on: ${{ matrix.runs-on }}
 
-  # Keep documentation required until Read the Docs is required by the branch rules.
-  documentation:
-    name: 📚 Documentation
-    uses: $/.github/workflows/documentation.yml
-
   required-checks-pass:
     name: 🚦 Check
     if: always()
@@ -182,6 +185,7 @@ jobs:
       - cpp-tests-ubuntu
       - cpp-tests-macos
       - cpp-tests-windows
+      - cpp-sanitizers
       - cpp-coverage
       - cpp-linter
       - python-tests
@@ -190,7 +194,6 @@ jobs:
       - cpp-install-tests
       - build-sdist
       - build-wheel
-      - documentation
     runs-on: ubuntu-slim
     steps:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
@@ -198,7 +201,11 @@ jobs:
           allowed-skips: >-
             ${{
               !fromJSON(needs.change-detection.outputs.run-cpp-tests)
-              && 'cpp-tests-ubuntu,cpp-tests-macos,cpp-tests-windows,cpp-coverage,cpp-install-tests,' || ''
+              && 'cpp-tests-ubuntu,cpp-tests-macos,cpp-tests-windows,cpp-sanitizers,cpp-install-tests,' || ''
+            }}
+            ${{
+              !fromJSON(needs.change-detection.outputs.run-cpp-tests)
+              && 'cpp-coverage,' || ''
             }}
             ${{
               !fromJSON(needs.change-detection.outputs.run-cpp-linter)

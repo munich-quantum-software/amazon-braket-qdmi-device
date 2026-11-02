@@ -14,8 +14,10 @@ The hermetic tests use injected AWS clients and need no credentials or network
 access. CMake does not register tests that access AWS unless
 `BUILD_AMAZON_BRAKET_LIVE_TESTS=ON` is set explicitly.
 
-The `release`, `debug`, `coverage` and `lint` CMake presets use separate build
-directories and disable live tests.
+The `release`, `debug`, `coverage`, `lint` and Linux `sanitizers` CMake presets
+use separate build directories and disable live tests. Test presets exclude the
+`live` label. The `sanitizers` preset enables AddressSanitizer and
+UndefinedBehaviorSanitizer.
 
 On Linux, collect native coverage with the instrumented build:
 
@@ -28,8 +30,7 @@ ctest --preset coverage
 CI uploads the native gcov data under Codecov's `cpp` flag. This configuration
 runs the hermetic tests and does not register live AWS tests.
 
-The test presets stop after the first failure, including a test timeout. The
-configure presets enable Git long-path support for nested AWS SDK submodules
+The configure presets enable Git long-path support for nested AWS SDK submodules
 without changing global Git configuration.
 
 When live Amazon Braket tests are intentionally required, select an AWS SDK

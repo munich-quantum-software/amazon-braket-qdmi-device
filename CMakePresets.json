@@ -40,6 +40,18 @@
     {
       "name": "lint",
       "inherits": "debug"
+    },
+    {
+      "name": "sanitizers",
+      "inherits": "debug",
+      "cacheVariables": {
+        "CMAKE_C_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all",
+        "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all"
+      },
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=1:detect_stack_use_after_return=1:strict_string_checks=1",
+        "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1"
+      }
     }
   ],
   "buildPresets": [
@@ -58,6 +70,10 @@
     {
       "name": "lint",
       "configurePreset": "lint"
+    },
+    {
+      "name": "sanitizers",
+      "configurePreset": "sanitizers"
     }
   ],
   "testPresets": [
@@ -69,8 +85,12 @@
       },
       "execution": {
         "timeout": 600,
-        "stopOnFailure": true,
         "noTestsAction": "error"
+      },
+      "filter": {
+        "exclude": {
+          "label": "live"
+        }
       }
     },
     {
@@ -87,6 +107,11 @@
       "name": "coverage",
       "inherits": "base",
       "configurePreset": "coverage"
+    },
+    {
+      "name": "sanitizers",
+      "inherits": "base",
+      "configurePreset": "sanitizers"
     }
   ]
 }
