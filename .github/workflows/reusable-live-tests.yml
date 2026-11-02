@@ -42,7 +42,10 @@ jobs:
           AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
           AMAZON_BRAKET_QDMI_RUN_LIVE_CATALOG: "1"
         run: ctest --test-dir build/live -R '^live::AmazonBraketQDMILiveTest.OpensInstalledCatalog$' --output-on-failure --timeout 600 --parallel 1
-    if: inputs.suite == 'metadata' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_attempt == 1)
+    if: >-
+      inputs.suite == 'metadata' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) &&
+      (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main')
   sv1:
     name: 💸 Live tests · Braket SV1
     runs-on: ubuntu-26.04

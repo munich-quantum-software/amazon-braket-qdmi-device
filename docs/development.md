@@ -149,6 +149,12 @@ tests, minimum-version tests, wheels and source distributions receive no AWS
 credentials. Nox runs normal and minimum-version tests across all supported
 Python versions.
 
+CI calls `reusable-live-tests.yml` for catalogue metadata after the selected
+offline native, Python and wheel checks pass. Every non-fork PR, including
+release preparation, runs these checks even when change detection skips all
+offline checks. Failed or cancelled prerequisites prevent live tests; fork PRs
+stay offline. Metadata checks submit no QuantumTasks.
+
 `live-tests.yml` accepts a fresh manual request on merged `main`. Select
 `metadata` for catalogue queries without submissions, `sv1` for the selected
 paid PennyLane smoke test, or `slurm` for the two eight-shot SV1 workloads.

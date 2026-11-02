@@ -20,8 +20,10 @@ jobs:
     with:
       additional-cpp-files: |
         .github/workflows/cpp-*.yml
+        .github/workflows/reusable-live-tests.yml
       additional-python-files: |
         .github/workflows/python-*.yml
+        .github/workflows/reusable-live-tests.yml
 
   cpp-tests-ubuntu:
     name: 🇨 Test 🐧
@@ -177,6 +179,35 @@ jobs:
     with:
       runs-on: ${{ matrix.runs-on }}
 
+  live-tests:
+    name: ☁️ Live tests
+    needs:
+      - change-detection
+      - cpp-tests-ubuntu
+      - cpp-tests-macos
+      - cpp-tests-windows
+      - python-tests
+      - build-wheel
+    if: >-
+      !cancelled()
+      && !contains(needs.*.result, 'failure')
+      && !contains(needs.*.result, 'cancelled')
+      && (
+        github.event_name != 'workflow_dispatch'
+        || github.ref == 'refs/heads/main'
+      )
+      && (
+        github.event_name != 'pull_request'
+        || github.event.pull_request.head.repo.full_name == github.repository
+      )
+    uses: $/.github/workflows/reusable-live-tests.yml
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+    with:
+      suite: metadata
+
   required-checks-pass:
     name: 🚦 Check
     if: always()
@@ -194,6 +225,7 @@ jobs:
       - cpp-install-tests
       - build-sdist
       - build-wheel
+      - live-tests
     runs-on: ubuntu-slim
     steps:
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
@@ -223,5 +255,14 @@ jobs:
               !fromJSON(needs.change-detection.outputs.run-python-tests)
               && !fromJSON(needs.change-detection.outputs.run-cd)
               && 'build-sdist,build-wheel,' || ''
+            }}
+            ${{
+              (
+                github.event_name == 'pull_request'
+                && github.event.pull_request.head.repo.full_name != github.repository
+                || github.event_name == 'workflow_dispatch'
+                && github.ref != 'refs/heads/main'
+              )
+              && 'live-tests,' || ''
             }}
           jobs: ${{ toJSON(needs) }}
