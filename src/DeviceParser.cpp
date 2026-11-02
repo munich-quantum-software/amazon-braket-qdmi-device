@@ -220,7 +220,7 @@ auto GateModelCapabilityParser::parseQubitCount(
     return QDMI_ERROR_FATAL;
   }
 
-  auto paradigm = propertiesJson.GetObject("paradigm");
+  const auto paradigm = propertiesJson.GetObject("paradigm");
   if (!paradigm.ValueExists("qubitCount")) {
     std::cerr << "Missing 'qubitCount' in paradigm\n";
     return QDMI_ERROR_FATAL;
@@ -274,7 +274,8 @@ auto GateModelCapabilityParser::parseSitesAndConnectivity(
 
   properties.sites.reserve(properties.qubitCount);
   properties.sitesPtr.reserve(properties.qubitCount);
-  auto addSite = [&properties](const std::string& name, const size_t index) {
+  const auto addSite = [&properties](const std::string& name,
+                                     const size_t index) {
     auto site = std::make_unique<AMAZON_BRAKET_QDMI_Site_impl_d>();
     site->name_ = name;
     site->id_ = index;
@@ -391,7 +392,7 @@ auto GateModelCapabilityParser::parseOperations(
     return QDMI_ERROR_FATAL;
   }
 
-  auto readOperationNames = [](const auto& array) {
+  const auto readOperationNames = [](const auto& array) {
     std::vector<std::string> names;
     names.reserve(array.GetLength());
     for (size_t index = 0; index < array.GetLength(); ++index) {
@@ -439,7 +440,7 @@ auto GateModelCapabilityParser::parseOperations(
     properties.operations.push_back(std::move(operation));
     return handle;
   };
-  auto appendView =
+  const auto appendView =
       [&operationForName](
           const std::vector<std::string>& names,
           std::vector<AMAZON_BRAKET_QDMI_Operation_impl_d*>& view) {
@@ -476,16 +477,18 @@ auto GateModelCapabilityParser::parseProperties(
 
   properties = {};
   const auto propertiesJson = jsonValue.View();
-  if (auto status = parseQubitCount(propertiesJson, properties.qubitCount);
+  if (const auto status =
+          parseQubitCount(propertiesJson, properties.qubitCount);
       status != QDMI_SUCCESS) {
     return status;
   }
-  if (auto status =
+  if (const auto status =
           parseSitesAndConnectivity(deviceType, propertiesJson, properties);
       status != QDMI_SUCCESS) {
     return status;
   }
-  if (auto status = parseOperations(deviceType, propertiesJson, properties);
+  if (const auto status =
+          parseOperations(deviceType, propertiesJson, properties);
       status != QDMI_SUCCESS) {
     return status;
   }
@@ -542,7 +545,8 @@ auto GateModelCapabilityParser::parseProperties(
           .minimumTotalShots = static_cast<size_t>(minimumTotalShots),
           .maximumTotalShots = static_cast<size_t>(maximumTotalShots),
           .minimumShotsPerProgram = minimumShotsPerProgram,
-          .maximumShotsPerProgram = maximumShotsPerProgram};
+          .maximumShotsPerProgram = maximumShotsPerProgram,
+      };
     }
   }
   for (const auto& enrich : calibrationEnrichers_) {

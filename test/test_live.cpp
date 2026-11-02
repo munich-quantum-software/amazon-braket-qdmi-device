@@ -36,35 +36,51 @@ struct CatalogEntry {
 };
 
 constexpr std::array CATALOG{
-    CatalogEntry{.id = "amazon.braket.aqt.ibex-q1",
-                 .arn = "arn:aws:braket:eu-north-1::device/qpu/aqt/Ibex-Q1",
-                 .region = "eu-north-1"},
-    CatalogEntry{.id = "amazon.braket.ionq.forte-1",
-                 .arn = "arn:aws:braket:us-east-1::device/qpu/ionq/Forte-1",
-                 .region = "us-east-1"},
+    CatalogEntry{
+        .id = "amazon.braket.aqt.ibex-q1",
+        .arn = "arn:aws:braket:eu-north-1::device/qpu/aqt/Ibex-Q1",
+        .region = "eu-north-1",
+    },
+    CatalogEntry{
+        .id = "amazon.braket.ionq.forte-1",
+        .arn = "arn:aws:braket:us-east-1::device/qpu/ionq/Forte-1",
+        .region = "us-east-1",
+    },
     CatalogEntry{
         .id = "amazon.braket.ionq.forte-enterprise-1",
         .arn = "arn:aws:braket:us-east-1::device/qpu/ionq/Forte-Enterprise-1",
-        .region = "us-east-1"},
-    CatalogEntry{.id = "amazon.braket.iqm.garnet",
-                 .arn = "arn:aws:braket:eu-north-1::device/qpu/iqm/Garnet",
-                 .region = "eu-north-1"},
-    CatalogEntry{.id = "amazon.braket.iqm.emerald",
-                 .arn = "arn:aws:braket:eu-north-1::device/qpu/iqm/Emerald",
-                 .region = "eu-north-1"},
-    CatalogEntry{.id = "amazon.braket.rigetti.ankaa-3",
-                 .arn = "arn:aws:braket:us-west-1::device/qpu/rigetti/Ankaa-3",
-                 .region = "us-west-1"},
+        .region = "us-east-1",
+    },
+    CatalogEntry{
+        .id = "amazon.braket.iqm.garnet",
+        .arn = "arn:aws:braket:eu-north-1::device/qpu/iqm/Garnet",
+        .region = "eu-north-1",
+    },
+    CatalogEntry{
+        .id = "amazon.braket.iqm.emerald",
+        .arn = "arn:aws:braket:eu-north-1::device/qpu/iqm/Emerald",
+        .region = "eu-north-1",
+    },
+    CatalogEntry{
+        .id = "amazon.braket.rigetti.ankaa-3",
+        .arn = "arn:aws:braket:us-west-1::device/qpu/rigetti/Ankaa-3",
+        .region = "us-west-1",
+    },
     CatalogEntry{
         .id = "amazon.braket.rigetti.cepheus-1-108q",
         .arn = "arn:aws:braket:us-west-1::device/qpu/rigetti/Cepheus-1-108Q",
-        .region = "us-west-1"},
-    CatalogEntry{.id = "amazon.braket.sv1",
-                 .arn = "arn:aws:braket:::device/quantum-simulator/amazon/sv1",
-                 .region = "us-east-1"},
-    CatalogEntry{.id = "amazon.braket.dm1",
-                 .arn = "arn:aws:braket:::device/quantum-simulator/amazon/dm1",
-                 .region = "us-east-1"},
+        .region = "us-west-1",
+    },
+    CatalogEntry{
+        .id = "amazon.braket.sv1",
+        .arn = "arn:aws:braket:::device/quantum-simulator/amazon/sv1",
+        .region = "us-east-1",
+    },
+    CatalogEntry{
+        .id = "amazon.braket.dm1",
+        .arn = "arn:aws:braket:::device/quantum-simulator/amazon/dm1",
+        .region = "us-east-1",
+    },
 };
 
 constexpr std::string_view BELL_STATE_PROGRAM = "OPENQASM 3.0;\n"
