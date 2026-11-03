@@ -16,8 +16,7 @@ access. CMake does not register tests that access AWS unless
 
 The `release`, `debug`, `coverage`, `lint` and Linux `sanitizers` CMake presets
 use separate build directories and disable live tests. Test presets exclude the
-`live` label. The `sanitizers` preset enables AddressSanitizer and
-UndefinedBehaviorSanitizer.
+`live` label.
 
 On Linux, collect native coverage with the instrumented build:
 
