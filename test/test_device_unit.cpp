@@ -3775,6 +3775,24 @@ TEST_F(AmazonBraketQDMILocalJobTest,
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
+TEST_F(AmazonBraketQDMILocalJobTest, OfflineDeviceStatusIsMaintenance) {
+  Aws::Braket::Model::GetDeviceResult result;
+  result.SetDeviceName("SV1");
+  result.SetProviderName("Amazon Web Services");
+  result.SetDeviceType(Aws::Braket::Model::DeviceType::SIMULATOR);
+  result.SetDeviceStatus(Aws::Braket::Model::DeviceStatus::OFFLINE);
+  result.SetDeviceCapabilities(
+      std::string{amazon::braket::qdmi::test::SV1}.c_str());
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::make_unique<StubGetDeviceClient>(std::move(result)));
+
+  QDMI_Device_Status status = QDMI_DEVICE_STATUS_MAX;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_STATUS, sizeof(status), &status,
+                nullptr),
+            QDMI_SUCCESS);
+  EXPECT_EQ(status, QDMI_DEVICE_STATUS_MAINTENANCE);
+}
 TEST_F(AmazonBraketQDMILocalJobTest,
        RetiredDeviceStatusIsQueryableOnInitialAndCachedFetches) {
   Aws::Braket::Model::GetDeviceResult result;
