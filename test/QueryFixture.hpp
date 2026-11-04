@@ -78,8 +78,12 @@ protected:
     // This executable owns its environment; discovery never initializes AWS.
 #ifdef _WIN32
     ASSERT_EQ(_putenv_s("AWS_EC2_METADATA_DISABLED", "true"), 0);
+    ASSERT_EQ(_putenv_s("AWS_ACCESS_KEY_ID", "test-access-key"), 0);
+    ASSERT_EQ(_putenv_s("AWS_SECRET_ACCESS_KEY", "test-secret-key"), 0);
 #else
     ASSERT_EQ(setenv("AWS_EC2_METADATA_DISABLED", "true", 1), 0);
+    ASSERT_EQ(setenv("AWS_ACCESS_KEY_ID", "test-access-key", 1), 0);
+    ASSERT_EQ(setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key", 1), 0);
 #endif
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
   }
