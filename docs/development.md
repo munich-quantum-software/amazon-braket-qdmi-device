@@ -125,7 +125,6 @@ amazon-braket-qdmi-device/
 ├── docs/        Sphinx and MyST documentation
 ├── include/     Amazon Braket-specific public and internal headers
 ├── python/      Python package and installed-artifact discovery
-├── test/slurm/  Provider fixtures for MQT Core’s shared Slurm tests
 ├── src/         QDMI device implementation and schema parser
 └── test/        Hermetic, integration, and Python tests
 ```
@@ -137,12 +136,10 @@ lint, coverage, and package builds offline. Authenticated live checks query
 device metadata without submitting QuantumTasks. Documentation builds also stay
 offline.
 
-Dispatch `live-tests.yml` on `main` to select catalogue metadata, the paid SV1
-smoke test, or Slurm validation. Paid execution requires a fresh manual request
-and offline validation; workflow reruns do not authorize submissions.
+Dispatch `live-tests.yml` on `main` to select catalogue metadata or the paid SV1
+smoke test. Paid execution requires a fresh manual request and offline
+validation; workflow reruns do not authorize submissions.
 
 The SV1 smoke test runs one optimizer step on four wires at 100 shots, with at
-most 20 submissions. The
-[Slurm smoke test](slurm.md#try-the-shared-cluster-example) submits two
-eight-shot SV1 tasks. Do not retry or broaden these workloads without
-authorizing their budgets.
+most 20 submissions. Do not retry or broaden this workload without authorizing
+its budget.
