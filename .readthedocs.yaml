@@ -14,10 +14,6 @@ build:
   tools:
     python: "3.14"
   jobs:
-    pre_build:
-      - asdf plugin add uv
-      - asdf install uv latest
-      - asdf global uv latest
     build:
       html:
         - uvx nox --non-interactive -s docs
@@ -27,3 +23,10 @@ build:
           mkdir -p $READTHEDOCS_OUTPUT/htmlzip
           archive=$(realpath $READTHEDOCS_OUTPUT/htmlzip/html.zip)
           (cd docs/_build/html && zip -r $archive .)
+
+python:
+  install:
+    - method: uv
+      command: sync
+      groups:
+        - docs

@@ -1,11 +1,3 @@
-# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
-# Copyright (c) 2025 - 2026 Munich Quantum Software Company GmbH
-# All rights reserved.
-#
-# SPDX-License-Identifier: MIT
-#
-# Licensed under the MIT License
-
 name: 🇨 • Coverage
 on:
   workflow_call:
@@ -41,10 +33,10 @@ permissions:
 jobs:
   coverage:
     name: 📈 Coverage
-    runs-on: ubuntu-26.04
     permissions:
-      contents: read # Required for the `actions/checkout` action
-      id-token: write # Required for the `codecov/codecov-action` action
+      contents: read
+      id-token: write
+    runs-on: ubuntu-26.04
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: 4
       CTEST_PARALLEL_LEVEL: 4

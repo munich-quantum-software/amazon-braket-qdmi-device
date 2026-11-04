@@ -26,12 +26,6 @@ cmake --build --preset coverage
 ctest --preset coverage
 ```
 
-CI uploads the native gcov data under Codecov's `cpp` flag. This configuration
-runs the hermetic tests and does not register live AWS tests.
-
-The configure presets enable Git long-path support for nested AWS SDK submodules
-without changing global Git configuration.
-
 When live Amazon Braket tests are intentionally required, select an AWS SDK
 credential source before configuring the test-specific opt-in:
 
@@ -79,25 +73,20 @@ uvx nox -s minimums-3.14
 
 The regular Python tests build the native package through the repository's nox
 session and exercise the optional PennyLane and Qiskit integrations. The tested
-Python 3.11 through 3.15 matrix is available as `uvx nox -s tests`. Draft PRs
-run `tests-3.15` and `minimums-3.15`; ready PRs run the full matrix.
+Python 3.11 through 3.15 matrix is available as `uvx nox -s tests`.
 
-Python test sessions produce a separate report under Codecov's `python` flag. To
-collect it locally:
+Collect Python coverage locally with:
 
 ```console
 uvx nox -s tests-3.14 -- --cov --cov-report=xml:coverage.xml
 ```
-
-`pyproject.toml` limits Python measurement to `amazon.braket.qdmi`;
-`.github/codecov.yml` defines the source paths and reporting thresholds.
 
 The PennyLane SV1 smoke test is opt-in because it submits paid QuantumTasks. To
 run it with any credential source supported by the AWS SDK, use:
 
 ```console
 AWS_PROFILE=hpc-quantum AMAZON_BRAKET_PENNYLANE_LIVE=1 \
-  uv run --no-sync pytest \
+  uv run --group test pytest \
   test/python/test_pennylane_qaoa.py -m live -k cost_capped_on_sv1
 ```
 
@@ -143,26 +132,17 @@ amazon-braket-qdmi-device/
 
 ## Continuous integration
 
-CI runs native and Python checks in separate jobs. Native coverage, Python
-tests, minimum-version tests, wheels and source distributions receive no AWS
-credentials. Nox runs normal and minimum-version tests across all supported
-Python versions.
+CI runs C++ and Python tests, minimum-dependency tests, installation checks,
+lint, coverage, and package builds offline. Authenticated live checks query
+device metadata without submitting QuantumTasks. Documentation builds also stay
+offline.
 
-CI calls `reusable-live-tests.yml` for catalogue metadata after the selected
-offline native, Python and wheel checks pass. Every non-fork PR, including
-release preparation, runs these checks even when change detection skips all
-offline checks. Failed or cancelled prerequisites prevent live tests; fork PRs
-stay offline. Metadata checks submit no QuantumTasks.
+Dispatch `live-tests.yml` on `main` to select catalogue metadata, the paid SV1
+smoke test, or Slurm validation. Paid execution requires a fresh manual request
+and offline validation; workflow reruns do not authorize submissions.
 
-`live-tests.yml` accepts a fresh manual request on merged `main`. Select
-`metadata` for catalogue queries without submissions, `sv1` for the selected
-paid PennyLane smoke test, or `slurm` for the two eight-shot SV1 workloads.
-`reusable-live-tests.yml` owns these checks. Ordinary pushes, PR updates,
-release builds and workflow/job reruns never authorize paid execution. Live
-checks do not contribute to coverage, and no hardware results are uploaded.
-
-The SV1 request first runs native tests and installs a fresh candidate wheel.
-That wheel passes offline Python tests before the selected live test runs with
-credentials. It executes one fixed optimizer step on four wires at 100 shots;
-the workload currently requires at most 20 submissions. Do not automatically
-retry submissions or broaden the workload without authorizing its budget.
+The SV1 smoke test runs one optimizer step on four wires at 100 shots, with at
+most 20 submissions. The
+[Slurm smoke test](slurm.md#try-the-shared-cluster-example) submits two
+eight-shot SV1 tasks. Do not retry or broaden these workloads without
+authorizing their budgets.

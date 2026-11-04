@@ -36,7 +36,6 @@ jobs:
           python-version: "3.15"
 
       - name: Run the device workload
-        timeout-minutes: 40
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -47,3 +46,4 @@ jobs:
             --compose-file provider/test/slurm/compose.yml \
             --device-license amazon.braket.sv1 \
             -- python3 /workload/test/slurm/workload.py
+        timeout-minutes: 40
