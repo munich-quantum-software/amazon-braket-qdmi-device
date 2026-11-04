@@ -40,8 +40,9 @@ jobs:
         include:
           - runs-on: ubuntu-26.04
             preset: debug
-    uses: $/.github/workflows/cpp-tests-ubuntu.yml
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-tests-ubuntu.yml@643822a576b67f136d34723910593b8195cf6965
     with:
+      apt-packages: libcurl4-openssl-dev
       runs-on: ${{ matrix.runs-on }}
       preset-name: ${{ matrix.preset }}
 
@@ -87,8 +88,9 @@ jobs:
     name: 🇨 Sanitizers
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cpp-tests)
-    uses: $/.github/workflows/cpp-tests-ubuntu.yml
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-tests-ubuntu.yml@643822a576b67f136d34723910593b8195cf6965
     with:
+      apt-packages: libcurl4-openssl-dev
       runs-on: ubuntu-26.04
       preset-name: sanitizers
 
@@ -99,7 +101,9 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: $/.github/workflows/cpp-coverage.yml
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-coverage.yml@643822a576b67f136d34723910593b8195cf6965
+    with:
+      apt-packages: libcurl4-openssl-dev
 
   cpp-linter:
     name: 🇨 Lint
@@ -108,8 +112,9 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    uses: $/.github/workflows/cpp-linter.yml
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-linter.yml@643822a576b67f136d34723910593b8195cf6965
     with:
+      apt-packages: libcurl4-openssl-dev
       clang-version: 23
       files-changed-only: true
       cpp-linter-extra-args: "-Wunused-template"
@@ -118,8 +123,9 @@ jobs:
     name: 🐍 Test
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-python-tests)
-    uses: $/.github/workflows/python-tests.yml
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-tests.yml@643822a576b67f136d34723910593b8195cf6965
     with:
+      apt-packages: libcurl4-openssl-dev
       runs-on: ubuntu-26.04
       sessions: '["tests", "minimums"]'
       draft-sessions: '["tests-3.15", "minimums-3.15"]'
