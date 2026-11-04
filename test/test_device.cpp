@@ -357,6 +357,14 @@ TEST_F(AmazonBraketQDMISpecificationTest, RequiredMetadata) {
                   session, property, 0, nullptr, nullptr),
               QDMI_SUCCESS);
   }
+  QDMI_Device_Status status = QDMI_DEVICE_STATUS_OFFLINE;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_STATUS, sizeof(status), &status,
+                nullptr),
+            QDMI_SUCCESS);
+  EXPECT_TRUE(status == QDMI_DEVICE_STATUS_IDLE ||
+              status == QDMI_DEVICE_STATUS_BUSY ||
+              status == QDMI_DEVICE_STATUS_OFFLINE);
   const auto sites = querySites(session);
   ASSERT_FALSE(sites.empty());
   for (auto* site : sites) {

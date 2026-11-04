@@ -49,17 +49,18 @@ set(QDMI_REPO_OWNER "Munich-Quantum-Software-Stack"
         CACHE STRING "QDMI repository owner (change when using a fork)")
 cmake_dependent_option(INSTALL_QDMI "Install QDMI library" ON "INSTALL" OFF)
 # cmake-format: on
-block()
-if(BUILD_AMAZON_BRAKET_TESTS)
-  # Released packages do not yet contain the pinned query test helper.
-  set(FETCHCONTENT_TRY_FIND_PACKAGE_MODE NEVER)
-endif()
-FetchContent_Declare(
-  qdmi
-  GIT_REPOSITORY https://github.com/${QDMI_REPO_OWNER}/qdmi.git
-  GIT_TAG ${QDMI_REV}
-  FIND_PACKAGE_ARGS ${QDMI_MINIMUM_VERSION})
-endblock()
+function(declare_qdmi)
+  if(BUILD_AMAZON_BRAKET_TESTS)
+    # Released packages do not yet contain the pinned query test helper.
+    set(FETCHCONTENT_TRY_FIND_PACKAGE_MODE NEVER)
+  endif()
+  FetchContent_Declare(
+    qdmi
+    GIT_REPOSITORY https://github.com/${QDMI_REPO_OWNER}/qdmi.git
+    GIT_TAG ${QDMI_REV}
+    FIND_PACKAGE_ARGS ${QDMI_MINIMUM_VERSION})
+endfunction()
+declare_qdmi()
 list(APPEND FETCH_PACKAGES qdmi)
 
 set(BUILD_TESTING_PREV ${BUILD_TESTING})
