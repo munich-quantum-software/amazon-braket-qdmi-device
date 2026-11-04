@@ -97,24 +97,23 @@ tests. An enabled test reports authentication failures instead of skipping them.
 
 ## Documentation
 
-Build the Sphinx and MyST documentation and standalone Doxygen native API only
-through the dedicated nox session. Doxygen must be available on `PATH`:
+Build the Sphinx and MyST documentation and standalone Doxygen native API with
+the dedicated nox session. Doxygen 1.15 or newer must be available on `PATH`:
 
 ```console
-uvx nox --non-interactive -s docs
+uvx nox -s docs
 ```
 
 Use the same session for link validation:
 
 ```console
-uvx nox --non-interactive -s docs -- -b linkcheck
+uvx nox -s docs -- -b linkcheck
 ```
 
-Documentation builds render notebooks without executing them. To deliberately
-execute the examples, including the paid ten-shot SV1 circuit, use
-`uvx nox --non-interactive -s docs -- --live` with authorized AWS credentials.
-Generated HTML is written to `docs/_build/html`. Read the Docs uses the same
-offline session for PR previews and published documentation.
+Documentation builds execute offline examples and cache their outputs. Use
+`uvx nox -s docs -- --live` with authorized AWS credentials to execute
+provider-backed notebooks, including the paid ten-shot SV1 circuit. Generated
+HTML is written to `docs/_build/html`.
 
 ## Repository structure
 

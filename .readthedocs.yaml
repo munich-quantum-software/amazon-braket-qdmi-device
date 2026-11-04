@@ -5,6 +5,7 @@ formats:
 
 sphinx:
   configuration: docs/conf.py
+  fail_on_warning: true
 
 build:
   os: ubuntu-26.04
@@ -14,19 +15,18 @@ build:
   tools:
     python: "3.14"
   jobs:
-    build:
-      html:
-        - uvx nox --non-interactive -s docs
-        - mkdir -p $READTHEDOCS_OUTPUT/html && cp -R docs/_build/html/. $READTHEDOCS_OUTPUT/html
-      htmlzip:
-        - |
-          mkdir -p $READTHEDOCS_OUTPUT/htmlzip
-          archive=$(realpath $READTHEDOCS_OUTPUT/htmlzip/html.zip)
-          (cd docs/_build/html && zip -r $archive .)
+    install:
+      - >-
+        uv sync --locked --no-dev --group docs
+        --config-settings-package amazon-braket-qdmi:wheel.cmake=false
+    pre_build:
+      - >-
+        cmake -S . -B build/docs
+        -DBUILD_AMAZON_BRAKET_TESTS=OFF -DBUILD_AMAZON_BRAKET_QDMI_DOCS=ON
+      - cmake --build build/docs --target amazon-braket-qdmi-device-docs
 
+# Let Read the Docs provision uv for the custom install command above.
 python:
   install:
     - method: uv
       command: sync
-      groups:
-        - docs

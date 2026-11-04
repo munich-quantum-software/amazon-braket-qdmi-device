@@ -140,50 +140,52 @@ def minimums(session: nox.Session) -> None:
 
 @nox.session(python="3.14", reuse_venv=True)
 def docs(session: nox.Session) -> None:
-    """Build documentation; pass --live to execute notebook examples."""
+    """Build documentation.
+
+    Pass ``--live`` to execute provider-backed notebooks.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--live", action="store_true", help="Execute provider-backed notebook examples")
     parser.add_argument("-b", dest="builder", default="html", help="Build target (default: html)")
     args, posargs = parser.parse_known_args(session.posargs)
 
-    env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location}
-    if shutil.which("cmake") is None:
-        session.install("cmake")
-    if shutil.which("ninja") is None:
-        session.install("ninja")
     session.run(
         "uv",
         "sync",
-        "--inexact",
-        "--only-group",
-        "build",
-        "--only-group",
-        "docs",
-        env=env,
-    )
-    session.run(
-        "uv",
-        "sync",
-        "--inexact",
+        "--locked",
         "--no-dev",
-        "--no-build-isolation-package",
-        "amazon-braket-qdmi",
-        env=env,
+        "--group",
+        "docs",
+        *(("--reinstall-package", "amazon-braket-qdmi") if args.live else ()),
+        "--config-settings-package",
+        f"amazon-braket-qdmi:wheel.cmake={'true' if args.live else 'false'}",
+        env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
     )
     session.run(
-        "uv",
-        "run",
-        "--no-sync",
+        "cmake",
+        "-S",
+        ".",
+        "-B",
+        "build/docs",
+        "-DBUILD_AMAZON_BRAKET_TESTS=OFF",
+        "-DBUILD_AMAZON_BRAKET_QDMI_DOCS=ON",
+    )
+    session.run(
+        "cmake",
+        "--build",
+        "build/docs",
+        "--target",
+        "amazon-braket-qdmi-device-docs",
+    )
+    session.run(
         "sphinx-build",
-        "-n",
         "-T",
         "-W",
         f"-b={args.builder}",
         "docs",
         f"docs/_build/{args.builder}",
-        *([] if args.live else ["-D", "nb_execution_mode=off"]),
         *posargs,
-        env=env,
+        env={"AMAZON_BRAKET_QDMI_LIVE_DOCS": "1" if args.live else "0"},
     )
 
 

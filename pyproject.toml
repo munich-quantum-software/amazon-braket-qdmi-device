@@ -109,6 +109,7 @@ test = [
   "pytest-xdist>=3.8",
 ]
 docs = [
+  "cmake>=3.24",
   "furo>=2025.12.19",
   "mqt-core[pennylane,qiskit]~=4.1.1",
   "myst-nb>=1.4",
