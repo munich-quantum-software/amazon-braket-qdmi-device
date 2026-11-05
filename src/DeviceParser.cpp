@@ -132,6 +132,12 @@ auto amazon::braket::qdmi::parseMeasurementResults(
       throw std::runtime_error("Missing requested measured qubit");
     }
   }
+  if (projected) {
+    std::erase_if(columns, [&](const auto& entry) {
+      return std::ranges::find(requested, static_cast<size_t>(entry.first)) ==
+             requested.end();
+    });
+  }
   const auto measurements = result.GetArray("measurements");
   std::vector<std::string> results;
   results.reserve(measurements.GetLength());
@@ -140,22 +146,20 @@ auto amazon::braket::qdmi::parseMeasurementResults(
       throw std::runtime_error("Invalid measurement row");
     }
     const auto shot = measurements[i].AsArray();
-    if (shot.GetLength() != columns.size()) {
+    if (shot.GetLength() != qubits.GetLength()) {
       throw std::runtime_error(
           "Measurement width does not match measuredQubits");
     }
-    std::string bitstring;
-    bitstring.reserve(columns.size());
-    for (const auto& [site, column] : columns) {
+    for (size_t column = 0; column < shot.GetLength(); ++column) {
       if (!shot[column].IsIntegerType() ||
           (shot[column].AsInt64() != 0 && shot[column].AsInt64() != 1)) {
         throw std::runtime_error("Nonbinary backend measurement");
       }
-      if (!projected ||
-          std::ranges::find(requested, static_cast<size_t>(site)) !=
-              requested.end()) {
-        bitstring += shot[column].AsInt64() == 0 ? '0' : '1';
-      }
+    }
+    std::string bitstring;
+    bitstring.reserve(columns.size());
+    for (const auto& [site, column] : columns) {
+      bitstring += shot[column].AsInt64() == 0 ? '0' : '1';
     }
     results.emplace_back(std::move(bitstring));
   }

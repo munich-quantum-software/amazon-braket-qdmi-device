@@ -361,7 +361,8 @@ auto coreProgram(std::string_view source,
       qubits.remove_prefix(3);
     } while (true);
     if (name != "barrier") {
-      program.gates += std::string(line) + '\n';
+      program.gates.append(line);
+      program.gates += '\n';
     }
   }
   if (!header || program.measured.size() != bits) {
@@ -379,8 +380,10 @@ auto adaptProgram(const std::string& source,
   }
   const bool virtualSites = !architecture.supportPhysicalQubits;
   std::map<size_t, size_t> indices;
-  for (const auto site : native->sites) {
-    indices.emplace(site, indices.size());
+  if (virtualSites) {
+    for (const auto site : native->sites) {
+      indices.emplace(site, indices.size());
+    }
   }
   std::string prefix = "// amazon-braket-qdmi readout\nOPENQASM 3;\n";
   if (virtualSites && !indices.empty()) {

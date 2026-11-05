@@ -86,3 +86,22 @@ TEST(MeasurementResultParserTest, ProjectsReadoutFromReturnedSource) {
                  std::runtime_error);
   }
 }
+
+TEST(MeasurementResultParserTest, ValidatesDiscardedColumns) {
+  for (const auto* source : {
+           "// amazon-braket-qdmi readout\nOPENQASM 3;\nbit[1] c;\nc[0] = "
+           "measure $0;\n",
+           "// amazon-braket-qdmi readout\nOPENQASM 3;\nx $0;\n",
+       }) {
+    for (const auto* response : {
+             R"({"measuredQubits":[0,1],"measurements":[[1,2]]})",
+             R"({"measuredQubits":[0,1],"measurements":[[1,"0"]]})",
+             R"({"measuredQubits":[0,1],"measurements":[[1]]})",
+         }) {
+      const Aws::Utils::Json::JsonValue json(response);
+      EXPECT_THROW(
+          amazon::braket::qdmi::parseMeasurementResults(json.View(), source),
+          std::runtime_error);
+    }
+  }
+}
