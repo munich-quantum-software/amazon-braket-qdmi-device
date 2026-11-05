@@ -39,6 +39,10 @@ AMAZON_BRAKET_QDMI_device_session_query_device_property(
 | `QDMI_DEVICE_PROPERTY_OPERATIONS`     | Native gate handles               |
 | `QDMI_DEVICE_PROPERTY_COUPLINGMAP`    | Flat source-target site pairs     |
 
+Fully connected devices return `mqt.compiler-target.v1:all-to-all-homogeneous`
+in device `CUSTOM2`. They return `QDMI_ERROR_NOTSUPPORTED` for the coupling map
+and operation site tuples; the compiler represents their operations globally.
+
 ## Site properties
 
 | Property                   | Meaning                                         |
@@ -49,6 +53,14 @@ AMAZON_BRAKET_QDMI_device_session_query_device_property(
 | `QDMI_SITE_PROPERTY_T2`    | Dephasing time, when reported by Amazon Braket  |
 
 ## Operation properties
+
+`AMAZON_BRAKET_QDMI_OPERATION_PROPERTY_MQT_PARAMETERS` (`CUSTOM2`) returns a
+NUL-terminated JSON string using the temporary `mqt.operation-parameters.v1`
+contract. Rigetti RX advertises four `alternatives`, each with a one-element
+`fixed` array containing an allowed angle in radians (±π or ±π/2). Other
+operations return `QDMI_ERROR_NOTSUPPORTED`. Core consumes this property for
+both compiler targets and Qiskit targets; it is not a standardized QDMI
+property.
 
 | Property                                | Meaning                                                     |
 | --------------------------------------- | ----------------------------------------------------------- |
@@ -65,6 +77,30 @@ are applicable to all ordered tuples of distinct sites, independent of two-qubit
 connectivity.
 
 ## Job properties
+
+QPU programs must be compiled to the device's native gates and physical site
+indices before submission. The device wraps flat OpenQASM 3 gate statements in
+`#pragma braket verbatim` and leaves terminal measurements outside the box. This
+applies to individual programs and ProgramSets. Before sending any program, the
+device removes `include "stdgates.inc";`: Braket supplies its native gates but
+rejects this standard declaration. The include must occupy its own line. Stored
+source is unchanged. Other lines are preserved. Existing verbatim and simulator
+programs are otherwise forwarded unchanged.
+
+Automatic wrapping accepts one statement per line: an `OPENQASM 3` header, an
+optional plain `bit[N]` register, native gate calls with constant parameters and
+`$N` qubits, then assigned terminal measurements. Physical-qubit barriers are
+removed because the verbatim box already preserves gate order. Bare global
+phases are omitted because they do not affect sampled results. Other includes,
+gate definitions, virtual qubits, and control flow are unsupported on this path.
+Other source is forwarded without automatic wrapping. Simulator adaptation uses
+dense virtual qubit declarations and, when required by its action metadata,
+measures all addressed qubits. Adapted source carries a readout marker; result
+decoding uses that marked source to remove extra measured bits, including for
+reopened tasks and programs with no requested measurements. ProgramSet result
+retrieval reads each available source document to recover this projection.
+Unmarked source retains the service result columns. No compiler or qubit routing
+runs inside the device implementation.
 
 | Property                                             | Meaning                              |
 | ---------------------------------------------------- | ------------------------------------ |
@@ -117,6 +153,13 @@ job-lifetime behavior.
 | `QDMI_JOB_RESULT_SHOTS`       | Comma-separated shot bitstrings             |
 | `QDMI_JOB_RESULT_HIST_KEYS`   | Comma-separated histogram keys              |
 | `QDMI_JOB_RESULT_HIST_VALUES` | `size_t` counts matching the histogram keys |
+
+Shot strings and histogram keys use descending measured-qubit order: the lowest
+measured qubit ID is the rightmost bit. The native device uses Braket's
+`measuredQubits` metadata to locate response columns; it does not reconstruct
+classical OpenQASM variables. The [Qiskit backend](qiskit.md) retains MQT Core's
+result layout alongside each submitted program to restore classical-bit
+positions.
 
 ## Lifecycle functions
 

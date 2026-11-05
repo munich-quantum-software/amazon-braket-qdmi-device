@@ -48,6 +48,7 @@
 #include <optional>
 #include <ranges>
 #include <set>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -60,12 +61,63 @@
 // ============================================================================
 
 auto amazon::braket::qdmi::parseMeasurementResults(
-    const Aws::Utils::Json::JsonView& result) -> std::vector<std::string> {
+    const Aws::Utils::Json::JsonView& result, std::string_view source)
+    -> std::vector<std::string> {
   if (!result.IsObject() || !result.ValueExists("measuredQubits") ||
       !result.GetObject("measuredQubits").IsListType() ||
       !result.ValueExists("measurements") ||
       !result.GetObject("measurements").IsListType()) {
     throw std::runtime_error("Missing measurement arrays");
+  }
+  std::vector<size_t> requested;
+  bool projected = false;
+  std::string metadataSource;
+  if (source.empty() && result.ValueExists("additionalMetadata")) {
+    const auto metadata = result.GetObject("additionalMetadata");
+    if (metadata.ValueExists("action")) {
+      const auto action = metadata.GetObject("action");
+      if (action.ValueExists("source") &&
+          action.GetObject("source").IsString()) {
+        metadataSource = action.GetString("source");
+        source = metadataSource;
+      }
+    }
+  }
+  std::string_view remaining = source;
+  // Marked adapter output retains the requested c assignments. Reopened
+  // tasks use the same source metadata, without local job state.
+  if (remaining.starts_with("// amazon-braket-qdmi readout\n")) {
+    projected = true;
+    while (!remaining.empty()) {
+      const auto end = remaining.find('\n');
+      auto line = remaining.substr(0, end);
+      remaining.remove_prefix(end == std::string_view::npos ? remaining.size()
+                                                            : end + 1);
+      if (!line.starts_with("c[")) {
+        continue;
+      }
+      const auto measurement = line.find("] = measure ");
+      if (measurement == std::string_view::npos) {
+        throw std::runtime_error("Invalid adapted readout assignment");
+      }
+      line.remove_prefix(measurement + 12);
+      const bool physical = line.starts_with('$');
+      if (!physical && !line.starts_with("q[")) {
+        throw std::runtime_error("Invalid adapted readout reference");
+      }
+      line.remove_prefix(physical ? 1 : 2);
+      size_t site = 0;
+      const auto parsed =
+          std::from_chars(line.data(), line.data() + line.size(), site);
+      if (parsed.ec != std::errc{} ||
+          std::string_view(
+              parsed.ptr,
+              static_cast<size_t>(line.data() + line.size() - parsed.ptr)) !=
+              (physical ? ";" : "];")) {
+        throw std::runtime_error("Invalid adapted readout site");
+      }
+      requested.push_back(site);
+    }
   }
   std::map<int64_t, size_t, std::greater<>> columns;
   const auto qubits = result.GetArray("measuredQubits");
@@ -73,6 +125,11 @@ auto amazon::braket::qdmi::parseMeasurementResults(
     if (!qubits[i].IsIntegerType() || qubits[i].AsInt64() < 0 ||
         !columns.emplace(qubits[i].AsInt64(), i).second) {
       throw std::runtime_error("Invalid measuredQubits metadata");
+    }
+  }
+  for (const auto site : requested) {
+    if (!columns.contains(static_cast<int64_t>(site))) {
+      throw std::runtime_error("Missing requested measured qubit");
     }
   }
   const auto measurements = result.GetArray("measurements");
@@ -89,12 +146,16 @@ auto amazon::braket::qdmi::parseMeasurementResults(
     }
     std::string bitstring;
     bitstring.reserve(columns.size());
-    for (const auto column : columns | std::views::values) {
+    for (const auto& [site, column] : columns) {
       if (!shot[column].IsIntegerType() ||
           (shot[column].AsInt64() != 0 && shot[column].AsInt64() != 1)) {
         throw std::runtime_error("Nonbinary backend measurement");
       }
-      bitstring += shot[column].AsInt64() == 0 ? '0' : '1';
+      if (!projected ||
+          std::ranges::find(requested, static_cast<size_t>(site)) !=
+              requested.end()) {
+        bitstring += shot[column].AsInt64() == 0 ? '0' : '1';
+      }
     }
     results.emplace_back(std::move(bitstring));
   }
@@ -235,25 +296,6 @@ auto GateModelCapabilityParser::parseQubitCount(
   return QDMI_SUCCESS;
 }
 
-auto GateModelCapabilityParser::buildFullConnectivity(
-    ParsedDeviceProperties& properties) -> void {
-  properties.connectivity.clear();
-  if (properties.qubitCount < 2) {
-    return;
-  }
-  properties.connectivity.reserve(properties.qubitCount *
-                                  (properties.qubitCount - 1) * 2);
-
-  for (size_t i = 0; i < properties.qubitCount; ++i) {
-    for (size_t j = i + 1; j < properties.qubitCount; ++j) {
-      properties.connectivity.push_back(properties.sitesPtr[i]);
-      properties.connectivity.push_back(properties.sitesPtr[j]);
-      properties.connectivity.push_back(properties.sitesPtr[j]);
-      properties.connectivity.push_back(properties.sitesPtr[i]);
-    }
-  }
-}
-
 auto GateModelCapabilityParser::parseSitesAndConnectivity(
     const Aws::Braket::Model::DeviceType deviceType,
     const Aws::Utils::Json::JsonView& propertiesJson,
@@ -288,7 +330,7 @@ auto GateModelCapabilityParser::parseSitesAndConnectivity(
     for (size_t index = 0; index < properties.qubitCount; ++index) {
       addSite(std::to_string(index), index);
     }
-    buildFullConnectivity(properties);
+    properties.fullyConnected = true;
     return QDMI_SUCCESS;
   }
 
@@ -493,6 +535,23 @@ auto GateModelCapabilityParser::parseProperties(
     return status;
   }
   const auto actions = propertiesJson.GetObject("action");
+  const auto openqasm = actions.GetObject("braket.ir.openqasm.program");
+  const auto flag = [&](const char* key) {
+    return openqasm.ValueExists(key) && openqasm.GetObject(key).IsBool() &&
+           openqasm.GetBool(key);
+  };
+  properties.supportPhysicalQubits = flag("supportPhysicalQubits");
+  properties.requiresAllQubitsMeasurement =
+      flag("requiresAllQubitsMeasurement");
+  if (openqasm.ValueExists("supportedPragmas") &&
+      openqasm.GetObject("supportedPragmas").IsListType()) {
+    const auto pragmas = openqasm.GetArray("supportedPragmas");
+    properties.supportVerbatim = std::ranges::any_of(
+        std::span{pragmas.GetUnderlyingData(), pragmas.GetLength()},
+        [](const auto& pragma) {
+          return pragma.IsString() && pragma.AsString() == "verbatim";
+        });
+  }
   constexpr auto programSetAction = "braket.ir.openqasm.program_set";
   if (actions.ValueExists(programSetAction)) {
     const auto action = actions.GetObject(programSetAction);
@@ -557,6 +616,9 @@ auto GateModelCapabilityParser::parseProperties(
 
 auto GateModelCapabilityParser::populateOperationSites(
     ParsedDeviceProperties& properties) -> void {
+  if (properties.fullyConnected) {
+    return;
+  }
   for (auto& operation : properties.operations) {
     auto& sites = operation->applicableSites_;
     if (operation->numQubits_ == 1) {

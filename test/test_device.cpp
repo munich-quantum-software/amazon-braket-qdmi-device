@@ -356,17 +356,16 @@ TEST_F(AmazonBraketQDMISpecificationTest, QuerySupportedProgramFormats) {
                     QDMI_DEVICE_PROPERTY_SUPPORTEDPROGRAMFORMATS),
                 0, nullptr, &size),
             QDMI_SUCCESS);
-  ASSERT_EQ(size, 2 * sizeof(QDMI_Program_Format));
+  ASSERT_EQ(size, sizeof(QDMI_Program_Format));
 
-  std::vector<QDMI_Program_Format> formats(2);
+  std::vector<QDMI_Program_Format> formats(1);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
                 session,
                 static_cast<QDMI_Device_Property>(
                     QDMI_DEVICE_PROPERTY_SUPPORTEDPROGRAMFORMATS),
                 size, formats.data(), nullptr),
             QDMI_SUCCESS);
-  EXPECT_EQ(formats[0], QDMI_PROGRAM_FORMAT_QASM2);
-  EXPECT_EQ(formats[1], QDMI_PROGRAM_FORMAT_QASM3);
+  EXPECT_EQ(formats[0], QDMI_PROGRAM_FORMAT_QASM3);
 }
 
 TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteProperty) {
@@ -1096,22 +1095,15 @@ TEST_F(DeviceParsingTestFixture, SV1SimulatorParsing) {
         << "SV1 sites should use numeric names 0, 1, 2, ...";
   }
 
-  size_t connectivitySize = 0;
-  const auto connectivityResult =
-      AMAZON_BRAKET_QDMI_device_session_query_device_property(
-          session, QDMI_DEVICE_PROPERTY_COUPLINGMAP, 0, nullptr,
-          &connectivitySize);
-  if (connectivityResult == QDMI_SUCCESS && connectivitySize > 0) {
-    std::vector<AMAZON_BRAKET_QDMI_Site> connectivity(
-        connectivitySize / sizeof(AMAZON_BRAKET_QDMI_Site));
-    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
-                  session, QDMI_DEVICE_PROPERTY_COUPLINGMAP, connectivitySize,
-                  static_cast<void*>(connectivity.data()), nullptr),
-              QDMI_SUCCESS);
-    const size_t numEdges = connectivity.size() / 2;
-    EXPECT_EQ(numEdges, qubitCount * (qubitCount - 1))
-        << "SV1 should have full connectivity (all-to-all)";
-  }
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_COUPLINGMAP, 0, nullptr, nullptr),
+            QDMI_ERROR_NOTSUPPORTED);
+  std::array<char, 64> marker{};
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_CUSTOM2, marker.size(),
+                marker.data(), nullptr),
+            QDMI_SUCCESS);
+  EXPECT_STREQ(marker.data(), "mqt.compiler-target.v1:all-to-all-homogeneous");
 
   for (const auto& gate : {"h", "x", "y", "z", "cnot", "rx", "ry", "rz"}) {
     EXPECT_TRUE(hasGate(gate)) << "SV1 should support gate: " << gate;

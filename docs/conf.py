@@ -19,14 +19,11 @@
 
 from __future__ import annotations
 
-import os
-from importlib import metadata
+import tomllib
+from pathlib import Path
 
-try:
-    version = metadata.version("amazon-braket-qdmi")
-except ModuleNotFoundError:
-    msg = "amazon-braket-qdmi must be installed to build the documentation"
-    raise ModuleNotFoundError(msg) from None
+with (Path(__file__).resolve().parents[1] / "pyproject.toml").open("rb") as project_file:
+    version = tomllib.load(project_file)["project"]["version"]
 
 release = version.split("+")[0]
 
@@ -38,7 +35,7 @@ master_doc = "index"
 nitpicky = True
 
 extensions = [
-    "myst_nb",
+    "myst_parser",
     "sphinx_copybutton",
     "sphinx_design",
     "sphinx.ext.intersphinx",
@@ -47,9 +44,6 @@ extensions = [
 source_suffix = [".rst", ".md"]
 exclude_patterns = [
     "_build",
-    "**.ipynb_checkpoints",
-    "**.jupyter_cache",
-    "**.jupyter_execute",
     "Thumbs.db",
     ".DS_Store",
 ]
@@ -77,10 +71,6 @@ myst_enable_extensions = [
 ]
 myst_heading_anchors = 3
 myst_substitutions = {"version": version}
-
-nb_execution_mode = "cache"
-nb_execution_excludepatterns = [] if os.getenv("AMAZON_BRAKET_QDMI_LIVE_DOCS") == "1" else ["qiskit.md"]
-nb_execution_raise_on_error = True
 
 copybutton_prompt_text = r"(?:\(\.?venv\) )?(?:\[.*\] )?\$ "
 copybutton_prompt_is_regexp = True

@@ -22,6 +22,7 @@
 #include "aws/core/utils/json/JsonSerializer.h"
 #include "gtest/gtest.h"
 
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -40,5 +41,48 @@ TEST(MeasurementResultParserTest, OrdersColumnsByMeasuredQubit) {
         amazon::braket::qdmi::parseMeasurementResults(json.View());
 
     EXPECT_EQ(results, (std::vector<std::string>{"001", "101", "001"}));
+  }
+}
+
+TEST(MeasurementResultParserTest, ProjectsReadoutFromReturnedSource) {
+  const auto response = [](const std::string& assignments) {
+    Aws::Utils::Json::JsonValue json(
+        R"({"measuredQubits":[2,0,1],"measurements":[[1,1,0],[0,1,1]]})");
+    json.WithObject(
+        "additionalMetadata",
+        Aws::Utils::Json::JsonValue{}.WithObject(
+            "action",
+            Aws::Utils::Json::JsonValue{}.WithString(
+                "source",
+                "// amazon-braket-qdmi readout\nOPENQASM 3;\nqubit[3] q;\n" +
+                    assignments + "measure q[1];\n")));
+    return json;
+  };
+  const auto selected =
+      response("bit[2] c;\nc[0] = measure q[0];\nc[1] = measure q[2];\n");
+  EXPECT_EQ(amazon::braket::qdmi::parseMeasurementResults(selected.View()),
+            (std::vector<std::string>{"11", "01"}));
+  const auto physical =
+      response("bit[2] c;\nc[0] = measure $0;\nc[1] = measure $2;\n");
+  EXPECT_EQ(amazon::braket::qdmi::parseMeasurementResults(physical.View()),
+            (std::vector<std::string>{"11", "01"}));
+  const auto unmarked = response("");
+  EXPECT_EQ(amazon::braket::qdmi::parseMeasurementResults(
+                unmarked.View(), "OPENQASM 3;\nqubit[3] q;\nmeasure "
+                                 "q[0];\nmeasure q[1];\nmeasure q[2];\n"),
+            (std::vector<std::string>{"101", "011"}));
+  EXPECT_EQ(
+      amazon::braket::qdmi::parseMeasurementResults(
+          unmarked.View(),
+          "// amazon-braket-qdmi readout\nOPENQASM 3;\nqubit[3] q;\nh q[0];\n"),
+      (std::vector<std::string>{"", ""}));
+  const auto empty = response("");
+  EXPECT_EQ(amazon::braket::qdmi::parseMeasurementResults(empty.View()),
+            (std::vector<std::string>{"", ""}));
+  for (const auto* assignment :
+       {"c[0] = measure q[3];\n", "c[0] = measure q[bad];\n"}) {
+    const auto invalid = response(assignment);
+    EXPECT_THROW(amazon::braket::qdmi::parseMeasurementResults(invalid.View()),
+                 std::runtime_error);
   }
 }

@@ -110,17 +110,14 @@ Use the same session for link validation:
 uvx nox -s docs -- -b linkcheck
 ```
 
-Documentation builds execute offline examples and cache their outputs. Use
-`uvx nox -s docs -- --live` with authorized AWS credentials to execute
-provider-backed notebooks, including the paid ten-shot SV1 circuit. Generated
-HTML is written to `docs/_build/html`.
+Documentation examples are static and never submit quantum tasks during a build.
+Generated HTML, including the native API, is written to `docs/_build/html`.
 
 ## Repository structure
 
 ```text
 amazon-braket-qdmi-device/
 ├── cmake/       CMake package configuration and dependencies
-├── config/      Installed device catalogue
 ├── docs/        Sphinx and MyST documentation
 ├── include/     Amazon Braket-specific public and internal headers
 ├── python/      Python package and installed-artifact discovery

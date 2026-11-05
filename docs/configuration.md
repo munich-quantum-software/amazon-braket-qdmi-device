@@ -118,7 +118,9 @@ An explicit destination overrides the automatic one in this order:
 2. `AMZN_BRAKET_TASK_RESULTS_S3_URI` in the process environment.
 
 Both forms contain a complete URI such as `s3://my-results/experiments/run-42`.
-They do not call STS or an S3 bucket management API.
+The bucket must be in the device session's AWS Region; cross-region result
+retrieval is not supported. These overrides do not call STS or an S3 bucket
+management API.
 
 ```cpp
 #include <amazon-braket-qdmi-device/constants.hpp>

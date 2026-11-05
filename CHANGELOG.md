@@ -10,6 +10,37 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- ✨ Expose operation parameter constraints through
+  `AMAZON_BRAKET_QDMI_OPERATION_PROPERTY_MQT_PARAMETERS` ([#288])
+  ([**@burgholzer**]).
+
+### Changed
+
+- ♻️ Report fully connected devices through
+  `mqt.compiler-target.v1:all-to-all-homogeneous` in device CUSTOM2; their
+  coupling map and operation site lists return `QDMI_ERROR_NOTSUPPORTED`
+  ([#288]) ([**@burgholzer**]).
+
+- ♻️ Accept OpenQASM 3 only; OpenQASM 2 submissions are no longer supported
+  ([#288]) ([**@burgholzer**]).
+
+- ♻️ Use MQT Core's shared Slurm playground and application examples instead of
+  maintaining copies. Build static documentation without quantum execution and
+  keep two eight-shot SV1 integration checks ([#288]) ([**@burgholzer**]).
+
+### Fixed
+
+- 🐛 Accept the standard OpenQASM library include and remove it only from the
+  Braket request, preserving stored source ([#288]) ([**@burgholzer**]).
+- 🐛 Preserve Qiskit classical readout and PennyLane wire order through MQT
+  Core's shared compiler, native serializer, and result layout, including
+  permuted destinations and unused classical bits ([#288]) ([**@burgholzer**]).
+- 🐛 Adapt Core's native programs to simulator readout or QPU verbatim mode,
+  preserving measured-site results. Forward other clients' programs unchanged
+  ([#288]) ([**@burgholzer**]).
+
 ## [1.3.1] - 2026-10-16
 
 ### Fixed
@@ -210,6 +241,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#288]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/288
 [#270]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/270
 [#268]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/268
 [#267]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/267

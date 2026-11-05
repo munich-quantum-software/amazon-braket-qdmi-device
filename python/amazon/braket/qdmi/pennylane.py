@@ -122,9 +122,9 @@ class AmazonBraketDevice(QDMIDevice):
         self._device_arn = device_arn
         self._s3_destination_folder = s3_destination_folder
         super().__init__(
-            device_id=self.qdmi_device_id,
-            session_parameters=session_parameters,
+            self.qdmi_device_id,
             wires=wires,
+            session_parameters=session_parameters,
             job_parameters=job_parameters,
         )
 

@@ -15,10 +15,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Offline tests for the Amazon Braket PennyLane specialization."""
+"""Tests for the Amazon Braket PennyLane specialization, with an opt-in SV1 check."""
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 import pytest
@@ -62,13 +63,13 @@ def device_configuration(
 
     def initialize(
         _device: QDMIDevice,
-        *,
         device_id: str,
-        session_parameters: Mapping[str, object] | None = None,
+        *,
+        session_parameters: Mapping[str, object],
         job_parameters: Mapping[str, object] | None = None,
         **_kwargs: object,
     ) -> None:
-        calls.append((device_id, dict(session_parameters or {}), dict(job_parameters or {})))
+        calls.append((device_id, session_parameters, dict(job_parameters or {})))
 
     monkeypatch.setattr(QDMIDevice, "__init__", initialize)
     return calls
@@ -202,15 +203,32 @@ def test_overrides_catalogue_configuration(
 
 def test_samples_with_qnode_shots(monkeypatch: pytest.MonkeyPatch) -> None:
     """Execute through MQT Core with the QNode's explicit shot count."""
+    open_native = driver.open_device
     monkeypatch.setattr(
         "mqt.core.plugins.pennylane.device.open_device",
-        lambda _device_id, **_kwargs: driver.open_device("mqt.ddsim.default"),
+        lambda _device_id, **_kwargs: open_native("mqt.ddsim.default"),
     )
-    device = AmazonBraketSV1Device(wires=2)
+    device = AmazonBraketSV1Device(wires=["left", "right"])
+    assert device.device_id == "amazon.braket.sv1"
 
     @qp.qnode(device, shots=5)
     def circuit() -> qp.measurements.CountsMP:
-        qp.PauliX(0)
-        return qp.counts(wires=[0, 1])
+        qp.PauliX("left")
+        return qp.counts(wires=["right", "left"])
 
-    assert circuit() == {"10": 5}
+    assert circuit() == {"01": 5}
+
+
+def test_sv1_live() -> None:
+    """Submit one eight-shot circuit through the installed PennyLane adapter."""
+    if os.environ.get("AMAZON_BRAKET_PENNYLANE_LIVE") != "1":
+        pytest.skip("Set AMAZON_BRAKET_PENNYLANE_LIVE=1 to run the SV1 smoke tests.")
+
+    device = qp.device("amazon.braket.sv1", wires=["left", "right"])
+
+    @qp.qnode(device, shots=8)
+    def circuit() -> qp.measurements.CountsMP:
+        qp.PauliX("left")
+        return qp.counts(wires=["right", "left"])
+
+    assert circuit() == {"01": 8}

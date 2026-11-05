@@ -46,6 +46,14 @@
 #define AMAZON_BRAKET_QDMI_DEVICE_PROPERTY_SUPPORTEDOPERATIONS                 \
   QDMI_DEVICE_PROPERTY_CUSTOM1
 
+/// @brief The accepted operation parameter values.
+/// @details Returns NUL-terminated UTF-8 `mqt.operation-parameters.v1` JSON.
+/// Rigetti RX reports its four fixed native angles through this temporary
+/// contract. Other operations return @ref QDMI_ERROR_NOTSUPPORTED.
+/// @see QDMI_OPERATION_PROPERTY_CUSTOM2
+#define AMAZON_BRAKET_QDMI_OPERATION_PROPERTY_MQT_PARAMETERS                   \
+  QDMI_OPERATION_PROPERTY_CUSTOM2
+
 /**
  * @brief Amazon Braket-specific device session parameters.
  * @details These extend the standard QDMI parameters using the CUSTOM slots.
