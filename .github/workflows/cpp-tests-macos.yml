@@ -1,179 +1,62 @@
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
+# Copyright (c) 2025 - 2026 Munich Quantum Software Company GmbH
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 name: 🇨 • Tests • macos
 on:
   workflow_call:
     inputs:
       runs-on:
-        description: >
-          The macOS runner image to use. Defaults to 'macos-latest'.
-          This can be any valid macOS runner image, such as 'macos-15' or 'macos-26'.
-        default: "macos-latest"
-        type: string
-      run-on-draft:
-        description: "Whether to run the tests for draft pull requests"
-        default: true
-        type: boolean
-      compiler:
-        description: >
-          The compiler to use. Defaults to 'clang'.
-          This can be 'clang', `clang-XX`, or 'gcc-XX'.
-          If 'clang' is selected, the default Apple Clang compiler is used.
-          If 'gcc-XX' is selected, this will use `gcc-XX` from Homebrew, where XX is the version number (e.g., 'gcc-14').
-          A specific version of Clang can be requested via 'clang-XX', where XX is the version number (e.g., 'clang-20').
-        default: "clang"
-        type: string
-      setup-z3:
-        description: "Whether to set up Z3"
-        default: false
-        type: boolean
-      z3-version:
-        description: "The version of Z3 to set up"
-        default: "4.13.4"
-        type: string
-      setup-mlir:
-        description: "Whether to set up MLIR"
-        default: false
-        type: boolean
-      llvm-version:
-        description: "The LLVM version to set up (formatted as 'major.minor.patch') or commit hash (minimum 7 characters, e.g., 'a832a52')"
-        default: "23.1.2"
-        type: string
-      preset-name:
-        description: "The CMake preset to use for configuration and build"
+        description: "macOS runner image"
         required: true
         type: string
-      use-sccache-gha:
-        description: "Whether to use sccache with the GitHub Actions cache backend"
-        default: true
-        type: boolean
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}-cpp-tests-${{ inputs.runs-on }}-${{ inputs.compiler }}-${{ inputs.preset-name }}
-  cancel-in-progress: true
+      preset-name:
+        description: "CMake configure, build, and test preset"
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   cpp-tests-macos:
-    name: 🍎 ${{ inputs.runs-on }} ${{ inputs.compiler }} ${{ inputs.preset-name }}
-    if: ${{ !github.event.pull_request.draft || inputs.run-on-draft }}
+    name: 🍎 ${{ inputs.runs-on }} clang ${{ inputs.preset-name }}
     runs-on: ${{ inputs.runs-on }}
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: 4
       CTEST_PARALLEL_LEVEL: 4
       FORCE_COLOR: 3
-      SCCACHE_GHA_ENABLED: ${{ inputs.use-sccache-gha }}
+      PRESET_NAME: ${{ inputs.preset-name }}
+      SCCACHE_GHA_ENABLED: "true"
       SCCACHE_IDLE_TIMEOUT: 0
-      # Cache availability must not prevent the compiler from running.
       SCCACHE_SKIP_CACHE_CHECK: "true"
       SCCACHE_GHA_RW_MODE: ${{ github.ref == 'refs/heads/main' && 'READ_WRITE' || 'READ_ONLY' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          submodules: recursive
-          fetch-depth: 0
           persist-credentials: false
 
-      - name: Set up Z3
-        if: ${{ inputs.setup-z3 }}
-        uses: cda-tum/setup-z3@0401375ea1e34d77ef35bbeb634f6203f3bcde60 # v1.7.3
-        with:
-          version: ${{ inputs.z3-version }}
-
-      - name: Set up MLIR
-        if: ${{ inputs.setup-mlir }}
-        uses: munich-quantum-software/setup-mlir@8d3eae73d0f0196fd30c787d91ebd2018cb6c709 # v1.5.0
-        with:
-          llvm-version: ${{ inputs.llvm-version }}
-
-      - name: Install the latest version of uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
-        with:
-          python-version: 3.13
-          activate-environment: true
-          enable-cache: false
-
-      - name: Install Ninja
-        run: uv tool install ninja
-
-      - name: Set up sccache
-        if: ${{ inputs.use-sccache-gha }}
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
-
-      - name: Install lit
-        if: ${{ inputs.setup-mlir }}
+      - name: Install dependencies
         run: |
-          uv pip install lit
-          echo "LIT_BIN=$(which lit)" >> $GITHUB_ENV
-
-      - name: Set up GCC
-        if: ${{ startsWith(inputs.compiler, 'gcc-') }}
-        env:
-          COMPILER: ${{ inputs.compiler }}
-        run: |
-          if [[ "$COMPILER" =~ ^gcc-([0-9]+)$ ]]; then
-            version="${BASH_REMATCH[1]}"
-            brew install gcc@$version
-            echo "CC=gcc-$version" >> $GITHUB_ENV
-            echo "CXX=g++-$version" >> $GITHUB_ENV
-          else
-            echo "Invalid compiler specified: $COMPILER" >&2
-            exit 1
-          fi
-
-      - name: Set up Clang
-        if: ${{ startsWith(inputs.compiler, 'clang-') }}
-        env:
-          COMPILER: ${{ inputs.compiler }}
-        run: |
-          if [[ "$COMPILER" =~ ^clang-([0-9]+)$ ]]; then
-            version="${BASH_REMATCH[1]}"
-            brew install llvm@$version
-            SDK_PATH=$(xcrun --sdk macosx --show-sdk-path)
-            echo "SDKROOT=$SDK_PATH" >> $GITHUB_ENV
-            LLVM_PREFIX=$(brew --prefix llvm@$version)
-            echo "CC=$LLVM_PREFIX/bin/clang" >> $GITHUB_ENV
-            echo "CXX=$LLVM_PREFIX/bin/clang++" >> $GITHUB_ENV
-            # Link against Homebrew Clang's libc++ and unwind library to resolve symbol conflicts
-            echo "LDFLAGS=$LDFLAGS -L$LLVM_PREFIX/lib/c++ -L$LLVM_PREFIX/lib/unwind -lunwind" >> $GITHUB_ENV
-          else
-            echo "Invalid compiler specified: $COMPILER" >&2
-            exit 1
-          fi
-
-      - name: Select OpenSSL 3
-        run: |
-          brew install openssl@3
-          # Use the SDK's bundled s2n with the selected OpenSSL version.
-          if brew list --versions s2n >/dev/null; then
-            brew unlink s2n
-          fi
-          echo "OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
+          brew install ninja openssl@3
           echo "CMAKE_PREFIX_PATH=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
 
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+
       - name: Configure CMake
-        env:
-          PRESET_NAME: ${{ inputs.preset-name }}
-          USE_SCCACHE_GHA: ${{ inputs.use-sccache-gha }}
-        run: |
-          args=()
-          if [[ "$USE_SCCACHE_GHA" == "true" ]]; then
-            args+=(-DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache)
-          fi
-          cmake --preset "$PRESET_NAME" "${args[@]}"
+        run: >-
+          cmake --preset "$PRESET_NAME"
+          -DCMAKE_DISABLE_FIND_PACKAGE_s2n=ON
+          -DCMAKE_C_COMPILER_LAUNCHER=sccache
+          -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
 
       - name: Build
-        env:
-          PRESET_NAME: ${{ inputs.preset-name }}
         run: cmake --build --preset "$PRESET_NAME"
 
       - name: Test
-        env:
-          PRESET_NAME: ${{ inputs.preset-name }}
         run: ctest --preset "$PRESET_NAME"
-
-      - name: Verify sccache use
-        if: ${{ inputs.use-sccache-gha }}
-        run: |
-          sccache --show-stats --stats-format json |
-            python -c 'import json, sys; assert json.load(sys.stdin)["stats"]["compile_requests"] > 0'
