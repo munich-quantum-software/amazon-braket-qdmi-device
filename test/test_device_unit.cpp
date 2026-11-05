@@ -4216,7 +4216,7 @@ protected:
                   std::string{amazon::braket::qdmi::test::IQM_GARNET},
                   properties),
               QDMI_SUCCESS);
-    auto architecture =
+    const auto architecture =
         installParsedArchitecture(session, std::move(properties));
     architecture->deviceType = Aws::Braket::Model::DeviceType::QPU;
     architecture->programSetLimits =
@@ -4256,10 +4256,18 @@ TEST_F(AmazonBraketQDMINativeJobTest, WrapsSingleAndBatchedNativePrograms) {
                                                             std::move(client));
     auto* const job = createConfiguredJob(session);
     ASSERT_NE(job, nullptr);
-    const std::array<const void*, 4> programs{flat.c_str(), withInclude.c_str(),
-                                              reformatted, permuted.c_str()};
-    const std::array sizes{flat.size() + 1, withInclude.size() + 1,
-                           strlen(reformatted) + 1, permuted.size() + 1};
+    const std::array<const void*, 4> programs{
+        flat.c_str(),
+        withInclude.c_str(),
+        reformatted,
+        permuted.c_str(),
+    };
+    const std::array sizes{
+        flat.size() + 1,
+        withInclude.size() + 1,
+        strlen(reformatted) + 1,
+        permuted.size() + 1,
+    };
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(
                   job, QDMI_PROGRAM_FORMAT_QASM3, count, sizes.data(),
                   programs.data()),
@@ -4303,7 +4311,8 @@ TEST_F(AmazonBraketQDMINativeJobTest, WrapsUppercaseIonQNativeCapabilities) {
                 std::string{amazon::braket::qdmi::test::IONQ_FORTE},
                 properties),
             QDMI_SUCCESS);
-  auto architecture = installParsedArchitecture(session, std::move(properties));
+  const auto architecture =
+      installParsedArchitecture(session, std::move(properties));
   architecture->provider = "IonQ";
   architecture->deviceType = Aws::Braket::Model::DeviceType::QPU;
   architecture->supportPhysicalQubits = true;
@@ -4426,6 +4435,20 @@ TEST_F(AmazonBraketQDMINativeJobTest, AdaptsPhysicalSubsetForSimulator) {
   const auto* observed = client.get();
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
                                                           std::move(client));
+  constexpr auto* expectedSource =
+      "// amazon-braket-qdmi readout\nOPENQASM 3;\nqubit[3] q;\nbit[1] "
+      "c;\nprx(1.0, 0.0) q[0];\n"
+      "cz q[0], q[1];\nc[0] = measure q[2];\nmeasure q[0];\nmeasure q[1];\n";
+  Aws::Utils::Json::JsonValue result(
+      R"({"measuredQubits":[0,1,2],"measurements":[[0,0,1],[1,0,0],[1,1,1]]})");
+  result.WithObject("additionalMetadata",
+                    Aws::Utils::Json::JsonValue{}.WithObject(
+                        "action", Aws::Utils::Json::JsonValue{}.WithString(
+                                      "source", expectedSource)));
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
+      session, std::make_unique<StubS3Client>(StubS3Client::Configuration{
+                   .resultJson = result.View().WriteCompact(),
+               }));
   auto* const job = createConfiguredJob(session);
   std::ifstream fixture(std::string{QDMI_CORE_FIXTURES_DIR} +
                         "/core-partial.qasm");
@@ -4443,18 +4466,7 @@ TEST_F(AmazonBraketQDMINativeJobTest, AdaptsPhysicalSubsetForSimulator) {
             QDMI_SUCCESS);
   ASSERT_EQ(submitAndAwaitAcceptance(job), QDMI_SUCCESS);
   const Aws::Utils::Json::JsonValue action(observed->action());
-  EXPECT_EQ(
-      action.View().GetString("source"),
-      "// amazon-braket-qdmi readout\nOPENQASM 3;\nqubit[3] q;\nbit[1] "
-      "c;\nprx(1.0, 0.0) q[0];\n"
-      "cz q[0], q[1];\nc[0] = measure q[2];\nmeasure q[0];\nmeasure q[1];\n");
-  Aws::Utils::Json::JsonValue result(
-      R"({"measuredQubits":[0,1,2],"measurements":[[0,0,1],[1,0,0],[1,1,1]]})");
-  result.WithObject("additionalMetadata",
-                    Aws::Utils::Json::JsonValue{}.WithObject("action", action));
-  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(
-      session, std::make_unique<StubS3Client>(StubS3Client::Configuration{
-                   .resultJson = result.View().WriteCompact()}));
+  EXPECT_EQ(action.View().GetString("source"), expectedSource);
   AMAZON_BRAKET_QDMI_Device_Job reopened = nullptr;
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
                 session, taskArn, &reopened),
@@ -4484,7 +4496,7 @@ TEST_F(AmazonBraketQDMINativeJobTest, HandlesHighLabelsAndEmptyReadout) {
     properties.sites.at(0)->id_ = 16;
     properties.sites.at(1)->id_ = 17;
     properties.sites.at(2)->id_ = 20;
-    auto architecture =
+    const auto architecture =
         installParsedArchitecture(session, std::move(properties));
     architecture->deviceType = simulator
                                    ? Aws::Braket::Model::DeviceType::SIMULATOR
@@ -4541,21 +4553,28 @@ TEST_F(AmazonBraketQDMINativeJobTest, ForwardsOtherClientsWithoutWrapping) {
   constexpr auto* commentedPragma =
       "/*\n#pragma braket verbatim\n*/\nOPENQASM 3;\nbit[1] c;\nh $1;\n"
       "c[0] = measure $1;\n";
-  for (const auto* program :
-       {BELL_STATE_PROGRAM, commentedPragma,
-        "OPENQASM3; bit[1] c; c[0] = measure $1;",
-        "OPENQASM 3; bit[1] c; pr x(1,0) $1; c[0] = measure $1;",
-        "OPENQASM 3;\n\"#pragma braket verbatim\"\n",
-        "OPENQASM 3;\nbit[1] c;\nh $1;\nc[0] = measure $1;\n",
-        "OPENQASM 3;\nbit[1] c;\nctrl @ gphase(1.0) $1;\nc[0] = measure $1;\n",
-        "OPENQASM 3;\nbit[1] c;\nmeasure $1;\nc[0] = measure $1;\n",
-        "OPENQASM 3;\nbit[1] c;\nbarrier q[0];\nc[0] = measure $1;\n",
-        "OPENQASM 3;\nbit[1] c;\nc[0] = measure $1;\nprx(1.0, 0.0) $1;\n",
-        includes,
-        ("OPENQASM 3;\nbit[1] c;\nprx(1.0, 0.0) $18446744073709551615;\nc[0] = "
-         "measure $1;\n"),
-        "OPENQASM 3;\nbit[1] c;\nc[0] = measure $18446744073709551615;\n",
-        "OPENQASM 3;\nbit[1] c;\nif (true) { prx(1.0, 0.0) $1; }\n"}) {
+  constexpr auto* overflowingSite =
+      "OPENQASM 3;\nbit[1] c;\nprx(1.0, 0.0) $18446744073709551615;\n"
+      "c[0] = measure $1;\n";
+  constexpr auto* controlledPhase =
+      "OPENQASM 3;\nbit[1] c;\nctrl @ gphase(1.0) $1;\n"
+      "c[0] = measure $1;\n";
+  for (const auto* program : {
+           BELL_STATE_PROGRAM,
+           commentedPragma,
+           "OPENQASM3; bit[1] c; c[0] = measure $1;",
+           "OPENQASM 3; bit[1] c; pr x(1,0) $1; c[0] = measure $1;",
+           "OPENQASM 3;\n\"#pragma braket verbatim\"\n",
+           "OPENQASM 3;\nbit[1] c;\nh $1;\nc[0] = measure $1;\n",
+           controlledPhase,
+           "OPENQASM 3;\nbit[1] c;\nmeasure $1;\nc[0] = measure $1;\n",
+           "OPENQASM 3;\nbit[1] c;\nbarrier q[0];\nc[0] = measure $1;\n",
+           "OPENQASM 3;\nbit[1] c;\nc[0] = measure $1;\nprx(1.0, 0.0) $1;\n",
+           includes,
+           overflowingSite,
+           "OPENQASM 3;\nbit[1] c;\nc[0] = measure $18446744073709551615;\n",
+           "OPENQASM 3;\nbit[1] c;\nif (true) { prx(1.0, 0.0) $1; }\n",
+       }) {
     SCOPED_TRACE(program);
     auto* const job = createConfiguredJob(session);
     ASSERT_NE(job, nullptr);
@@ -4594,7 +4613,8 @@ TEST_F(AmazonBraketQDMILocalJobTest, ProgramSetsUseOneTaskAndOrderedResults) {
                                                           std::move(client));
   auto s3 = std::make_unique<StubS3Client>(StubS3Client::Configuration{
       .resultJson =
-          R"({"taskMetadata":{"programMetadata":[{"executables":[{}]},{"executables":[{}]}]},"programResults":[{"source":{"source":"// amazon-braket-qdmi readout\nOPENQASM 3;\nqubit[2] q;\nbit[1] c;\nc[0] = measure q[1];\nmeasure q[0];\n"},"executableResults":[{"inputsIndex":0,"measuredQubits":[1,0],"measurements":[[1,0]]}]},{"executableResults":[{"inputsIndex":0,"measuredQubits":[0,1],"measurements":[[1,0]]}]}]})"});
+          R"({"taskMetadata":{"programMetadata":[{"executables":[{}]},{"executables":[{}]}]},"programResults":[{"source":{"source":"// amazon-braket-qdmi readout\nOPENQASM 3;\nqubit[2] q;\nbit[1] c;\nc[0] = measure q[1];\nmeasure q[0];\n"},"executableResults":[{"inputsIndex":0,"measuredQubits":[1,0],"measurements":[[1,0]]}]},{"executableResults":[{"inputsIndex":0,"measuredQubits":[0,1],"measurements":[[1,0]]}]}]})",
+  });
   const auto* observedS3 = s3.get();
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setS3Client(session,
                                                             std::move(s3));
@@ -4813,7 +4833,8 @@ TEST_F(AmazonBraketQDMILocalJobTest,
         session, std::make_unique<StubBraketClient>(task));
     auto s3 = std::make_unique<StubS3Client>(StubS3Client::Configuration{
         .resultJson =
-            R"({"s3Location":["results","tasks/set"],"taskMetadata":"metadata.json","programResults":["0/results.json",{},{}]})"});
+            R"({"s3Location":["results","tasks/set"],"taskMetadata":"metadata.json","programResults":["0/results.json",{},{}]})",
+    });
     s3->setResult(
         "tasks/set/metadata.json",
         R"({"programMetadata":[{"executables":[{}]},{"executables":[{"failureReason":"compilation failed","retryable":false,"category":"COMPILATION"}]},{"executables":[{"status":"CANCELLED"}]}]})");
