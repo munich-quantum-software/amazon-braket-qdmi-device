@@ -39,9 +39,9 @@ releases may include breaking changes.
 - 🐛 Preserve Qiskit classical readout and PennyLane wire order through MQT
   Core's shared compiler, native serializer, and result layout, including
   permuted destinations and unused classical bits ([#288]) ([**@burgholzer**]).
-- 🐛 Adapt Core's native programs to simulator readout or QPU verbatim mode,
-  preserving measured-site results. Forward other clients' programs unchanged
-  ([#288]) ([**@burgholzer**]).
+- 🐛 Adapt native programs to simulator readout or QPU verbatim mode. Recover
+  static classical outputs from returned source, including unused bits, empty
+  outputs, reopened tasks, and ProgramSets ([#288]) ([**@burgholzer**]).
 
 ## [1.3.1] - 2026-10-16
 

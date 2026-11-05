@@ -51,11 +51,9 @@ TEST(MeasurementResultParserTest, ProjectsReadoutFromReturnedSource) {
     json.WithObject(
         "additionalMetadata",
         Aws::Utils::Json::JsonValue{}.WithObject(
-            "action",
-            Aws::Utils::Json::JsonValue{}.WithString(
-                "source",
-                "// amazon-braket-qdmi readout\nOPENQASM 3;\nqubit[3] q;\n" +
-                    assignments + "measure q[1];\n")));
+            "action", Aws::Utils::Json::JsonValue{}.WithString(
+                          "source", "OPENQASM 3;\nqubit[3] q;\n" + assignments +
+                                        "measure q[1];\n")));
     return json;
   };
   const auto selected =
@@ -70,17 +68,17 @@ TEST(MeasurementResultParserTest, ProjectsReadoutFromReturnedSource) {
   EXPECT_EQ(amazon::braket::qdmi::parseMeasurementResults(
                 unmarked.View(), "OPENQASM 3;\nqubit[3] q;\nmeasure "
                                  "q[0];\nmeasure q[1];\nmeasure q[2];\n"),
-            (std::vector<std::string>{"101", "011"}));
-  EXPECT_EQ(
-      amazon::braket::qdmi::parseMeasurementResults(
-          unmarked.View(),
-          "// amazon-braket-qdmi readout\nOPENQASM 3;\nqubit[3] q;\nh q[0];\n"),
-      (std::vector<std::string>{"", ""}));
+            (std::vector<std::string>{"", ""}));
+  EXPECT_EQ(amazon::braket::qdmi::parseMeasurementResults(
+                unmarked.View(), "OPENQASM 3;\nqubit[3] q;\nh q[0];\n"),
+            (std::vector<std::string>{"", ""}));
   const auto empty = response("");
   EXPECT_EQ(amazon::braket::qdmi::parseMeasurementResults(empty.View()),
             (std::vector<std::string>{"", ""}));
-  for (const auto* assignment :
-       {"c[0] = measure q[3];\n", "c[0] = measure q[bad];\n"}) {
+  for (const auto* assignment : {
+           "bit[1] c;\nc[0] = measure q[3];\n",
+           "bit[1] c;\nc[0] = measure q[bad];\n",
+       }) {
     const auto invalid = response(assignment);
     EXPECT_THROW(amazon::braket::qdmi::parseMeasurementResults(invalid.View()),
                  std::runtime_error);
@@ -89,9 +87,9 @@ TEST(MeasurementResultParserTest, ProjectsReadoutFromReturnedSource) {
 
 TEST(MeasurementResultParserTest, ValidatesDiscardedColumns) {
   for (const auto* source : {
-           "// amazon-braket-qdmi readout\nOPENQASM 3;\nbit[1] c;\nc[0] = "
+           "OPENQASM 3;\nbit[1] c;\nc[0] = "
            "measure $0;\n",
-           "// amazon-braket-qdmi readout\nOPENQASM 3;\nx $0;\n",
+           "OPENQASM 3;\nx $0;\n",
        }) {
     for (const auto* response : {
              R"({"measuredQubits":[0,1],"measurements":[[1,2]]})",
@@ -103,5 +101,67 @@ TEST(MeasurementResultParserTest, ValidatesDiscardedColumns) {
           amazon::braket::qdmi::parseMeasurementResults(json.View(), source),
           std::runtime_error);
     }
+  }
+}
+
+TEST(MeasurementResultParserTest, RestoresDeclaredClassicalOutputs) {
+  const Aws::Utils::Json::JsonValue json(
+      R"({"measuredQubits":[5,1],"measurements":[[1,0],[0,1]]})");
+  for (const auto* source : {
+           "OPENQASM 3; bit[4] c; c[0] = measure $5; c[2] = measure $1;",
+           "OPENQASM 3.0; /* measure $9; */ qubit[6] data; bit[4] out;\n"
+           "// misleading: out[1] = measure data[4];\n"
+           "out [ 0 ] = measure data [ 5 ]; out[2]=measure data[1];",
+       }) {
+    SCOPED_TRACE(source);
+    EXPECT_EQ(
+        amazon::braket::qdmi::parseMeasurementResults(json.View(), source),
+        (std::vector<std::string>{"0001", "0100"}));
+  }
+  EXPECT_EQ(amazon::braket::qdmi::parseMeasurementResults(
+                json.View(), "OPENQASM 3; bit[3] c; c = \"101\";"
+                             "c[1] = measure $5; c[2] = measure $5;"),
+            (std::vector<std::string>{"111", "001"}));
+  EXPECT_EQ(amazon::braket::qdmi::parseMeasurementResults(
+                json.View(), "OPENQASM 3; bit[4] c; c = \"0000\"; x $5;"),
+            (std::vector<std::string>{"0000", "0000"}));
+  EXPECT_EQ(amazon::braket::qdmi::parseMeasurementResults(
+                json.View(), "OPENQASM 3; x $5; measure $5; measure $1;"),
+            (std::vector<std::string>{"", ""}));
+}
+
+TEST(MeasurementResultParserTest, RejectsUnsupportedOrMalformedReadout) {
+  const Aws::Utils::Json::JsonValue json(
+      R"({"measuredQubits":[0],"measurements":[[1]]})");
+  for (const auto* source : {
+           "OPENQASM 3; bit[1] c; c[1] = measure $0;",
+           "OPENQASM 3; bit[1] c; c[0] = measure $1;",
+           "OPENQASM 3; bit[1] c; c[0] = measure $18446744073709551615;",
+           "OPENQASM 3; bit[2] c; c = \"0\";",
+           "OPENQASM 3; bit[1] c; c = \"2\";",
+           "OPENQASM 3; /* unterminated",
+       }) {
+    SCOPED_TRACE(source);
+    EXPECT_THROW(
+        amazon::braket::qdmi::parseMeasurementResults(json.View(), source),
+        std::runtime_error);
+  }
+}
+
+TEST(MeasurementResultParserTest, KeepsLegacyResultsForOtherSourceForms) {
+  const Aws::Utils::Json::JsonValue json(
+      R"({"measuredQubits":[0,1],"measurements":[[1,0]]})");
+  for (const auto* source : {
+           "OPENQASM 3; bit c; c = measure $0;",
+           "OPENQASM 3; bit[1] c; bit[1] other;",
+           "OPENQASM 3; bit[1] c; c[0] = 1;",
+           "OPENQASM 3; bit[1] c; c = measure $0;",
+           "OPENQASM 3; bit[1] c; if (true) { c[0] = measure $0; }",
+           "OPENQASM 3; bit[1] c; c[0] = measure $0; x $1;",
+       }) {
+    SCOPED_TRACE(source);
+    EXPECT_EQ(
+        amazon::braket::qdmi::parseMeasurementResults(json.View(), source),
+        (std::vector<std::string>{"01"}));
   }
 }

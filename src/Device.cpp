@@ -255,7 +255,9 @@ auto stripStandardInclude(std::string_view source) -> std::string {
 
 struct NativeProgram {
   std::string gates;
-  std::vector<size_t> measured;
+  size_t bits = 0;
+  std::string initialization;
+  std::vector<std::pair<size_t, size_t>> measured;
   std::set<size_t> sites;
 };
 
@@ -265,7 +267,6 @@ auto coreProgram(std::string_view source,
                  const amazon::braket::qdmi::DeviceArchitecture& architecture)
     -> std::optional<NativeProgram> {
   NativeProgram program;
-  size_t bits = 0;
   bool header = false;
   bool declared = false;
   const auto hasSite = [&](size_t site) {
@@ -302,10 +303,21 @@ auto coreProgram(std::string_view source,
     }
     if (!declared && line.starts_with("bit[")) {
       line.remove_prefix(4);
-      if (!number(line, bits) || line != "] c;") {
+      if (!number(line, program.bits) || line != "] c;") {
         return std::nullopt;
       }
       declared = true;
+      continue;
+    }
+    if (line.starts_with("c = \"")) {
+      const auto value = line.substr(5, line.size() - 7);
+      if (!program.gates.empty() || !program.measured.empty() ||
+          !line.ends_with("\";") || value.size() != program.bits ||
+          !std::ranges::all_of(
+              value, [](char bit) { return bit == '0' || bit == '1'; })) {
+        return std::nullopt;
+      }
+      program.initialization = std::string{line} + '\n';
       continue;
     }
     if (line.starts_with("gphase(") && line.ends_with(");") &&
@@ -316,16 +328,17 @@ auto coreProgram(std::string_view source,
       line.remove_prefix(2);
       size_t slot = 0;
       size_t site = 0;
-      if (!number(line, slot) || slot != program.measured.size() ||
+      if (!number(line, slot) || slot >= program.bits ||
+          (!program.measured.empty() &&
+           slot <= program.measured.back().first) ||
           !line.starts_with("] = measure $")) {
         return std::nullopt;
       }
       line.remove_prefix(13);
-      if (!number(line, site) || !hasSite(site) || line != ";" ||
-          (!program.measured.empty() && site <= program.measured.back())) {
+      if (!number(line, site) || !hasSite(site) || line != ";") {
         return std::nullopt;
       }
-      program.measured.push_back(site);
+      program.measured.emplace_back(slot, site);
       program.sites.insert(site);
       continue;
     }
@@ -365,7 +378,7 @@ auto coreProgram(std::string_view source,
       program.gates += '\n';
     }
   }
-  if (!header || program.measured.size() != bits) {
+  if (!header) {
     return std::nullopt;
   }
   return program;
@@ -385,7 +398,7 @@ auto adaptProgram(const std::string& source,
       indices.emplace(site, indices.size());
     }
   }
-  std::string prefix = "// amazon-braket-qdmi readout\nOPENQASM 3;\n";
+  std::string prefix = "OPENQASM 3;\n";
   if (virtualSites && !indices.empty()) {
     prefix += "qubit[" + std::to_string(indices.size()) + "] q;\n";
     std::string gates;
@@ -407,8 +420,9 @@ auto adaptProgram(const std::string& source,
     }
     native->gates = std::move(gates);
   }
-  if (!native->measured.empty()) {
-    prefix += "bit[" + std::to_string(native->measured.size()) + "] c;\n";
+  if (native->bits != 0) {
+    prefix += "bit[" + std::to_string(native->bits) + "] c;\n";
+    prefix += native->initialization;
   }
   if (architecture.deviceType == Aws::Braket::Model::DeviceType::QPU &&
       architecture.supportPhysicalQubits && architecture.supportVerbatim) {
@@ -420,13 +434,17 @@ auto adaptProgram(const std::string& source,
     return virtualSites ? "q[" + std::to_string(indices.at(site)) + "]"
                         : "$" + std::to_string(site);
   };
-  for (size_t slot = 0; slot < native->measured.size(); ++slot) {
-    prefix += "c[" + std::to_string(slot) + "] = measure " +
-              reference(native->measured.at(slot)) + ";\n";
+  for (const auto& [slot, site] : native->measured) {
+    prefix +=
+        "c[" + std::to_string(slot) + "] = measure " + reference(site) + ";\n";
   }
   if (architecture.requiresAllQubitsMeasurement) {
+    std::set<size_t> measuredSites;
+    for (const auto& [slot, site] : native->measured) {
+      measuredSites.insert(site);
+    }
     for (const auto site : native->sites) {
-      if (!std::ranges::binary_search(native->measured, site)) {
+      if (!measuredSites.contains(site)) {
         prefix += "measure " + reference(site) + ";\n";
       }
     }

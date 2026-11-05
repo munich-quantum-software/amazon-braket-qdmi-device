@@ -88,19 +88,19 @@ source is unchanged. Other lines are preserved. Existing verbatim and simulator
 programs are otherwise forwarded unchanged.
 
 Automatic wrapping accepts one statement per line: an `OPENQASM 3` header, an
-optional plain `bit[N]` register, native gate calls with constant parameters and
-`$N` qubits, then assigned terminal measurements. Physical-qubit barriers are
-removed because the verbatim box already preserves gate order. Bare global
-phases are omitted because they do not affect sampled results. Other includes,
-gate definitions, virtual qubits, and control flow are unsupported on this path.
-Other source is forwarded without automatic wrapping. Simulator adaptation uses
-dense virtual qubit declarations and, when required by its action metadata,
-measures all addressed qubits. Adapted source carries a readout marker; result
-decoding uses that marked source to remove extra measured bits, including for
-reopened tasks and programs with no requested measurements. ProgramSet result
-retrieval reads each available source document to recover this projection.
-Unmarked source retains the service result columns. No compiler or qubit routing
-runs inside the device implementation.
+optional `bit[N] c` register with a binary-string initializer, native gate calls
+with constant parameters and `$N` qubits, then assigned terminal measurements.
+Physical-qubit barriers are removed because the verbatim box already preserves
+gate order. Bare global phases are omitted because they do not affect sampled
+results. Other includes, gate definitions, virtual qubits, and control flow are
+unsupported on this path. Other source is forwarded without automatic wrapping.
+Simulator adaptation uses dense virtual qubit declarations and, when required by
+its action metadata, measures all addressed qubits. Result decoding reads the
+classical register and terminal measurement assignments from the returned
+source, including each ProgramSet source document. Extra bare measurements do
+not create classical outputs. This also works for reopened tasks without local
+submission state. No compiler or qubit routing runs inside the device
+implementation.
 
 | Property                                             | Meaning                              |
 | ---------------------------------------------------- | ------------------------------------ |
@@ -154,12 +154,20 @@ job-lifetime behavior.
 | `QDMI_JOB_RESULT_HIST_KEYS`   | Comma-separated histogram keys              |
 | `QDMI_JOB_RESULT_HIST_VALUES` | `size_t` counts matching the histogram keys |
 
-Shot strings and histogram keys use descending measured-qubit order: the lowest
-measured qubit ID is the rightmost bit. The native device uses Braket's
-`measuredQubits` metadata to locate response columns; it does not reconstruct
-classical OpenQASM variables. The [Qiskit backend](qiskit.md) retains MQT Core's
-result layout alongside each submitted program to restore classical-bit
-positions.
+Shot strings and histogram keys place the highest classical register slot first.
+Static readout supports one bit register, an optional binary-string initializer,
+and indexed terminal assignments from physical qubits or one virtual register.
+Unused bits retain their initial value, which defaults to zero. A program
+without classical outputs returns empty bitstrings; Braket's implicit qubit
+measurements do not add outputs. Malformed backend rows are rejected, including
+columns discarded by projection.
+
+Source forms outside this static subset, such as control flow or multiple
+registers, retain legacy descending measured-qubit order, with the lowest site
+ID on the right. The same fallback applies when source metadata is unavailable;
+it cannot recover classical outputs. The [Qiskit backend](qiskit.md) retains MQT
+Core's result layout to restore logical positions from the compiler's compact
+classical register.
 
 ## Lifecycle functions
 

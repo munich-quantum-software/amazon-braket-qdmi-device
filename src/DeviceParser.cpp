@@ -60,6 +60,191 @@
 // Helper Functions (Common to All Parsers)
 // ============================================================================
 
+namespace {
+
+// Tokenize only the static readout syntax; gate bodies remain opaque.
+class ReadoutTokens {
+public:
+  explicit ReadoutTokens(std::string_view source) : source_(source) {}
+
+  auto next() -> std::string_view {
+    while (!source_.empty()) {
+      if (std::isspace(static_cast<unsigned char>(source_.front())) != 0) {
+        source_.remove_prefix(1);
+      } else if (source_.starts_with("//")) {
+        source_.remove_prefix(std::min(source_.find('\n'), source_.size()));
+      } else if (source_.starts_with("/*")) {
+        const auto end = source_.find("*/", 2);
+        if (end == std::string_view::npos) {
+          throw std::runtime_error("Unterminated OpenQASM comment");
+        }
+        source_.remove_prefix(end + 2);
+      } else {
+        break;
+      }
+    }
+    if (source_.empty()) {
+      return {};
+    }
+    size_t length = 1;
+    if (source_.front() == '"') {
+      for (; length < source_.size() && source_[length] != '"'; ++length) {
+        if (source_[length] == '\\') {
+          ++length;
+        }
+      }
+      if (length >= source_.size()) {
+        throw std::runtime_error("Unterminated OpenQASM string");
+      }
+      ++length;
+    } else if (std::isalnum(static_cast<unsigned char>(source_.front())) != 0 ||
+               source_.front() == '_') {
+      while (length < source_.size() &&
+             (std::isalnum(static_cast<unsigned char>(source_[length])) != 0 ||
+              source_[length] == '_')) {
+        ++length;
+      }
+    }
+    const auto result = source_.substr(0, length);
+    source_.remove_prefix(length);
+    return result;
+  }
+
+  auto expect(std::string_view expected) -> void {
+    if (next() != expected) {
+      throw std::runtime_error("Unsupported OpenQASM readout syntax");
+    }
+  }
+
+  auto number() -> size_t {
+    const auto token = next();
+    if (token.empty()) {
+      throw std::runtime_error("Missing OpenQASM readout index");
+    }
+    size_t value = 0;
+    const auto parsed =
+        std::from_chars(token.data(), token.data() + token.size(), value);
+    if (parsed.ec != std::errc{} || parsed.ptr != token.data() + token.size()) {
+      throw std::runtime_error("Invalid OpenQASM readout index");
+    }
+    return value;
+  }
+
+private:
+  std::string_view source_;
+};
+
+struct Readout {
+  std::string initial;
+  std::vector<std::optional<int64_t>> sites;
+};
+
+auto sourceReadout(std::string_view source) -> std::optional<Readout> {
+  ReadoutTokens tokens(source);
+  tokens.expect("OPENQASM");
+  tokens.expect("3");
+  auto version = tokens.next();
+  if (version == ".") {
+    tokens.number();
+    version = tokens.next();
+  }
+  if (version != ";") {
+    throw std::runtime_error("Invalid OpenQASM version");
+  }
+  Readout readout;
+  std::string_view classical;
+  std::string_view quantum;
+  size_t qubits = 0;
+  bool measured = false;
+  for (auto token = tokens.next(); !token.empty(); token = tokens.next()) {
+    if (token == "bit" || token == "qubit") {
+      if (measured || tokens.next() != "[") {
+        return std::nullopt;
+      }
+      const auto width = tokens.number();
+      tokens.expect("]");
+      const auto name = tokens.next();
+      tokens.expect(";");
+      auto& reg = token == "bit" ? classical : quantum;
+      if (!reg.empty()) {
+        return std::nullopt;
+      }
+      if (name.empty() || width == 0) {
+        throw std::runtime_error("Invalid OpenQASM register declaration");
+      }
+      reg = name;
+      if (token == "bit") {
+        readout.initial.assign(width, '0');
+        readout.sites.resize(width);
+      } else {
+        qubits = width;
+      }
+    } else if (!classical.empty() && token == classical) {
+      const auto next = tokens.next();
+      if (next == "=") {
+        const auto value = tokens.next();
+        if (!value.starts_with('"')) {
+          return std::nullopt;
+        }
+        if (measured || value.size() != readout.initial.size() + 2 ||
+            !value.starts_with('"') || !value.ends_with('"') ||
+            !std::ranges::all_of(
+                value.substr(1, value.size() - 2),
+                [](char bit) { return bit == '0' || bit == '1'; })) {
+          throw std::runtime_error("Unsupported OpenQASM register initializer");
+        }
+        readout.initial = value.substr(1, value.size() - 2);
+      } else {
+        if (next != "[") {
+          return std::nullopt;
+        }
+        const auto slot = tokens.number();
+        tokens.expect("]");
+        tokens.expect("=");
+        if (tokens.next() != "measure") {
+          return std::nullopt;
+        }
+        const auto ref = tokens.next();
+        size_t site = 0;
+        if (ref == "$") {
+          site = tokens.number();
+        } else if (!quantum.empty() && ref == quantum) {
+          tokens.expect("[");
+          site = tokens.number();
+          tokens.expect("]");
+          if (site >= qubits) {
+            throw std::runtime_error("OpenQASM qubit index outside register");
+          }
+        } else {
+          throw std::runtime_error(
+              "Unsupported OpenQASM measurement reference");
+        }
+        if (slot >= readout.sites.size() || !std::in_range<int64_t>(site)) {
+          throw std::runtime_error("OpenQASM readout index outside range");
+        }
+        readout.sites[slot] = static_cast<int64_t>(site);
+        measured = true;
+      }
+      tokens.expect(";");
+    } else if (token == "measure") {
+      // Supplemental measurements satisfy device constraints without outputs.
+      while ((token = tokens.next()) != ";") {
+        if (token.empty()) {
+          throw std::runtime_error("Unterminated OpenQASM measurement");
+        }
+      }
+      measured = true;
+    } else if (token == "if" || token == "for" || token == "while" ||
+               token == "switch" || token == "gate" || token == "def" ||
+               token == "defcal" || token == "reset" || measured) {
+      return std::nullopt;
+    }
+  }
+  return readout;
+}
+
+} // namespace
+
 auto amazon::braket::qdmi::parseMeasurementResults(
     const Aws::Utils::Json::JsonView& result, std::string_view source)
     -> std::vector<std::string> {
@@ -69,8 +254,6 @@ auto amazon::braket::qdmi::parseMeasurementResults(
       !result.GetObject("measurements").IsListType()) {
     throw std::runtime_error("Missing measurement arrays");
   }
-  std::vector<size_t> requested;
-  bool projected = false;
   std::string metadataSource;
   if (source.empty() && result.ValueExists("additionalMetadata")) {
     const auto metadata = result.GetObject("additionalMetadata");
@@ -83,42 +266,8 @@ auto amazon::braket::qdmi::parseMeasurementResults(
       }
     }
   }
-  std::string_view remaining = source;
-  // Marked adapter output retains the requested c assignments. Reopened
-  // tasks use the same source metadata, without local job state.
-  if (remaining.starts_with("// amazon-braket-qdmi readout\n")) {
-    projected = true;
-    while (!remaining.empty()) {
-      const auto end = remaining.find('\n');
-      auto line = remaining.substr(0, end);
-      remaining.remove_prefix(end == std::string_view::npos ? remaining.size()
-                                                            : end + 1);
-      if (!line.starts_with("c[")) {
-        continue;
-      }
-      const auto measurement = line.find("] = measure ");
-      if (measurement == std::string_view::npos) {
-        throw std::runtime_error("Invalid adapted readout assignment");
-      }
-      line.remove_prefix(measurement + 12);
-      const bool physical = line.starts_with('$');
-      if (!physical && !line.starts_with("q[")) {
-        throw std::runtime_error("Invalid adapted readout reference");
-      }
-      line.remove_prefix(physical ? 1 : 2);
-      size_t site = 0;
-      const auto parsed =
-          std::from_chars(line.data(), line.data() + line.size(), site);
-      if (parsed.ec != std::errc{} ||
-          std::string_view(
-              parsed.ptr,
-              static_cast<size_t>(line.data() + line.size() - parsed.ptr)) !=
-              (physical ? ";" : "];")) {
-        throw std::runtime_error("Invalid adapted readout site");
-      }
-      requested.push_back(site);
-    }
-  }
+  const auto readout =
+      source.empty() ? std::optional<Readout>{} : sourceReadout(source);
   std::map<int64_t, size_t, std::greater<>> columns;
   const auto qubits = result.GetArray("measuredQubits");
   for (size_t i = 0; i < qubits.GetLength(); ++i) {
@@ -127,16 +276,20 @@ auto amazon::braket::qdmi::parseMeasurementResults(
       throw std::runtime_error("Invalid measuredQubits metadata");
     }
   }
-  for (const auto site : requested) {
-    if (!columns.contains(static_cast<int64_t>(site))) {
-      throw std::runtime_error("Missing requested measured qubit");
+  std::vector<std::optional<size_t>> projection;
+  if (readout) {
+    projection.reserve(readout->sites.size());
+    for (const auto site : readout->sites) {
+      if (!site) {
+        projection.emplace_back(std::nullopt);
+        continue;
+      }
+      const auto column = columns.find(*site);
+      if (column == columns.end()) {
+        throw std::runtime_error("Missing requested measured qubit");
+      }
+      projection.emplace_back(column->second);
     }
-  }
-  if (projected) {
-    std::erase_if(columns, [&](const auto& entry) {
-      return std::ranges::find(requested, static_cast<size_t>(entry.first)) ==
-             requested.end();
-    });
   }
   const auto measurements = result.GetArray("measurements");
   std::vector<std::string> results;
@@ -157,9 +310,19 @@ auto amazon::braket::qdmi::parseMeasurementResults(
       }
     }
     std::string bitstring;
-    bitstring.reserve(columns.size());
-    for (const auto& [site, column] : columns) {
-      bitstring += shot[column].AsInt64() == 0 ? '0' : '1';
+    if (readout) {
+      bitstring = readout->initial;
+      for (size_t slot = 0; slot < projection.size(); ++slot) {
+        if (const auto column = projection[slot]) {
+          bitstring[bitstring.size() - 1 - slot] =
+              shot[*column].AsInt64() == 0 ? '0' : '1';
+        }
+      }
+    } else {
+      bitstring.reserve(columns.size());
+      for (const auto& [site, column] : columns) {
+        bitstring += shot[column].AsInt64() == 0 ? '0' : '1';
+      }
     }
     results.emplace_back(std::move(bitstring));
   }

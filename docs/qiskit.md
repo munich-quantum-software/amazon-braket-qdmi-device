@@ -18,7 +18,8 @@ adds a verbatim box for supported QPUs. Other clients' OpenQASM programs are
 forwarded without automatic wrapping. Readout must be terminal.
 
 A circuit list uses a native ProgramSet when supported, otherwise separate tasks
-in input order. [Native results](api.md#job-results) retain measured-site order.
+in input order. [Native results](api.md#job-results) follow the submitted
+classical register.
 
 For Rigetti, operation metadata supplies the native RX angles ±π and ±π/2. MQT
 Core uses these constraints for both Qiskit and direct QDMI compilation;

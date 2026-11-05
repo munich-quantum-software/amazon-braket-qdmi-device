@@ -193,6 +193,16 @@ def test_core_measure_all_transport_fixture() -> None:
     assert program.result_layout is not None
     assert program.result_layout.decode_bits("10") == "001"
 
+    constant = QuantumCircuit(6, 4)
+    constant.append(Gate("prx", 1, [1.0, 0.0]), [1])
+    constant.cz(1, 2)
+    program = serialize_program(
+        constant, target=TargetEnvironment(target, PayloadSpecification.from_program_format(ProgramFormat.QASM3))
+    )
+    assert program.payload == (fixtures / "core-constant.qasm").read_text()
+    assert program.result_layout is None
+    assert program.result_width == 4
+
 
 def test_core_sv1_phase_transport_fixture(monkeypatch: pytest.MonkeyPatch) -> None:
     """Preserve native SV1 names when Core emits a sampled global phase."""

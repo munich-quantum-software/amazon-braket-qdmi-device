@@ -102,9 +102,12 @@ struct ParsedDeviceProperties {
 
 namespace amazon::braket::qdmi {
 
-/// Convert measurement columns to descending measured-qubit order.
-/// Recover requested readout from source or action metadata.
-/// Throws std::runtime_error for malformed backend results.
+/// Recover static classical outputs from OpenQASM source or action metadata.
+///
+/// Return the highest classical slot first, retaining initialized and unused
+/// bits. Without source metadata or for other source forms, fall back to
+/// descending measured-qubit order. Throws std::runtime_error for malformed
+/// results or invalid static readout.
 auto parseMeasurementResults(const Aws::Utils::Json::JsonView& result,
                              std::string_view source = {})
     -> std::vector<std::string>;
