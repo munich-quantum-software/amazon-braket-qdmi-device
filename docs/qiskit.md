@@ -6,8 +6,8 @@ Install the package with the Qiskit adapter:
 uv pip install "amazon-braket-qdmi[qiskit]"
 ```
 
-This development branch requires MQT Core's unreleased serializer API. Use
-`uv sync --extra qiskit` from this checkout to install its pinned Core revision.
+For development, `uv sync --extra qiskit` from this checkout installs the pinned
+Core revision.
 
 The adapter exposes the selected Amazon Braket device as a Qiskit `BackendV2`.
 Follow MQT Core's
@@ -73,9 +73,9 @@ permissions.
 
 ## Use Qiskit primitives
 
-MQT Core supplies the sampler and estimator interfaces. Compile measured
-circuits before passing them to `backend.sampler()`; submission does not perform
-compilation. See
+MQT Core supplies sampler and estimator interfaces for native Qiskit circuits.
+Prepare measured native circuits before passing them to `backend.sampler()`;
+submission does not perform compilation. See
 [MQT Core's Qiskit integration](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/qdmi_backend.html#qiskit-primitives)
 for primitive usage and result handling.
 

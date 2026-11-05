@@ -11,8 +11,8 @@ needed.
 uv pip install "amazon-braket-qdmi[pennylane]"
 ```
 
-This development branch requires MQT Core's unreleased compiler integration. Use
-`uv sync --extra pennylane` from this checkout to install its pinned revision.
+For development, `uv sync --extra pennylane` from this checkout installs the
+pinned Core revision.
 
 ## Select a catalogue device
 
