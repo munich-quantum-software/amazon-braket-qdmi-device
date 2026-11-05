@@ -19,15 +19,12 @@
 
 from __future__ import annotations
 
-import sys
+import os
 from importlib import metadata
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent / "_ext"))
 
 try:
     version = metadata.version("amazon-braket-qdmi")
-except metadata.PackageNotFoundError:
+except ModuleNotFoundError:
     msg = "amazon-braket-qdmi must be installed to build the documentation"
     raise ModuleNotFoundError(msg) from None
 
@@ -38,9 +35,9 @@ author = "Munich Quantum Software Company GmbH"
 copyright = "2025 - 2026 Munich Quantum Software Company GmbH"  # ruff: ignore[builtin-variable-shadowing]
 language = "en"
 master_doc = "index"
+nitpicky = True
 
 extensions = [
-    "native_api",
     "myst_nb",
     "sphinx_copybutton",
     "sphinx_design",
@@ -58,6 +55,7 @@ exclude_patterns = [
 ]
 
 html_theme = "furo"
+html_extra_path = ["_build/doxygen"]
 html_theme_options = {
     "source_repository": "https://github.com/munich-quantum-software/amazon-braket-qdmi-device/",
     "source_branch": "main",
@@ -81,6 +79,7 @@ myst_heading_anchors = 3
 myst_substitutions = {"version": version}
 
 nb_execution_mode = "cache"
+nb_execution_excludepatterns = [] if os.getenv("AMAZON_BRAKET_QDMI_LIVE_DOCS") == "1" else ["qiskit.md"]
 nb_execution_raise_on_error = True
 
 copybutton_prompt_text = r"(?:\(\.?venv\) )?(?:\[.*\] )?\$ "

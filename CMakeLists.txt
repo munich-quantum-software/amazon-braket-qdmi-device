@@ -35,10 +35,6 @@ endif()
 option(USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE
        "Use an installed version of the Amazon Braket QDMI Device to build tests" OFF)
 
-if(USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
-  find_package(amazon-braket-qdmi-device ${PROJECT_VERSION} REQUIRED CONFIG)
-endif()
-
 # Generate compile_commands.json to make it easier to work with clang based tools
 set(CMAKE_EXPORT_COMPILE_COMMANDS
     ON
@@ -59,6 +55,15 @@ option(BUILD_AMAZON_BRAKET_TESTS "Build tests for the Amazon Braket QDMI device"
        ${PROJECT_IS_TOP_LEVEL})
 option(BUILD_AMAZON_BRAKET_LIVE_TESTS
        "Build tests that access AWS and may submit paid Amazon Braket tasks" OFF)
+option(BUILD_AMAZON_BRAKET_QDMI_DOCS "Build API documentation" OFF)
+
+if(BUILD_AMAZON_BRAKET_QDMI_DOCS AND USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
+  message(FATAL_ERROR "Documentation requires a source build")
+endif()
+
+if(USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
+  find_package(amazon-braket-qdmi-device ${PROJECT_VERSION} REQUIRED CONFIG)
+endif()
 
 if(BUILD_AMAZON_BRAKET_LIVE_TESTS AND NOT BUILD_AMAZON_BRAKET_TESTS)
   message(FATAL_ERROR "BUILD_AMAZON_BRAKET_LIVE_TESTS requires BUILD_AMAZON_BRAKET_TESTS")
@@ -72,6 +77,10 @@ set(QDMI_TARGET_NAME "amazon-braket-qdmi-device")
 # add main library code
 if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
   add_subdirectory(src)
+endif()
+
+if(BUILD_AMAZON_BRAKET_QDMI_DOCS)
+  add_subdirectory(docs)
 endif()
 
 # add test code

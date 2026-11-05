@@ -134,6 +134,7 @@ def test_qaoa_end_to_end_on_ddsim() -> None:
     _assert_valid_result(_run_qaoa(device, shots=200))
 
 
+@pytest.mark.live
 def test_qaoa_cost_capped_on_sv1() -> None:
     """Run one explicitly enabled, cost-capped optimizer step on SV1."""
     if os.environ.get("AMAZON_BRAKET_PENNYLANE_LIVE") != "1":

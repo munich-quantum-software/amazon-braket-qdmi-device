@@ -15,6 +15,7 @@ Checks: |
   -cppcoreguidelines-macro-usage,
   -cppcoreguidelines-pro-type-reinterpret-cast,
   -cppcoreguidelines-pro-bounds-constant-array-index,
+  -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,
   -cppcoreguidelines-avoid-do-while,
   google-*,
@@ -35,6 +36,8 @@ Checks: |
   -readability-function-cognitive-complexity
 
 CheckOptions:
+  - key: readability-trailing-comma.SingleLineCommaPolicy
+    value: Ignore
   - key: readability-identifier-naming.ClassCase
     value: CamelCase
   - key: readability-identifier-naming.ClassIgnoredRegexp

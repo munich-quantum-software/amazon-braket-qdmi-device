@@ -19,7 +19,8 @@
 
 #pragma once
 
-#include <aws/braket/model/DeviceType.h>
+#include "aws/braket/model/DeviceType.h"
+
 #include <cstddef>
 #include <cstdint>
 

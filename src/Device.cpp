@@ -67,48 +67,49 @@
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
 
+#include "aws/braket/BraketClient.h"
+#include "aws/braket/BraketErrors.h"
+#include "aws/braket/BraketServiceClientModel.h"
+#include "aws/braket/model/Association.h"
+#include "aws/braket/model/AssociationType.h"
+#include "aws/braket/model/CancelQuantumTaskRequest.h"
+#include "aws/braket/model/CreateQuantumTaskRequest.h"
+#include "aws/braket/model/DeviceStatus.h"
+#include "aws/braket/model/DeviceType.h"
+#include "aws/braket/model/GetDeviceRequest.h"
+#include "aws/braket/model/GetDeviceResult.h"
+#include "aws/braket/model/GetQuantumTaskRequest.h"
+#include "aws/braket/model/GetQuantumTaskResult.h"
+#include "aws/braket/model/QuantumTaskAdditionalAttributeName.h"
+#include "aws/braket/model/QuantumTaskStatus.h"
+#include "aws/core/Aws.h"
+#include "aws/core/auth/AWSCredentialsProviderChain.h"
+#include "aws/core/client/AWSError.h"
+#include "aws/core/client/CoreErrors.h"
+#include "aws/core/config/EndpointResolver.h"
+#include "aws/core/http/HttpRequest.h"
+#include "aws/core/http/HttpResponse.h"
+#include "aws/core/http/HttpTypes.h"
+#include "aws/core/utils/Array.h"
+#include "aws/core/utils/StringUtils.h"
+#include "aws/core/utils/json/JsonSerializer.h"
+#include "aws/core/utils/logging/LogLevel.h"
+#include "aws/core/utils/memory/stl/AWSAllocator.h"
+#include "aws/core/utils/memory/stl/AWSString.h"
+#include "aws/core/utils/threading/PooledThreadExecutor.h"
+#include "aws/s3/S3Client.h"
+#include "aws/s3/S3ClientConfiguration.h"
+#include "aws/s3/S3Errors.h"
+#include "aws/s3/model/BucketLocationConstraint.h"
+#include "aws/s3/model/CreateBucketConfiguration.h"
+#include "aws/s3/model/CreateBucketRequest.h"
+#include "aws/s3/model/GetObjectRequest.h"
+#include "aws/sts/STSClient.h"
+#include "aws/sts/STSServiceClientModel.h"
+#include "aws/sts/model/GetCallerIdentityRequest.h"
+
 #include <algorithm>
 #include <array>
-#include <aws/braket/BraketClient.h>
-#include <aws/braket/BraketErrors.h>
-#include <aws/braket/BraketServiceClientModel.h>
-#include <aws/braket/model/Association.h>
-#include <aws/braket/model/AssociationType.h>
-#include <aws/braket/model/CancelQuantumTaskRequest.h>
-#include <aws/braket/model/CreateQuantumTaskRequest.h>
-#include <aws/braket/model/DeviceStatus.h>
-#include <aws/braket/model/DeviceType.h>
-#include <aws/braket/model/GetDeviceRequest.h>
-#include <aws/braket/model/GetDeviceResult.h>
-#include <aws/braket/model/GetQuantumTaskRequest.h>
-#include <aws/braket/model/GetQuantumTaskResult.h>
-#include <aws/braket/model/QuantumTaskAdditionalAttributeName.h>
-#include <aws/braket/model/QuantumTaskStatus.h>
-#include <aws/core/Aws.h>
-#include <aws/core/auth/AWSCredentialsProviderChain.h>
-#include <aws/core/client/AWSError.h>
-#include <aws/core/client/CoreErrors.h>
-#include <aws/core/config/EndpointResolver.h>
-#include <aws/core/http/HttpRequest.h>
-#include <aws/core/http/HttpResponse.h>
-#include <aws/core/http/HttpTypes.h>
-#include <aws/core/utils/Array.h>
-#include <aws/core/utils/StringUtils.h>
-#include <aws/core/utils/json/JsonSerializer.h>
-#include <aws/core/utils/logging/LogLevel.h>
-#include <aws/core/utils/memory/stl/AWSAllocator.h>
-#include <aws/core/utils/memory/stl/AWSString.h>
-#include <aws/core/utils/threading/PooledThreadExecutor.h>
-#include <aws/s3/S3Client.h>
-#include <aws/s3/S3ClientConfiguration.h>
-#include <aws/s3/S3Errors.h>
-#include <aws/s3/model/BucketLocationConstraint.h>
-#include <aws/s3/model/CreateBucketConfiguration.h>
-#include <aws/s3/model/CreateBucketRequest.h>
-#include <aws/s3/model/GetObjectRequest.h>
-#include <aws/sts/STSClient.h>
-#include <aws/sts/STSServiceClientModel.h>
-#include <aws/sts/model/GetCallerIdentityRequest.h>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -211,7 +212,9 @@
 namespace {
 
 constexpr std::array<QDMI_Program_Format, 2> SUPPORTED_PROGRAM_FORMATS = {
-    QDMI_PROGRAM_FORMAT_QASM2, QDMI_PROGRAM_FORMAT_QASM3};
+    QDMI_PROGRAM_FORMAT_QASM2,
+    QDMI_PROGRAM_FORMAT_QASM3,
+};
 
 struct UtcTimeOfWeek {
   int dayOfWeek = 0; // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
@@ -295,8 +298,9 @@ auto executionDayMatches(const std::string& executionDay, const int dayOfWeek)
     return dayOfWeek == 0 || dayOfWeek == 6;
   }
   static const std::array<const char*, 7> DAY_NAMES = {
-      "Sunday",   "Monday", "Tuesday", "Wednesday",
-      "Thursday", "Friday", "Saturday"};
+      "Sunday",   "Monday", "Tuesday",  "Wednesday",
+      "Thursday", "Friday", "Saturday",
+  };
   if (dayOfWeek < 0) {
     return false;
   }
@@ -313,9 +317,11 @@ auto getCurrentUtcTimeOfWeek() -> UtcTimeOfWeek {
 #else
   gmtime_r(&nowTime, &utcTime);
 #endif
-  return {.dayOfWeek = utcTime.tm_wday,
-          .secondOfDay = (utcTime.tm_hour * 60 * 60) + (utcTime.tm_min * 60) +
-                         utcTime.tm_sec};
+  return {
+      .dayOfWeek = utcTime.tm_wday,
+      .secondOfDay =
+          (utcTime.tm_hour * 60 * 60) + (utcTime.tm_min * 60) + utcTime.tm_sec,
+  };
 }
 
 auto isTimeInExecutionWindow(const std::string& executionDay,
@@ -641,7 +647,7 @@ auto Device::generateUniqueID() -> int {
 auto Device::getCachedArchitecture(const std::string& deviceArn) const
     -> std::shared_ptr<DeviceArchitecture> {
   const std::scoped_lock<std::mutex> lock(deviceCacheMutex_);
-  auto it = deviceCache_.find(deviceArn);
+  const auto it = deviceCache_.find(deviceArn);
   if (it != deviceCache_.end()) {
     return it->second;
   }
@@ -764,8 +770,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture(
 
   // Parse Session Device Properties
   ParsedDeviceProperties properties;
-  auto status = parser.parseProperties(architecture->deviceType, propertiesStr,
-                                       properties);
+  const auto status = parser.parseProperties(architecture->deviceType,
+                                             propertiesStr, properties);
   if (status != QDMI_SUCCESS) {
     std::cerr << "Failed to parse session device properties\n";
     return static_cast<QDMI_STATUS>(status);
@@ -796,7 +802,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture(
   {
     const std::scoped_lock lock(cachedArchitectureMutex_);
     if (architecture->deviceType == Aws::Braket::Model::DeviceType::QPU) {
-      auto stub = std::make_shared<amazon::braket::qdmi::DeviceArchitecture>();
+      const auto stub =
+          std::make_shared<amazon::braket::qdmi::DeviceArchitecture>();
       stub->name = architecture->name;
       stub->provider = architecture->provider;
       stub->deviceType = architecture->deviceType;
@@ -806,7 +813,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture(
       amazon::braket::qdmi::Device::get().setCachedArchitecture(deviceArn_,
                                                                 architecture);
     }
-    cachedArchitecture_ = architecture;
+    cachedArchitecture_ = std::move(architecture);
     queueLength_ = queueLength;
   }
   return QDMI_SUCCESS;
@@ -1007,8 +1014,10 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::resolveS3Destination(
     return QDMI_ERROR_FATAL;
   }
 
-  S3Destination resolved{.bucket = "amazon-braket-" + region_ + "-" + accountId,
-                         .prefix = "tasks"};
+  S3Destination resolved{
+      .bucket = "amazon-braket-" + region_ + "-" + accountId,
+      .prefix = "tasks",
+  };
 
   Aws::S3::Model::CreateBucketRequest createRequest;
   createRequest.SetBucket(resolved.bucket);
@@ -1776,7 +1785,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
     }
   }
 
-  auto submission = std::make_shared<std::packaged_task<void()>>(
+  const auto submission = std::make_shared<std::packaged_task<void()>>(
       [this, request = std::move(request)] {
         auto result = QDMI_SUCCESS;
         try {
@@ -1903,7 +1912,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS try {
   Aws::Braket::Model::CancelQuantumTaskRequest request;
   request.SetQuantumTaskArn(localTaskArn);
 
-  auto outcome = session_->getClient()->CancelQuantumTask(request);
+  const auto outcome = session_->getClient()->CancelQuantumTask(request);
   if (!outcome.IsSuccess()) {
     return mapBraketServiceError(outcome.GetError(),
                                  "Braket CancelQuantumTask");
@@ -2056,7 +2065,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::wait(const size_t timeout) const
       .sleepFor =
           [](void*, const std::chrono::steady_clock::duration duration) {
             std::this_thread::sleep_for(duration);
-          }};
+          },
+  };
   return wait(timeout, functions);
 } catch (...) {
   return statusFromCurrentException();
@@ -2416,13 +2426,15 @@ int AMAZON_BRAKET_QDMI_device_initialize() try {
     if (const auto value = amazon::braket::qdmi::detail::getEnvironment(
             AMAZON_BRAKET_QDMI_DEVICE_ENV_LOG_LEVEL);
         value.has_value() && !value->empty()) {
-      constexpr std::array levels{std::pair{"off", LogLevel::Off},
-                                  std::pair{"fatal", LogLevel::Fatal},
-                                  std::pair{"error", LogLevel::Error},
-                                  std::pair{"warn", LogLevel::Warn},
-                                  std::pair{"info", LogLevel::Info},
-                                  std::pair{"debug", LogLevel::Debug},
-                                  std::pair{"trace", LogLevel::Trace}};
+      constexpr std::array levels{
+          std::pair{"off", LogLevel::Off},
+          std::pair{"fatal", LogLevel::Fatal},
+          std::pair{"error", LogLevel::Error},
+          std::pair{"warn", LogLevel::Warn},
+          std::pair{"info", LogLevel::Info},
+          std::pair{"debug", LogLevel::Debug},
+          std::pair{"trace", LogLevel::Trace},
+      };
       /// NOLINTNEXTLINE(readability-qualified-auto): Portable iterator type.
       const auto match =
           std::ranges::find_if(levels, [&value](const auto& level) {

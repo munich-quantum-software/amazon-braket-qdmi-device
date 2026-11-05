@@ -6,7 +6,6 @@ on:
   pull_request:
   merge_group:
   workflow_dispatch:
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
@@ -14,16 +13,17 @@ concurrency:
 permissions:
   contents: read
 
-# Fork PRs run without upstream cloud credentials.
 jobs:
   change-detection:
     name: 🔍 Change
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-change-detection.yml@a4b4977405c7685f95e127cdb6db396bbadce787 # v2.5.5
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-change-detection.yml@d6345b25f19cb7223ac883e5333ae9d63ae9238b # v2.5.9
     with:
       additional-cpp-files: |
-        .dockerignore
-        test/slurm/**
-        .github/workflows/slurm.yml
+        .github/workflows/cpp-*.yml
+        .github/workflows/live-tests.yml
+      additional-python-files: |
+        .github/workflows/live-tests.yml
+        .github/workflows/python-*.yml
 
   cpp-tests-ubuntu:
     name: 🇨 Test 🐧
@@ -32,25 +32,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: [ubuntu-26.04, ubuntu-26.04-arm]
-        config: [Release]
+        runs-on:
+          - ubuntu-26.04
+          - ubuntu-26.04-arm
+        preset:
+          - release
         include:
           - runs-on: ubuntu-26.04
-            config: Debug
-    uses: $/.github/workflows/cpp-tests-ubuntu.yml
+            preset: debug
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-tests-ubuntu.yml@d6345b25f19cb7223ac883e5333ae9d63ae9238b # v2.5.9
     with:
+      apt-packages: libcurl4-openssl-dev
       runs-on: ${{ matrix.runs-on }}
-      config: ${{ matrix.config }}
-
-  slurm-tests:
-    name: 🇸 Slurm 🐧
-    needs: change-detection
-    if: github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id && (fromJSON(needs.change-detection.outputs.run-cpp-tests) || fromJSON(needs.change-detection.outputs.run-python-tests))
-    uses: $/.github/workflows/slurm.yml
-    secrets:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+      preset-name: ${{ matrix.preset }}
 
   cpp-tests-macos:
     name: 🇨 Test 🍎
@@ -59,15 +53,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: [macos-26]
-        config: [Release]
+        runs-on:
+          - macos-26
+        preset:
+          - release
         include:
           - runs-on: macos-26
-            config: Debug
+            preset: debug
     uses: $/.github/workflows/cpp-tests-macos.yml
     with:
       runs-on: ${{ matrix.runs-on }}
-      config: ${{ matrix.config }}
+      preset-name: ${{ matrix.preset }}
 
   cpp-tests-windows:
     name: 🇨 Test 🏁
@@ -76,68 +72,102 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: [windows-2025, windows-11-arm]
-        config: [Release]
+        runs-on:
+          - windows-2025
+        preset:
+          - release
         include:
           - runs-on: windows-2025
-            config: Debug
-    uses: $/.github/workflows/cpp-tests-windows.yml
+            preset: debug
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-tests-windows.yml@d6345b25f19cb7223ac883e5333ae9d63ae9238b # v2.5.9
     with:
       runs-on: ${{ matrix.runs-on }}
-      config: ${{ matrix.config }}
+      preset-name: ${{ matrix.preset }}
 
-  cpp-install-tests:
-    name: 📦 Install
+  cpp-sanitizers:
+    name: 🇨 Sanitizers
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cpp-tests)
-    strategy:
-      fail-fast: false
-      matrix:
-        runs-on: [ubuntu-26.04, macos-26, windows-2025]
-    uses: $/.github/workflows/cpp-install-tests.yml
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-tests-ubuntu.yml@d6345b25f19cb7223ac883e5333ae9d63ae9238b # v2.5.9
     with:
-      runs-on: ${{ matrix.runs-on }}
+      apt-packages: libcurl4-openssl-dev
+      runs-on: ubuntu-26.04
+      preset-name: sanitizers
 
   cpp-coverage:
     name: 🇨 Coverage
     needs: change-detection
-    if: github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id && fromJSON(needs.change-detection.outputs.run-cpp-tests)
-    uses: $/.github/workflows/cpp-coverage.yml
+    if: fromJSON(needs.change-detection.outputs.run-cpp-tests)
     permissions:
       contents: read
       id-token: write
-    secrets:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-coverage.yml@d6345b25f19cb7223ac883e5333ae9d63ae9238b # v2.5.9
+    with:
+      apt-packages: libcurl4-openssl-dev
 
   cpp-linter:
     name: 🇨 Lint
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cpp-linter)
-    uses: $/.github/workflows/cpp-linter.yml
-    with:
-      clang-version: 21
-      files-changed-only: true
-      cpp-linter-extra-args: "-std=c++20"
     permissions:
       contents: read
-      pull-requests: write # required to post comments on PRs
+      pull-requests: write
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-linter.yml@d6345b25f19cb7223ac883e5333ae9d63ae9238b # v2.5.9
+    with:
+      apt-packages: libcurl4-openssl-dev
+      clang-version: 23
+      files-changed-only: true
+      cpp-linter-extra-args: "-Wunused-template"
+
+  python-tests:
+    name: 🐍 Test
+    needs: change-detection
+    if: fromJSON(needs.change-detection.outputs.run-python-tests)
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-tests.yml@d6345b25f19cb7223ac883e5333ae9d63ae9238b # v2.5.9
+    with:
+      apt-packages: libcurl4-openssl-dev
+      runs-on: ubuntu-26.04
+      sessions: '["tests", "minimums"]'
+      draft-sessions: '["tests-3.15", "minimums-3.15"]'
+
+  python-coverage:
+    name: 🐍 Coverage
+    needs: python-tests
+    permissions:
+      contents: read
+      id-token: write
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-coverage.yml@d6345b25f19cb7223ac883e5333ae9d63ae9238b # v2.5.9
 
   python-linter:
     name: 🐍 Lint
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-python-linter)
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-linter.yml@a4b4977405c7685f95e127cdb6db396bbadce787 # v2.5.5
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-linter.yml@d6345b25f19cb7223ac883e5333ae9d63ae9238b # v2.5.9
     with:
       enable-ty: true
       enable-mypy: false
 
+  cpp-install-tests:
+    name: 📦 C++ installation
+    needs: change-detection
+    if: fromJSON(needs.change-detection.outputs.run-cpp-tests)
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on:
+          - ubuntu-26.04
+          - ubuntu-26.04-arm
+          - macos-26
+          - windows-2025
+    uses: $/.github/workflows/cpp-install-tests.yml
+    with:
+      runs-on: ${{ matrix.runs-on }}
+
   build-sdist:
     name: 🚀 CD
     needs: change-detection
-    if: fromJSON(needs.change-detection.outputs.run-cd)
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-sdist.yml@a4b4977405c7685f95e127cdb6db396bbadce787 # v2.5.5
+    if: fromJSON(needs.change-detection.outputs.run-python-tests) || fromJSON(needs.change-detection.outputs.run-cd)
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-sdist.yml@d6345b25f19cb7223ac883e5333ae9d63ae9238b # v2.5.9
 
   build-wheel:
     name: 🚀 CD
@@ -146,126 +176,99 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: [ubuntu-26.04, ubuntu-26.04-arm, macos-26, windows-2025]
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-cibuildwheel.yml@a4b4977405c7685f95e127cdb6db396bbadce787 # v2.5.5
+        runs-on:
+          - ubuntu-26.04
+          - ubuntu-26.04-arm
+          - macos-26
+          - windows-2025
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-cibuildwheel.yml@d6345b25f19cb7223ac883e5333ae9d63ae9238b # v2.5.9
     with:
       runs-on: ${{ matrix.runs-on }}
 
-  python-tests:
-    name: 🐍 Test
-    needs: change-detection
-    if: fromJSON(needs.change-detection.outputs.run-python-tests) || fromJSON(needs.change-detection.outputs.run-cd)
-    runs-on: ubuntu-26.04
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Install the AWS SDK Linux HTTP build dependency
-        run: |
-          sudo timeout 10m apt-get \
-            -o Acquire::Retries=3 \
-            -o Acquire::http::Timeout=30 \
-            -o Acquire::https::Timeout=30 \
-            update
-          sudo timeout 10m apt-get \
-            -o Acquire::Retries=3 \
-            -o Acquire::http::Timeout=30 \
-            -o Acquire::https::Timeout=30 \
-            install -y libcurl4-openssl-dev
-      - name: Install the latest version of uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
-        with:
-          python-version: "3.14"
-      - name: Test Python
-        run: uvx nox -s tests --verbose
-
-  pennylane-live-tests:
-    name: 🐍 PennyLane Live
-    needs: change-detection
-    if: github.event.pull_request.head.repo.id == github.event.pull_request.base.repo.id && (fromJSON(needs.change-detection.outputs.run-python-tests) || fromJSON(needs.change-detection.outputs.run-cd))
-    runs-on: ubuntu-26.04
-    env:
-      AMAZON_BRAKET_PENNYLANE_LIVE: "1"
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Install the AWS SDK Linux HTTP build dependency
-        run: |
-          sudo timeout 10m apt-get \
-            -o Acquire::Retries=3 \
-            -o Acquire::http::Timeout=30 \
-            -o Acquire::https::Timeout=30 \
-            update
-          sudo timeout 10m apt-get \
-            -o Acquire::Retries=3 \
-            -o Acquire::http::Timeout=30 \
-            -o Acquire::https::Timeout=30 \
-            install -y libcurl4-openssl-dev
-      - name: Install the latest version of uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
-        with:
-          python-version: "3.14"
-      - name: Run the cost-capped SV1 smoke test
-        run: >-
-          uvx nox -s tests-3.14 --
-          test/python/test_pennylane_qaoa.py -k cost_capped_on_sv1
-
-  # this job does nothing and is only used for branch protection
-  required-checks-pass:
-    name: 🚦 Check
-    if: always()
+  live-tests:
+    name: ☁️ Live tests
     needs:
       - change-detection
       - cpp-tests-ubuntu
-      - slurm-tests
       - cpp-tests-macos
       - cpp-tests-windows
-      - cpp-install-tests
+      - python-tests
+      - build-wheel
+    if: >-
+      !cancelled()
+      && !contains(needs.*.result, 'failure')
+      && !contains(needs.*.result, 'cancelled')
+      && (
+        github.event_name != 'workflow_dispatch'
+        || github.ref == 'refs/heads/main'
+      )
+      && (
+        github.event_name != 'pull_request'
+        || github.event.pull_request.head.repo.full_name == github.repository
+      )
+    uses: $/.github/workflows/live-tests.yml
+    with:
+      suite: metadata
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+
+  required-checks-pass:
+    name: 🚦 Check
+    needs:
+      - change-detection
+      - cpp-tests-ubuntu
+      - cpp-tests-macos
+      - cpp-tests-windows
+      - cpp-sanitizers
       - cpp-coverage
       - cpp-linter
-      - python-linter
       - python-tests
+      - python-coverage
+      - python-linter
+      - cpp-install-tests
       - build-sdist
       - build-wheel
-      - pennylane-live-tests
+      - live-tests
+    if: always()
     runs-on: ubuntu-slim
     steps:
-      - name: Decide whether the needed jobs succeeded or failed
-        uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
+      - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # v1.3.0
         with:
           allowed-skips: >-
             ${{
-              (github.event.pull_request.head.repo.id != github.event.pull_request.base.repo.id)
-              && 'cpp-coverage,slurm-tests,pennylane-live-tests,' || ''
+              !fromJSON(needs.change-detection.outputs.run-cpp-tests)
+              && 'cpp-tests-ubuntu,cpp-tests-macos,cpp-tests-windows,cpp-sanitizers,cpp-install-tests,' || ''
             }}
             ${{
               !fromJSON(needs.change-detection.outputs.run-cpp-tests)
-              && 'cpp-tests-ubuntu,cpp-tests-macos,cpp-tests-windows,cpp-install-tests,cpp-coverage,' || ''
-            }}
-            ${{
-              !fromJSON(needs.change-detection.outputs.run-cpp-tests) && !fromJSON(needs.change-detection.outputs.run-python-tests)
-              && 'slurm-tests,' || ''
+              && 'cpp-coverage,' || ''
             }}
             ${{
               !fromJSON(needs.change-detection.outputs.run-cpp-linter)
               && 'cpp-linter,' || ''
             }}
             ${{
+              !fromJSON(needs.change-detection.outputs.run-python-tests)
+              && 'python-tests,python-coverage,' || ''
+            }}
+            ${{
               !fromJSON(needs.change-detection.outputs.run-python-linter)
               && 'python-linter,' || ''
             }}
             ${{
-              !fromJSON(needs.change-detection.outputs.run-cd)
-              && 'build-sdist,' || ''
+              !fromJSON(needs.change-detection.outputs.run-python-tests)
+              && !fromJSON(needs.change-detection.outputs.run-cd)
+              && 'build-sdist,build-wheel,' || ''
             }}
             ${{
-              !fromJSON(needs.change-detection.outputs.run-python-tests) && !fromJSON(needs.change-detection.outputs.run-cd)
-              && 'build-wheel,python-tests,pennylane-live-tests,' || ''
+              (
+                github.event_name == 'pull_request'
+                && github.event.pull_request.head.repo.full_name != github.repository
+                || github.event_name == 'workflow_dispatch'
+                && github.ref != 'refs/heads/main'
+              )
+              && 'live-tests,' || ''
             }}
           jobs: ${{ toJSON(needs) }}

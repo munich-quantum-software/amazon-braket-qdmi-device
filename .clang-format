@@ -1,4 +1,15 @@
 BasedOnStyle: LLVM
 IncludeBlocks: Regroup
+IncludeCategories:
+  # clang-format assigns the matching header priority 0.
+  - Regex: '^"(amazon-braket-qdmi-device|amazon_braket_qdmi)/'
+    Priority: 1
+  - Regex: '^"(aws|cpr|curl|gmock|gtest|nlohmann|qdmi)/'
+    Priority: 3
+  # Remaining quoted includes are private project headers.
+  - Regex: '^"'
+    Priority: 2
+  - Regex: "^<"
+    Priority: 4
 PointerAlignment: Left
 Standard: c++20
