@@ -57,10 +57,10 @@ and operation site tuples; the compiler represents their operations globally.
 `AMAZON_BRAKET_QDMI_OPERATION_PROPERTY_MQT_PARAMETERS` (`CUSTOM2`) returns a
 NUL-terminated JSON string using the temporary `mqt.operation-parameters.v1`
 contract. Rigetti RX advertises four `alternatives`, each with a one-element
-`fixed` array containing an allowed angle in radians (±π or ±π/2). Other
-operations return `QDMI_ERROR_NOTSUPPORTED`. Core consumes this property for
-both compiler targets and Qiskit targets; it is not a standardized QDMI
-property.
+`fixed` array containing an allowed angle in radians (±π or ±π/2). IonQ ZZ
+advertises the interval [0, π/2]. Other operations return
+`QDMI_ERROR_NOTSUPPORTED`. Core consumes this property for both compiler targets
+and Qiskit targets; it is not a standardized QDMI property.
 
 | Property                                | Meaning                                                     |
 | --------------------------------------- | ----------------------------------------------------------- |

@@ -32,6 +32,8 @@ releases may include breaking changes.
 
 ### Fixed
 
+- 🐛 Report native IonQ GPI/GPI2/ZZ capabilities and the ZZ angle range for
+  native compilation and verbatim submission ([#288]) ([**@burgholzer**]).
 - 🐛 Accept the standard OpenQASM library include and remove it only from the
   Braket request, preserving stored source ([#288]) ([**@burgholzer**]).
 - 🐛 Preserve Qiskit classical readout and PennyLane wire order through MQT

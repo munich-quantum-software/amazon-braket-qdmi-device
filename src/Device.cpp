@@ -1591,6 +1591,13 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryOperationProperty(
                         constraints, prop, size, value, sizeRet)
   }
 
+  if (architecture->provider == "IonQ" && operation->name_ == "zz") {
+    constexpr auto constraints =
+        R"({"schema":"mqt.operation-parameters.v1","alternatives":[{"bounds":[[0,1.5707963267948966]]}]})";
+    ADD_STRING_PROPERTY(AMAZON_BRAKET_QDMI_OPERATION_PROPERTY_MQT_PARAMETERS,
+                        constraints, prop, size, value, sizeRet)
+  }
+
   ADD_STRING_PROPERTY(QDMI_OPERATION_PROPERTY_NAME, operation->name_.c_str(),
                       prop, size, value, sizeRet)
   if (operation->numQubits_.has_value()) {

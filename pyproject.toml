@@ -177,7 +177,7 @@ cache-keys = [
 
 [tool.uv.sources]
 amazon-braket-qdmi = { workspace = true }
-mqt-core = { git = "https://github.com/munich-quantum-toolkit/core.git", rev = "e893afc6c9a3d1d5b2d04faa02178e18f289824b" }
+mqt-core = { git = "https://github.com/munich-quantum-toolkit/core.git", rev = "3ba41ced8c8870a56c4cb96a8ae6841d98df704e" }
 
 
 [tool.cibuildwheel]

@@ -4296,6 +4296,70 @@ TEST_F(AmazonBraketQDMINativeJobTest, WrapsSingleAndBatchedNativePrograms) {
   }
 }
 
+TEST_F(AmazonBraketQDMINativeJobTest, WrapsUppercaseIonQNativeCapabilities) {
+  ParsedDeviceProperties properties;
+  ASSERT_EQ(GateModelCapabilityParser{}.parseProperties(
+                Aws::Braket::Model::DeviceType::QPU,
+                std::string{amazon::braket::qdmi::test::IONQ_FORTE},
+                properties),
+            QDMI_SUCCESS);
+  auto architecture = installParsedArchitecture(session, std::move(properties));
+  architecture->provider = "IonQ";
+  architecture->deviceType = Aws::Braket::Model::DeviceType::QPU;
+  architecture->supportPhysicalQubits = true;
+  architecture->supportVerbatim = true;
+  auto* const zz = architecture->operationsMap.at("zz");
+  size_t length = 0;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+                session, zz, 0, nullptr, 0, nullptr,
+                AMAZON_BRAKET_QDMI_OPERATION_PROPERTY_MQT_PARAMETERS, 0,
+                nullptr, &length),
+            QDMI_SUCCESS);
+  std::string metadata(length, '\0');
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_operation_property(
+                session, zz, 0, nullptr, 0, nullptr,
+                AMAZON_BRAKET_QDMI_OPERATION_PROPERTY_MQT_PARAMETERS, length,
+                metadata.data(), nullptr),
+            QDMI_SUCCESS);
+  const Aws::Utils::Json::JsonValue constraints(metadata);
+  ASSERT_TRUE(constraints.WasParseSuccessful());
+  const auto bounds = constraints.View()
+                          .GetArray("alternatives")[0]
+                          .GetArray("bounds")[0]
+                          .AsArray();
+  ASSERT_EQ(bounds.GetLength(), 2U);
+  EXPECT_DOUBLE_EQ(bounds[0].AsDouble(), 0.0);
+  EXPECT_DOUBLE_EQ(bounds[1].AsDouble(), 1.5707963267948966);
+
+  auto client = std::make_unique<StubBraketClient>(
+      Aws::Braket::Model::GetQuantumTaskResult{});
+  const auto* observed = client.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                          std::move(client));
+  constexpr auto* program = "OPENQASM 3;\nbit[2] c;\ngpi(0.2) $0;\n"
+                            "gpi2(-0.3) $1;\nzz(0.4) $0, $1;\n"
+                            "c[0] = measure $0;\nc[1] = measure $1;\n";
+  auto* const job = createConfiguredJob(session);
+  const void* source = program;
+  const auto size = strlen(program) + 1;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(
+                job, QDMI_PROGRAM_FORMAT_QASM3, 1, &size, &source),
+            QDMI_SUCCESS);
+  constexpr auto* destination = "s3://results/tasks";
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
+                strlen(destination) + 1, destination),
+            QDMI_SUCCESS);
+  ASSERT_EQ(submitAndAwaitAcceptance(job), QDMI_SUCCESS);
+  const Aws::Utils::Json::JsonValue action(observed->action());
+  EXPECT_EQ(action.View().GetString("source"),
+            "// amazon-braket-qdmi readout\nOPENQASM 3;\nbit[2] c;\n"
+            "#pragma braket verbatim\nbox {\ngpi(0.2) $0;\n"
+            "gpi2(-0.3) $1;\nzz(0.4) $0, $1;\n}\n"
+            "c[0] = measure $0;\nc[1] = measure $1;\n");
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
 TEST_F(AmazonBraketQDMINativeJobTest, OmitsBareGlobalPhaseForSimulator) {
   const GateModelCapabilityParser parser;
   ParsedDeviceProperties properties;

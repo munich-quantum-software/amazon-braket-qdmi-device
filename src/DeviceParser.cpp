@@ -438,7 +438,16 @@ auto GateModelCapabilityParser::parseOperations(
     std::vector<std::string> names;
     names.reserve(array.GetLength());
     for (size_t index = 0; index < array.GetLength(); ++index) {
-      names.emplace_back(array.GetItem(index).AsString());
+      auto name = std::string{array.GetItem(index).AsString()};
+      // IonQ's nativeGateSet uses capitals; OpenQASM gate names are lowercase.
+      if (name == "GPI") {
+        name = "gpi";
+      } else if (name == "GPI2") {
+        name = "gpi2";
+      } else if (name == "ZZ") {
+        name = "zz";
+      }
+      names.emplace_back(std::move(name));
     }
     return names;
   };

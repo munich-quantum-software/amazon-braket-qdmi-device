@@ -41,7 +41,7 @@ constexpr std::string_view AQT_IBEX_Q1 = R"({
 constexpr std::string_view IONQ_FORTE = R"({
   "paradigm": {
     "qubitCount": 3,
-    "nativeGateSet": ["gpi", "gpi2", "zz"],
+    "nativeGateSet": ["GPI", "GPI2", "ZZ"],
     "connectivity": {"fullyConnected": true}
   },
   "action": {"braket.ir.openqasm.program": {
