@@ -4324,12 +4324,14 @@ TEST_F(AmazonBraketQDMINativeJobTest, WrapsUppercaseIonQNativeCapabilities) {
   const Aws::Utils::Json::JsonValue constraints(metadata);
   ASSERT_TRUE(constraints.WasParseSuccessful());
   const auto bounds = constraints.View()
-                          .GetArray("alternatives")[0]
-                          .GetArray("bounds")[0]
+                          .GetArray("alternatives")
+                          .GetItem(0)
+                          .GetArray("bounds")
+                          .GetItem(0)
                           .AsArray();
   ASSERT_EQ(bounds.GetLength(), 2U);
-  EXPECT_DOUBLE_EQ(bounds[0].AsDouble(), 0.0);
-  EXPECT_DOUBLE_EQ(bounds[1].AsDouble(), 1.5707963267948966);
+  EXPECT_DOUBLE_EQ(bounds.GetItem(0).AsDouble(), 0.0);
+  EXPECT_DOUBLE_EQ(bounds.GetItem(1).AsDouble(), 1.5707963267948966);
 
   auto client = std::make_unique<StubBraketClient>(
       Aws::Braket::Model::GetQuantumTaskResult{});
