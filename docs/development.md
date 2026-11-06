@@ -85,7 +85,7 @@ The PennyLane SV1 smoke test is opt-in because it submits paid QuantumTasks. To
 run it with any credential source supported by the AWS SDK, use:
 
 ```console
-AWS_PROFILE=hpc-quantum AMAZON_BRAKET_PENNYLANE_LIVE=1 \
+AWS_PROFILE=hpc-quantum \
   uv run --group test pytest \
   test/python/test_pennylane_qaoa.py -m live -k cost_capped_on_sv1
 ```
@@ -136,6 +136,6 @@ Dispatch `live-tests.yml` on `main` to select catalogue metadata or the paid SV1
 smoke test. Paid execution requires a fresh manual request and offline
 validation; workflow reruns do not authorize submissions.
 
-The SV1 smoke test runs one optimizer step on four wires at 100 shots, with at
+The SV1 smoke test runs one optimizer step on four qubits at 100 shots, with at
 most 20 submissions. Do not retry or broaden this workload without authorizing
 its budget.

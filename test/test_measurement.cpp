@@ -85,7 +85,7 @@ TEST(MeasurementResultParserTest, ProjectsReadoutFromReturnedSource) {
   }
 }
 
-TEST(MeasurementResultParserTest, ValidatesDiscardedColumns) {
+TEST(MeasurementResultParserTest, ValidatesAllMeasurementOutcomes) {
   for (const auto* source : {
            "OPENQASM 3;\nbit[1] c;\nc[0] = "
            "measure $0;\n",
@@ -148,10 +148,11 @@ TEST(MeasurementResultParserTest, RejectsUnsupportedOrMalformedReadout) {
   }
 }
 
-TEST(MeasurementResultParserTest, KeepsLegacyResultsForOtherSourceForms) {
+TEST(MeasurementResultParserTest, UsesMeasuredQubitOrderForOtherSourceForms) {
   const Aws::Utils::Json::JsonValue json(
       R"({"measuredQubits":[0,1],"measurements":[[1,0]]})");
   for (const auto* source : {
+           "OPENQASM 2.0; qreg q[2]; creg b[2]; measure q -> b;",
            "OPENQASM 3; bit c; c = measure $0;",
            "OPENQASM 3; bit[1] c; bit[1] other;",
            "OPENQASM 3; bit[1] c; c[0] = 1;",

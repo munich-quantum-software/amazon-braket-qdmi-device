@@ -356,9 +356,9 @@ TEST_F(AmazonBraketQDMISpecificationTest, QuerySupportedProgramFormats) {
                     QDMI_DEVICE_PROPERTY_SUPPORTEDPROGRAMFORMATS),
                 0, nullptr, &size),
             QDMI_SUCCESS);
-  ASSERT_EQ(size, sizeof(QDMI_Program_Format));
+  ASSERT_EQ(size, 2 * sizeof(QDMI_Program_Format));
 
-  std::vector<QDMI_Program_Format> formats(1);
+  std::vector<QDMI_Program_Format> formats(2);
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
                 session,
                 static_cast<QDMI_Device_Property>(
@@ -366,6 +366,7 @@ TEST_F(AmazonBraketQDMISpecificationTest, QuerySupportedProgramFormats) {
                 size, formats.data(), nullptr),
             QDMI_SUCCESS);
   EXPECT_EQ(formats[0], QDMI_PROGRAM_FORMAT_QASM3);
+  EXPECT_EQ(formats[1], QDMI_PROGRAM_FORMAT_QASM2);
 }
 
 TEST_F(AmazonBraketQDMISpecificationTest, QuerySiteProperty) {

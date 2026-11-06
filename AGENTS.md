@@ -22,9 +22,12 @@ commands. Keep this file focused on repository-specific guardrails.
   C++20 facilities, and the AWS SDK before adding abstractions or settings.
 - Follow documented policy. Neighboring code shows existing practice but does
   not override current instructions.
-- Write comments, documentation, tests, diagnostics, and public text for the
-  final design. Remove prompts, review chronology, former names, and abandoned
-  approaches unless users still need that context.
+- Do not leak conversation, prompt, or iteration history into code comments,
+  pull request descriptions, or other maintainer-facing prose. Write for readers
+  who have not seen the conversation.
+- Prefer comments that explain the current behavior and rationale. Avoid
+  past-facing wording such as "preserve the existing behavior"; explain the
+  actual backwards-compatibility constraint instead.
 - Use short sentences, active voice, and one established term per concept.
   Remove words that add no meaning. Preserve the capitalization of QDMI, Amazon
   Braket, QuantumTask, OpenQASM, AWS, and S3.

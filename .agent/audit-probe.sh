@@ -399,8 +399,7 @@ risky_environment_is_set() {
     AMAZON_BRAKET_RESERVATION_ARN \
     AMAZON_BRAKET_QDMI_RUN_LIVE_CATALOG \
     AMAZON_BRAKET_QDMI_TEST_ALLOW_BUCKET_CREATION \
-    IQM_DEVICE_ARN \
-    AMAZON_BRAKET_PENNYLANE_LIVE; do
+    IQM_DEVICE_ARN; do
     if env | grep -q "^${variable}="; then
       return 0
     fi

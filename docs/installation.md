@@ -130,8 +130,8 @@ augments the installed definitions and overrides entries with the same ID.
 
 See {doc}`configuration` for AWS authentication. On a cluster, make the package
 and credential source available on every quantum access node. Register the
-selected catalogue ID as a Slurm license in the shared Core setup; Slurm license
-counts are independent of AWS quotas and authorization.
+selected catalogue ID as a Slurm license in the shared MQT Core setup; Slurm
+license counts are independent of AWS quotas and authorization.
 
 ## CMake options
 

@@ -1886,16 +1886,17 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSetProgramsUnsupportedFormat) {
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
-// QASM2 is a valid program format but is not supported.
+// OpenQASM 2 uses the same Braket OpenQASM transport.
 TEST_F(AmazonBraketQDMILocalJobTest, JobSetProgramsQASM2Format) {
-  QDMI_Program_Format supported{};
+  std::array<QDMI_Program_Format, 2> supported{};
   size_t supportedSize = 0;
   ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
                 session, QDMI_DEVICE_PROPERTY_SUPPORTEDPROGRAMFORMATS,
-                sizeof(supported), &supported, &supportedSize),
+                sizeof(supported), supported.data(), &supportedSize),
             QDMI_SUCCESS);
   EXPECT_EQ(supportedSize, sizeof(supported));
-  EXPECT_EQ(supported, QDMI_PROGRAM_FORMAT_QASM3);
+  EXPECT_EQ(supported,
+            (std::array{QDMI_PROGRAM_FORMAT_QASM3, QDMI_PROGRAM_FORMAT_QASM2}));
   AMAZON_BRAKET_QDMI_Device_Job freshJob = nullptr;
   ASSERT_EQ(
       AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &freshJob),
@@ -1903,7 +1904,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, JobSetProgramsQASM2Format) {
   const QDMI_Program_Format fmt = QDMI_PROGRAM_FORMAT_QASM2;
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(freshJob, fmt, 1,
                                                        nullptr, nullptr),
-            QDMI_ERROR_NOTSUPPORTED);
+            QDMI_SUCCESS);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
 }
 
@@ -4230,16 +4231,17 @@ TEST_F(AmazonBraketQDMINativeJobTest, WrapsSingleAndBatchedNativePrograms) {
                         "/core-native.qasm");
   ASSERT_TRUE(fixture);
   const std::string flat{std::istreambuf_iterator<char>(fixture), {}};
-  constexpr auto* wrapped = "OPENQASM "
-                            "3;\nbit[2] c;\n#pragma braket verbatim\nbox {\n"
-                            "prx(1.0, 0.0) $1;\ncz $1, $2;\n}\n"
-                            "c[0] = measure $1;\nc[1] = measure $2;\n";
+  constexpr auto* wrapped =
+      "OPENQASM "
+      "3;\nbit[2] c;\n#pragma braket verbatim\nbox {\n"
+      "prx(1.0, 0.0) $1;\ncz $1, $2;\nbarrier $1, $2;\n}\n"
+      "c[0] = measure $1;\nc[1] = measure $2;\n";
   constexpr auto* explicitVerbatim =
       "OPENQASM 3; bit[1] a;\nbit[1] b;\n#pragma braket verbatim\n"
       "box { prx(3.141592653589793, 0.0) $5; }\n"
       "a[0] = measure $1;\nb[0] = measure $5;\n";
   std::string withInclude{explicitVerbatim};
-  withInclude.insert(0, "include \"stdgates.inc\";\n");
+  withInclude.insert(0, "include /* standard library */ \"stdgates.inc\";\n");
   const auto* const reformatted =
       "OPENQASM /* version */ 3; bit [ 2 ] c; prx(1.0,\n0.0) $1; "
       "cz /* pair */ $1,$2; barrier $1,$2; c [0]=measure $1;c[1]=measure $2;";
@@ -4287,7 +4289,11 @@ TEST_F(AmazonBraketQDMINativeJobTest, WrapsSingleAndBatchedNativePrograms) {
       const auto payloads = action.View().GetArray("programs");
       ASSERT_EQ(payloads.GetLength(), count);
       if (count >= 3) {
-        EXPECT_EQ(payloads[2].GetString("source"), reformatted);
+        EXPECT_NE(
+            payloads[2].GetString("source").find("#pragma braket verbatim"),
+            std::string::npos);
+        EXPECT_NE(payloads[2].GetString("source").find("c[0] = measure $1;"),
+                  std::string::npos);
       }
       if (count == 4) {
         EXPECT_EQ(payloads[3].GetString("source"),
@@ -4301,6 +4307,60 @@ TEST_F(AmazonBraketQDMINativeJobTest, WrapsSingleAndBatchedNativePrograms) {
     }
     EXPECT_EQ(observed->createCalls(), 1U);
     EXPECT_EQ(observed->deviceCalls(), 0U);
+    AMAZON_BRAKET_QDMI_device_job_free(job);
+  }
+}
+
+TEST_F(AmazonBraketQDMINativeJobTest, AcceptsBraketSdkPrograms) {
+  // Braket SDK Circuit.to_ir(OPENQASM), with physical qubit serialization.
+  constexpr auto* physical =
+      "OPENQASM 3.0;\nbit[2] b;\nprx(1.0, 0.0) $1;\ncz $1, $2;\n"
+      "b[0] = measure $1;\nb[1] = measure $2;\n";
+  // qiskit-braket-provider to_braket(...).to_ir(OPENQASM).
+  constexpr auto* virtualProgram =
+      "OPENQASM 3.0;\nbit[2] b;\nqubit[2] q;\nx q[0];\n"
+      "b[0] = measure q[1];\nb[1] = measure q[0];\n";
+  constexpr auto* qasm2 =
+      "OPENQASM 2.0; qreg q[2]; creg b[2]; x q[0]; measure q -> b;";
+  for (const auto* source : {physical, virtualProgram, qasm2}) {
+    auto client = std::make_unique<StubBraketClient>(
+        Aws::Braket::Model::GetQuantumTaskResult{}.WithStatus(
+            Aws::Braket::Model::QuantumTaskStatus::FAILED));
+    const auto* observed = client.get();
+    AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                            std::move(client));
+    auto* const job = createConfiguredJob(session);
+    const void* program = source;
+    const auto size = strlen(source) + 1;
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(
+                  job,
+                  source == qasm2 ? QDMI_PROGRAM_FORMAT_QASM2
+                                  : QDMI_PROGRAM_FORMAT_QASM3,
+                  1, &size, &program),
+              QDMI_SUCCESS);
+    constexpr auto* destination = "s3://results/tasks";
+    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                  job, AMAZON_BRAKET_QDMI_DEVICE_JOB_PARAMETER_OUTPUTS3URI,
+                  strlen(destination) + 1, destination),
+              QDMI_SUCCESS);
+    ASSERT_EQ(submitAndAwaitAcceptance(job), QDMI_SUCCESS);
+    const Aws::Utils::Json::JsonValue action(observed->action());
+    const auto submitted = action.View().GetString("source");
+    if (source == physical) {
+      EXPECT_EQ(submitted,
+                "OPENQASM 3;\nbit[2] b;\n#pragma braket verbatim\nbox {\n"
+                "prx(1.0, 0.0) $1;\ncz $1, $2;\n}\n"
+                "b[0] = measure $1;\nb[1] = measure $2;\n");
+    } else {
+      EXPECT_EQ(submitted, source);
+    }
+    const Aws::Utils::Json::JsonValue result(
+        source == physical
+            ? R"({"measuredQubits":[2,1],"measurements":[[1,0]]})"
+            : R"({"measuredQubits":[0,1],"measurements":[[1,0]]})");
+    EXPECT_EQ(
+        amazon::braket::qdmi::parseMeasurementResults(result.View(), submitted),
+        (std::vector<std::string>{source == qasm2 ? "01" : "10"}));
     AMAZON_BRAKET_QDMI_device_job_free(job);
   }
 }
@@ -4689,7 +4749,7 @@ TEST_F(AmazonBraketQDMINativeJobTest, HandlesHighLabelsAndEmptyReadout) {
           constantOutputs ? "bit[4] c;\nc = \"0000\";\n" : "";
       const std::string program =
           "OPENQASM 3;\n" + classical +
-          (simulator ? "prx(1.0, 0.0) $16;\ncz $16, $17;\n"
+          (simulator ? "prx(1.0 /* $123 */, 0.0) $16;\ncz $16, $17;\n"
                      : "prx(1.0, 0.0) $20;\n");
       auto* const job = createConfiguredJob(session);
       const void* source = program.c_str();
@@ -4708,7 +4768,7 @@ TEST_F(AmazonBraketQDMINativeJobTest, HandlesHighLabelsAndEmptyReadout) {
           "OPENQASM 3;\n" + std::string{simulator ? "qubit[2] q;\n" : ""} +
           classical +
           (simulator
-               ? "prx(1.0, 0.0) q[0];\ncz q[0], q[1];\n"
+               ? "prx(1.0 /* $123 */, 0.0) q[0];\ncz q[0], q[1];\n"
                  "measure q[0];\nmeasure q[1];\n"
                : "#pragma braket verbatim\nbox {\nprx(1.0, 0.0) $20;\n}\n");
       EXPECT_EQ(action.View().GetString("source"), expected);
@@ -4740,6 +4800,8 @@ TEST_F(AmazonBraketQDMINativeJobTest, ForwardsOtherClientsWithoutWrapping) {
       "c[0] = measure $1;\n";
   for (const auto* program : {
            BELL_STATE_PROGRAM,
+           "OPENQASM 2.0; qreg q[2]; creg b[2]; x q[0]; measure q -> b;",
+           "OPENQASM 3; gate custom a { x a; } qubit[1] q; custom q[0];",
            commentedPragma,
            "OPENQASM3; bit[1] c; c[0] = measure $1;",
            "OPENQASM 3; bit[1] c; pr x(1,0) $1; c[0] = measure $1;",
@@ -4926,7 +4988,7 @@ TEST_F(AmazonBraketQDMILocalJobTest, ProgramSetProbesAndReplacementAreAtomic) {
   const QDMI_Program_Format qasm2 = QDMI_PROGRAM_FORMAT_QASM2;
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, qasm2, 2, nullptr,
                                                        nullptr),
-            QDMI_ERROR_NOTSUPPORTED);
+            QDMI_SUCCESS);
   constexpr std::array bad{'x', '\0', 'x', '\0'};
   const std::array<const void*, 2> programs{BELL_STATE_PROGRAM, bad.data()};
   const std::array sizes{strlen(BELL_STATE_PROGRAM) + 1, bad.size()};

@@ -19,7 +19,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
@@ -145,7 +144,7 @@ def test_open_device_rejects_session_overrides(
 
 
 def test_core_measure_all_transport_fixture() -> None:
-    """Keep the native transport fixture tied to real Core compiler output."""
+    """Keep the native transport fixture tied to real MQT Core compiler output."""
     target = CompilerTarget(
         "native fixture",
         [CompilerTarget.Site(site) for site in (1, 2, 5)],
@@ -205,7 +204,7 @@ def test_core_measure_all_transport_fixture() -> None:
 
 
 def test_core_sv1_phase_transport_fixture(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Preserve native SV1 names when Core emits a sampled global phase."""
+    """Preserve native SV1 names when MQT Core emits a sampled global phase."""
     # Supported gates from CapabilityFixtures.hpp's SV1 metadata. Arbitrary
     # unitary is not needed by this compiler target.
     names = ("h", "cnot", "rx", "ry", "rz", "measure", "gphase")
@@ -240,11 +239,9 @@ def test_core_sv1_phase_transport_fixture(monkeypatch: pytest.MonkeyPatch) -> No
     assert program.payload == (Path(__file__).parent / "fixtures" / "core-sv1-phase.qasm").read_text()
 
 
+@pytest.mark.live
 def test_sv1_live() -> None:
     """Compile and submit one eight-shot circuit through the Qiskit backend."""
-    if os.environ.get("AMAZON_BRAKET_PENNYLANE_LIVE") != "1":
-        pytest.skip("Set AMAZON_BRAKET_PENNYLANE_LIVE=1 to run the SV1 smoke tests.")
-
     backend = AmazonBraketBackend("amazon.braket.sv1")
     circuit = QuantumCircuit(2)
     circuit.x(0)

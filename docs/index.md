@@ -34,7 +34,8 @@ including the
 - {doc}`qiskit` shows compiled circuit submission with Qiskit.
 - {doc}`pennylane` describes PennyLane execution and the Amazon Braket
   specialization.
-- {doc}`slurm` documents Braket credentials and links to Core’s cluster setup.
+- {doc}`slurm` documents Braket credentials and links to MQT Core’s cluster
+  setup.
 - {doc}`usage` describes native job execution and ProgramSets.
 <!-- rumdl-disable MD033 -->
 - {doc}`api` records the supported QDMI properties, results, and lifecycle

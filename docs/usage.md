@@ -6,9 +6,9 @@ for device discovery, submission, and result retrieval. This page describes the
 Amazon Braket execution model; {doc}`configuration` covers AWS credentials and
 session settings, and {doc}`api` lists the supported native interfaces.
 
-The device accepts OpenQASM 3. QPU submissions must already use the device's
-native gates and physical sites. Amazon Braket Hybrid Jobs are distinct from
-QuantumTasks and are not created by this interface.
+The device accepts OpenQASM 2 and 3 within
+[Amazon Braket’s supported language subset](https://docs.aws.amazon.com/braket/latest/developerguide/braket-openqasm-supported-features.html).
+QPU submissions must already use the device's native gates and physical sites.
 
 ## Execution architecture
 

@@ -103,5 +103,4 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
-          AMAZON_BRAKET_PENNYLANE_LIVE: "1"
         run: build/live/venv/bin/python -m pytest test/python/test_pennylane_qaoa.py -m live -k cost_capped_on_sv1 -n 0 --tb=line --show-capture=no

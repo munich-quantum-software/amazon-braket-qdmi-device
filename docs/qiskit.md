@@ -6,24 +6,16 @@ Install the package with the Qiskit adapter:
 uv pip install "amazon-braket-qdmi[qiskit]"
 ```
 
-For development, `uv sync --extra qiskit` from this checkout installs the pinned
-Core revision.
-
 The adapter exposes the selected Amazon Braket device as a Qiskit `BackendV2`.
 Follow MQT Core's
 [compile-and-run guide](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/qdmi_backend.html)
-for native compilation and logical result reconstruction. The Braket device
-adapts Core's output to virtual qubits and full measurement for simulators, and
-adds a verbatim box for supported QPUs. Other clients' OpenQASM programs are
-forwarded without automatic wrapping. Readout must be terminal.
+for device-specific compilation and result handling. The device adapts flat
+native OpenQASM programs to the selected simulator or QPU's submission
+requirements. Readout must be terminal.
 
 A circuit list uses a native ProgramSet when supported, otherwise separate tasks
 in input order. [Native results](api.md#job-results) follow the submitted
 classical register.
-
-For Rigetti, operation metadata supplies the native RX angles ±π and ±π/2. MQT
-Core uses these constraints for both Qiskit and direct QDMI compilation;
-unsupported angles are rejected before submission.
 
 ## Select a catalogue device
 

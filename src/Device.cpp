@@ -29,9 +29,7 @@
  * Purpose: QDMI Adapter for Amazon Braket
  * ============================================================================
  *
- * You can target Amazon Braket devices by linking against this library
- * instead of another QDMI implementation. Your OpenQASM circuits will
- * execute on Amazon Braket.
+ * This library submits OpenQASM programs through the Amazon Braket API.
  *
  * ============================================================================
  * QDMI to Amazon Braket Mapping
@@ -63,6 +61,7 @@
 #include "amazon-braket-qdmi-device/Device.hpp"
 
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
+#include "amazon-braket-qdmi-device/OpenQasm.hpp"
 #include "amazon-braket-qdmi-device/Queue.hpp"
 #include "amazon-braket-qdmi-device/Wait.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
@@ -111,7 +110,6 @@
 
 #include <algorithm>
 #include <array>
-#include <charconv>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -133,7 +131,6 @@
 #include <stdlib.h> /// NOLINT(modernize-deprecated-headers): POSIX setenv
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <thread>
 #include <unordered_map>
 #include <utility>
@@ -216,7 +213,10 @@
 
 namespace {
 
-constexpr std::array SUPPORTED_PROGRAM_FORMATS = {QDMI_PROGRAM_FORMAT_QASM3};
+constexpr std::array SUPPORTED_PROGRAM_FORMATS = {
+    QDMI_PROGRAM_FORMAT_QASM3,
+    QDMI_PROGRAM_FORMAT_QASM2,
+};
 
 struct UtcTimeOfWeek {
   int dayOfWeek = 0; // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
@@ -234,151 +234,177 @@ struct UtcTimeOfWeek {
 constexpr int QUEUE_BUSY_THRESHOLD = 5;
 
 auto stripStandardInclude(std::string_view source) -> std::string {
+  amazon::braket::qdmi::detail::OpenQasmTokens tokens(source);
   std::string result;
-  while (!source.empty()) {
-    const auto end = source.find('\n');
-    const auto line = source.substr(0, end);
-    const auto first = line.find_first_not_of(" \t\r");
-    const auto last = line.find_last_not_of(" \t\r");
-    if (first == std::string_view::npos ||
-        line.substr(first, last - first + 1) != "include \"stdgates.inc\";") {
-      result.append(line);
-      if (end != std::string_view::npos) {
-        result += '\n';
+  size_t copied = 0;
+  try {
+    for (auto token = tokens.next(); !token.empty(); token = tokens.next()) {
+      if (token != "include") {
+        continue;
+      }
+      const auto start = static_cast<size_t>(token.data() - source.data());
+      if (tokens.next() != "\"stdgates.inc\"") {
+        continue;
+      }
+      tokens.expect(";");
+      result.append(source.substr(copied, start - copied));
+      copied = source.size() - tokens.remaining().size();
+      if (copied < source.size() && source[copied] == '\n') {
+        ++copied;
       }
     }
-    source.remove_prefix(end == std::string_view::npos ? source.size()
-                                                       : end + 1);
+  } catch (const std::runtime_error&) {
+    return std::string{source};
   }
+  result.append(source.substr(copied));
   return result;
 }
 
 struct NativeProgram {
   std::string gates;
   size_t bits = 0;
+  std::string classical;
   std::string initialization;
   std::vector<std::pair<size_t, size_t>> measured;
   std::set<size_t> sites;
 };
 
-// shortcut: recognize only Core's flat physical output; forward other clients'
-// source unchanged. Extend this recognizer when Core's golden fixture changes.
-auto coreProgram(std::string_view source,
-                 const amazon::braket::qdmi::DeviceArchitecture& architecture)
+// Adapt flat native physical programs; forward other OpenQASM constructs to
+// AWS.
+auto nativeProgram(std::string_view source,
+                   const amazon::braket::qdmi::DeviceArchitecture& architecture)
     -> std::optional<NativeProgram> {
+  using amazon::braket::qdmi::detail::OpenQasmTokens;
+  OpenQasmTokens tokens(source);
   NativeProgram program;
-  bool header = false;
-  bool declared = false;
   const auto hasSite = [&](size_t site) {
     return std::ranges::any_of(architecture.sitesPtr, [&](const auto* entry) {
       return entry->id_ == site;
     });
   };
-  const auto number = [](std::string_view& text, size_t& value) {
-    const auto parsed =
-        std::from_chars(text.data(), text.data() + text.size(), value);
-    if (parsed.ec != std::errc{}) {
-      return false;
+  try {
+    tokens.expect("OPENQASM");
+    tokens.expect("3");
+    auto token = tokens.next();
+    if (token == ".") {
+      tokens.number();
+      token = tokens.next();
     }
-    text.remove_prefix(static_cast<size_t>(parsed.ptr - text.data()));
-    return true;
-  };
-  while (!source.empty()) {
-    const auto end = source.find('\n');
-    auto line = source.substr(0, end);
-    source.remove_prefix(end == std::string_view::npos ? source.size()
-                                                       : end + 1);
-    if (line.empty()) {
-      continue;
-    }
-    if (!header) {
-      if (line != "OPENQASM 3;") {
-        return std::nullopt;
-      }
-      header = true;
-      continue;
-    }
-    if (line == "include \"stdgates.inc\";") {
-      continue;
-    }
-    if (!declared && line.starts_with("bit[")) {
-      line.remove_prefix(4);
-      if (!number(line, program.bits) || line != "] c;") {
-        return std::nullopt;
-      }
-      declared = true;
-      continue;
-    }
-    if (line.starts_with("c = \"")) {
-      const auto value = line.substr(5, line.size() - 7);
-      if (!program.gates.empty() || !program.measured.empty() ||
-          !line.ends_with("\";") || value.size() != program.bits ||
-          !std::ranges::all_of(
-              value, [](char bit) { return bit == '0' || bit == '1'; })) {
-        return std::nullopt;
-      }
-      program.initialization = std::string{line} + '\n';
-      continue;
-    }
-    if (line.starts_with("gphase(") && line.ends_with(");") &&
-        line.find('$') == std::string_view::npos) {
-      continue;
-    }
-    if (line.starts_with("c[")) {
-      line.remove_prefix(2);
-      size_t slot = 0;
-      size_t site = 0;
-      if (!number(line, slot) || slot >= program.bits ||
-          (!program.measured.empty() &&
-           slot <= program.measured.back().first) ||
-          !line.starts_with("] = measure $")) {
-        return std::nullopt;
-      }
-      line.remove_prefix(13);
-      if (!number(line, site) || !hasSite(site) || line != ";") {
-        return std::nullopt;
-      }
-      program.measured.emplace_back(slot, site);
-      program.sites.insert(site);
-      continue;
-    }
-    if (!program.measured.empty()) {
+    if (token != ";") {
       return std::nullopt;
     }
-    const auto operands = line.find(" $");
-    if (operands == std::string_view::npos) {
-      return std::nullopt;
-    }
-    const auto name = line.substr(0, line.find_first_of("( "));
-    if (name == "measure" || name == "reset" ||
-        (name != "barrier" && !std::ranges::any_of(architecture.operationsPtr,
-                                                   [&](const auto* operation) {
-                                                     return operation->name_ ==
-                                                            name;
-                                                   }))) {
-      return std::nullopt;
-    }
-    auto qubits = line.substr(operands + 2);
-    do {
-      size_t site = 0;
-      if (!number(qubits, site) || !hasSite(site)) {
+    for (token = tokens.next(); !token.empty(); token = tokens.next()) {
+      if (token == "include") {
+        tokens.expect("\"stdgates.inc\"");
+        tokens.expect(";");
+        continue;
+      }
+      if (token == "bit" && program.classical.empty() &&
+          program.gates.empty()) {
+        tokens.expect("[");
+        program.bits = tokens.number();
+        tokens.expect("]");
+        program.classical = tokens.next();
+        tokens.expect(";");
+        if (program.bits == 0 || program.classical.empty()) {
+          return std::nullopt;
+        }
+        continue;
+      }
+      if (token == program.classical) {
+        token = tokens.next();
+        if (token == "=") {
+          const auto value = tokens.next();
+          if (!program.gates.empty() || !program.measured.empty() ||
+              value.size() != program.bits + 2 || !value.starts_with('"') ||
+              !value.ends_with('"') ||
+              !std::ranges::all_of(
+                  value.substr(1, value.size() - 2),
+                  [](char bit) { return bit == '0' || bit == '1'; })) {
+            return std::nullopt;
+          }
+          program.initialization =
+              program.classical + " = " + std::string{value} + ";\n";
+        } else {
+          if (token != "[") {
+            return std::nullopt;
+          }
+          const auto slot = tokens.number();
+          tokens.expect("]");
+          tokens.expect("=");
+          tokens.expect("measure");
+          tokens.expect("$");
+          const auto site = tokens.number();
+          if (slot >= program.bits || !hasSite(site)) {
+            return std::nullopt;
+          }
+          program.measured.emplace_back(slot, site);
+          program.sites.insert(site);
+        }
+        tokens.expect(";");
+        continue;
+      }
+      if (!program.measured.empty()) {
         return std::nullopt;
       }
-      program.sites.insert(site);
-      if (qubits == ";") {
-        break;
+      const auto name = token;
+      std::string gate{name};
+      token = tokens.next();
+      if (token == "(") {
+        const auto parameters = tokens.remaining();
+        size_t depth = 1;
+        while (depth != 0) {
+          token = tokens.next();
+          if (token.empty() || token == "$") {
+            return std::nullopt;
+          }
+          if (token == "(") {
+            ++depth;
+          } else if (token == ")") {
+            --depth;
+          }
+        }
+        gate += '(';
+        gate +=
+            parameters.substr(0, parameters.size() - tokens.remaining().size());
+        token = tokens.next();
       }
-      if (!qubits.starts_with(", $")) {
+      if (name == "gphase" && gate.size() > name.size() && token == ";") {
+        continue; // Sampling probabilities do not depend on global phase.
+      }
+      if (name == "measure" || name == "reset") {
         return std::nullopt;
       }
-      qubits.remove_prefix(3);
-    } while (true);
-    if (name != "barrier") {
-      program.gates.append(line);
-      program.gates += '\n';
+      if (name != "barrier" && !std::ranges::any_of(architecture.operationsPtr,
+                                                    [&](const auto* operation) {
+                                                      return operation->name_ ==
+                                                             name;
+                                                    })) {
+        return std::nullopt;
+      }
+      bool first = true;
+      do {
+        if (token != "$") {
+          return std::nullopt;
+        }
+        const auto site = tokens.number();
+        if (!hasSite(site)) {
+          return std::nullopt;
+        }
+        program.sites.insert(site);
+        gate += first ? " $" : ", $";
+        gate += std::to_string(site);
+        first = false;
+        token = tokens.next();
+        if (token == ",") {
+          token = tokens.next();
+        } else if (token != ";") {
+          return std::nullopt;
+        }
+      } while (token != ";");
+      program.gates += gate + ";\n";
     }
-  }
-  if (!header) {
+  } catch (const std::runtime_error&) {
     return std::nullopt;
   }
   return program;
@@ -387,7 +413,7 @@ auto coreProgram(std::string_view source,
 auto adaptProgram(const std::string& source,
                   const amazon::braket::qdmi::DeviceArchitecture& architecture)
     -> std::string {
-  auto native = coreProgram(source, architecture);
+  auto native = nativeProgram(source, architecture);
   if (!native) {
     return stripStandardInclude(source);
   }
@@ -402,26 +428,25 @@ auto adaptProgram(const std::string& source,
   if (virtualSites && !indices.empty()) {
     prefix += "qubit[" + std::to_string(indices.size()) + "] q;\n";
     std::string gates;
-    std::string_view remaining = native->gates;
-    while (!remaining.empty()) {
-      const auto position = remaining.find('$');
-      if (position == std::string_view::npos) {
-        gates.append(remaining);
-        break;
+    const std::string_view original = native->gates;
+    amazon::braket::qdmi::detail::OpenQasmTokens tokens(original);
+    size_t copied = 0;
+    for (auto token = tokens.next(); !token.empty(); token = tokens.next()) {
+      if (token != "$") {
+        continue;
       }
-      gates.append(remaining.substr(0, position));
-      remaining.remove_prefix(position + 1);
-      size_t site = 0;
-      const auto parsed = std::from_chars(
-          remaining.data(), remaining.data() + remaining.size(), site);
+      const auto start = static_cast<size_t>(token.data() - original.data());
+      const auto site = tokens.number();
+      gates.append(original.substr(copied, start - copied));
       gates += "q[" + std::to_string(indices.at(site)) + "]";
-      remaining.remove_prefix(
-          static_cast<size_t>(parsed.ptr - remaining.data()));
+      copied = original.size() - tokens.remaining().size();
     }
+    gates.append(original.substr(copied));
     native->gates = std::move(gates);
   }
   if (native->bits != 0) {
-    prefix += "bit[" + std::to_string(native->bits) + "] c;\n";
+    prefix += "bit[" + std::to_string(native->bits) + "] " + native->classical +
+              ";\n";
     prefix += native->initialization;
   }
   if (architecture.deviceType == Aws::Braket::Model::DeviceType::QPU &&
@@ -435,8 +460,8 @@ auto adaptProgram(const std::string& source,
                         : "$" + std::to_string(site);
   };
   for (const auto& [slot, site] : native->measured) {
-    prefix +=
-        "c[" + std::to_string(slot) + "] = measure " + reference(site) + ";\n";
+    prefix += native->classical + "[" + std::to_string(slot) + "] = measure " +
+              reference(site) + ";\n";
   }
   if (architecture.requiresAllQubitsMeasurement) {
     std::set<size_t> measuredSites;
@@ -1659,7 +1684,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::supportsPrograms(
   if (QDMI_IS_INVALID_ENUM_VALUE(format, QDMI_PROGRAM_FORMAT)) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
-  if (format != QDMI_PROGRAM_FORMAT_QASM3) {
+  if (std::ranges::find(SUPPORTED_PROGRAM_FORMATS, format) ==
+      SUPPORTED_PROGRAM_FORMATS.end()) {
     return QDMI_ERROR_NOTSUPPORTED;
   }
   if (count > static_cast<size_t>(std::numeric_limits<int64_t>::max()) ||

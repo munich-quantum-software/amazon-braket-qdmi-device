@@ -1,18 +1,13 @@
 # PennyLane execution through QDMI
 
-The Amazon Braket adapter specializes MQT Core's gate-based QDMI device. It
-compiles circuits for the selected device before native submission and uses
-Core's result layout to restore logical wire order. Rigetti's fixed RX angles
-are included in the compilation target. The adapter uses the native device
-library; the Amazon Braket Python SDK and PennyLane-Braket plugin are not
-needed.
+The Amazon Braket adapter configures MQT Core's QDMI device with the selected
+device ARN, AWS Region, and optional reservation and result destination. MQT
+Core compiles circuits for that device and returns measurements in the order
+requested by the QNode.
 
 ```console
 uv pip install "amazon-braket-qdmi[pennylane]"
 ```
-
-For development, `uv sync --extra pennylane` from this checkout installs the
-pinned Core revision.
 
 ## Select a catalogue device
 

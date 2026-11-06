@@ -23,9 +23,6 @@ releases may include breaking changes.
   coupling map and operation site lists return `QDMI_ERROR_NOTSUPPORTED`
   ([#288]) ([**@burgholzer**]).
 
-- ♻️ Accept OpenQASM 3 only; OpenQASM 2 submissions are no longer supported
-  ([#288]) ([**@burgholzer**]).
-
 - ♻️ Use MQT Core's shared Slurm playground and application examples instead of
   maintaining copies. Build static documentation without quantum execution and
   keep two eight-shot SV1 integration checks ([#288]) ([**@burgholzer**]).
@@ -36,12 +33,14 @@ releases may include breaking changes.
   native compilation and verbatim submission ([#288]) ([**@burgholzer**]).
 - 🐛 Accept the standard OpenQASM library include and remove it only from the
   Braket request, preserving stored source ([#288]) ([**@burgholzer**]).
-- 🐛 Preserve Qiskit classical readout and PennyLane wire order through MQT
-  Core's shared compiler, native serializer, and result layout, including
+- 🐛 Preserve Qiskit classical readout and PennyLane measurement order through
+  MQT Core's shared compiler, native serializer, and result layout, including
   permuted destinations and unused classical bits ([#288]) ([**@burgholzer**]).
-- 🐛 Adapt native programs to simulator readout or QPU verbatim mode. Recover
-  static classical outputs from returned source, including unused bits, empty
-  outputs, reopened tasks, and ProgramSets ([#288]) ([**@burgholzer**]).
+- 🐛 Package native OpenQASM programs for simulator execution or QPU verbatim
+  submission ([#288]) ([**@burgholzer**]).
+- 🐛 Recover classical outputs from the submitted program, including unused bits
+  and empty outputs, for fresh and reopened tasks and ProgramSets ([#288])
+  ([**@burgholzer**]).
 
 ## [1.3.1] - 2026-10-16
 

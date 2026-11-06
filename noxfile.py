@@ -74,7 +74,7 @@ def _run_tests(
     pytest_run_args: Sequence[str] = (),
 ) -> None:
     env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location}
-    env.update(AMAZON_BRAKET_PENNYLANE_LIVE="0", AWS_EC2_METADATA_DISABLED="true")
+    env["AWS_EC2_METADATA_DISABLED"] = "true"
     if shutil.which("cmake") is None:
         session.install("cmake")
     if shutil.which("ninja") is None:

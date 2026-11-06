@@ -19,7 +19,6 @@
 
 from __future__ import annotations
 
-import os
 from typing import TYPE_CHECKING
 
 import pytest
@@ -219,11 +218,9 @@ def test_samples_with_qnode_shots(monkeypatch: pytest.MonkeyPatch) -> None:
     assert circuit() == {"01": 5}
 
 
+@pytest.mark.live
 def test_sv1_live() -> None:
     """Submit one eight-shot circuit through the installed PennyLane adapter."""
-    if os.environ.get("AMAZON_BRAKET_PENNYLANE_LIVE") != "1":
-        pytest.skip("Set AMAZON_BRAKET_PENNYLANE_LIVE=1 to run the SV1 smoke tests.")
-
     device = qp.device("amazon.braket.sv1", wires=["left", "right"])
 
     @qp.qnode(device, shots=8)
