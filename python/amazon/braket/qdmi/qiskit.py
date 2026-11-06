@@ -29,6 +29,7 @@ except ImportError as error:
     raise ImportError(msg) from error
 
 from . import AMAZON_BRAKET_QDMI_DEVICE_ID
+from ._session import session_parameters
 
 if TYPE_CHECKING:
     from mqt.core.qdmi import Device as QDMIDeviceHandle
@@ -79,8 +80,6 @@ class AmazonBraketBackend(QDMIBackend):
 
         device = open_device(
             resolved_device_id,
-            base_url=device_arn,
-            custom2=region,
-            custom3=reservation_arn,
+            **session_parameters(device_arn=device_arn, region=region, reservation_arn=reservation_arn),
         )
         super().__init__(device=device, device_id=resolved_device_id)

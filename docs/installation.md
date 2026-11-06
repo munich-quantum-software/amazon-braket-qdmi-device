@@ -1,13 +1,7 @@
 # Installation
 
-## Prerequisites
-
-A source build requires:
-
-- a C++20-compatible compiler;
-- CMake 3.24 or later; and
-- network access during initial configuration to obtain the AWS SDK for C++ and
-  QDMI dependencies.
+See {doc}`dependencies` for native runtime, optional Python adapters, and build
+requirements.
 
 For cluster setup and job submission, use
 [MQT Core's Slurm playground](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm.html).
@@ -29,7 +23,7 @@ uv pip install "amazon-braket-qdmi[qiskit,pennylane]"
 ```
 
 Use only the `qiskit` or `pennylane` extra when the environment needs one
-application stack. Both extras require MQT Core 4.1.
+application stack.
 
 The command-line entry point reports the installed catalogue path:
 
