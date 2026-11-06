@@ -38,7 +38,10 @@ else()
   # Keep the provider and AWS test clients in one SDK initialization domain.
   target_link_libraries(${QDMI_TEST_TARGET_NAME} PRIVATE ${QDMI_TARGET_NAME}-internals
                                                          ${QDMI_TARGET_NAME}-parser-objects)
-  target_compile_definitions(${QDMI_TEST_TARGET_NAME} PRIVATE ${QDMI_PREFIX}_QDMI_device_EXPORTS)
+  target_compile_definitions(
+    ${QDMI_TEST_TARGET_NAME}
+    PRIVATE ${QDMI_PREFIX}_QDMI_device_EXPORTS
+            QDMI_CORE_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/python/fixtures")
 endif()
 
 # link the Google test infrastructure to the test executable.

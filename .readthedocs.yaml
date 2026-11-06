@@ -16,9 +16,7 @@ build:
     python: "3.14"
   jobs:
     install:
-      - >-
-        uv sync --locked --no-dev --group docs
-        --config-settings-package amazon-braket-qdmi:wheel.cmake=false
+      - uv sync --locked --only-group docs
     pre_build:
       - >-
         cmake -S . -B build/docs

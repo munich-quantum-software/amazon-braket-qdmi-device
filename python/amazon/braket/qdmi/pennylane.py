@@ -80,7 +80,7 @@ class AmazonBraketDevice(QDMIDevice):
         device_arn: ARN of a gate-based Amazon Braket device or simulator. The
             generic device requires an ARN. Catalogue-specific subclasses use
             their packaged ARN when this argument is omitted.
-        wires: PennyLane wire labels or number of wires.
+        wires: PennyLane qubit labels or number of qubits.
         s3_destination_folder: Optional S3 ``(bucket, prefix)``. If omitted,
             the native device uses the automatic regional result bucket.
         region: Optional AWS region override.
@@ -122,9 +122,9 @@ class AmazonBraketDevice(QDMIDevice):
         self._device_arn = device_arn
         self._s3_destination_folder = s3_destination_folder
         super().__init__(
-            device_id=self.qdmi_device_id,
-            session_parameters=session_parameters,
+            self.qdmi_device_id,
             wires=wires,
+            session_parameters=session_parameters,
             job_parameters=job_parameters,
         )
 

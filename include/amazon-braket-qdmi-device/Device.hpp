@@ -191,6 +191,9 @@ inline auto configureCaBundle(Aws::Client::ClientConfiguration& configuration)
  */
 struct DeviceArchitecture {
   std::optional<ProgramSetLimits> programSetLimits;
+  bool supportPhysicalQubits = false;
+  bool supportVerbatim = false;
+  bool requiresAllQubitsMeasurement = false;
   std::string name;     // Specific device name (e.g., "Garnet")
   std::string provider; // Provider name (e.g., "IQM")
   Aws::Braket::Model::DeviceType deviceType; // QPU or SIMULATOR
@@ -211,6 +214,7 @@ struct DeviceArchitecture {
 
   // Connectivity (coupling map)
   std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*> connectivity;
+  bool fullyConnected = false;
 };
 
 /**

@@ -29,9 +29,7 @@
  * Purpose: QDMI Adapter for Amazon Braket
  * ============================================================================
  *
- * You can target Amazon Braket devices by linking against this library
- * instead of another QDMI implementation. Your OpenQASM circuits will
- * execute on Amazon Braket.
+ * This library submits OpenQASM programs through the Amazon Braket API.
  *
  * ============================================================================
  * QDMI to Amazon Braket Mapping
@@ -55,13 +53,15 @@
  *
  * Site (Qubit)          | Parsed from paradigm.qubitCount
  * Operation (Gate)      | Parsed from action.braket.ir.openqasm.program
- * Coupling Map          | Full connectivity (for simulators)
+ * Coupling Map          | Explicit edges for devices with restricted
+ * connectivity
  *
  */
 
 #include "amazon-braket-qdmi-device/Device.hpp"
 
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
+#include "amazon-braket-qdmi-device/OpenQasm.hpp"
 #include "amazon-braket-qdmi-device/Queue.hpp"
 #include "amazon-braket-qdmi-device/Wait.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
@@ -120,10 +120,12 @@
 #include <future>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <new>
 #include <optional>
+#include <set>
 #include <span>
 #include <stdexcept>
 #include <stdlib.h> /// NOLINT(modernize-deprecated-headers): POSIX setenv
@@ -211,9 +213,9 @@
 
 namespace {
 
-constexpr std::array<QDMI_Program_Format, 2> SUPPORTED_PROGRAM_FORMATS = {
-    QDMI_PROGRAM_FORMAT_QASM2,
+constexpr std::array SUPPORTED_PROGRAM_FORMATS = {
     QDMI_PROGRAM_FORMAT_QASM3,
+    QDMI_PROGRAM_FORMAT_QASM2,
 };
 
 struct UtcTimeOfWeek {
@@ -230,6 +232,250 @@ struct UtcTimeOfWeek {
  * QDMI_DEVICE_STATUS_IDLE.
  */
 constexpr int QUEUE_BUSY_THRESHOLD = 5;
+
+auto stripStandardInclude(std::string_view source) -> std::string {
+  amazon::braket::qdmi::detail::OpenQasmTokens tokens(source);
+  std::string result;
+  size_t copied = 0;
+  try {
+    for (auto token = tokens.next(); !token.empty(); token = tokens.next()) {
+      if (token != "include") {
+        continue;
+      }
+      const auto start = static_cast<size_t>(token.data() - source.data());
+      if (tokens.next() != "\"stdgates.inc\"") {
+        continue;
+      }
+      tokens.expect(";");
+      result.append(source.substr(copied, start - copied));
+      copied = source.size() - tokens.remaining().size();
+      if (copied < source.size() && source[copied] == '\n') {
+        ++copied;
+      }
+    }
+  } catch (const std::runtime_error&) {
+    return std::string{source};
+  }
+  result.append(source.substr(copied));
+  return result;
+}
+
+struct NativeProgram {
+  std::string gates;
+  size_t bits = 0;
+  std::string classical;
+  std::string initialization;
+  std::vector<std::pair<size_t, size_t>> measured;
+  std::set<size_t> sites;
+};
+
+// Adapt flat native physical programs; forward other OpenQASM constructs to
+// AWS.
+auto nativeProgram(std::string_view source,
+                   const amazon::braket::qdmi::DeviceArchitecture& architecture)
+    -> std::optional<NativeProgram> {
+  using amazon::braket::qdmi::detail::OpenQasmTokens;
+  OpenQasmTokens tokens(source);
+  NativeProgram program;
+  const auto hasSite = [&](size_t site) {
+    return std::ranges::any_of(architecture.sitesPtr, [&](const auto* entry) {
+      return entry->id_ == site;
+    });
+  };
+  try {
+    tokens.expect("OPENQASM");
+    tokens.expect("3");
+    auto token = tokens.next();
+    if (token == ".") {
+      tokens.number();
+      token = tokens.next();
+    }
+    if (token != ";") {
+      return std::nullopt;
+    }
+    for (token = tokens.next(); !token.empty(); token = tokens.next()) {
+      if (token == "include") {
+        tokens.expect("\"stdgates.inc\"");
+        tokens.expect(";");
+        continue;
+      }
+      if (token == "bit" && program.classical.empty() &&
+          program.gates.empty()) {
+        tokens.expect("[");
+        program.bits = tokens.number();
+        tokens.expect("]");
+        program.classical = tokens.next();
+        tokens.expect(";");
+        if (program.bits == 0 || program.classical.empty()) {
+          return std::nullopt;
+        }
+        continue;
+      }
+      if (token == program.classical) {
+        token = tokens.next();
+        if (token == "=") {
+          const auto value = tokens.next();
+          if (!program.gates.empty() || !program.measured.empty() ||
+              value.size() != program.bits + 2 || !value.starts_with('"') ||
+              !value.ends_with('"') ||
+              !std::ranges::all_of(
+                  value.substr(1, value.size() - 2),
+                  [](char bit) { return bit == '0' || bit == '1'; })) {
+            return std::nullopt;
+          }
+          program.initialization =
+              program.classical + " = " + std::string{value} + ";\n";
+        } else {
+          if (token != "[") {
+            return std::nullopt;
+          }
+          const auto slot = tokens.number();
+          tokens.expect("]");
+          tokens.expect("=");
+          tokens.expect("measure");
+          tokens.expect("$");
+          const auto site = tokens.number();
+          if (slot >= program.bits || !hasSite(site)) {
+            return std::nullopt;
+          }
+          program.measured.emplace_back(slot, site);
+          program.sites.insert(site);
+        }
+        tokens.expect(";");
+        continue;
+      }
+      if (!program.measured.empty()) {
+        return std::nullopt;
+      }
+      const auto name = token;
+      std::string gate{name};
+      token = tokens.next();
+      if (token == "(") {
+        const auto parameters = tokens.remaining();
+        size_t depth = 1;
+        while (depth != 0) {
+          token = tokens.next();
+          if (token.empty() || token == "$") {
+            return std::nullopt;
+          }
+          if (token == "(") {
+            ++depth;
+          } else if (token == ")") {
+            --depth;
+          }
+        }
+        gate += '(';
+        gate +=
+            parameters.substr(0, parameters.size() - tokens.remaining().size());
+        token = tokens.next();
+      }
+      if (name == "gphase" && gate.size() > name.size() && token == ";") {
+        continue; // Sampling probabilities do not depend on global phase.
+      }
+      if (name == "measure" || name == "reset") {
+        return std::nullopt;
+      }
+      if (name != "barrier" && !std::ranges::any_of(architecture.operationsPtr,
+                                                    [&](const auto* operation) {
+                                                      return operation->name_ ==
+                                                             name;
+                                                    })) {
+        return std::nullopt;
+      }
+      bool first = true;
+      do {
+        if (token != "$") {
+          return std::nullopt;
+        }
+        const auto site = tokens.number();
+        if (!hasSite(site)) {
+          return std::nullopt;
+        }
+        program.sites.insert(site);
+        gate += first ? " $" : ", $";
+        gate += std::to_string(site);
+        first = false;
+        token = tokens.next();
+        if (token == ",") {
+          token = tokens.next();
+        } else if (token != ";") {
+          return std::nullopt;
+        }
+      } while (token != ";");
+      program.gates += gate + ";\n";
+    }
+  } catch (const std::runtime_error&) {
+    return std::nullopt;
+  }
+  return program;
+}
+
+auto adaptProgram(const std::string& source,
+                  const amazon::braket::qdmi::DeviceArchitecture& architecture)
+    -> std::string {
+  auto native = nativeProgram(source, architecture);
+  if (!native) {
+    return stripStandardInclude(source);
+  }
+  const bool virtualSites = !architecture.supportPhysicalQubits;
+  std::map<size_t, size_t> indices;
+  if (virtualSites) {
+    for (const auto site : native->sites) {
+      indices.emplace(site, indices.size());
+    }
+  }
+  std::string prefix = "OPENQASM 3;\n";
+  if (virtualSites && !indices.empty()) {
+    prefix += "qubit[" + std::to_string(indices.size()) + "] q;\n";
+    std::string gates;
+    const std::string_view original = native->gates;
+    amazon::braket::qdmi::detail::OpenQasmTokens tokens(original);
+    size_t copied = 0;
+    for (auto token = tokens.next(); !token.empty(); token = tokens.next()) {
+      if (token != "$") {
+        continue;
+      }
+      const auto start = static_cast<size_t>(token.data() - original.data());
+      const auto site = tokens.number();
+      gates.append(original.substr(copied, start - copied));
+      gates += "q[" + std::to_string(indices.at(site)) + "]";
+      copied = original.size() - tokens.remaining().size();
+    }
+    gates.append(original.substr(copied));
+    native->gates = std::move(gates);
+  }
+  if (native->bits != 0) {
+    prefix += "bit[" + std::to_string(native->bits) + "] " + native->classical +
+              ";\n";
+    prefix += native->initialization;
+  }
+  if (architecture.deviceType == Aws::Braket::Model::DeviceType::QPU &&
+      architecture.supportPhysicalQubits && architecture.supportVerbatim) {
+    prefix += "#pragma braket verbatim\nbox {\n" + native->gates + "}\n";
+  } else {
+    prefix += native->gates;
+  }
+  const auto reference = [&](size_t site) {
+    return virtualSites ? "q[" + std::to_string(indices.at(site)) + "]"
+                        : "$" + std::to_string(site);
+  };
+  for (const auto& [slot, site] : native->measured) {
+    prefix += native->classical + "[" + std::to_string(slot) + "] = measure " +
+              reference(site) + ";\n";
+  }
+  if (architecture.requiresAllQubitsMeasurement) {
+    std::set<size_t> measuredSites;
+    for (const auto& [slot, site] : native->measured) {
+      measuredSites.insert(site);
+    }
+    for (const auto site : native->sites) {
+      if (!measuredSites.contains(site)) {
+        prefix += "measure " + reference(site) + ";\n";
+      }
+    }
+  }
+  return prefix;
+}
 
 } // anonymous namespace
 
@@ -756,12 +1002,6 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture(
   // Parse session device properties JSON
   const auto& propertiesStr = device.GetDeviceCapabilities();
 
-  Aws::Utils::Json::JsonValue const json(propertiesStr);
-  if (!json.WasParseSuccessful()) {
-    std::cerr << "Failed to parse session device properties JSON\n";
-    return QDMI_ERROR_FATAL;
-  }
-
   std::vector<GateModelCapabilityParser::CalibrationEnricher> enrichers;
   if (architecture->provider == "IQM") {
     enrichers.emplace_back(GateModelCapabilityParser::enrichIqmCalibration);
@@ -777,10 +1017,16 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture(
     return static_cast<QDMI_STATUS>(status);
   }
 
+  architecture->supportPhysicalQubits = properties.supportPhysicalQubits;
+  architecture->requiresAllQubitsMeasurement =
+      properties.requiresAllQubitsMeasurement;
+  architecture->supportVerbatim = properties.supportVerbatim;
+
   // Transfer Parsed Data to Cached Architecture
   architecture->qubitsNum = properties.qubitCount;
   architecture->programSetLimits = properties.programSetLimits;
   architecture->connectivity = std::move(properties.connectivity);
+  architecture->fullyConnected = properties.fullyConnected;
 
   architecture->sites = std::move(properties.sites);
   architecture->sitesPtr = std::move(properties.sitesPtr);
@@ -1251,6 +1497,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
   case QDMI_DEVICE_PROPERTY_OPERATIONS:
   case AMAZON_BRAKET_QDMI_DEVICE_PROPERTY_SUPPORTEDOPERATIONS:
   case QDMI_DEVICE_PROPERTY_COUPLINGMAP:
+  case QDMI_DEVICE_PROPERTY_CUSTOM2:
   case QDMI_DEVICE_PROPERTY_STATUS:
   case QDMI_DEVICE_PROPERTY_QUEUELENGTH:
     break;
@@ -1275,6 +1522,15 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
     queueLength = queueLength_;
   }
 
+  if (arch->fullyConnected) {
+    ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_CUSTOM2,
+                        "mqt.compiler-target.v1:all-to-all-homogeneous", prop,
+                        size, value, sizeRet)
+    if (prop == QDMI_DEVICE_PROPERTY_COUPLINGMAP) {
+      return QDMI_ERROR_NOTSUPPORTED;
+    }
+  }
+
   // Session device architecture properties (from cache)
   ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_SITES, AMAZON_BRAKET_QDMI_Site,
                     arch->sitesPtr, prop, size, value, sizeRet)
@@ -1290,7 +1546,6 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
                             arch->qubitsNum, prop, size, value, sizeRet)
   ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_NAME, arch->name.c_str(), prop, size,
                       value, sizeRet)
-
   // Return device status from Amazon Braket (mutable, per-query)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_STATUS, QDMI_Device_Status,
                             braketDeviceStatus_.load(), prop, size, value,
@@ -1375,6 +1630,20 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryOperationProperty(
     return QDMI_ERROR_INVALIDARGUMENT;
   }
 
+  if (architecture->provider == "Rigetti" && operation->name_ == "rx") {
+    constexpr auto constraints =
+        R"({"schema":"mqt.operation-parameters.v1","alternatives":[{"fixed":[-3.141592653589793]},{"fixed":[-1.5707963267948966]},{"fixed":[1.5707963267948966]},{"fixed":[3.141592653589793]}]})";
+    ADD_STRING_PROPERTY(AMAZON_BRAKET_QDMI_OPERATION_PROPERTY_MQT_PARAMETERS,
+                        constraints, prop, size, value, sizeRet)
+  }
+
+  if (architecture->provider == "IonQ" && operation->name_ == "zz") {
+    constexpr auto constraints =
+        R"({"schema":"mqt.operation-parameters.v1","alternatives":[{"bounds":[[0,1.5707963267948966]]}]})";
+    ADD_STRING_PROPERTY(AMAZON_BRAKET_QDMI_OPERATION_PROPERTY_MQT_PARAMETERS,
+                        constraints, prop, size, value, sizeRet)
+  }
+
   ADD_STRING_PROPERTY(QDMI_OPERATION_PROPERTY_NAME, operation->name_.c_str(),
                       prop, size, value, sizeRet)
   if (operation->numQubits_.has_value()) {
@@ -1415,8 +1684,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::supportsPrograms(
   if (QDMI_IS_INVALID_ENUM_VALUE(format, QDMI_PROGRAM_FORMAT)) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
-  if (format != QDMI_PROGRAM_FORMAT_QASM2 &&
-      format != QDMI_PROGRAM_FORMAT_QASM3) {
+  if (std::ranges::find(SUPPORTED_PROGRAM_FORMATS, format) ==
+      SUPPORTED_PROGRAM_FORMATS.end()) {
     return QDMI_ERROR_NOTSUPPORTED;
   }
   if (count > static_cast<size_t>(std::numeric_limits<int64_t>::max()) ||
@@ -1426,9 +1695,6 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::supportsPrograms(
   }
   if (count == 1) {
     return QDMI_SUCCESS;
-  }
-  if (format != QDMI_PROGRAM_FORMAT_QASM3) {
-    return QDMI_ERROR_NOTSUPPORTED;
   }
   if (const auto result = session_->fetchDeviceArchitecture(false);
       result != QDMI_SUCCESS) {
@@ -1700,6 +1966,15 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
   std::string localS3Uri;
   std::string localReservationArn;
   size_t localShots = 0;
+  if (const auto result = session_->fetchDeviceArchitecture(false);
+      result != QDMI_SUCCESS) {
+    return result;
+  }
+  std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture> architecture;
+  {
+    const std::scoped_lock lock(session_->cachedArchitectureMutex_);
+    architecture = session_->cachedArchitecture_;
+  }
   {
     const std::scoped_lock<std::mutex> lock(jobMutex_);
     if (retrieved_ || submitting_) {
@@ -1711,13 +1986,17 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::submit() -> QDMI_STATUS try {
     if (programs_.empty() || session_->getDeviceArn().empty()) {
       return QDMI_ERROR_INVALIDARGUMENT;
     }
-    submitting_ = true;
     localPrograms = programs_;
+    submitting_ = true;
     localS3Uri = jobS3Uri_;
     localReservationArn = reservationArn_.empty()
                               ? session_->getReservationArn()
                               : reservationArn_;
     localShots = shots_ * programs_.size();
+  }
+
+  for (auto& program : localPrograms) {
+    program = adaptProgram(program, *architecture);
   }
 
   Aws::Braket::Model::CreateQuantumTaskRequest request;
@@ -2233,6 +2512,7 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal(
   auto root = resultManifest_->View();
   Aws::Utils::Json::JsonValue program;
   Aws::Utils::Json::JsonValue executable;
+  std::string source;
   if (programSet_) {
     const auto reference = root.GetArray("programResults")[programIndex];
     std::string directory;
@@ -2259,6 +2539,19 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal(
         result != QDMI_SUCCESS) {
       return result;
     }
+    if (program.View().ValueExists("source")) {
+      Aws::Utils::Json::JsonValue action;
+      if (const auto result = resolveResultJson(
+              program.View().GetObject("source"), action, directory);
+          result != QDMI_SUCCESS) {
+        return result;
+      }
+      if (!action.View().ValueExists("source") ||
+          !action.View().GetObject("source").IsString()) {
+        return QDMI_ERROR_FATAL;
+      }
+      source = action.View().GetString("source");
+    }
     root = executable.View();
     if (!root.ValueExists("inputsIndex") ||
         root.GetInteger("inputsIndex") != 0) {
@@ -2270,10 +2563,11 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::fetchResultsInternal(
                ? QDMI_ERROR_NOTSUPPORTED
                : QDMI_ERROR_FATAL;
   }
-  const auto measurements = amazon::braket::qdmi::parseMeasurementResults(root);
+  const auto measurements =
+      amazon::braket::qdmi::parseMeasurementResults(root, source);
   ProgramResult result;
   for (const auto& measurement : measurements) {
-    if (!result.shots.empty()) {
+    if (!result.counts.empty()) {
       result.shots += ',';
     }
     result.shots += measurement;

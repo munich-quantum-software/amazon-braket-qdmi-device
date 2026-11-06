@@ -28,6 +28,7 @@
 
 #include "amazon-braket-qdmi-device/DeviceParser.hpp"
 
+#include "amazon-braket-qdmi-device/OpenQasm.hpp"
 #include "amazon_braket_qdmi/device.h"
 
 #include "aws/braket/model/DeviceType.h"
@@ -48,6 +49,7 @@
 #include <optional>
 #include <ranges>
 #include <set>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -59,20 +61,165 @@
 // Helper Functions (Common to All Parsers)
 // ============================================================================
 
+namespace {
+
+struct Readout {
+  std::string initial;
+  std::vector<std::optional<int64_t>> sites;
+};
+
+auto sourceReadout(std::string_view source) -> std::optional<Readout> {
+  amazon::braket::qdmi::detail::OpenQasmTokens tokens(source);
+  tokens.expect("OPENQASM");
+  if (tokens.next() != "3") {
+    return std::nullopt;
+  }
+  auto version = tokens.next();
+  if (version == ".") {
+    tokens.number();
+    version = tokens.next();
+  }
+  if (version != ";") {
+    throw std::runtime_error("Invalid OpenQASM version");
+  }
+  Readout readout;
+  std::string_view classical;
+  std::string_view quantum;
+  size_t qubits = 0;
+  bool measured = false;
+  for (auto token = tokens.next(); !token.empty(); token = tokens.next()) {
+    if (token == "bit" || token == "qubit") {
+      if (measured || tokens.next() != "[") {
+        return std::nullopt;
+      }
+      const auto width = tokens.number();
+      tokens.expect("]");
+      const auto name = tokens.next();
+      tokens.expect(";");
+      auto& reg = token == "bit" ? classical : quantum;
+      if (!reg.empty()) {
+        return std::nullopt;
+      }
+      if (name.empty() || width == 0) {
+        throw std::runtime_error("Invalid OpenQASM register declaration");
+      }
+      reg = name;
+      if (token == "bit") {
+        readout.initial.assign(width, '0');
+        readout.sites.resize(width);
+      } else {
+        qubits = width;
+      }
+    } else if (!classical.empty() && token == classical) {
+      const auto next = tokens.next();
+      if (next == "=") {
+        const auto value = tokens.next();
+        if (!value.starts_with('"')) {
+          return std::nullopt;
+        }
+        if (measured || value.size() != readout.initial.size() + 2 ||
+            !value.starts_with('"') || !value.ends_with('"') ||
+            !std::ranges::all_of(
+                value.substr(1, value.size() - 2),
+                [](char bit) { return bit == '0' || bit == '1'; })) {
+          throw std::runtime_error("Unsupported OpenQASM register initializer");
+        }
+        readout.initial = value.substr(1, value.size() - 2);
+      } else {
+        if (next != "[") {
+          return std::nullopt;
+        }
+        const auto slot = tokens.number();
+        tokens.expect("]");
+        tokens.expect("=");
+        if (tokens.next() != "measure") {
+          return std::nullopt;
+        }
+        const auto ref = tokens.next();
+        size_t site = 0;
+        if (ref == "$") {
+          site = tokens.number();
+        } else if (!quantum.empty() && ref == quantum) {
+          tokens.expect("[");
+          site = tokens.number();
+          tokens.expect("]");
+          if (site >= qubits) {
+            throw std::runtime_error("OpenQASM qubit index outside register");
+          }
+        } else {
+          throw std::runtime_error(
+              "Unsupported OpenQASM measurement reference");
+        }
+        if (slot >= readout.sites.size() || !std::in_range<int64_t>(site)) {
+          throw std::runtime_error("OpenQASM readout index outside range");
+        }
+        readout.sites[slot] = static_cast<int64_t>(site);
+        measured = true;
+      }
+      tokens.expect(";");
+    } else if (token == "measure") {
+      // Supplemental measurements satisfy device constraints without outputs.
+      while ((token = tokens.next()) != ";") {
+        if (token.empty()) {
+          throw std::runtime_error("Unterminated OpenQASM measurement");
+        }
+      }
+      measured = true;
+    } else if (token == "if" || token == "for" || token == "while" ||
+               token == "switch" || token == "gate" || token == "def" ||
+               token == "defcal" || token == "reset" || measured) {
+      return std::nullopt;
+    }
+  }
+  return readout;
+}
+
+} // namespace
+
 auto amazon::braket::qdmi::parseMeasurementResults(
-    const Aws::Utils::Json::JsonView& result) -> std::vector<std::string> {
+    const Aws::Utils::Json::JsonView& result, std::string_view source)
+    -> std::vector<std::string> {
   if (!result.IsObject() || !result.ValueExists("measuredQubits") ||
       !result.GetObject("measuredQubits").IsListType() ||
       !result.ValueExists("measurements") ||
       !result.GetObject("measurements").IsListType()) {
     throw std::runtime_error("Missing measurement arrays");
   }
-  std::map<int64_t, size_t, std::greater<>> columns;
+  std::string metadataSource;
+  if (source.empty() && result.ValueExists("additionalMetadata")) {
+    const auto metadata = result.GetObject("additionalMetadata");
+    if (metadata.ValueExists("action")) {
+      const auto action = metadata.GetObject("action");
+      if (action.ValueExists("source") &&
+          action.GetObject("source").IsString()) {
+        metadataSource = action.GetString("source");
+        source = metadataSource;
+      }
+    }
+  }
+  const auto readout =
+      source.empty() ? std::optional<Readout>{} : sourceReadout(source);
+  std::map<int64_t, size_t, std::greater<>> positions;
   const auto qubits = result.GetArray("measuredQubits");
   for (size_t i = 0; i < qubits.GetLength(); ++i) {
     if (!qubits[i].IsIntegerType() || qubits[i].AsInt64() < 0 ||
-        !columns.emplace(qubits[i].AsInt64(), i).second) {
+        !positions.emplace(qubits[i].AsInt64(), i).second) {
       throw std::runtime_error("Invalid measuredQubits metadata");
+    }
+  }
+  std::vector<std::optional<size_t>> projection;
+  if (readout) {
+    projection.reserve(readout->sites.size());
+    for (const auto site : readout->sites) {
+      if (!site) {
+        projection.emplace_back(std::nullopt);
+        continue;
+      }
+      const auto column = positions.find(*site);
+      if (column == positions.end()) {
+        throw std::runtime_error("Missing requested measured qubit");
+      }
+      projection.emplace_back(column->second);
     }
   }
   const auto measurements = result.GetArray("measurements");
@@ -80,21 +227,33 @@ auto amazon::braket::qdmi::parseMeasurementResults(
   results.reserve(measurements.GetLength());
   for (size_t i = 0; i < measurements.GetLength(); ++i) {
     if (!measurements[i].IsListType()) {
-      throw std::runtime_error("Invalid measurement row");
+      throw std::runtime_error("Invalid shot measurement array");
     }
     const auto shot = measurements[i].AsArray();
-    if (shot.GetLength() != columns.size()) {
+    if (shot.GetLength() != qubits.GetLength()) {
       throw std::runtime_error(
           "Measurement width does not match measuredQubits");
     }
-    std::string bitstring;
-    bitstring.reserve(columns.size());
-    for (const auto column : columns | std::views::values) {
+    for (size_t column = 0; column < shot.GetLength(); ++column) {
       if (!shot[column].IsIntegerType() ||
           (shot[column].AsInt64() != 0 && shot[column].AsInt64() != 1)) {
-        throw std::runtime_error("Nonbinary backend measurement");
+        throw std::runtime_error("Nonbinary measurement outcome");
       }
-      bitstring += shot[column].AsInt64() == 0 ? '0' : '1';
+    }
+    std::string bitstring;
+    if (readout) {
+      bitstring = readout->initial;
+      for (size_t slot = 0; slot < projection.size(); ++slot) {
+        if (const auto column = projection[slot]) {
+          bitstring[bitstring.size() - 1 - slot] =
+              shot[*column].AsInt64() == 0 ? '0' : '1';
+        }
+      }
+    } else {
+      bitstring.reserve(positions.size());
+      for (const auto& [site, column] : positions) {
+        bitstring += shot[column].AsInt64() == 0 ? '0' : '1';
+      }
     }
     results.emplace_back(std::move(bitstring));
   }
@@ -235,25 +394,6 @@ auto GateModelCapabilityParser::parseQubitCount(
   return QDMI_SUCCESS;
 }
 
-auto GateModelCapabilityParser::buildFullConnectivity(
-    ParsedDeviceProperties& properties) -> void {
-  properties.connectivity.clear();
-  if (properties.qubitCount < 2) {
-    return;
-  }
-  properties.connectivity.reserve(properties.qubitCount *
-                                  (properties.qubitCount - 1) * 2);
-
-  for (size_t i = 0; i < properties.qubitCount; ++i) {
-    for (size_t j = i + 1; j < properties.qubitCount; ++j) {
-      properties.connectivity.push_back(properties.sitesPtr[i]);
-      properties.connectivity.push_back(properties.sitesPtr[j]);
-      properties.connectivity.push_back(properties.sitesPtr[j]);
-      properties.connectivity.push_back(properties.sitesPtr[i]);
-    }
-  }
-}
-
 auto GateModelCapabilityParser::parseSitesAndConnectivity(
     const Aws::Braket::Model::DeviceType deviceType,
     const Aws::Utils::Json::JsonView& propertiesJson,
@@ -288,7 +428,7 @@ auto GateModelCapabilityParser::parseSitesAndConnectivity(
     for (size_t index = 0; index < properties.qubitCount; ++index) {
       addSite(std::to_string(index), index);
     }
-    buildFullConnectivity(properties);
+    properties.fullyConnected = true;
     return QDMI_SUCCESS;
   }
 
@@ -396,7 +536,16 @@ auto GateModelCapabilityParser::parseOperations(
     std::vector<std::string> names;
     names.reserve(array.GetLength());
     for (size_t index = 0; index < array.GetLength(); ++index) {
-      names.emplace_back(array.GetItem(index).AsString());
+      auto name = std::string{array.GetItem(index).AsString()};
+      // IonQ's nativeGateSet uses capitals; OpenQASM gate names are lowercase.
+      if (name == "GPI") {
+        name = "gpi";
+      } else if (name == "GPI2") {
+        name = "gpi2";
+      } else if (name == "ZZ") {
+        name = "zz";
+      }
+      names.emplace_back(std::move(name));
     }
     return names;
   };
@@ -493,6 +642,23 @@ auto GateModelCapabilityParser::parseProperties(
     return status;
   }
   const auto actions = propertiesJson.GetObject("action");
+  const auto openqasm = actions.GetObject("braket.ir.openqasm.program");
+  const auto flag = [&](const char* key) {
+    return openqasm.ValueExists(key) && openqasm.GetObject(key).IsBool() &&
+           openqasm.GetBool(key);
+  };
+  properties.supportPhysicalQubits = flag("supportPhysicalQubits");
+  properties.requiresAllQubitsMeasurement =
+      flag("requiresAllQubitsMeasurement");
+  if (openqasm.ValueExists("supportedPragmas") &&
+      openqasm.GetObject("supportedPragmas").IsListType()) {
+    const auto pragmas = openqasm.GetArray("supportedPragmas");
+    properties.supportVerbatim = std::ranges::any_of(
+        std::span{pragmas.GetUnderlyingData(), pragmas.GetLength()},
+        [](const auto& pragma) {
+          return pragma.IsString() && pragma.AsString() == "verbatim";
+        });
+  }
   constexpr auto programSetAction = "braket.ir.openqasm.program_set";
   if (actions.ValueExists(programSetAction)) {
     const auto action = actions.GetObject(programSetAction);
@@ -557,6 +723,9 @@ auto GateModelCapabilityParser::parseProperties(
 
 auto GateModelCapabilityParser::populateOperationSites(
     ParsedDeviceProperties& properties) -> void {
+  if (properties.fullyConnected) {
+    return;
+  }
   for (auto& operation : properties.operations) {
     auto& sites = operation->applicableSites_;
     if (operation->numQubits_ == 1) {

@@ -1,12 +1,3 @@
----
-file_format: mystnb
-language_info:
-  name: python
-kernelspec:
-  name: python3
-  display_name: Python 3
----
-
 # Qiskit execution through QDMI
 
 Install the package with the Qiskit adapter:
@@ -16,10 +7,15 @@ uv pip install "amazon-braket-qdmi[qiskit]"
 ```
 
 The adapter exposes the selected Amazon Braket device as a Qiskit `BackendV2`.
-It serializes circuits to self-contained OpenQASM 3 and maps Qiskit operations
-to the names accepted by Amazon Braket. A circuit list uses one native
-ProgramSet when the device advertises support and accepts the common shot count.
-Otherwise, MQT Core submits separate tasks and retains the input order.
+Follow MQT Core's
+[compile-and-run guide](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/qdmi_backend.html)
+for device-specific compilation and result handling. The device adapts flat
+native OpenQASM programs to the selected simulator or QPU's submission
+requirements. Readout must be terminal.
+
+A circuit list uses a native ProgramSet when supported, otherwise separate tasks
+in input order. [Native results](api.md#job-results) follow the submitted
+classical register.
 
 ## Select a catalogue device
 
@@ -48,50 +44,20 @@ AWS credentials come from the AWS SDK default credential provider chain.
 Running the following example submits one 10-shot QuantumTask to SV1. Configure
 AWS credentials with Braket and S3 access before running it.
 
-```{code-cell} python
-from qiskit import QuantumCircuit, transpile
+```python
+from qiskit import QuantumCircuit
 
 from amazon.braket.qdmi.qiskit import AmazonBraketBackend
-```
 
-```{code-cell} python
-:tags: [remove-cell]
+backend = AmazonBraketBackend("amazon.braket.sv1")
+circuit = QuantumCircuit(2)
+circuit.h(0)
+circuit.cx(0, 1)
+circuit.measure_all()
 
-try:
-    # [sv1-initialization-start]
-    backend = AmazonBraketBackend("amazon.braket.sv1")
-    # [sv1-initialization-end]
-except RuntimeError as e:
-    if "Permission denied" not in str(e):
-        raise
-    print("Live SV1 execution requires AWS credentials with Amazon Braket access.")
-else:
-    # [sv1-circuit-start]
-    circuit = QuantumCircuit(2)
-    circuit.h(0)
-    circuit.cx(0, 1)
-    circuit.measure_all()
-
-    counts = backend.run(transpile(circuit, backend), shots=10).result().get_counts()
-    assert sum(counts.values()) == 10
-    print(counts)
-    # [sv1-circuit-end]
-```
-
-```{literalinclude} qiskit.md
-:language: python
-:start-after: sv1-initialization-start
-:end-before: sv1-initialization-end
-:dedent: 4
-```
-
-Then prepare and execute a Bell-state circuit:
-
-```{literalinclude} qiskit.md
-:language: python
-:start-after: sv1-circuit-start
-:end-before: sv1-circuit-end
-:dedent: 4
+native = backend.compile(circuit)
+counts = backend.run(native, shots=10).result().get_counts()
+print(counts)
 ```
 
 The device uses the standard regional result bucket when submitting the task.
@@ -100,34 +66,11 @@ permissions.
 
 ## Use Qiskit primitives
 
-MQT Core exposes the Qiskit `SamplerV2` and `EstimatorV2` interfaces directly
-from the backend:
-
-```python
-from qiskit import QuantumCircuit
-from qiskit.quantum_info import SparsePauliOp
-
-sample_circuit = QuantumCircuit(2)
-sample_circuit.h(0)
-sample_circuit.cx(0, 1)
-sample_circuit.measure_all()
-
-sampler = backend.sampler(default_shots=100)
-sampled = sampler.run([sample_circuit]).result()
-counts = sampled[0].data.meas.get_counts()
-
-estimator_circuit = QuantumCircuit(2)
-estimator_circuit.h(0)
-estimator_circuit.cx(0, 1)
-
-estimator = backend.estimator(default_precision=0.1)
-estimated = estimator.run([(estimator_circuit, SparsePauliOp("ZZ"))]).result()
-expectation_value = estimated[0].data.evs
-```
-
-Both primitives submit Amazon Braket QuantumTasks. The estimator uses 100 shots
-per measurement circuit at this precision. Each primitive run can submit
-multiple circuits.
+MQT Core supplies sampler and estimator interfaces for native Qiskit circuits.
+Prepare measured native circuits before passing them to `backend.sampler()`;
+submission does not perform compilation. See
+[MQT Core's Qiskit integration](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/qdmi_backend.html#qiskit-primitives)
+for primitive usage and result handling.
 
 ## Override the result destination
 
@@ -147,4 +90,6 @@ from mqt.core.qdmi import builtin_driver as qdmi_driver
 backend = AmazonBraketBackend(device=qdmi_driver.open_device("amazon.braket.sv1"))
 ```
 
-See {doc}`slurm` for the complete cluster and job setup.
+See
+[MQT Core's Slurm playground](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm.html)
+for cluster setup and job submission.

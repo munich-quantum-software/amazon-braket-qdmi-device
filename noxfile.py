@@ -74,7 +74,7 @@ def _run_tests(
     pytest_run_args: Sequence[str] = (),
 ) -> None:
     env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location}
-    env.update(AMAZON_BRAKET_PENNYLANE_LIVE="0", AWS_EC2_METADATA_DISABLED="true")
+    env["AWS_EC2_METADATA_DISABLED"] = "true"
     if shutil.which("cmake") is None:
         session.install("cmake")
     if shutil.which("ninja") is None:
@@ -140,12 +140,8 @@ def minimums(session: nox.Session) -> None:
 
 @nox.session(python="3.14", reuse_venv=True)
 def docs(session: nox.Session) -> None:
-    """Build documentation.
-
-    Pass ``--live`` to execute provider-backed notebooks.
-    """
+    """Build the static guides and native API reference."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--live", action="store_true", help="Execute provider-backed notebook examples")
     parser.add_argument("-b", dest="builder", default="html", help="Build target (default: html)")
     args, posargs = parser.parse_known_args(session.posargs)
 
@@ -153,12 +149,8 @@ def docs(session: nox.Session) -> None:
         "uv",
         "sync",
         "--locked",
-        "--no-dev",
-        "--group",
+        "--only-group",
         "docs",
-        *(("--reinstall-package", "amazon-braket-qdmi") if args.live else ()),
-        "--config-settings-package",
-        f"amazon-braket-qdmi:wheel.cmake={'true' if args.live else 'false'}",
         env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
     )
     session.run(
@@ -185,7 +177,6 @@ def docs(session: nox.Session) -> None:
         "docs",
         f"docs/_build/{args.builder}",
         *posargs,
-        env={"AMAZON_BRAKET_QDMI_LIVE_DOCS": "1" if args.live else "0"},
     )
 
 
