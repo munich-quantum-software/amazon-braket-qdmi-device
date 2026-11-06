@@ -102,11 +102,13 @@ def test_configures_explicit_qdmi_parameters(
     assert device.s3_destination_folder == ("results", "/qaoa/run/")
 
 
+@pytest.mark.parametrize("optional_override", [None, ""])
 def test_uses_native_configuration_fallbacks(
     device_configuration: list[tuple[str, Mapping[str, object], Mapping[str, object]]],
+    optional_override: str | None,
 ) -> None:
     """Leave AWS credentials, Region, reservation, and S3 fallback to the native device."""
-    device = AmazonBraketDevice("arn:device", wires=2)
+    device = AmazonBraketDevice("arn:device", wires=2, region=optional_override, reservation_arn=optional_override)
 
     assert device_configuration == [(AMAZON_BRAKET_QDMI_DEVICE_ID, {"base_url": "arn:device"}, {})]
     assert device.s3_destination_folder is None
@@ -134,6 +136,15 @@ def test_rejects_invalid_configuration(
     """Reject invalid explicit configuration before opening the native device."""
     with pytest.raises(PennyLaneConfigurationError, match=match):
         AmazonBraketDevice(device_arn, wires=2, s3_destination_folder=destination)
+    assert not device_configuration
+
+
+def test_catalogue_device_rejects_empty_arn(
+    device_configuration: list[tuple[str, Mapping[str, object], Mapping[str, object]]],
+) -> None:
+    """Require a non-empty ARN when overriding a PennyLane catalogue device."""
+    with pytest.raises(PennyLaneConfigurationError, match="device_arn"):
+        AmazonBraketSV1Device(device_arn="")
     assert not device_configuration
 
 

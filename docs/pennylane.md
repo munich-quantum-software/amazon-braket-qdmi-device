@@ -1,15 +1,17 @@
-# PennyLane execution through QDMI
+# PennyLane integration
 
 The Amazon Braket adapter configures MQT Core's QDMI device with the selected
 device ARN, AWS Region, and optional reservation and result destination. MQT
 Core compiles circuits for that device and returns measurements in the order
 requested by the QNode.
 
+## Install
+
 ```console
 uv pip install "amazon-braket-qdmi[pennylane]"
 ```
 
-## Select a catalogue device
+## Configure a device
 
 Every installed [catalogue ID](device_catalog.md) is also a PennyLane device
 name. Concrete entries supply the device ARN and Region:
@@ -37,19 +39,21 @@ standard regional result bucket unless
 `s3_destination_folder=("bucket", "prefix")` supplies a pre-provisioned
 destination. See {doc}`configuration` for AWS authentication and S3 permissions.
 
-## Execute a circuit
+## Run a QNode
 
-This finite-shot QNode submits one eight-shot SV1 task. AWS charges apply:
+This finite-shot QNode submits one 1000-shot SV1 task. AWS charges apply:
 
 ```python
-@qp.qnode(device, shots=8)
+@qp.qnode(device)
 def circuit():
-    qp.PauliX(0)
+    qp.X(0)
     return qp.counts(wires=[1, 0])
 
 
-print(circuit())  # {"01": 8}
+print(qp.set_shots(circuit, shots=1000)())  # {"01": 1000}
 ```
+
+## Supported scope
 
 The integration supports gate-model devices with a compiler-supported native
 basis and terminal readout. Analytic execution, pulse programs, and adaptive

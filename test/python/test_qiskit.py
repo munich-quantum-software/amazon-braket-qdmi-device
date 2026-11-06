@@ -94,7 +94,7 @@ def test_opens_catalogue_device(
     assert backend_configuration == [
         (
             "amazon.braket.sv1",
-            {"base_url": None, "custom2": "eu-west-2", "custom3": "arn:reservation"},
+            {"custom2": "eu-west-2", "custom3": "arn:reservation"},
         )
     ]
 
@@ -108,9 +108,17 @@ def test_opens_generic_device(
     assert backend_configuration == [
         (
             AMAZON_BRAKET_QDMI_DEVICE_ID,
-            {"base_url": "arn:device", "custom2": None, "custom3": None},
+            {"base_url": "arn:device"},
         )
     ]
+
+
+def test_empty_catalogue_overrides(
+    backend_configuration: list[tuple[str, Mapping[str, object]]],
+) -> None:
+    """Forward explicit empty connection overrides for a named Qiskit backend."""
+    AmazonBraketBackend("amazon.braket.sv1", device_arn="", region="", reservation_arn="")
+    assert backend_configuration == [("amazon.braket.sv1", {"base_url": "", "custom2": "", "custom3": ""})]
 
 
 def test_generic_device_requires_arn(

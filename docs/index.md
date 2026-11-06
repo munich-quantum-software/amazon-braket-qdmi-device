@@ -27,6 +27,7 @@ including the
 
 - {doc}`installation` describes package and source installation, CMake
   integration, and discovery through MQT Core.
+- {doc}`dependencies` explains native, Python adapter, and build requirements.
 - {doc}`configuration` specifies AWS authentication, device-session parameters,
   and S3 result destinations.
 - {doc}`device_catalog` lists the installed device catalogue and explains the
@@ -51,6 +52,7 @@ including the
 :caption: User guide
 
 installation
+dependencies
 configuration
 device_catalog
 qiskit
