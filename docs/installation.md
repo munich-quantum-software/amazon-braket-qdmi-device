@@ -43,11 +43,16 @@ amazon-braket-qdmi --catalog_path
 Clone, configure, and build the library with:
 
 ```console
-git clone https://github.com/munich-quantum-software/amazon-braket-qdmi-device.git
+git clone --branch v1.2.x https://github.com/munich-quantum-software/amazon-braket-qdmi-device.git
 cd amazon-braket-qdmi-device
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ```
+
+Linux builds use shared system OpenSSL for the AWS SDK and s2n, so they use the
+same libcrypto as system libcurl. When selecting custom installations, point
+`CMAKE_PREFIX_PATH` at matching curl and OpenSSL builds. OpenSSL 4 is supported;
+the v1.2 series continues to use QDMI 1.3.3.
 
 Install the resulting library, headers, device catalogue, and package
 configuration into a selected prefix:
