@@ -53,22 +53,6 @@ target_compile_features(${QDMI_TEST_TARGET_NAME} PRIVATE cxx_std_20)
 
 add_dependencies(${QDMI_TEST_TARGET_NAME} qdmi_test_amazon_braket_device_defs)
 
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  find_package(CURL REQUIRED)
-  set(QDMI_CRYPTO_TEST_TARGET_NAME "${QDMI_TARGET_NAME}-crypto-linkage-test")
-  add_executable(${QDMI_CRYPTO_TEST_TARGET_NAME} test_crypto_linkage.cpp)
-  target_compile_features(${QDMI_CRYPTO_TEST_TARGET_NAME} PRIVATE cxx_std_20)
-  target_compile_definitions(
-    ${QDMI_CRYPTO_TEST_TARGET_NAME}
-    PRIVATE AMAZON_BRAKET_QDMI_LIBRARY_PATH="$<TARGET_FILE:${QDMI_TARGET_NAME}>")
-  target_link_libraries(
-    ${QDMI_CRYPTO_TEST_TARGET_NAME} PRIVATE GTest::gtest_main CURL::libcurl ${CMAKE_DL_LIBS}
-                                            qdmi::qdmi_project_warnings)
-  add_dependencies(${QDMI_CRYPTO_TEST_TARGET_NAME} ${QDMI_TARGET_NAME})
-  gtest_discover_tests(${QDMI_CRYPTO_TEST_TARGET_NAME} PROPERTIES ENVIRONMENT
-                                                                  "AWS_EC2_METADATA_DISABLED=true")
-endif()
-
 set(QDMI_LIVE_TEST_FILTER
     "AmazonBraketQDMISpecificationTest.*:AmazonBraketQDMIJobSpecificationTest.*:AmazonBraketQDMIPerJobS3Test.*:DeviceParsingTestFixture.*:AmazonBraketQDMIWaitTimeoutTest.JobWaitTimeout"
 )
@@ -119,13 +103,25 @@ if(WIN32)
                DISCOVERY_MODE
                PRE_TEST)
 else()
+  set(QDMI_CRYPTO_TEST_PROPERTIES)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
+    # Reproduce a host that loads libcrypto before the installed device.
+    find_package(OpenSSL REQUIRED COMPONENTS Crypto)
+    set(QDMI_CRYPTO_TEST_PROPERTIES ENVIRONMENT_MODIFICATION
+                                    "LD_PRELOAD=set:$<TARGET_FILE:OpenSSL::Crypto>")
+  endif()
   # Offline AWS SDK construction must not probe the EC2 Instance Metadata Service. This keeps
   # discovery hermetic and avoids network-dependent delays.
   gtest_discover_tests(
     ${QDMI_TEST_TARGET_NAME} TEST_FILTER "${QDMI_OFFLINE_TEST_FILTER}"
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}" ENVIRONMENT
-               "AWS_EC2_METADATA_DISABLED=true" DISCOVERY_TIMEOUT 60)
+    PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY
+               "${CMAKE_CURRENT_BINARY_DIR}"
+               ENVIRONMENT
+               "AWS_EC2_METADATA_DISABLED=true"
+               ${QDMI_CRYPTO_TEST_PROPERTIES}
+               DISCOVERY_TIMEOUT
+               60)
 endif()
 
 if(BUILD_AMAZON_BRAKET_LIVE_TESTS)
