@@ -16,9 +16,9 @@ releases may include breaking changes.
 
 - 🐛 Accept live device connectivity graphs that omit unavailable qubits while
   retaining the advertised qubit count ([#298]) ([**@burgholzer**],
-  [**@denialhaag**]).
+  [**@denialhaag**])
 - 🐛 Fix OpenSSL 4 builds and mixed-libcrypto startup failures on Linux while
-  retaining QDMI 1.3.3 ([#298]) ([**@denialhaag**]).
+  retaining QDMI 1.3.3 ([#298]) ([**@denialhaag**])
 
 ## [1.2.0] - 2026-09-12
 
