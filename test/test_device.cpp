@@ -337,9 +337,11 @@ TEST_F(AmazonBraketQDMISpecificationTest, QuerySupportedProgramFormats) {
 
 // Braket promises these properties even though QDMI allows them to be optional.
 TEST_F(AmazonBraketQDMISpecificationTest, RequiredMetadata) {
-  for (const auto property :
-       {QDMI_DEVICE_PROPERTY_NAME, QDMI_DEVICE_PROPERTY_VERSION,
-        QDMI_DEVICE_PROPERTY_LIBRARYVERSION}) {
+  for (const auto property : {
+           QDMI_DEVICE_PROPERTY_NAME,
+           QDMI_DEVICE_PROPERTY_VERSION,
+           QDMI_DEVICE_PROPERTY_LIBRARYVERSION,
+       }) {
     size_t size = 0;
     ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
                   session, property, 0, nullptr, &size),
