@@ -19,17 +19,11 @@
 
 from __future__ import annotations
 
-import sys
-from importlib import metadata
+import tomllib
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent / "_ext"))
-
-try:
-    version = metadata.version("amazon-braket-qdmi")
-except metadata.PackageNotFoundError:
-    msg = "amazon-braket-qdmi must be installed to build the documentation"
-    raise ModuleNotFoundError(msg) from None
+with (Path(__file__).resolve().parents[1] / "pyproject.toml").open("rb") as project_file:
+    version = tomllib.load(project_file)["project"]["version"]
 
 release = version.split("+")[0]
 
@@ -38,10 +32,10 @@ author = "Munich Quantum Software Company GmbH"
 copyright = "2025 - 2026 Munich Quantum Software Company GmbH"  # ruff: ignore[builtin-variable-shadowing]
 language = "en"
 master_doc = "index"
+nitpicky = True
 
 extensions = [
-    "native_api",
-    "myst_nb",
+    "myst_parser",
     "sphinx_copybutton",
     "sphinx_design",
     "sphinx.ext.intersphinx",
@@ -50,14 +44,12 @@ extensions = [
 source_suffix = [".rst", ".md"]
 exclude_patterns = [
     "_build",
-    "**.ipynb_checkpoints",
-    "**.jupyter_cache",
-    "**.jupyter_execute",
     "Thumbs.db",
     ".DS_Store",
 ]
 
 html_theme = "furo"
+html_extra_path = ["_build/doxygen"]
 html_theme_options = {
     "source_repository": "https://github.com/munich-quantum-software/amazon-braket-qdmi-device/",
     "source_branch": "main",
@@ -79,9 +71,6 @@ myst_enable_extensions = [
 ]
 myst_heading_anchors = 3
 myst_substitutions = {"version": version}
-
-nb_execution_mode = "cache"
-nb_execution_raise_on_error = True
 
 copybutton_prompt_text = r"(?:\(\.?venv\) )?(?:\[.*\] )?\$ "
 copybutton_prompt_is_regexp = True

@@ -11,8 +11,6 @@ commands. Keep this file focused on repository-specific guardrails.
 - `python/amazon/braket/qdmi/` contains the Python package; `config/` contains
   the installed device catalogue.
 - `test/` contains GoogleTest and pytest tests, including optional live tests.
-- `test/slurm/` contains device workloads for MQT Core's shared Slurm setup.
-  These files use the repository's Apache-2.0 WITH LLVM-exception license.
 - `cmake/`, `CMakeLists.txt`, and `pyproject.toml` define builds. Keep generated
   output in `build/` and `docs/_build/`, never in commits.
 
@@ -24,9 +22,12 @@ commands. Keep this file focused on repository-specific guardrails.
   C++20 facilities, and the AWS SDK before adding abstractions or settings.
 - Follow documented policy. Neighboring code shows existing practice but does
   not override current instructions.
-- Write comments, documentation, tests, diagnostics, and public text for the
-  final design. Remove prompts, review chronology, former names, and abandoned
-  approaches unless users still need that context.
+- Do not leak conversation, prompt, or iteration history into code comments,
+  pull request descriptions, or other maintainer-facing prose. Write for readers
+  who have not seen the conversation.
+- Prefer comments that explain the current behavior and rationale. Avoid
+  past-facing wording such as "preserve the existing behavior"; explain the
+  actual backwards-compatibility constraint instead.
 - Use short sentences, active voice, and one established term per concept.
   Remove words that add no meaning. Preserve the capitalization of QDMI, Amazon
   Braket, QuantumTask, OpenQASM, AWS, and S3.
@@ -81,8 +82,6 @@ concurrently in the same checkout. For dependency-only setup, use
   `uvx nox -s tests minimums` for the supported Python matrix.
 - Use Google-style Python docstrings. Preserve the `amazon.braket.qdmi`
   namespace and stable entry point. Fix Ruff and ty findings where possible.
-- The shared Slurm smoke test in `test/slurm/README.md` submits two eight-shot
-  SV1 tasks. It requires AWS credentials and explicit live AWS authorization.
 
 ### Live AWS Access
 

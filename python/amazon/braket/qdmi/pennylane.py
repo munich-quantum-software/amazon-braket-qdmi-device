@@ -25,14 +25,13 @@ from typing import TYPE_CHECKING, ClassVar
 
 from mqt.core.plugins.pennylane import PennyLaneConfigurationError, QDMIDevice
 
-from . import (
-    AMAZON_BRAKET_QDMI_DEVICE_ID,
-)
+from . import AMAZON_BRAKET_QDMI_DEVICE_ID
+from ._session import session_parameters
 
 if TYPE_CHECKING:
     from collections.abc import Hashable, Sequence
 
-    from mqt.core.typing import QDMIJobParameters, QDMISessionParameters
+    from mqt.core.typing import QDMIJobParameters
 
 __all__ = [
     "AmazonBraketAqtIbexQ1Device",
@@ -80,7 +79,7 @@ class AmazonBraketDevice(QDMIDevice):
         device_arn: ARN of a gate-based Amazon Braket device or simulator. The
             generic device requires an ARN. Catalogue-specific subclasses use
             their packaged ARN when this argument is omitted.
-        wires: PennyLane wire labels or number of wires.
+        wires: PennyLane qubit labels or number of qubits.
         s3_destination_folder: Optional S3 ``(bucket, prefix)``. If omitted,
             the native device uses the automatic regional result bucket.
         region: Optional AWS region override.
@@ -108,23 +107,17 @@ class AmazonBraketDevice(QDMIDevice):
             msg = "Amazon Braket execution requires a non-empty device_arn."
             raise PennyLaneConfigurationError(msg)
 
-        session_parameters: QDMISessionParameters = {}
-        if device_arn is not None:
-            session_parameters["base_url"] = device_arn
-        if region:
-            session_parameters["custom2"] = region
-        if reservation_arn:
-            session_parameters["custom3"] = reservation_arn
-
         s3_uri = _s3_destination_uri(s3_destination_folder)
         job_parameters: QDMIJobParameters = {} if s3_uri is None else {"custom1": s3_uri}
 
         self._device_arn = device_arn
         self._s3_destination_folder = s3_destination_folder
         super().__init__(
-            device_id=self.qdmi_device_id,
-            session_parameters=session_parameters,
+            self.qdmi_device_id,
             wires=wires,
+            session_parameters=session_parameters(
+                device_arn=device_arn, region=region or None, reservation_arn=reservation_arn or None
+            ),
             job_parameters=job_parameters,
         )
 

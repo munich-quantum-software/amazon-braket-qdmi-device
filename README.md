@@ -62,7 +62,7 @@ cmake --install build --prefix /path/to/install
 | execute Qiskit circuits                  | [Qiskit](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/qiskit.html)                   |
 | execute PennyLane programs               | [PennyLane](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/pennylane.html)             |
 | use the QDMI API and retrieve results    | [Usage](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/usage.html)                     |
-| schedule jobs through Slurm              | [Slurm integration](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/slurm.html)         |
+| schedule jobs through Slurm              | [MQT Core's Slurm playground](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm.html)  |
 | develop and test the provider            | [Development](https://amazon-braket-qdmi-device.readthedocs.io/en/stable/development.html)         |
 
 ## Contributors and Support

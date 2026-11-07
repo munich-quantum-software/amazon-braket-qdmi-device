@@ -74,6 +74,7 @@ def _run_tests(
     pytest_run_args: Sequence[str] = (),
 ) -> None:
     env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location}
+    env["AWS_EC2_METADATA_DISABLED"] = "true"
     if shutil.which("cmake") is None:
         session.install("cmake")
     if shutil.which("ninja") is None:
@@ -111,6 +112,8 @@ def _run_tests(
         "pytest",
         *pytest_run_args,
         *session.posargs,
+        "-m",
+        "not live",
         "--cov-config=pyproject.toml",
         env=env,
     )
@@ -137,48 +140,43 @@ def minimums(session: nox.Session) -> None:
 
 @nox.session(python="3.14", reuse_venv=True)
 def docs(session: nox.Session) -> None:
-    """Build the documentation. Pass ``-b linkcheck`` to check links."""
+    """Build the static guides and native API reference."""
     parser = argparse.ArgumentParser()
     parser.add_argument("-b", dest="builder", default="html", help="Build target (default: html)")
     args, posargs = parser.parse_known_args(session.posargs)
 
-    env = {"UV_PROJECT_ENVIRONMENT": session.virtualenv.location}
-    if shutil.which("cmake") is None:
-        session.install("cmake")
-    if shutil.which("ninja") is None:
-        session.install("ninja")
     session.run(
         "uv",
         "sync",
-        "--inexact",
-        "--only-group",
-        "build",
+        "--locked",
         "--only-group",
         "docs",
-        env=env,
+        env={"UV_PROJECT_ENVIRONMENT": session.virtualenv.location},
     )
     session.run(
-        "uv",
-        "sync",
-        "--inexact",
-        "--no-dev",
-        "--no-build-isolation-package",
-        "amazon-braket-qdmi",
-        env=env,
+        "cmake",
+        "-S",
+        ".",
+        "-B",
+        "build/docs",
+        "-DBUILD_AMAZON_BRAKET_TESTS=OFF",
+        "-DBUILD_AMAZON_BRAKET_QDMI_DOCS=ON",
     )
     session.run(
-        "uv",
-        "run",
-        "--no-sync",
+        "cmake",
+        "--build",
+        "build/docs",
+        "--target",
+        "amazon-braket-qdmi-device-docs",
+    )
+    session.run(
         "sphinx-build",
-        "-n",
         "-T",
         "-W",
         f"-b={args.builder}",
         "docs",
         f"docs/_build/{args.builder}",
         *posargs,
-        env=env,
     )
 
 

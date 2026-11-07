@@ -19,7 +19,8 @@
 
 #pragma once
 
-#include <aws/braket/model/DeviceType.h>
+#include "aws/braket/model/DeviceType.h"
+
 #include <cstddef>
 #include <cstdint>
 
@@ -36,6 +37,7 @@ class JsonView;
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -79,12 +81,16 @@ struct ProgramSetLimits {
 struct ParsedDeviceProperties {
   std::optional<ProgramSetLimits> programSetLimits;
   size_t qubitCount{0};
+  bool supportPhysicalQubits = false;
+  bool requiresAllQubitsMeasurement = false;
+  bool supportVerbatim = false;
 
   std::vector<std::unique_ptr<AMAZON_BRAKET_QDMI_Site_impl_d>> sites;
   std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*> sitesPtr;
   std::unordered_map<std::string, AMAZON_BRAKET_QDMI_Site_impl_d*> sitesMap;
 
   std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*> connectivity;
+  bool fullyConnected = false;
 
   std::vector<std::unique_ptr<AMAZON_BRAKET_QDMI_Operation_impl_d>> operations;
   std::vector<AMAZON_BRAKET_QDMI_Operation_impl_d*> allOperationsPtr;
@@ -96,9 +102,14 @@ struct ParsedDeviceProperties {
 
 namespace amazon::braket::qdmi {
 
-/// Convert measurement columns to descending measured-qubit order.
-/// Throws std::runtime_error for malformed backend results.
-auto parseMeasurementResults(const Aws::Utils::Json::JsonView& result)
+/// Recover static classical outputs from OpenQASM source or action metadata.
+///
+/// Return the highest classical slot first, retaining initialized and unused
+/// bits. Without source metadata or for other source forms, fall back to
+/// descending measured-qubit order. Throws std::runtime_error for malformed
+/// results or invalid static readout.
+auto parseMeasurementResults(const Aws::Utils::Json::JsonView& result,
+                             std::string_view source = {})
     -> std::vector<std::string>;
 
 } // namespace amazon::braket::qdmi
@@ -139,7 +150,6 @@ private:
   parseSitesAndConnectivity(Aws::Braket::Model::DeviceType deviceType,
                             const Aws::Utils::Json::JsonView& propertiesJson,
                             ParsedDeviceProperties& properties) -> int;
-  static auto buildFullConnectivity(ParsedDeviceProperties& properties) -> void;
   static auto parseOperations(Aws::Braket::Model::DeviceType deviceType,
                               const Aws::Utils::Json::JsonView& propertiesJson,
                               ParsedDeviceProperties& properties) -> int;

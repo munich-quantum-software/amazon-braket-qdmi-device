@@ -15,7 +15,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Offline tests for the Amazon Braket PennyLane specialization."""
+"""Tests for the Amazon Braket PennyLane specialization, with an opt-in SV1 check."""
 
 from __future__ import annotations
 
@@ -62,13 +62,13 @@ def device_configuration(
 
     def initialize(
         _device: QDMIDevice,
-        *,
         device_id: str,
-        session_parameters: Mapping[str, object] | None = None,
+        *,
+        session_parameters: Mapping[str, object],
         job_parameters: Mapping[str, object] | None = None,
         **_kwargs: object,
     ) -> None:
-        calls.append((device_id, dict(session_parameters or {}), dict(job_parameters or {})))
+        calls.append((device_id, session_parameters, dict(job_parameters or {})))
 
     monkeypatch.setattr(QDMIDevice, "__init__", initialize)
     return calls
@@ -102,11 +102,13 @@ def test_configures_explicit_qdmi_parameters(
     assert device.s3_destination_folder == ("results", "/qaoa/run/")
 
 
+@pytest.mark.parametrize("optional_override", [None, ""])
 def test_uses_native_configuration_fallbacks(
     device_configuration: list[tuple[str, Mapping[str, object], Mapping[str, object]]],
+    optional_override: str | None,
 ) -> None:
     """Leave AWS credentials, Region, reservation, and S3 fallback to the native device."""
-    device = AmazonBraketDevice("arn:device", wires=2)
+    device = AmazonBraketDevice("arn:device", wires=2, region=optional_override, reservation_arn=optional_override)
 
     assert device_configuration == [(AMAZON_BRAKET_QDMI_DEVICE_ID, {"base_url": "arn:device"}, {})]
     assert device.s3_destination_folder is None
@@ -134,6 +136,15 @@ def test_rejects_invalid_configuration(
     """Reject invalid explicit configuration before opening the native device."""
     with pytest.raises(PennyLaneConfigurationError, match=match):
         AmazonBraketDevice(device_arn, wires=2, s3_destination_folder=destination)
+    assert not device_configuration
+
+
+def test_catalogue_device_rejects_empty_arn(
+    device_configuration: list[tuple[str, Mapping[str, object], Mapping[str, object]]],
+) -> None:
+    """Require a non-empty ARN when overriding a PennyLane catalogue device."""
+    with pytest.raises(PennyLaneConfigurationError, match="device_arn"):
+        AmazonBraketSV1Device(device_arn="")
     assert not device_configuration
 
 
@@ -202,15 +213,30 @@ def test_overrides_catalogue_configuration(
 
 def test_samples_with_qnode_shots(monkeypatch: pytest.MonkeyPatch) -> None:
     """Execute through MQT Core with the QNode's explicit shot count."""
+    open_native = driver.open_device
     monkeypatch.setattr(
         "mqt.core.plugins.pennylane.device.open_device",
-        lambda _device_id, **_kwargs: driver.open_device("mqt.ddsim.default"),
+        lambda _device_id, **_kwargs: open_native("mqt.ddsim.default"),
     )
-    device = AmazonBraketSV1Device(wires=2)
+    device = AmazonBraketSV1Device(wires=["left", "right"])
+    assert device.device_id == "amazon.braket.sv1"
 
     @qp.qnode(device, shots=5)
     def circuit() -> qp.measurements.CountsMP:
-        qp.PauliX(0)
-        return qp.counts(wires=[0, 1])
+        qp.PauliX("left")
+        return qp.counts(wires=["right", "left"])
 
-    assert circuit() == {"10": 5}
+    assert circuit() == {"01": 5}
+
+
+@pytest.mark.live
+def test_sv1_live() -> None:
+    """Submit one eight-shot circuit through the installed PennyLane adapter."""
+    device = qp.device("amazon.braket.sv1", wires=["left", "right"])
+
+    @qp.qnode(device, shots=8)
+    def circuit() -> qp.measurements.CountsMP:
+        qp.PauliX("left")
+        return qp.counts(wires=["right", "left"])
+
+    assert circuit() == {"01": 8}

@@ -70,17 +70,18 @@
 #include "amazon-braket-qdmi-device/Wait.hpp"
 #include "amazon_braket_qdmi/device.h"
 
+#include "aws/braket/BraketClient.h"
+#include "aws/braket/model/DeviceType.h"
+#include "aws/core/auth/AWSCredentialsProvider.h"
+#include "aws/core/client/ClientConfiguration.h"
+#include "aws/core/config/ConfigAndCredentialsCacheManager.h"
+#include "aws/core/utils/json/JsonSerializer.h"
+#include "aws/core/utils/threading/Executor.h"
+#include "aws/s3/S3Client.h"
+#include "aws/sts/STSClient.h"
+
 #include <array>
 #include <atomic>
-#include <aws/braket/BraketClient.h>
-#include <aws/braket/model/DeviceType.h>
-#include <aws/core/auth/AWSCredentialsProvider.h>
-#include <aws/core/client/ClientConfiguration.h>
-#include <aws/core/config/ConfigAndCredentialsCacheManager.h>
-#include <aws/core/utils/json/JsonSerializer.h>
-#include <aws/core/utils/threading/Executor.h>
-#include <aws/s3/S3Client.h>
-#include <aws/sts/STSClient.h>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdlib>
@@ -190,6 +191,9 @@ inline auto configureCaBundle(Aws::Client::ClientConfiguration& configuration)
  */
 struct DeviceArchitecture {
   std::optional<ProgramSetLimits> programSetLimits;
+  bool supportPhysicalQubits = false;
+  bool supportVerbatim = false;
+  bool requiresAllQubitsMeasurement = false;
   std::string name;     // Specific device name (e.g., "Garnet")
   std::string provider; // Provider name (e.g., "IQM")
   Aws::Braket::Model::DeviceType deviceType; // QPU or SIMULATOR
@@ -210,6 +214,7 @@ struct DeviceArchitecture {
 
   // Connectivity (coupling map)
   std::vector<AMAZON_BRAKET_QDMI_Site_impl_d*> connectivity;
+  bool fullyConnected = false;
 };
 
 /**

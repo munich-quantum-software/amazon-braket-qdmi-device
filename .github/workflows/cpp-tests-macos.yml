@@ -1,58 +1,62 @@
+# Copyright (c) 2023 - 2026 Chair for Design Automation, TUM
+# Copyright (c) 2025 - 2026 Munich Quantum Software Company GmbH
+# All rights reserved.
+#
+# SPDX-License-Identifier: MIT
+#
+# Licensed under the MIT License
+
 name: 🇨 • Tests • macos
 on:
   workflow_call:
     inputs:
       runs-on:
-        description: >
-          The macOS runner image to use. Defaults to 'macos-latest'.
-          This can be any valid macOS runner image, such as 'macos-15' or 'macos-26'.
-        default: "macos-latest"
+        description: "macOS runner image"
+        required: true
         type: string
-      config:
-        description: >
-          The build type to use. Defaults to 'Release'.
-          This can be any valid CMake build type, such as 'Debug' or 'Release'.
-        default: "Release"
+      preset-name:
+        description: "CMake configure, build, and test preset"
+        required: true
         type: string
+
+permissions:
+  contents: read
 
 jobs:
   cpp-tests-macos:
-    name: 🍎 ${{ inputs.runs-on }} ${{ inputs.config }}
+    name: 🍎 ${{ inputs.runs-on }} clang ${{ inputs.preset-name }}
     runs-on: ${{ inputs.runs-on }}
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: 4
       CTEST_PARALLEL_LEVEL: 4
       FORCE_COLOR: 3
+      PRESET_NAME: ${{ inputs.preset-name }}
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_IDLE_TIMEOUT: 0
+      SCCACHE_SKIP_CACHE_CHECK: "true"
+      SCCACHE_GHA_RW_MODE: ${{ github.ref == 'refs/heads/main' && 'READ_WRITE' || 'READ_ONLY' }}
     steps:
-      # check out the repository
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # Set up ccache for faster C++ builds
-      - name: Setup ccache
-        uses: Chocobo1/setup-ccache-action@ccc034167d57f9a0f3248c21b633819fcf331757 # v1.5.11
-        with:
-          prepend_symlinks_to_path: false
-          override_cache_key: c++-tests-${{ inputs.runs-on }}-${{ inputs.config }}
-      - name: Select OpenSSL 3
+
+      - name: Install dependencies
         run: |
-          brew install openssl@3
-          # Use the SDK's bundled s2n with the selected OpenSSL version.
-          if brew list --versions s2n >/dev/null; then
-            brew unlink s2n
-          fi
-          echo "OPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
+          brew install ninja openssl@3
           echo "CMAKE_PREFIX_PATH=$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
-      # configure CMake in the specified mode, optionally with additional arguments
+
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+
       - name: Configure CMake
-        env:
-          CONFIG: ${{ inputs.config }}
         run: >-
-          cmake -S . -B build -DCMAKE_BUILD_TYPE="$CONFIG"
-          -DBUILD_AMAZON_BRAKET_LIVE_TESTS=OFF
-      # build the project in the specified mode
+          cmake --preset "$PRESET_NAME"
+          -DCMAKE_DISABLE_FIND_PACKAGE_s2n=ON
+          -DCMAKE_C_COMPILER_LAUNCHER=sccache
+          -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+
       - name: Build
-        run: cmake --build build
-      # run the offline tests
+        run: cmake --build --preset "$PRESET_NAME"
+
       - name: Test
-        run: ctest --output-on-failure --test-dir build --timeout 600
+        run: ctest --preset "$PRESET_NAME"

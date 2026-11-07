@@ -19,46 +19,26 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING
 
 try:
     from mqt.core.plugins.qiskit.backend import QDMIBackend
-    from mqt.core.qdmi import Device as QDMIDeviceHandle
-    from mqt.core.qdmi import ProgramFormat
     from mqt.core.qdmi.builtin_driver import open_device
 except ImportError as error:
     msg = "Install 'amazon-braket-qdmi[qiskit]' to use the Qiskit backend."
     raise ImportError(msg) from error
 
-try:
-    from qiskit import qasm3
-    from qiskit.circuit import Barrier, Gate, Instruction, Parameter, QuantumCircuit, QuantumRegister
-    from qiskit.converters import circuit_to_dag, dag_to_circuit
-except ImportError as error:
-    msg = "Install 'amazon-braket-qdmi[qiskit]' to use the Qiskit backend."
-    raise ImportError(msg) from error
-
 from . import AMAZON_BRAKET_QDMI_DEVICE_ID
+from ._session import session_parameters
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
-
-    from qiskit.transpiler import CouplingMap, Target
+    from mqt.core.qdmi import Device as QDMIDeviceHandle
 
 __all__ = ["AmazonBraketBackend"]
 
 
 def __dir__() -> list[str]:
     return __all__
-
-
-def _opaque_gate(name: str, num_qubits: int, num_parameters: int) -> Gate:
-    """Create a Braket OpenQASM gate for Qiskit's target model.
-
-    Returns:
-        An opaque Qiskit gate with the requested signature.
-    """
-    return Gate(name, num_qubits, [Parameter(f"p{index}") for index in range(num_parameters)])
 
 
 class AmazonBraketBackend(QDMIBackend):
@@ -71,78 +51,6 @@ class AmazonBraketBackend(QDMIBackend):
         region: Optional AWS Region override.
         reservation_arn: Optional Amazon Braket reservation ARN.
     """
-
-    _GATE_ALIASES: ClassVar[dict[str, set[str]]] = {
-        **QDMIBackend._GATE_ALIASES,  # ruff: ignore[private-member-access]
-        "ccx": {"ccnot"},
-        "cp": {"cphaseshift"},
-        "p": QDMIBackend._GATE_ALIASES["p"] | {"phaseshift"},  # ruff: ignore[private-member-access]
-        "rxx": {"xx"},
-        "ryy": {"yy"},
-        "rzz": {"zz"},
-        "sdg": {"si"},
-        "sx": {"v"},
-        "sxdg": {"vi"},
-        "tdg": {"ti"},
-    }
-    _EXTRA_GATES: ClassVar[dict[str, Instruction | type[Instruction]]] = {
-        "cphaseshift00": _opaque_gate("cphaseshift00", 2, 1),
-        "cphaseshift01": _opaque_gate("cphaseshift01", 2, 1),
-        "cphaseshift10": _opaque_gate("cphaseshift10", 2, 1),
-        "gpi": _opaque_gate("gpi", 1, 1),
-        "gpi2": _opaque_gate("gpi2", 1, 1),
-        "ms": _opaque_gate("ms", 2, 3),
-        "pswap": _opaque_gate("pswap", 2, 1),
-        "xy": _opaque_gate("xy", 2, 1),
-    }
-
-    def _build_target(self) -> Target:
-        """Add Qiskit's variable-width barrier directive to the device Target.
-
-        Returns:
-            The QDMI device Target with backend-level barrier support.
-        """
-        target = super()._build_target()
-        target.add_instruction(Barrier, name="barrier")
-        return target
-
-    @property
-    def coupling_map(self) -> CouplingMap | None:
-        """The device connectivity constraint, or none for all-to-all devices."""
-        coupling_map = super().coupling_map
-        if coupling_map is not None and len(coupling_map.get_edges()) == coupling_map.size() * (
-            coupling_map.size() - 1
-        ):
-            return None
-        return coupling_map
-
-    def _serialize_circuit(
-        self,
-        circuit: QuantumCircuit,
-        supported_program_formats: Iterable[ProgramFormat],
-    ) -> tuple[str, ProgramFormat]:
-        """Serialize a circuit to Amazon Braket's self-contained OpenQASM 3 dialect.
-
-        Returns:
-            The serialized program and its format.
-        """
-        assert ProgramFormat.QASM3 in supported_program_formats
-        available = {operation.name().lower() for operation in self.device.operations()}
-        dag = circuit_to_dag(circuit)
-        dag.remove_qubits(*(set(dag.idle_wires()) & set(dag.qubits)))
-        translated = dag_to_circuit(dag)
-        if translated.qubits and not translated.qregs:
-            translated.add_register(QuantumRegister(bits=translated.qubits, name="q"))
-        basis_gates = set()
-        for index, instruction in enumerate(translated.data):
-            name = instruction.operation.name.lower()
-            aliases = self._map_qiskit_gate_to_operation_names(name)
-            translated_name = name if name in available else min(aliases & available, default=name)
-            if translated_name not in {"barrier", "measure", "reset"}:
-                basis_gates.add(translated_name)
-            if translated_name != name:
-                translated.data[index] = instruction.replace(operation=instruction.operation.copy(name=translated_name))
-        return qasm3.dumps(translated, includes=(), basis_gates=sorted(basis_gates)), ProgramFormat.QASM3
 
     def __init__(
         self,
@@ -172,8 +80,6 @@ class AmazonBraketBackend(QDMIBackend):
 
         device = open_device(
             resolved_device_id,
-            base_url=device_arn,
-            custom2=region,
-            custom3=reservation_arn,
+            **session_parameters(device_arn=device_arn, region=region, reservation_arn=reservation_arn),
         )
         super().__init__(device=device, device_id=resolved_device_id)

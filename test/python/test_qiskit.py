@@ -15,18 +15,28 @@
 #
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-"""Offline tests for the Amazon Braket Qiskit backend."""
+"""Tests for the Amazon Braket Qiskit backend, with an opt-in SV1 check."""
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, cast
 
 import pytest
+from mqt.core.mlir import (
+    CompilationOptions,
+    CompilerTarget,
+    MappingOptions,
+    PayloadSpecification,
+    TargetEnvironment,
+    compile_program,
+    serialize_program,
+)
 from mqt.core.plugins.qiskit.backend import QDMIBackend
 from mqt.core.qdmi import ProgramFormat
-from qiskit import QuantumCircuit, transpile
-from qiskit.transpiler import CouplingMap, Target
+from qiskit import ClassicalRegister, QuantumCircuit
+from qiskit.circuit import Gate
 
 from amazon.braket.qdmi import AMAZON_BRAKET_QDMI_DEVICE_ID
 from amazon.braket.qdmi import qiskit as braket_qiskit
@@ -84,7 +94,7 @@ def test_opens_catalogue_device(
     assert backend_configuration == [
         (
             "amazon.braket.sv1",
-            {"base_url": None, "custom2": "eu-west-2", "custom3": "arn:reservation"},
+            {"custom2": "eu-west-2", "custom3": "arn:reservation"},
         )
     ]
 
@@ -98,9 +108,17 @@ def test_opens_generic_device(
     assert backend_configuration == [
         (
             AMAZON_BRAKET_QDMI_DEVICE_ID,
-            {"base_url": "arn:device", "custom2": None, "custom3": None},
+            {"base_url": "arn:device"},
         )
     ]
+
+
+def test_empty_catalogue_overrides(
+    backend_configuration: list[tuple[str, Mapping[str, object]]],
+) -> None:
+    """Forward explicit empty connection overrides for a named Qiskit backend."""
+    AmazonBraketBackend("amazon.braket.sv1", device_arn="", region="", reservation_arn="")
+    assert backend_configuration == [("amazon.braket.sv1", {"base_url": "", "custom2": "", "custom3": ""})]
 
 
 def test_generic_device_requires_arn(
@@ -133,80 +151,109 @@ def test_open_device_rejects_session_overrides(
     assert not backend_configuration
 
 
-@pytest.mark.parametrize(
-    ("operation_name", "gate_name"),
-    [
-        ("ccnot", "ccx"),
-        ("cphaseshift", "cp"),
-        ("cphaseshift00", "cphaseshift00"),
-        ("gpi", "gpi"),
-        ("ms", "ms"),
-        ("phaseshift", "p"),
-        ("pswap", "pswap"),
-        ("si", "sdg"),
-        ("ti", "tdg"),
-        ("v", "sx"),
-        ("vi", "sxdg"),
-        ("xx", "rxx"),
-        ("xy", "xy"),
-        ("yy", "ryy"),
-        ("zz", "rzz"),
-    ],
-)
-def test_maps_braket_operation_names(operation_name: str, gate_name: str) -> None:
-    """Represent Braket OpenQASM operation names in the Qiskit target."""
-    gate = AmazonBraketBackend._map_operation_to_gate(operation_name)  # ruff: ignore[private-member-access]
-    assert gate is not None
-    assert not isinstance(gate, type)
-    assert gate.name == gate_name
-
-
-def test_serializes_openqasm_without_includes() -> None:
-    """Emit self-contained OpenQASM because Amazon Braket rejects includes."""
-    circuit = QuantumCircuit(2)
-    circuit.h(0)
-    circuit.cx(0, 1)
-    circuit.measure_all()
-    circuit = transpile(circuit, basis_gates=["h", "cx"], coupling_map=CouplingMap.from_full(4))
-    assert circuit.layout is not None
-
-    backend = object.__new__(AmazonBraketBackend)
-    backend._device = cast(
-        "QDMIDeviceHandle",
-        SimpleNamespace(
-            operations=lambda: tuple(SimpleNamespace(name=lambda name=name: name) for name in ("cnot", "h", "measure"))
-        ),
+def test_core_measure_all_transport_fixture() -> None:
+    """Keep the native transport fixture tied to real MQT Core compiler output."""
+    target = CompilerTarget(
+        "native fixture",
+        [CompilerTarget.Site(site) for site in (1, 2, 5)],
+        connectivity=CompilerTarget.Connectivity.all_to_all(),
+        native_operations=CompilerTarget.NativeOperations([
+            CompilerTarget.OperationCapability("prx", 1, 2),
+            CompilerTarget.OperationCapability("cz", 2, 0),
+            CompilerTarget.OperationCapability("measure", 1, 0),
+        ]),
     )
-    program, program_format = backend._serialize_circuit(circuit, [ProgramFormat.QASM3])
+    circuit = QuantumCircuit(2)
+    circuit.rx(1.0, 0)
+    circuit.cz(0, 1)
+    circuit.measure_all()
+    native = compile_program(
+        circuit,
+        target=target,
+        options=CompilationOptions(seed=7, mapping=MappingOptions(trials=1)),
+    )
+    program = serialize_program(
+        native, target=TargetEnvironment(target, PayloadSpecification.from_program_format(ProgramFormat.QASM3))
+    )
+    # Also submitted through the actual C++ transport in test_device_unit.cpp.
+    fixtures = Path(__file__).parent / "fixtures"
+    assert program.payload == (fixtures / "core-native.qasm").read_text()
+    partial = QuantumCircuit(6, 3)
+    partial.append(Gate("prx", 1, [1.0, 0.0]), [1])
+    partial.cz(1, 2)
+    partial.measure(5, 1)
+    program = serialize_program(
+        partial, target=TargetEnvironment(target, PayloadSpecification.from_program_format(ProgramFormat.QASM3))
+    )
+    assert program.payload == (fixtures / "core-partial.qasm").read_text()
+    assert program.result_layout is not None
+    assert program.result_layout.decode_bits("1") == "010"
+    permuted = partial.copy()
+    permuted.remove_final_measurements()
+    permuted.add_register(ClassicalRegister(3, "out"))
+    permuted.measure(5, 0)
+    permuted.measure(1, 2)
+    program = serialize_program(
+        permuted, target=TargetEnvironment(target, PayloadSpecification.from_program_format(ProgramFormat.QASM3))
+    )
+    assert program.payload == (fixtures / "core-permuted.qasm").read_text()
+    assert program.result_layout is not None
+    assert program.result_layout.decode_bits("10") == "001"
 
-    assert program_format is ProgramFormat.QASM3
-    assert "include" not in program
-    assert "$" not in program
-    assert "qubit[2] q;" in program
-    assert "gate " not in program
-    assert "cnot q[0], q[1]" in program
-    assert "barrier q[0], q[1]" in program
-    assert "measure q[0]" in program
+    constant = QuantumCircuit(6, 4)
+    constant.append(Gate("prx", 1, [1.0, 0.0]), [1])
+    constant.cz(1, 2)
+    program = serialize_program(
+        constant, target=TargetEnvironment(target, PayloadSpecification.from_program_format(ProgramFormat.QASM3))
+    )
+    assert program.payload == (fixtures / "core-constant.qasm").read_text()
+    assert program.result_layout is None
+    assert program.result_width == 4
 
 
-def test_adds_variable_width_barrier_to_target(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Expose Qiskit's backend-level barrier without claiming native reset support."""
-    monkeypatch.setattr(QDMIBackend, "_build_target", lambda _backend: Target(num_qubits=3))
-
-    target = object.__new__(AmazonBraketBackend)._build_target()  # ruff: ignore[private-member-access]
-
-    assert target.instruction_supported("barrier", (0,))
-    assert target.instruction_supported("barrier", (0, 1, 2))
-    assert "reset" not in target.operation_names
-
-
-def test_reports_all_to_all_target_without_connectivity_constraint(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Let Qiskit transpile native multi-qubit gates on an all-to-all device."""
-    monkeypatch.setattr(QDMIBackend, "coupling_map", property(lambda _backend: CouplingMap.from_full(3)))
-
-    backend = object.__new__(AmazonBraketBackend)
+def test_core_sv1_phase_transport_fixture(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Preserve native SV1 names when MQT Core emits a sampled global phase."""
+    # Supported gates from CapabilityFixtures.hpp's SV1 metadata. Arbitrary
+    # unitary is not needed by this compiler target.
+    names = ("h", "cnot", "rx", "ry", "rz", "measure", "gphase")
+    target = CompilerTarget(
+        "SV1 fixture",
+        [CompilerTarget.Site(site) for site in range(4)],
+        connectivity=CompilerTarget.Connectivity.all_to_all(),
+        native_operations=CompilerTarget.NativeOperations([
+            CompilerTarget.OperationCapability(
+                name,
+                0 if name == "gphase" else 2 if name == "cnot" else 1,
+                int(name in {"rx", "ry", "rz", "gphase"}),
+            )
+            for name in names
+        ]),
+    )
+    environment = TargetEnvironment(target, PayloadSpecification.from_program_format(ProgramFormat.QASM3))
+    monkeypatch.setattr(TargetEnvironment, "from_device", lambda _device: environment)
+    device = cast("QDMIDeviceHandle", SimpleNamespace(name=lambda: "SV1", version=lambda: "1.0"))
+    backend = AmazonBraketBackend(device=device)
     assert backend.coupling_map is None
+    circuit = QuantumCircuit(4, 4)
+    circuit.x(3)
+    circuit.cx(3, 0)
+    circuit.measure(range(4), range(4))
+    native = compile_program(
+        circuit, target=target, options=CompilationOptions(seed=7, mapping=MappingOptions(trials=1))
+    )
+    program = serialize_program(
+        native, target=TargetEnvironment(target, PayloadSpecification.from_program_format(ProgramFormat.QASM3))
+    )
+    assert program.payload == (Path(__file__).parent / "fixtures" / "core-sv1-phase.qasm").read_text()
 
-    line = CouplingMap.from_line(3)
-    monkeypatch.setattr(QDMIBackend, "coupling_map", property(lambda _backend: line))
-    assert backend.coupling_map is line
+
+@pytest.mark.live
+def test_sv1_live() -> None:
+    """Compile and submit one eight-shot circuit through the Qiskit backend."""
+    backend = AmazonBraketBackend("amazon.braket.sv1")
+    circuit = QuantumCircuit(2)
+    circuit.x(0)
+    circuit.measure_all()
+
+    native = backend.compile(circuit)
+    assert backend.run(native, shots=8).result().get_counts() == {"01": 8}

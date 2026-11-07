@@ -36,17 +36,19 @@
  *  - DeviceParsingTestFixture : parameterised device-parsing tests
  */
 
-#include "LiveQueryFixture.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
+
+#include "LiveQueryFixture.hpp"
+
+#include "gmock/gmock-matchers.h"
+#include "gtest/gtest.h"
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <gmock/gmock-matchers.h>
-#include <gtest/gtest.h>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -112,8 +114,6 @@ constexpr const char* BELL_STATE_PROGRAM = "OPENQASM 3.0;\n"
   }
   return operations;
 }
-} // namespace
-
 // =============================================================================
 // Fixture: shared submitted job (real AWS SV1 Bell-state execution)
 // =============================================================================
@@ -236,18 +236,17 @@ protected:
           }
         }
         size_t valuesSize = 0;
-        if (AMAZON_BRAKET_QDMI_device_job_get_results(
-                sharedJob, 0, QDMI_JOB_RESULT_HIST_VALUES, 0, nullptr,
-                &valuesSize) == QDMI_SUCCESS &&
-            valuesSize > 0) {
-          if (valuesSize % sizeof(size_t) == 0) {
-            const size_t n = valuesSize / sizeof(size_t);
-            histValues.resize(n);
-            if (AMAZON_BRAKET_QDMI_device_job_get_results(
-                    sharedJob, 0, QDMI_JOB_RESULT_HIST_VALUES, valuesSize,
-                    histValues.data(), nullptr) == QDMI_SUCCESS) {
-              hasHist = !histKeys.empty() && !histValues.empty();
-            }
+        if ((AMAZON_BRAKET_QDMI_device_job_get_results(
+                 sharedJob, 0, QDMI_JOB_RESULT_HIST_VALUES, 0, nullptr,
+                 &valuesSize) == QDMI_SUCCESS &&
+             valuesSize > 0) &&
+            (valuesSize % sizeof(size_t) == 0)) {
+          const size_t n = valuesSize / sizeof(size_t);
+          histValues.resize(n);
+          if (AMAZON_BRAKET_QDMI_device_job_get_results(
+                  sharedJob, 0, QDMI_JOB_RESULT_HIST_VALUES, valuesSize,
+                  histValues.data(), nullptr) == QDMI_SUCCESS) {
+            hasHist = !histKeys.empty() && !histValues.empty();
           }
         }
       }
@@ -331,8 +330,8 @@ TEST_F(AmazonBraketQDMISpecificationTest, QuerySupportedProgramFormats) {
                     QDMI_DEVICE_PROPERTY_SUPPORTEDPROGRAMFORMATS),
                 size, formats.data(), nullptr),
             QDMI_SUCCESS);
-  EXPECT_EQ(formats[0], QDMI_PROGRAM_FORMAT_QASM2);
-  EXPECT_EQ(formats[1], QDMI_PROGRAM_FORMAT_QASM3);
+  EXPECT_EQ(formats[0], QDMI_PROGRAM_FORMAT_QASM3);
+  EXPECT_EQ(formats[1], QDMI_PROGRAM_FORMAT_QASM2);
 }
 
 // Braket promises these properties even though QDMI allows them to be optional.
@@ -888,7 +887,7 @@ protected:
   }
 
   bool hasGate(const std::string& gateName) {
-    auto operations = queryOperations(session);
+    const auto operations = queryOperations(session);
     for (auto* op : operations) {
       size_t nameSize = 0;
       if (AMAZON_BRAKET_QDMI_device_session_query_operation_property(
@@ -919,7 +918,7 @@ TEST_F(DeviceParsingTestFixture, SV1SimulatorParsing) {
   EXPECT_GT(qubitCount, 0U) << "SV1 should have qubits";
   EXPECT_LE(qubitCount, 34U) << "SV1 supports up to 34 qubits";
 
-  auto sites = querySites(session);
+  const auto sites = querySites(session);
   ASSERT_GT(sites.size(), 0U) << "SV1 should have sites";
   EXPECT_EQ(sites.size(), qubitCount);
 
@@ -929,22 +928,15 @@ TEST_F(DeviceParsingTestFixture, SV1SimulatorParsing) {
         << "SV1 sites should use numeric names 0, 1, 2, ...";
   }
 
-  size_t connectivitySize = 0;
-  auto connectivityResult =
-      AMAZON_BRAKET_QDMI_device_session_query_device_property(
-          session, QDMI_DEVICE_PROPERTY_COUPLINGMAP, 0, nullptr,
-          &connectivitySize);
-  if (connectivityResult == QDMI_SUCCESS && connectivitySize > 0) {
-    std::vector<AMAZON_BRAKET_QDMI_Site> connectivity(
-        connectivitySize / sizeof(AMAZON_BRAKET_QDMI_Site));
-    ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
-                  session, QDMI_DEVICE_PROPERTY_COUPLINGMAP, connectivitySize,
-                  static_cast<void*>(connectivity.data()), nullptr),
-              QDMI_SUCCESS);
-    const size_t numEdges = connectivity.size() / 2;
-    EXPECT_EQ(numEdges, qubitCount * (qubitCount - 1))
-        << "SV1 should have full connectivity (all-to-all)";
-  }
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_COUPLINGMAP, 0, nullptr, nullptr),
+            QDMI_ERROR_NOTSUPPORTED);
+  std::array<char, 64> marker{};
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_CUSTOM2, marker.size(),
+                marker.data(), nullptr),
+            QDMI_SUCCESS);
+  EXPECT_STREQ(marker.data(), "mqt.compiler-target.v1:all-to-all-homogeneous");
 
   for (const auto& gate : {"h", "x", "y", "z", "cnot", "rx", "ry", "rz"}) {
     EXPECT_TRUE(hasGate(gate)) << "SV1 should support gate: " << gate;
@@ -970,7 +962,7 @@ TEST_F(DeviceParsingTestFixture, IQMDeviceParsing) {
   const size_t qubitCount = getQubitCount();
   EXPECT_GT(qubitCount, 0U) << "IQM device should have qubits";
 
-  auto sites = querySites(session);
+  const auto sites = querySites(session);
   ASSERT_GT(sites.size(), 0U);
   EXPECT_LE(sites.size(), qubitCount)
       << "Live IQM topology data can temporarily omit unavailable qubits";
@@ -991,7 +983,7 @@ TEST_F(DeviceParsingTestFixture, IQMDeviceParsing) {
       << "IQM sites should use device-specific naming";
 
   size_t connectivitySize = 0;
-  auto connectivityResult =
+  const auto connectivityResult =
       AMAZON_BRAKET_QDMI_device_session_query_device_property(
           session, QDMI_DEVICE_PROPERTY_COUPLINGMAP, 0, nullptr,
           &connectivitySize);
@@ -1027,7 +1019,7 @@ TEST_F(DeviceParsingTestFixture, IQMDeviceSiteCoherenceTimes) {
   }
   initializeDevice(iqmDeviceArn);
 
-  auto sites = querySites(session);
+  const auto sites = querySites(session);
   ASSERT_GT(sites.size(), 0U) << "IQM device must have sites";
 
   size_t sitesWithT1 = 0;
@@ -1170,3 +1162,5 @@ TEST(AmazonBraketQDMIWaitTimeoutTest, JobWaitTimeout) {
          "job "
          "already done";
 }
+
+} // namespace

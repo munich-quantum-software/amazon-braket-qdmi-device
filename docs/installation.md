@@ -1,15 +1,10 @@
 # Installation
 
-## Prerequisites
+See {doc}`dependencies` for native runtime, optional Python adapters, and build
+requirements.
 
-A source build requires:
-
-- a C++20-compatible compiler;
-- CMake 3.24 or later; and
-- network access during initial configuration to obtain the AWS SDK for C++ and
-  QDMI dependencies.
-
-For Slurm job submission and cluster setup, see {doc}`slurm`.
+For cluster setup and job submission, use
+[MQT Core's Slurm playground](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm.html).
 
 ## Python package
 
@@ -28,7 +23,7 @@ uv pip install "amazon-braket-qdmi[qiskit,pennylane]"
 ```
 
 Use only the `qiskit` or `pennylane` extra when the environment needs one
-application stack. Both extras require MQT Core 4.1.
+application stack.
 
 The command-line entry point reports the installed catalogue path:
 
@@ -127,8 +122,10 @@ For a native installation outside the driver's search paths, set
 library paths are resolved from the catalogue directory. Site configuration
 augments the installed definitions and overrides entries with the same ID.
 
-See {doc}`configuration` for AWS authentication and {doc}`slurm` for cluster
-setup and job examples.
+See {doc}`configuration` for AWS authentication. On a cluster, make the package
+and credential source available on every quantum access node. Register the
+selected catalogue ID as a Slurm license in the shared MQT Core setup; Slurm
+license counts are independent of AWS quotas and authorization.
 
 ## CMake options
 

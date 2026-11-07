@@ -39,6 +39,10 @@ AMAZON_BRAKET_QDMI_device_session_query_device_property(
 | `QDMI_DEVICE_PROPERTY_OPERATIONS`     | Native gate handles               |
 | `QDMI_DEVICE_PROPERTY_COUPLINGMAP`    | Flat source-target site pairs     |
 
+Fully connected devices return `mqt.compiler-target.v1:all-to-all-homogeneous`
+in device `CUSTOM2`. They return `QDMI_ERROR_NOTSUPPORTED` for the coupling map
+and operation site tuples; the compiler represents their operations globally.
+
 ## Site properties
 
 | Property                   | Meaning                                         |
@@ -49,6 +53,14 @@ AMAZON_BRAKET_QDMI_device_session_query_device_property(
 | `QDMI_SITE_PROPERTY_T2`    | Dephasing time, when reported by Amazon Braket  |
 
 ## Operation properties
+
+`AMAZON_BRAKET_QDMI_OPERATION_PROPERTY_MQT_PARAMETERS` (`CUSTOM2`) returns a
+NUL-terminated JSON string using the temporary `mqt.operation-parameters.v1`
+contract. Rigetti RX advertises four `alternatives`, each with a one-element
+`fixed` array containing an allowed angle in radians (±π or ±π/2). IonQ ZZ
+advertises the interval [0, π/2]. Other operations return
+`QDMI_ERROR_NOTSUPPORTED`. MQT Core consumes this property for both compiler
+targets and Qiskit targets; it is not a standardized QDMI property.
 
 | Property                                | Meaning                                                     |
 | --------------------------------------- | ----------------------------------------------------------- |
@@ -65,6 +77,29 @@ are applicable to all ordered tuples of distinct sites, independent of two-qubit
 connectivity.
 
 ## Job properties
+
+QPU programs must be compiled to the device's native gates and physical site
+indices before submission. The device wraps flat OpenQASM 3 gate statements in
+`#pragma braket verbatim` and leaves terminal measurements outside the box. This
+applies to individual programs and ProgramSets. Before sending any program, the
+device removes `include "stdgates.inc";`: Braket supplies its native gates but
+rejects this standard declaration. Stored source is unchanged. Existing verbatim
+and simulator programs are otherwise forwarded unchanged.
+
+Automatic wrapping accepts an OpenQASM 3 header, one optional bit array with an
+optional binary-string initializer, native gate calls on physical qubits, and
+terminal measurement assignments. Register names, whitespace, and comments do
+not affect recognition. Barriers remain in the gate sequence. Bare global phases
+are omitted because they do not affect sampled results. Programs with other
+includes, gate definitions, virtual qubits, or control flow are forwarded
+without automatic wrapping.
+
+For simulators without physical-qubit support, the same flat programs use dense
+virtual indices and measure all addressed qubits when required by device
+metadata. Result decoding uses the returned source, including each ProgramSet
+source document, so reopened tasks need no local submission state. See
+[Job results](#job-results) for output ordering. The device does not compile or
+route circuits.
 
 | Property                                             | Meaning                              |
 | ---------------------------------------------------- | ------------------------------------ |
@@ -117,6 +152,22 @@ job-lifetime behavior.
 | `QDMI_JOB_RESULT_SHOTS`       | Comma-separated shot bitstrings             |
 | `QDMI_JOB_RESULT_HIST_KEYS`   | Comma-separated histogram keys              |
 | `QDMI_JOB_RESULT_HIST_VALUES` | `size_t` counts matching the histogram keys |
+
+Shot strings and histogram keys place the highest classical bit index first.
+Static readout supports one bit register, an optional binary-string initializer,
+and indexed terminal assignments from physical qubits or one virtual register.
+Unused bits retain their initial value, which defaults to zero. A program
+without classical outputs returns empty bitstrings; Braket's implicit qubit
+measurements do not add outputs. Each shot must contain one binary measurement
+outcome for every qubit in Braket’s `measuredQubits` list, including qubits
+absent from the classical output.
+
+Source forms outside this static subset, such as control flow or multiple
+registers, retain legacy descending measured-qubit order, with the lowest site
+ID on the right. The same fallback applies when source metadata is unavailable;
+it cannot recover classical outputs. The [Qiskit backend](qiskit.md) retains MQT
+Core's result layout to restore the requested output positions from the
+compiler's compact classical register.
 
 ## Lifecycle functions
 

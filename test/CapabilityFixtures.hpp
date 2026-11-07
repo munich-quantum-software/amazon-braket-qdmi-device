@@ -41,7 +41,7 @@ constexpr std::string_view AQT_IBEX_Q1 = R"({
 constexpr std::string_view IONQ_FORTE = R"({
   "paradigm": {
     "qubitCount": 3,
-    "nativeGateSet": ["gpi", "gpi2", "zz"],
+    "nativeGateSet": ["GPI", "GPI2", "ZZ"],
     "connectivity": {"fullyConnected": true}
   },
   "action": {"braket.ir.openqasm.program": {
@@ -59,7 +59,9 @@ constexpr std::string_view IQM_GARNET = R"({
     }
   },
   "action": {"braket.ir.openqasm.program": {
-    "supportedOperations": ["h", "cnot", "cz", "prx", "rx", "rz"]
+    "supportedOperations": ["h", "cnot", "cz", "prx", "rx", "rz"],
+    "supportPhysicalQubits": true,
+    "supportedPragmas": ["verbatim"]
   }},
   "provider": {"properties": {"one_qubit": {
     "1": {"T1": 0.00004, "T2": 0.00003},
@@ -109,7 +111,8 @@ constexpr std::string_view RIGETTI_ANKAA_12 = R"({
 constexpr std::string_view SV1 = R"({
   "paradigm": {"qubitCount": 4},
   "action": {"braket.ir.openqasm.program": {
-    "supportedOperations": ["h", "cnot", "rx", "ry", "rz", "unitary", "gphase"]
+    "supportedOperations": ["h", "cnot", "rx", "ry", "rz", "unitary", "gphase"],
+    "requiresAllQubitsMeasurement": true
   }}
 })";
 

@@ -18,20 +18,26 @@ QDMI and Amazon Braket use related terminology at different abstraction levels:
 Amazon Braket Hybrid Jobs, pulse-level programs, and non-gate-model devices are
 not exposed by this implementation.
 
+Shared QDMI application examples and cluster setup live in
+[MQT Core's guides](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/index.html),
+including the
+[Slurm playground](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm.html).
+
 ## Documentation structure
 
 - {doc}`installation` describes package and source installation, CMake
   integration, and discovery through MQT Core.
+- {doc}`dependencies` explains native, Python adapter, and build requirements.
 - {doc}`configuration` specifies AWS authentication, device-session parameters,
   and S3 result destinations.
 - {doc}`device_catalog` lists the installed device catalogue and explains the
   operation capability model.
-- {doc}`qiskit` shows local and live Amazon Braket execution with Qiskit.
+- {doc}`qiskit` shows compiled circuit submission with Qiskit.
 - {doc}`pennylane` describes PennyLane execution and the Amazon Braket
   specialization.
-- {doc}`slurm` shows Braket workloads on Slurm and links to MQT Core’s cluster
+- {doc}`slurm` documents Braket credentials and links to MQT Core’s cluster
   setup.
-- {doc}`usage` gives a complete direct-QDMI execution example.
+- {doc}`usage` describes native job execution and ProgramSets.
 <!-- rumdl-disable MD033 -->
 - {doc}`api` records the supported QDMI properties, results, and lifecycle
   functions and links to the standalone <a href="cpp/index.html">native C++
@@ -46,6 +52,7 @@ not exposed by this implementation.
 :caption: User guide
 
 installation
+dependencies
 configuration
 device_catalog
 qiskit

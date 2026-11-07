@@ -38,7 +38,10 @@ else()
   # Keep the provider and AWS test clients in one SDK initialization domain.
   target_link_libraries(${QDMI_TEST_TARGET_NAME} PRIVATE ${QDMI_TARGET_NAME}-internals
                                                          ${QDMI_TARGET_NAME}-parser-objects)
-  target_compile_definitions(${QDMI_TEST_TARGET_NAME} PRIVATE ${QDMI_PREFIX}_QDMI_device_EXPORTS)
+  target_compile_definitions(
+    ${QDMI_TEST_TARGET_NAME}
+    PRIVATE ${QDMI_PREFIX}_QDMI_device_EXPORTS
+            QDMI_CORE_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/python/fixtures")
 endif()
 
 if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
@@ -127,7 +130,9 @@ if(WIN32)
     PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY
                "${CMAKE_CURRENT_BINARY_DIR}"
                ENVIRONMENT
-               "PATH=${DLL_PATH};$ENV{PATH};AWS_EC2_METADATA_DISABLED=true"
+               "AWS_EC2_METADATA_DISABLED=true"
+               ENVIRONMENT_MODIFICATION
+               "PATH=path_list_prepend:${DLL_PATH}"
                DISCOVERY_TIMEOUT
                60
                DISCOVERY_MODE
@@ -147,11 +152,11 @@ if(BUILD_AMAZON_BRAKET_LIVE_TESTS)
     ${QDMI_TEST_TARGET_NAME} TEST_FILTER "${QDMI_LIVE_TEST_FILTER}"
     TEST_PREFIX "live::"
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    PROPERTIES RUN_SERIAL TRUE LABELS amazon-braket-live DISCOVERY_TIMEOUT 60)
+    PROPERTIES RUN_SERIAL TRUE LABELS live DISCOVERY_TIMEOUT 60)
 
   gtest_discover_tests(
     ${QDMI_LIVE_TEST_TARGET_NAME}
     TEST_PREFIX "live::"
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    PROPERTIES RUN_SERIAL TRUE LABELS amazon-braket-live DISCOVERY_TIMEOUT 60)
+    PROPERTIES RUN_SERIAL TRUE LABELS live DISCOVERY_TIMEOUT 60)
 endif()
