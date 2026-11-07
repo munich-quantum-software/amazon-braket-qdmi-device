@@ -10,6 +10,14 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+### Fixed
+
+- 🐛 Accept live device connectivity graphs that omit unavailable qubits while
+  retaining the advertised qubit count ([#236], [#298]) ([**@burgholzer**],
+  [**@denialhaag**]).
+- 🐛 Fix OpenSSL 4 builds and mixed-libcrypto startup failures on Linux while
+  retaining QDMI 1.3.3 ([#298]) ([**@denialhaag**]).
+
 ## [1.2.0] - 2026-09-12
 
 ### Changed
@@ -135,7 +143,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- Version links -->
 
-[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.2.0...HEAD
+[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.2.0...v1.2.x
 [1.2.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.0.1...v1.1.0
@@ -144,6 +152,8 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#298]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/298
+[#236]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/236
 [#219]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/219
 [#217]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/217
 [#205]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/205

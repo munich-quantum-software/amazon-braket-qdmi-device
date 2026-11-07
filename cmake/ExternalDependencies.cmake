@@ -60,7 +60,7 @@ set(BUILD_TESTING_PREV ${BUILD_TESTING})
 set(BUILD_SHARED_LIBS_PREV ${BUILD_SHARED_LIBS})
 if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
   set(AWSSDK_VERSION
-      1.11.876
+      1.11.924
       CACHE STRING "AWS SDK version")
   set(BUILD_TESTING
       OFF
@@ -71,6 +71,18 @@ if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
   set(BUILD_SHARED_LIBS
       OFF
       CACHE BOOL "Disable building shared libraries for AWS SDK" FORCE)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    # Use the same shared libcrypto as the system libcurl.
+    set(USE_OPENSSL
+        ON
+        CACHE BOOL "Use system OpenSSL for AWS CRT" FORCE)
+    set(AWS_USE_CRYPTO_SHARED_LIBS
+        ON
+        CACHE BOOL "Link AWS SDK against shared libcrypto" FORCE)
+    set(S2N_USE_CRYPTO_SHARED_LIBS
+        ON
+        CACHE BOOL "Link s2n against shared libcrypto" FORCE)
+  endif()
   set(BUILD_ONLY
       "s3;sts;braket"
       CACHE STRING "" FORCE)

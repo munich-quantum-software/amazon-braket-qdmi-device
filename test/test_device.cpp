@@ -21,7 +21,7 @@
  * @file test_device.cpp
  * @brief Integration tests for the Amazon Braket QDMI device adapter.
  *
- * These tests make real AWS API calls. They require AWS credentials available
+ * The lifecycle test is offline; other tests require AWS credentials available
  * to the AWS SDK default provider chain. Job-submission tests use the automatic
  * standard result bucket unless they explicitly test an override.
  *
@@ -113,6 +113,11 @@ constexpr const char* BELL_STATE_PROGRAM = "OPENQASM 3.0;\n"
   return operations;
 }
 } // namespace
+
+TEST(AmazonBraketQDMILifecycleTest, InitializeAndFinalize) {
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);
+}
 
 // =============================================================================
 // Fixture: fully initialised AWS SV1 session (real AWS connection)

@@ -103,13 +103,25 @@ if(WIN32)
                DISCOVERY_MODE
                PRE_TEST)
 else()
+  set(QDMI_CRYPTO_TEST_PROPERTIES)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
+    # Reproduce a host that loads libcrypto before the installed device.
+    find_package(OpenSSL REQUIRED COMPONENTS Crypto)
+    set(QDMI_CRYPTO_TEST_PROPERTIES ENVIRONMENT_MODIFICATION
+                                    "LD_PRELOAD=set:$<TARGET_FILE:OpenSSL::Crypto>")
+  endif()
   # Offline AWS SDK construction must not probe the EC2 Instance Metadata Service. This keeps
   # discovery hermetic and avoids network-dependent delays.
   gtest_discover_tests(
     ${QDMI_TEST_TARGET_NAME} TEST_FILTER "${QDMI_OFFLINE_TEST_FILTER}"
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}" ENVIRONMENT
-               "AWS_EC2_METADATA_DISABLED=true" DISCOVERY_TIMEOUT 60)
+    PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY
+               "${CMAKE_CURRENT_BINARY_DIR}"
+               ENVIRONMENT
+               "AWS_EC2_METADATA_DISABLED=true"
+               ${QDMI_CRYPTO_TEST_PROPERTIES}
+               DISCOVERY_TIMEOUT
+               60)
 endif()
 
 if(BUILD_AMAZON_BRAKET_LIVE_TESTS)
