@@ -69,7 +69,7 @@ if(BUILD_AMAZON_BRAKET_LIVE_TESTS)
   file(
     WRITE "${CMAKE_CURRENT_BINARY_DIR}/live-query-labels.cmake"
     "foreach(query_test IN LISTS braket_live_query_tests_TESTS)\n"
-    "  set_tests_properties(\"\${query_test}\" PROPERTIES LABELS \"qdmi-query;amazon-braket-live\" RUN_SERIAL TRUE)\n"
+    "  set_tests_properties(\"\${query_test}\" PROPERTIES LABELS \"qdmi-query;live\" RUN_SERIAL TRUE)\n"
     "endforeach()\n")
   set_property(
     DIRECTORY

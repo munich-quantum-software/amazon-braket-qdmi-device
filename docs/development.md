@@ -12,12 +12,12 @@ ctest --preset release
 
 Source builds also run QDMI's shared device-query conformance suite against an
 injected Braket client with synthetic IQM capabilities. Select it with
-`ctest --test-dir build -C Release -L qdmi-query -LE amazon-braket-live --output-on-failure`.
+`ctest --test-dir build -C Release -L qdmi-query -LE live --output-on-failure`.
 Provider-specific metadata, parsing, session, and job tests remain in this
 repository. The shared offline fixture requires private client injection and
 runs only in source builds. Source and installed-library builds also run the
 same suite against SV1 when `BUILD_AMAZON_BRAKET_LIVE_TESTS=ON`, under the
-`amazon-braket-live` label.
+`live` label.
 
 The hermetic tests use injected AWS clients and need no credentials or network
 access. CMake does not register tests that access AWS unless
