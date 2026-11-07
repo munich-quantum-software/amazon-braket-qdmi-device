@@ -13,7 +13,7 @@ releases may include breaking changes.
 ### Fixed
 
 - 🐛 Fix OpenSSL 4 builds and mixed-libcrypto startup failures on Linux while
-  retaining QDMI 1.3.3 ([#294]) ([**@denialhaag**]).
+  retaining QDMI 1.3.3 ([#298]) ([**@denialhaag**]).
 
 ## [1.2.0] - 2026-09-12
 
@@ -149,7 +149,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
-[#294]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/issues/294
+[#298]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/298
 [#219]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/219
 [#217]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/217
 [#205]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/205
