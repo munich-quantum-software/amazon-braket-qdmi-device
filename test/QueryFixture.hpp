@@ -19,10 +19,11 @@
 
 #pragma once
 
-#include "CapabilityFixtures.hpp"
 #include "amazon-braket-qdmi-device/Device.hpp"
 #include "amazon-braket-qdmi-device/constants.hpp"
 #include "amazon_braket_qdmi/device.h"
+
+#include "CapabilityFixtures.hpp"
 
 #include <aws/braket/BraketClient.h>
 #include <aws/braket/BraketServiceClientModel.h>
