@@ -63,4 +63,4 @@ See
 [MQT Core's PennyLane guide](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/pennylane_device.html)
 for QNodes, gradients, batching, open QDMI handles, and the complete MaxCut QAOA
 example. Shared cluster setup and job submission live in
-[MQT Core's Slurm playground](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm.html).
+[MQSC Orchestrator](https://github.com/munich-quantum-software/orchestrator).

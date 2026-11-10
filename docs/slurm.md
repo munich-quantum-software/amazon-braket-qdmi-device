@@ -88,8 +88,8 @@ from user credentials.
 
 ## Try the shared cluster example
 
-[MQT Core's Slurm cluster example](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm.html)
-is a demonstrator with one `quantum` partition and one workload environment for
-all QDMI device implementations. Its quantum access nodes can reach every
-configured device, and its availability monitor updates Slurm reservations. The
-guide describes installation from the current QDMI and MQT Core sources.
+Follow
+[MQSC Orchestrator](https://github.com/munich-quantum-software/orchestrator)
+to deploy the shared Slurm Playground and configure scheduler licenses, workload
+environments, and availability monitoring. Use a separate checkout for the
+cluster.

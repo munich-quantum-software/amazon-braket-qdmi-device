@@ -18,10 +18,10 @@ QDMI and Amazon Braket use related terminology at different abstraction levels:
 Amazon Braket Hybrid Jobs, pulse-level programs, and non-gate-model devices are
 not exposed by this implementation.
 
-Shared QDMI application examples and cluster setup live in
-[MQT Core's guides](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/index.html),
-including the
-[Slurm playground](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm.html).
+Shared QDMI application examples live in
+[MQT Core's guides](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/index.html).
+Use [MQSC Orchestrator](https://github.com/munich-quantum-software/orchestrator)
+for cluster deployment and Slurm integration.
 
 ## Documentation structure
 
@@ -35,8 +35,8 @@ including the
 - {doc}`qiskit` shows compiled circuit submission with Qiskit.
 - {doc}`pennylane` describes PennyLane execution and the Amazon Braket
   specialization.
-- {doc}`slurm` documents Braket credentials and links to MQT Core’s cluster
-  setup.
+- {doc}`slurm` documents Braket credentials and links to MQSC Orchestrator’s
+  cluster setup.
 - {doc}`usage` describes native job execution and ProgramSets.
 <!-- rumdl-disable MD033 -->
 - {doc}`api` records the supported QDMI properties, results, and lifecycle
