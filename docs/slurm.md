@@ -27,7 +27,7 @@ print(backend.run(backend.compile(circuit), shots=100).result().get_counts())
 Submit it to your site's quantum access partition, named `quantum` here:
 
 ```bash
-srun --partition=quantum --licenses=amazon.braket.sv1:1 python bell.py
+srun --partition=quantum --licenses=amazon.braket.sv1 python bell.py
 ```
 
 For requests with alternative devices, use the granted resource from Slurm's

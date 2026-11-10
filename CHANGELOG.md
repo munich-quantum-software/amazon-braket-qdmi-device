@@ -21,16 +21,13 @@ releases may include breaking changes.
 ### Changed
 
 - ⬆️ Update MQT Core to 4.2.0 ([#302]) ([**@denialhaag**]).
-- ♻️ Use MQSC Orchestrator for the Slurm playground and MQT Core for shared QDMI
-  application examples. Build static documentation without quantum execution and
-  keep two eight-shot SV1 integration checks ([#288], [#302])
-  ([**@burgholzer**], [**@denialhaag**]).
+- ♻️ Use MQSC Orchestrator for Slurm deployment and monitoring, and remove
+  duplicated application examples ([#288], [#302]) ([**@burgholzer**],
+  [**@denialhaag**]).
 - ♻️ Report fully connected devices through
   `mqt.compiler-target.v1:all-to-all-homogeneous` in device CUSTOM2; their
   coupling map and operation site lists return `QDMI_ERROR_NOTSUPPORTED`
   ([#288]) ([**@burgholzer**]).
-- 👷 Consolidate CI and documentation builds and require explicit requests for
-  paid SV1 checks ([#289]) ([**@denialhaag**]).
 
 ### Fixed
 
@@ -249,7 +246,6 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 <!-- PR links -->
 
 [#302]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/302
-[#289]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/289
 [#288]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/288
 [#270]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/270
 [#268]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/268
