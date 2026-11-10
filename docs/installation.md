@@ -4,7 +4,7 @@ See {doc}`dependencies` for native runtime, optional Python adapters, and build
 requirements.
 
 For cluster setup and job submission, use
-[MQT Core's Slurm playground](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm.html).
+[MQSC Orchestrator](https://github.com/munich-quantum-software/orchestrator).
 
 ## Python package
 
@@ -91,10 +91,10 @@ with the `Development` component. The installed CMake target identifies its
 device manifest through `QDMI_MANIFEST_NAME`. The manifest contains the stable
 device IDs, symbol prefix, and relative library paths. An application can copy
 the device library and manifest beside its executable. This integration requires
-CMake 3.28 or later and MQT Core 4.1:
+CMake 3.28 or later and MQT Core 4.2:
 
 ```cmake
-find_package(mqt-core 4.1.1 CONFIG REQUIRED COMPONENTS Development)
+find_package(mqt-core 4.2.0 CONFIG REQUIRED COMPONENTS Development)
 find_package(amazon-braket-qdmi-device CONFIG REQUIRED)
 
 add_executable(my_app main.cpp)
@@ -124,8 +124,8 @@ augments the installed definitions and overrides entries with the same ID.
 
 See {doc}`configuration` for AWS authentication. On a cluster, make the package
 and credential source available on every quantum access node. Register the
-selected catalogue ID as a Slurm license in the shared MQT Core setup; Slurm
-license counts are independent of AWS quotas and authorization.
+selected catalogue ID as a Slurm license in the shared MQSC Orchestrator setup;
+Slurm license counts are independent of AWS quotas and authorization.
 
 ## CMake options
 

@@ -10,6 +10,8 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-10
+
 ### Added
 
 - ✨ Expose operation parameter constraints through
@@ -18,14 +20,14 @@ releases may include breaking changes.
 
 ### Changed
 
+- ⬆️ Update MQT Core to 4.2.0 ([#302]) ([**@denialhaag**]).
+- ♻️ Use MQSC Orchestrator for Slurm deployment and monitoring, and remove
+  duplicated application examples ([#288], [#302]) ([**@burgholzer**],
+  [**@denialhaag**]).
 - ♻️ Report fully connected devices through
   `mqt.compiler-target.v1:all-to-all-homogeneous` in device CUSTOM2; their
   coupling map and operation site lists return `QDMI_ERROR_NOTSUPPORTED`
   ([#288]) ([**@burgholzer**]).
-
-- ♻️ Use MQT Core's shared Slurm playground and application examples instead of
-  maintaining copies. Build static documentation without quantum execution and
-  keep two eight-shot SV1 integration checks ([#288]) ([**@burgholzer**]).
 
 ### Fixed
 
@@ -231,7 +233,8 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- Version links -->
 
-[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.3.1...HEAD
+[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.1.1...v1.2.0
@@ -242,6 +245,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#302]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/302
 [#288]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/288
 [#270]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/270
 [#268]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/268
