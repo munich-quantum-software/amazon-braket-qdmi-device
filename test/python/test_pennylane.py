@@ -216,7 +216,7 @@ def test_samples_with_qnode_shots(monkeypatch: pytest.MonkeyPatch) -> None:
     open_native = driver.open_device
     monkeypatch.setattr(
         "mqt.core.plugins.pennylane.device.open_device",
-        lambda _device_id, **_kwargs: open_native("mqt.ddsim.default"),
+        lambda _device_id, **_kwargs: open_native("mqt.ddsim.default", custom1="2"),
     )
     device = AmazonBraketSV1Device(wires=["left", "right"])
     assert device.device_id == "amazon.braket.sv1"
