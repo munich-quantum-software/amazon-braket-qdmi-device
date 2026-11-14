@@ -10,6 +10,12 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+### Fixed
+
+- 🐛 Decline single programs outside the device's advertised shot range before
+  submission, so clients can split or adjust jobs early ([#310])
+  ([**@burgholzer**]).
+
 ## [1.4.0] - 2026-11-10
 
 ### Added
@@ -245,6 +251,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#310]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/310
 [#302]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/302
 [#288]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/288
 [#270]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/270

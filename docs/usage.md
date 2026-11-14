@@ -59,19 +59,31 @@ QuantumTask.
 
 ## Multiple circuits
 
-Qiskit and PennyLane group compatible circuits into one QuantumTask when the
-device advertises OpenQASM 3 ProgramSets. Each circuit uses the configured shot
-count; the request's total shots are the circuit count multiplied by that value.
-Devices without ProgramSets, including SV1 and DM1, use separate QuantumTasks.
-Each program must also satisfy the device's advertised shot range. Different
-shot counts or formats also use separate jobs.
+Each QDMI job is one QuantumTask. A job with several programs becomes one
+OpenQASM 3 ProgramSet. Each program uses the configured shot count; the
+request's total shots are the program count multiplied by that value.
+
+The device declines a program group with `QDMI_ERROR_NOTSUPPORTED` before
+submission when any of these checks fails:
+
+- The format is OpenQASM 2 or OpenQASM 3.
+- The shot count lies within the device's advertised `shotsRange`. This check
+  also applies to a single program.
+- For several programs, the device advertises ProgramSets. SV1 and DM1 do not.
+- For several programs, the count does not exceed `maximumExecutables`, and the
+  total shots lie between `minimumTotalShots` and `maximumTotalShots`.
+
+Clients such as MQT Core, which Qiskit and PennyLane use, probe a group and
+split a declined group into smaller jobs. Different shot counts or formats also
+use separate jobs.
 
 For direct QDMI use, pass the ordered program pointers and sizes to
 `AMAZON_BRAKET_QDMI_device_job_set_programs`. A null program-pointer array
-probes the exact format and count with the current job parameters. Unsupported
-groups return `QDMI_ERROR_NOTSUPPORTED` before submission. The implementation
-supports one fully bound OpenQASM 3 executable per program; parameter sweeps are
-not supported.
+probes the format and count against the current shot count without storing
+programs. Setting `QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM` after storing programs
+repeats the checks and keeps the previous value when they fail. The default shot
+count is 100. The implementation supports one fully bound OpenQASM 3 executable
+per program; parameter sweeps are not supported.
 
 Program and result indices follow input order. Use
 `AMAZON_BRAKET_QDMI_device_job_get_program` to read a stored program; historical
