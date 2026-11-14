@@ -1025,6 +1025,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture(
   // Transfer Parsed Data to Cached Architecture
   architecture->qubitsNum = properties.qubitCount;
   architecture->programSetLimits = properties.programSetLimits;
+  architecture->shotsRange = properties.shotsRange;
   architecture->connectivity = std::move(properties.connectivity);
   architecture->fullyConnected = properties.fullyConnected;
 
@@ -1693,22 +1694,24 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::supportsPrograms(
           static_cast<size_t>(std::numeric_limits<int64_t>::max()) / count) {
     return QDMI_ERROR_NOTSUPPORTED;
   }
-  if (count == 1) {
-    return QDMI_SUCCESS;
-  }
   if (const auto result = session_->fetchDeviceArchitecture(false);
       result != QDMI_SUCCESS) {
     return result;
   }
   const std::scoped_lock lock(session_->cachedArchitectureMutex_);
-  const auto& limits = session_->cachedArchitecture_->programSetLimits;
+  const auto& architecture = *session_->cachedArchitecture_;
+  if (const auto& range = architecture.shotsRange;
+      range && (shots < range->first || shots > range->second)) {
+    return QDMI_ERROR_NOTSUPPORTED;
+  }
+  if (count == 1) {
+    return QDMI_SUCCESS;
+  }
+  const auto& limits = architecture.programSetLimits;
   const auto totalShots = shots * count;
   if (!limits || count > limits->maximumExecutables ||
       totalShots < limits->minimumTotalShots ||
-      totalShots > limits->maximumTotalShots ||
-      shots < limits->minimumShotsPerProgram ||
-      (limits->maximumShotsPerProgram != 0 &&
-       shots > limits->maximumShotsPerProgram)) {
+      totalShots > limits->maximumTotalShots) {
     return QDMI_ERROR_NOTSUPPORTED;
   }
   return QDMI_SUCCESS;

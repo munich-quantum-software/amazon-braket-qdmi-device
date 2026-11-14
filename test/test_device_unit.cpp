@@ -267,12 +267,17 @@ public:
         Aws::Utils::Json::JsonValue{
             R"({"version":["1"],"maximumExecutables":100,"minimumTotalShots":2,"maximumTotalShots":1000})"});
     capabilities.WithObject("action", std::move(action));
+    capabilities_ = capabilities.View().WriteCompact();
     if (minimumShots != 0) {
-      capabilities.WithObject(
-          "service",
-          Aws::Utils::Json::JsonValue{
-              "{\"shotsRange\":[" + std::to_string(minimumShots) + ",1000]}"});
+      setShotsRange(minimumShots, 1000);
     }
+  }
+  auto setShotsRange(const size_t minimum, const size_t maximum) -> void {
+    Aws::Utils::Json::JsonValue capabilities(capabilities_);
+    capabilities.WithObject(
+        "service", Aws::Utils::Json::JsonValue{"{\"shotsRange\":[" +
+                                               std::to_string(minimum) + "," +
+                                               std::to_string(maximum) + "]}"});
     capabilities_ = capabilities.View().WriteCompact();
   }
   [[nodiscard]] auto action() const -> std::string {
@@ -4941,31 +4946,6 @@ TEST_F(AmazonBraketQDMILocalJobTest, ProgramSetsUseOneTaskAndOrderedResults) {
             QDMI_ERROR_OUTOFRANGE);
 }
 
-TEST_F(AmazonBraketQDMILocalJobTest, ProgramSetProbeChecksShotsPerExecutable) {
-  auto client = std::make_unique<StubBraketClient>(
-      Aws::Braket::Model::GetQuantumTaskResult{});
-  client->enableProgramSets(10);
-  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
-                                                          std::move(client));
-  auto* const job = createConfiguredJob(session);
-  ASSERT_NE(job, nullptr);
-  const size_t shots = 5;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(shots), &shots),
-            QDMI_SUCCESS);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(
-                job, QDMI_PROGRAM_FORMAT_QASM3, 2, nullptr, nullptr),
-            QDMI_ERROR_NOTSUPPORTED);
-  const size_t supportedShots = 10;
-  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
-                job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(supportedShots),
-                &supportedShots),
-            QDMI_SUCCESS);
-  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(
-                job, QDMI_PROGRAM_FORMAT_QASM3, 2, nullptr, nullptr),
-            QDMI_SUCCESS);
-}
-
 TEST_F(AmazonBraketQDMILocalJobTest, ProgramSetProbesAndReplacementAreAtomic) {
   auto client = std::make_unique<StubBraketClient>(
       Aws::Braket::Model::GetQuantumTaskResult{});
@@ -5045,6 +5025,114 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
                 job, static_cast<QDMI_Device_Job_Parameter>(1), 0, nullptr),
             QDMI_ERROR_NOTSUPPORTED);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, ShotsBeforeProgramsDecideProgramSets) {
+  auto client = std::make_unique<StubBraketClient>(
+      Aws::Braket::Model::GetQuantumTaskResult{});
+  client->enableProgramSets(10);
+  const auto* observed = client.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                          std::move(client));
+  // Limits: 100 executables, 2 to 1000 total shots, 10 to 1000 shots each.
+  struct Case {
+    size_t shots;
+    size_t count;
+    int expected;
+  };
+  for (const auto [shots, count, expected] : {
+           Case{.shots = 10, .count = 100, .expected = QDMI_SUCCESS},
+           Case{.shots = 10, .count = 101, .expected = QDMI_ERROR_NOTSUPPORTED},
+           Case{.shots = 500, .count = 2, .expected = QDMI_SUCCESS},
+           Case{.shots = 501, .count = 2, .expected = QDMI_ERROR_NOTSUPPORTED},
+           Case{.shots = 9, .count = 2, .expected = QDMI_ERROR_NOTSUPPORTED},
+           Case{.shots = 9, .count = 1, .expected = QDMI_ERROR_NOTSUPPORTED},
+           Case{.shots = 1000, .count = 1, .expected = QDMI_SUCCESS},
+           Case{.shots = 1001, .count = 1, .expected = QDMI_ERROR_NOTSUPPORTED},
+       }) {
+    SCOPED_TRACE(testing::Message() << shots << " shots, " << count);
+    AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+    ASSERT_EQ(
+        AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job),
+        QDMI_SUCCESS);
+    ASSERT_EQ(
+        AMAZON_BRAKET_QDMI_device_job_set_parameter(
+            job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(shots), &shots),
+        QDMI_SUCCESS);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(
+                  job, QDMI_PROGRAM_FORMAT_QASM3, count, nullptr, nullptr),
+              expected);
+    const std::vector<const void*> programs(count, BELL_STATE_PROGRAM);
+    const std::vector sizes(count, strlen(BELL_STATE_PROGRAM) + 1);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(
+                  job, QDMI_PROGRAM_FORMAT_QASM3, count, sizes.data(),
+                  programs.data()),
+              expected);
+    AMAZON_BRAKET_QDMI_device_job_free(job);
+  }
+  EXPECT_EQ(observed->createCalls(), 0U);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, SingleProgramsRespectShotsRange) {
+  auto client = std::make_unique<StubBraketClient>(
+      Aws::Braket::Model::GetQuantumTaskResult{});
+  client->setShotsRange(0, 100000);
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                          std::move(client));
+  const QDMI_Program_Format format = QDMI_PROGRAM_FORMAT_QASM3;
+  for (const size_t shots : {size_t{0}, size_t{100000}}) {
+    SCOPED_TRACE(shots);
+    AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+    ASSERT_EQ(
+        AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job),
+        QDMI_SUCCESS);
+    ASSERT_EQ(
+        AMAZON_BRAKET_QDMI_device_job_set_parameter(
+            job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(shots), &shots),
+        QDMI_SUCCESS);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, format, 1,
+                                                         nullptr, nullptr),
+              QDMI_SUCCESS);
+    EXPECT_EQ(
+        setProgram(job, BELL_STATE_PROGRAM, strlen(BELL_STATE_PROGRAM) + 1),
+        QDMI_SUCCESS);
+    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, format, 2,
+                                                         nullptr, nullptr),
+              QDMI_ERROR_NOTSUPPORTED);
+    AMAZON_BRAKET_QDMI_device_job_free(job);
+  }
+
+  AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_create_device_job(session, &job),
+            QDMI_SUCCESS);
+  const size_t tooMany = 100001;
+  ASSERT_EQ(
+      AMAZON_BRAKET_QDMI_device_job_set_parameter(
+          job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(tooMany), &tooMany),
+      QDMI_SUCCESS);
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_set_programs(job, format, 1, nullptr,
+                                                       nullptr),
+            QDMI_ERROR_NOTSUPPORTED);
+  EXPECT_EQ(setProgram(job, BELL_STATE_PROGRAM, strlen(BELL_STATE_PROGRAM) + 1),
+            QDMI_ERROR_NOTSUPPORTED);
+  const size_t supported = 100;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_set_parameter(
+                job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(supported),
+                &supported),
+            QDMI_SUCCESS);
+  ASSERT_EQ(setProgram(job, BELL_STATE_PROGRAM, strlen(BELL_STATE_PROGRAM) + 1),
+            QDMI_SUCCESS);
+  EXPECT_EQ(
+      AMAZON_BRAKET_QDMI_device_job_set_parameter(
+          job, QDMI_DEVICE_JOB_PARAMETER_SHOTSNUM, sizeof(tooMany), &tooMany),
+      QDMI_ERROR_NOTSUPPORTED);
+  size_t shots = 0;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                job, QDMI_DEVICE_JOB_PROPERTY_SHOTSNUM, sizeof(shots), &shots,
+                nullptr),
+            QDMI_SUCCESS);
+  EXPECT_EQ(shots, supported);
+  AMAZON_BRAKET_QDMI_device_job_free(job);
 }
 
 TEST_F(AmazonBraketQDMILocalJobTest,
