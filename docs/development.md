@@ -139,3 +139,10 @@ validation; workflow reruns do not authorize submissions.
 The SV1 smoke test runs one optimizer step on four qubits at 100 shots, with at
 most 20 submissions. Do not retry or broaden this workload without authorizing
 its budget.
+
+Live jobs hold no stored AWS keys. They exchange a GitHub OIDC token for
+short-lived credentials of the IAM role named by the `AWS_ROLE_ARN` variable of
+their GitHub environment. The `braket-metadata` role can only read device
+metadata. The `braket-sv1` environment accepts only `main`, and its role can
+submit only to SV1 and use only the automatic `us-east-1` result bucket. Fork
+pull requests receive no OIDC token.
