@@ -16,7 +16,7 @@ releases may include breaking changes.
   submission, so clients can split or adjust jobs early ([#310])
   ([**@burgholzer**]).
 - 🐛 Find and link an installed AWS SDK on case-sensitive file systems instead
-  of always downloading and building one ([#NNN]) ([**@burgholzer**]).
+  of always downloading and building one ([#314]) ([**@burgholzer**]).
 
 ## [1.4.0] - 2026-11-10
 
@@ -253,7 +253,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
-[#NNN]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/NNN
+[#314]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/314
 [#310]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/310
 [#302]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/302
 [#288]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/288
