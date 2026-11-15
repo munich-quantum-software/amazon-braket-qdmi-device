@@ -94,7 +94,7 @@ the device library and manifest beside its executable. This integration requires
 CMake 3.28 or later and MQT Core 4.2:
 
 ```cmake
-find_package(mqt-core 4.2.0 CONFIG REQUIRED COMPONENTS Development)
+find_package(mqt-core 4.2.1 CONFIG REQUIRED COMPONENTS Development)
 find_package(amazon-braket-qdmi-device CONFIG REQUIRED)
 
 add_executable(my_app main.cpp)

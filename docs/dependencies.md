@@ -31,7 +31,7 @@ Initial dependency downloads require network access. The AWS SDK uses platform
 HTTP and TLS libraries; Linux builds need libcurl and OpenSSL development
 packages. Native tests use GoogleTest.
 
-Building the Python package also requires Python 3.11 or later and the build
+Building the Python package also requires Python 3.11.5 or later and the build
 backend declared in `pyproject.toml`. Documentation uses Sphinx and Doxygen. See
 {doc}`installation` for build commands and {doc}`development` for tests and
 documentation builds.
