@@ -10,6 +10,11 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+### Changed
+
+- ⬆️ Require MQT Core 4.2.1 and Python 3.11.5 or newer ([#312])
+  ([**@marcelwa**], [**@burgholzer**]).
+
 ### Fixed
 
 - 🐛 Decline single programs outside the device's advertised shot range before
@@ -254,6 +259,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 <!-- PR links -->
 
 [#314]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/314
+[#312]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/312
 [#310]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/310
 [#302]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/302
 [#288]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/288
@@ -300,6 +306,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 <!-- Contributor -->
 
 [**@flowerthrower**]: https://github.com/flowerthrower
+[**@marcelwa**]: https://github.com/marcelwa
 [**@burgholzer**]: https://github.com/burgholzer
 [**@denialhaag**]: https://github.com/denialhaag
 
