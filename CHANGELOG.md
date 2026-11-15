@@ -10,18 +10,20 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-11-15
+
 ### Changed
 
-- ⬆️ Require MQT Core 4.2.1 and Python 3.11.5 or newer ([#312])
-  ([**@marcelwa**], [**@burgholzer**]).
+- ⬆️ Update MQT Core to 4.2.1 ([#312]) ([**@marcelwa**], [**@burgholzer**]).
+- ⬆️ Require Python 3.11.5 or newer ([#312]) ([**@burgholzer**]).
 
 ### Fixed
 
+- 🐛 Find and link an installed AWS SDK on case-sensitive file systems instead
+  of always downloading and building one ([#314]) ([**@burgholzer**]).
 - 🐛 Decline single programs outside the device's advertised shot range before
   submission, so clients can split or adjust jobs early ([#310])
   ([**@burgholzer**]).
-- 🐛 Find and link an installed AWS SDK on case-sensitive file systems instead
-  of always downloading and building one ([#314]) ([**@burgholzer**]).
 
 ## [1.4.0] - 2026-11-10
 
@@ -246,7 +248,8 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- Version links -->
 
-[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.4.0...HEAD
+[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.2.0...v1.3.0
