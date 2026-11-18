@@ -184,7 +184,7 @@ public:
       const std::optional<Aws::Braket::BraketErrors> createError = std::nullopt)
       : Aws::Braket::BraketClient(
             Aws::Auth::AWSCredentials{"access-key", "secret-key"},
-            clientConfiguration()),
+            amazon::braket::qdmi::detail::clientConfiguration("us-east-1")),
         result_(std::move(result)), getError_(getError),
         cancelError_(cancelError),
         failGetAfterFirstCall_(failGetAfterFirstCall),
@@ -338,12 +338,6 @@ public:
   }
 
 private:
-  static auto clientConfiguration() -> Aws::Client::ClientConfiguration {
-    Aws::Client::ClientConfiguration config;
-    config.region = "us-east-1";
-    return config;
-  }
-
   std::string capabilities_{amazon::braket::qdmi::test::SV1};
   mutable std::string action_;
   mutable int64_t shots_ = 0;
@@ -521,7 +515,7 @@ public:
       std::string errorMessage = "stubbed GetDevice failure")
       : Aws::Braket::BraketClient(
             Aws::Auth::AWSCredentials{"access-key", "secret-key"},
-            clientConfiguration()),
+            amazon::braket::qdmi::detail::clientConfiguration("us-east-1")),
         result_(std::move(result)), error_(error),
         failAfterFirstCall_(failAfterFirstCall),
         exceptionName_(std::move(exceptionName)),
@@ -545,12 +539,6 @@ public:
   }
 
 private:
-  static auto clientConfiguration() -> Aws::Client::ClientConfiguration {
-    Aws::Client::ClientConfiguration config;
-    config.region = "us-east-1";
-    return config;
-  }
-
   Aws::Braket::Model::GetDeviceResult result_;
   std::optional<Aws::Braket::BraketErrors> error_;
   bool failAfterFirstCall_;
@@ -565,7 +553,7 @@ public:
   ThrowingGetDeviceClient()
       : Aws::Braket::BraketClient(
             Aws::Auth::AWSCredentials{"access-key", "secret-key"},
-            clientConfiguration()) {}
+            amazon::braket::qdmi::detail::clientConfiguration("us-east-1")) {}
 
   auto GetDevice([[maybe_unused]] const Aws::Braket::Model::GetDeviceRequest&
                      request) const
@@ -581,12 +569,6 @@ public:
   }
 
 private:
-  static auto clientConfiguration() -> Aws::Client::ClientConfiguration {
-    Aws::Client::ClientConfiguration config;
-    config.region = "us-east-1";
-    return config;
-  }
-
   mutable size_t calls_ = 0;
 };
 
@@ -595,7 +577,7 @@ public:
   explicit ConcurrentGetDeviceClient(Aws::Braket::Model::GetDeviceResult result)
       : Aws::Braket::BraketClient(
             Aws::Auth::AWSCredentials{"access-key", "secret-key"},
-            clientConfiguration()),
+            amazon::braket::qdmi::detail::clientConfiguration("us-east-1")),
         result_(std::move(result)) {}
 
   auto GetDevice([[maybe_unused]] const Aws::Braket::Model::GetDeviceRequest&
@@ -625,12 +607,6 @@ public:
   }
 
 private:
-  static auto clientConfiguration() -> Aws::Client::ClientConfiguration {
-    Aws::Client::ClientConfiguration config;
-    config.region = "us-east-1";
-    return config;
-  }
-
   Aws::Braket::Model::GetDeviceResult result_;
   mutable std::mutex mutex_;
   mutable std::condition_variable callsChanged_;
@@ -838,6 +814,17 @@ private:
   Aws::SDKOptions options_;
 };
 
+TEST_F(AwsClientConfigurationTest, PreservesImdsV1Policy) {
+  for (const bool disabled : {false, true}) {
+    const ScopedEnvironment policy("AWS_EC2_METADATA_V1_DISABLED",
+                                   disabled ? "true" : "false");
+    const auto config =
+        amazon::braket::qdmi::detail::clientConfiguration("us-east-1");
+    EXPECT_EQ(config.ResolveCredentialProviderConfig().imdsConfig.disableImdsV1,
+              disabled);
+  }
+}
+
 TEST_F(AwsClientConfigurationTest, HonorsExplicitCaBundle) {
   const ScopedEnvironment sslCertificateFile("SSL_CERT_FILE", "/ssl-ca.pem");
   const ScopedEnvironment awsCaBundle("AWS_CA_BUNDLE", "/aws-ca.pem");
@@ -905,8 +892,8 @@ TEST_F(AwsRetryConfigurationTest, HonorsEnvironmentModeAndAttemptLimit) {
 }
 
 TEST_F(AwsRetryConfigurationTest, RetriesQuotaErrorsOnlyForTaskCreation) {
-  Aws::Braket::BraketClientConfiguration configuration;
-  configuration.region = "us-east-1";
+  auto configuration = amazon::braket::qdmi::detail::clientConfiguration<
+      Aws::Braket::BraketClientConfiguration>("us-east-1");
   amazon::braket::qdmi::detail::configureRetries(configuration);
   const amazon::braket::qdmi::detail::BraketClient client{
       Aws::Auth::AWSCredentials{"access", "secret"}, nullptr, configuration};

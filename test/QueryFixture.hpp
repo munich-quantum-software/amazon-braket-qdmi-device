@@ -31,7 +31,6 @@
 #include <aws/braket/model/DeviceType.h>
 #include <aws/braket/model/GetDeviceResult.h>
 #include <aws/core/auth/AWSCredentials.h>
-#include <aws/core/client/ClientConfiguration.h>
 #include <gtest/gtest.h>
 #include <memory>
 #include <stdlib.h> // NOLINT(modernize-deprecated-headers): POSIX setenv
@@ -45,7 +44,7 @@ struct AMAZON_BRAKET_QDMI_Device_Session_TestAccess {
     QueryClient()
         : Aws::Braket::BraketClient(
               Aws::Auth::AWSCredentials{"access-key", "secret-key"},
-              configuration()) {}
+              amazon::braket::qdmi::detail::clientConfiguration("us-east-1")) {}
 
     auto GetDevice(const Aws::Braket::Model::GetDeviceRequest& request) const
         -> Aws::Braket::Model::GetDeviceOutcome override {
@@ -58,13 +57,6 @@ struct AMAZON_BRAKET_QDMI_Device_Session_TestAccess {
       result.SetDeviceCapabilities(
           std::string{amazon::braket::qdmi::test::IQM_GARNET}.c_str());
       return result;
-    }
-
-  private:
-    static auto configuration() -> Aws::Client::ClientConfiguration {
-      Aws::Client::ClientConfiguration config;
-      config.region = "us-east-1";
-      return config;
     }
   };
 
