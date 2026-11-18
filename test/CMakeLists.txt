@@ -66,15 +66,7 @@ if(BUILD_AMAZON_BRAKET_LIVE_TESTS)
     ${QDMI_TARGET_NAME}
     FIXTURE_HEADER
     "${CMAKE_CURRENT_SOURCE_DIR}/LiveQueryFixture.hpp")
-  file(
-    WRITE "${CMAKE_CURRENT_BINARY_DIR}/live-query-labels.cmake"
-    "foreach(query_test IN LISTS braket_live_query_tests_TESTS)\n"
-    "  set_tests_properties(\"\${query_test}\" PROPERTIES LABELS \"qdmi-query;live\" RUN_SERIAL TRUE)\n"
-    "endforeach()\n")
-  set_property(
-    DIRECTORY
-    APPEND
-    PROPERTY TEST_INCLUDE_FILES "${CMAKE_CURRENT_BINARY_DIR}/live-query-labels.cmake")
+  set_tests_properties(braket_live_query_tests PROPERTIES LABELS "qdmi-query;live" RUN_SERIAL TRUE)
 endif()
 
 # link the Google test infrastructure to the test executable.
