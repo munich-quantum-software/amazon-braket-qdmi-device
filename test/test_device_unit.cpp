@@ -816,7 +816,8 @@ private:
 
 TEST_F(AwsClientConfigurationTest, PreservesImdsV1Policy) {
   for (const bool disabled : {false, true}) {
-    const ScopedEnvironment policy("AWS_EC2_METADATA_V1_DISABLED",
+    // AWS SDK 1.11.908 reads the lowercase IMDSv1 key from the environment.
+    const ScopedEnvironment policy("ec2_metadata_v1_disabled",
                                    disabled ? "true" : "false");
     const auto config =
         amazon::braket::qdmi::detail::clientConfiguration("us-east-1");
