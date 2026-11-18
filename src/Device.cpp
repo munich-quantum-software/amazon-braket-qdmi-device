@@ -1136,8 +1136,8 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS try {
     }
   }
 
-  Aws::Braket::BraketClientConfiguration config;
-  config.region = region_;
+  auto config = amazon::braket::qdmi::detail::clientConfiguration<
+      Aws::Braket::BraketClientConfiguration>(region_);
   amazon::braket::qdmi::detail::configureRetries(config);
   amazon::braket::qdmi::detail::configureCaBundle(config);
 
@@ -1147,14 +1147,14 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::init() -> QDMI_STATUS try {
           config.ResolveCredentialProviderConfig());
   client_ = std::make_unique<amazon::braket::qdmi::detail::BraketClient>(
       credentialsProvider_, nullptr, config);
-  Aws::S3::S3ClientConfiguration s3Config;
-  s3Config.region = region_;
+  auto s3Config = amazon::braket::qdmi::detail::clientConfiguration<
+      Aws::S3::S3ClientConfiguration>(region_);
   amazon::braket::qdmi::detail::configureRetries(s3Config);
   amazon::braket::qdmi::detail::configureCaBundle(s3Config);
   s3Client_ = std::make_unique<Aws::S3::S3Client>(credentialsProvider_, nullptr,
                                                   s3Config);
-  Aws::STS::STSClientConfiguration stsConfig;
-  stsConfig.region = region_;
+  auto stsConfig = amazon::braket::qdmi::detail::clientConfiguration<
+      Aws::STS::STSClientConfiguration>(region_);
   amazon::braket::qdmi::detail::configureRetries(stsConfig);
   amazon::braket::qdmi::detail::configureCaBundle(stsConfig);
   // AWS SDK 1.11 does not pass a service name to the STS endpoint provider.

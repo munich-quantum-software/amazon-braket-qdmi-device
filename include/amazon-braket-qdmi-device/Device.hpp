@@ -137,6 +137,16 @@ public:
       -> Aws::Client::AWSError<Aws::Client::CoreErrors> override;
 };
 
+template <class Config = Aws::Client::ClientConfiguration>
+auto clientConfiguration(const std::string& region) -> Config {
+  Config config;
+  config.region = region;
+  // AWS SDK 1.11 only initializes the nested flag when IMDSv1 is disabled.
+  config.credentialProviderConfig.imdsConfig.disableImdsV1 =
+      config.disableImdsV1;
+  return config;
+}
+
 /// Use a higher retry budget unless the user configured an attempt limit.
 /// The SDK resolves the retry mode and owns backoff, jitter, and retry quotas.
 inline auto configureRetries(Aws::Client::ClientConfiguration& configuration)
