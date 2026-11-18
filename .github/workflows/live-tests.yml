@@ -5,13 +5,6 @@ on:
       suite:
         type: string
         required: true
-    secrets:
-      AWS_ACCESS_KEY_ID:
-        required: true
-      AWS_SECRET_ACCESS_KEY:
-        required: true
-      AWS_SESSION_TOKEN:
-        required: false
   workflow_dispatch:
     inputs:
       suite:
@@ -34,6 +27,12 @@ jobs:
       (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-26.04
     timeout-minutes: 45
+    environment:
+      name: braket-metadata
+      deployment: false
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -53,11 +52,14 @@ jobs:
           cmake -S . -B build/live -DCMAKE_BUILD_TYPE=Release -DBUILD_AMAZON_BRAKET_LIVE_TESTS=ON
           cmake --build build/live --parallel 4
 
+      - name: Assume metadata-only AWS role
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
       - name: Query catalogue without submissions
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
           AMAZON_BRAKET_QDMI_RUN_LIVE_CATALOG: "1"
         run: ctest --test-dir build/live -R '^live::AmazonBraketQDMILiveTest.OpensInstalledCatalog$' --output-on-failure --timeout 600 --parallel 1
 
@@ -66,6 +68,11 @@ jobs:
     if: inputs.suite == 'sv1' && (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_attempt == 1)
     runs-on: ubuntu-26.04
     timeout-minutes: 45
+    environment:
+      name: braket-sv1
+    permissions:
+      contents: read
+      id-token: write
     concurrency:
       group: braket-sv1-execution
       cancel-in-progress: false
@@ -97,9 +104,11 @@ jobs:
           uv pip install --python build/live/venv/bin/python --group test build/live/dist/*.whl
           build/live/venv/bin/python -m pytest
 
+      - name: Assume SV1 AWS role
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
       - name: Run selected SV1 smoke test
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
         run: build/live/venv/bin/python -m pytest test/python/test_pennylane_qaoa.py -m live -k cost_capped_on_sv1 -n 0 --tb=line --show-capture=no

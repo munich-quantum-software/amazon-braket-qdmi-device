@@ -51,7 +51,7 @@ target_compile_definitions(
           ${QDMI_PREFIX}_QDMI_device_EXPORTS)
 target_include_directories(${QDMI_PARSER_OBJECTS} PUBLIC ${PROJECT_SOURCE_DIR}/include
                                                          ${CMAKE_CURRENT_BINARY_DIR}/include)
-target_link_libraries(${QDMI_PARSER_OBJECTS} PRIVATE AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-braket
+target_link_libraries(${QDMI_PARSER_OBJECTS} PRIVATE aws-cpp-sdk-core aws-cpp-sdk-braket
                                                      qdmi::qdmi_project_warnings)
 
 # Compile the device implementation once for the shared library and other build-tree consumers.
@@ -74,7 +74,7 @@ target_include_directories(${QDMI_DEVICE_OBJECTS} PUBLIC ${PROJECT_SOURCE_DIR}/i
                                                          ${CMAKE_CURRENT_BINARY_DIR}/include)
 target_link_libraries(
   ${QDMI_DEVICE_OBJECTS}
-  PUBLIC AWS::aws-cpp-sdk-core AWS::aws-cpp-sdk-s3 AWS::aws-cpp-sdk-sts AWS::aws-cpp-sdk-braket
+  PUBLIC aws-cpp-sdk-core aws-cpp-sdk-s3 aws-cpp-sdk-sts aws-cpp-sdk-braket
   PRIVATE qdmi::qdmi_project_warnings)
 
 add_library(${QDMI_TARGET_NAME} SHARED)

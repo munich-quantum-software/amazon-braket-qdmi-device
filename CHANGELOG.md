@@ -10,6 +10,23 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-11-15
+
+### Changed
+
+- ⬆️ Update MQT Core to 4.2.1 ([#312]) ([**@marcelwa**], [**@burgholzer**]).
+- ⬆️ Require Python 3.11.5 or newer ([#312]) ([**@burgholzer**]).
+
+### Fixed
+
+- 🐛 Find and link an installed AWS SDK on case-sensitive file systems instead
+  of always downloading and building one ([#314]) ([**@burgholzer**]).
+- 🐛 Decline single programs outside the device's advertised shot range before
+  submission, so clients can split or adjust jobs early ([#310])
+  ([**@burgholzer**]).
+
+## [1.4.0] - 2026-11-10
+
 ### Added
 
 - ✨ Expose operation parameter constraints through
@@ -18,14 +35,14 @@ releases may include breaking changes.
 
 ### Changed
 
+- ⬆️ Update MQT Core to 4.2.0 ([#302]) ([**@denialhaag**]).
+- ♻️ Use MQSC Orchestrator for Slurm deployment and monitoring, and remove
+  duplicated application examples ([#288], [#302]) ([**@burgholzer**],
+  [**@denialhaag**]).
 - ♻️ Report fully connected devices through
   `mqt.compiler-target.v1:all-to-all-homogeneous` in device CUSTOM2; their
   coupling map and operation site lists return `QDMI_ERROR_NOTSUPPORTED`
   ([#288]) ([**@burgholzer**]).
-
-- ♻️ Use MQT Core's shared Slurm playground and application examples instead of
-  maintaining copies. Build static documentation without quantum execution and
-  keep two eight-shot SV1 integration checks ([#288]) ([**@burgholzer**]).
 
 ### Fixed
 
@@ -231,7 +248,9 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- Version links -->
 
-[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.3.1...HEAD
+[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.4.0...v1.4.1
+[1.4.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.1.1...v1.2.0
@@ -242,6 +261,10 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#314]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/314
+[#312]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/312
+[#310]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/310
+[#302]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/302
 [#288]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/288
 [#270]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/270
 [#268]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/268
@@ -286,6 +309,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 <!-- Contributor -->
 
 [**@flowerthrower**]: https://github.com/flowerthrower
+[**@marcelwa**]: https://github.com/marcelwa
 [**@burgholzer**]: https://github.com/burgholzer
 [**@denialhaag**]: https://github.com/denialhaag
 

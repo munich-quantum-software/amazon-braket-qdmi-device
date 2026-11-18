@@ -230,7 +230,9 @@ def test_core_sv1_phase_transport_fixture(monkeypatch: pytest.MonkeyPatch) -> No
         ]),
     )
     environment = TargetEnvironment(target, PayloadSpecification.from_program_format(ProgramFormat.QASM3))
-    monkeypatch.setattr(TargetEnvironment, "from_device", lambda _device: environment)
+    monkeypatch.setattr(
+        "mqt.core.plugins.qiskit.backend.Context", lambda _device: SimpleNamespace(environment=environment)
+    )
     device = cast("QDMIDeviceHandle", SimpleNamespace(name=lambda: "SV1", version=lambda: "1.0"))
     backend = AmazonBraketBackend(device=device)
     assert backend.coupling_map is None

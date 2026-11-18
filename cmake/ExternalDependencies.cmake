@@ -96,19 +96,19 @@ if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
   set("CPP_STANDARD"
       20
       CACHE STRING "C++ standard to use for AWS SDK" FORCE)
-  FetchContent_Declare(
-    awssdk
-    GIT_REPOSITORY https://github.com/aws/aws-sdk-cpp.git
-    GIT_TAG ${AWSSDK_VERSION}
-    GIT_SHALLOW TRUE
-    FIND_PACKAGE_ARGS
-    ${AWSSDK_VERSION}
-    COMPONENTS
-    braket
-    s3
-    sts
-    core)
-  list(APPEND FETCH_PACKAGES awssdk)
+  # FetchContent would call find_package(awssdk), which misses AWSSDKConfig.cmake on case-sensitive
+  # file systems and hides the components from it, so look for an installed SDK by its own name. A
+  # static SDK links ZLIB::ZLIB without finding it.
+  find_package(ZLIB QUIET)
+  find_package(AWSSDK ${AWSSDK_VERSION} QUIET COMPONENTS braket s3 sts core)
+  if(NOT AWSSDK_FOUND)
+    FetchContent_Declare(
+      awssdk
+      GIT_REPOSITORY https://github.com/aws/aws-sdk-cpp.git
+      GIT_TAG ${AWSSDK_VERSION}
+      GIT_SHALLOW TRUE)
+    list(APPEND FETCH_PACKAGES awssdk)
+  endif()
 endif()
 
 # Make all declared dependencies available.

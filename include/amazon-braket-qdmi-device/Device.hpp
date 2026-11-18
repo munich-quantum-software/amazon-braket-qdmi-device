@@ -191,6 +191,8 @@ inline auto configureCaBundle(Aws::Client::ClientConfiguration& configuration)
  */
 struct DeviceArchitecture {
   std::optional<ProgramSetLimits> programSetLimits;
+  /// Inclusive per-program shot range advertised by the device.
+  std::optional<std::pair<size_t, size_t>> shotsRange;
   bool supportPhysicalQubits = false;
   bool supportVerbatim = false;
   bool requiresAllQubitsMeasurement = false;

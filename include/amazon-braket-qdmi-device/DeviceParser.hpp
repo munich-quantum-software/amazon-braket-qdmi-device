@@ -73,13 +73,13 @@ struct ProgramSetLimits {
   size_t maximumExecutables = 0;
   size_t minimumTotalShots = 0;
   size_t maximumTotalShots = 0;
-  size_t minimumShotsPerProgram = 0;
-  size_t maximumShotsPerProgram = 0;
 };
 
 /// Parsed device capabilities and calibration metadata.
 struct ParsedDeviceProperties {
   std::optional<ProgramSetLimits> programSetLimits;
+  /// Inclusive per-program shot range from `service.shotsRange`.
+  std::optional<std::pair<size_t, size_t>> shotsRange;
   size_t qubitCount{0};
   bool supportPhysicalQubits = false;
   bool requiresAllQubitsMeasurement = false;

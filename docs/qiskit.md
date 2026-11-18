@@ -91,5 +91,5 @@ backend = AmazonBraketBackend(device=qdmi_driver.open_device("amazon.braket.sv1"
 ```
 
 See
-[MQT Core's Slurm playground](https://mqt.readthedocs.io/projects/core/en/latest/qdmi/slurm.html)
+[MQSC Orchestrator](https://github.com/munich-quantum-software/orchestrator)
 for cluster setup and job submission.
