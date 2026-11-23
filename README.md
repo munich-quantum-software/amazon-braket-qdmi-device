@@ -44,7 +44,7 @@ Install the Python package and packaged native library from PyPI:
 uv pip install amazon-braket-qdmi
 ```
 
-Building from source requires a C++20 compiler and CMake 3.24 or newer:
+Building from source requires a C++20 compiler and CMake 3.28 or newer:
 
 ```console
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
