@@ -453,6 +453,10 @@ private:
                         size_t shots) const -> QDMI_STATUS;
   auto updateFromTask(const Aws::Braket::Model::GetQuantumTaskResult& task,
                       QDMI_Job_Status* status) const -> QDMI_STATUS;
+  /// Poll the QuantumTask status. Request the `QueueInfo` attribute only when
+  /// the caller reads the queue position, because status polls discard it.
+  auto refreshStatus(QDMI_Job_Status* status, bool includeQueueInfo) const
+      -> QDMI_STATUS;
   auto
   wait(size_t timeout,
        const amazon::braket::qdmi::detail::JobWaitFunctions& functions) const

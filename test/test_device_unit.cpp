@@ -53,6 +53,8 @@
 #include "aws/braket/model/GetDeviceResult.h"
 #include "aws/braket/model/GetQuantumTaskRequest.h"
 #include "aws/braket/model/GetQuantumTaskResult.h"
+#include "aws/braket/model/QuantumTaskAdditionalAttributeName.h"
+#include "aws/braket/model/QuantumTaskQueueInfo.h"
 #include "aws/braket/model/QuantumTaskStatus.h"
 #include "aws/core/Aws.h"
 #include "aws/core/client/AWSError.h"
@@ -209,6 +211,11 @@ public:
     const std::scoped_lock lock(taskMutex_);
     ++calls_;
     requestedArn_ = request.GetQuantumTaskArn();
+    const auto& attributes = request.GetAdditionalAttributeNames();
+    requestedQueueInfo_ =
+        std::ranges::find(
+            attributes, Aws::Braket::Model::QuantumTaskAdditionalAttributeName::
+                            QueueInfo) != attributes.end();
     if (getError_.has_value() && (!failGetAfterFirstCall_ || calls_ > 1)) {
       Aws::Client::AWSError<Aws::Braket::BraketErrors> error{
           *getError_, "StubError", "stubbed GetQuantumTask failure", false};
@@ -302,6 +309,10 @@ public:
     const std::scoped_lock lock(taskMutex_);
     return requestedArn_;
   }
+  [[nodiscard]] auto requestedQueueInfo() const -> bool {
+    const std::scoped_lock lock(taskMutex_);
+    return requestedQueueInfo_;
+  }
   [[nodiscard]] auto canceledArn() const -> std::string {
     const std::scoped_lock lock(taskMutex_);
     return canceledArn_;
@@ -357,6 +368,7 @@ private:
   mutable std::atomic<size_t> deviceCalls_ = 0;
   mutable size_t cancelCalls_ = 0;
   mutable std::string requestedArn_;
+  mutable bool requestedQueueInfo_ = false;
   mutable std::string canceledArn_;
   mutable std::atomic<size_t> createCalls_ = 0;
   mutable std::mutex createMutex_;
@@ -2154,6 +2166,63 @@ TEST_F(AmazonBraketQDMILocalJobTest,
                 sizeof(queuePosition), &queuePosition, nullptr),
             QDMI_ERROR_BADSTATE);
   AMAZON_BRAKET_QDMI_device_job_free(freshJob);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, JobCheckOmitsQueueInfo) {
+  constexpr auto* taskArn =
+      "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
+  Aws::Braket::Model::GetQuantumTaskResult task;
+  task.WithQuantumTaskArn(taskArn)
+      .WithDeviceArn("arn:aws:braket:::device/quantum-simulator/amazon/sv1")
+      .WithStatus(Aws::Braket::Model::QuantumTaskStatus::QUEUED)
+      .WithShots(42)
+      .WithQueueInfo(
+          Aws::Braket::Model::QuantumTaskQueueInfo{}.WithPosition("3"));
+  auto client = std::make_unique<StubBraketClient>(std::move(task));
+  const auto* clientPtr = client.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                          std::move(client));
+
+  AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                session, taskArn, &job),
+            QDMI_SUCCESS);
+  QDMI_Job_Status status = QDMI_JOB_STATUS_CREATED;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_check(job, &status), QDMI_SUCCESS);
+  EXPECT_EQ(status, QDMI_JOB_STATUS_QUEUED);
+  EXPECT_EQ(clientPtr->calls(), 2U);
+  EXPECT_FALSE(clientPtr->requestedQueueInfo());
+  AMAZON_BRAKET_QDMI_device_job_free(job);
+}
+
+TEST_F(AmazonBraketQDMILocalJobTest, JobQueuePositionRequestsQueueInfo) {
+  constexpr auto* taskArn =
+      "arn:aws:braket:us-east-1:123456789012:quantum-task/task-id";
+  Aws::Braket::Model::GetQuantumTaskResult task;
+  task.WithQuantumTaskArn(taskArn)
+      .WithDeviceArn("arn:aws:braket:::device/quantum-simulator/amazon/sv1")
+      .WithStatus(Aws::Braket::Model::QuantumTaskStatus::QUEUED)
+      .WithShots(42)
+      .WithQueueInfo(
+          Aws::Braket::Model::QuantumTaskQueueInfo{}.WithPosition("3"));
+  auto client = std::make_unique<StubBraketClient>(std::move(task));
+  const auto* clientPtr = client.get();
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
+                                                          std::move(client));
+
+  AMAZON_BRAKET_QDMI_Device_Job job = nullptr;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_retrieve_device_job_by_id(
+                session, taskArn, &job),
+            QDMI_SUCCESS);
+  size_t queuePosition = 0;
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_job_query_property(
+                job, QDMI_DEVICE_JOB_PROPERTY_QUEUEPOSITION,
+                sizeof(queuePosition), &queuePosition, nullptr),
+            QDMI_SUCCESS);
+  EXPECT_EQ(queuePosition, 3U);
+  EXPECT_EQ(clientPtr->calls(), 2U);
+  EXPECT_TRUE(clientPtr->requestedQueueInfo());
+  AMAZON_BRAKET_QDMI_device_job_free(job);
 }
 
 // MAX property sentinel must return INVALIDARGUMENT.

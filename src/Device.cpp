@@ -1881,7 +1881,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
 
   if (prop == QDMI_DEVICE_JOB_PROPERTY_QUEUEPOSITION) {
     QDMI_Job_Status refreshedStatus = QDMI_JOB_STATUS_CREATED;
-    if (const auto result = check(&refreshedStatus); result != QDMI_SUCCESS) {
+    if (const auto result = refreshStatus(&refreshedStatus, true);
+        result != QDMI_SUCCESS) {
       return result;
     }
     if (refreshedStatus != QDMI_JOB_STATUS_QUEUED) {
@@ -2234,7 +2235,13 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::updateFromTask(
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
-    -> QDMI_STATUS try {
+    -> QDMI_STATUS {
+  return refreshStatus(status, false);
+}
+
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::refreshStatus(
+    QDMI_Job_Status* status, const bool includeQueueInfo) const -> QDMI_STATUS
+    try {
   if (status == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
   }
@@ -2296,8 +2303,10 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
 
   Aws::Braket::Model::GetQuantumTaskRequest request;
   request.SetQuantumTaskArn(localTaskArn);
-  request.AddAdditionalAttributeNames(
-      Aws::Braket::Model::QuantumTaskAdditionalAttributeName::QueueInfo);
+  if (includeQueueInfo) {
+    request.AddAdditionalAttributeNames(
+        Aws::Braket::Model::QuantumTaskAdditionalAttributeName::QueueInfo);
+  }
 
   auto outcome = session_->getClient()->GetQuantumTask(request);
   if (!outcome.IsSuccess()) {
