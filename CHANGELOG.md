@@ -10,6 +10,8 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+## [1.4.2] - 2026-11-23
+
 ### Changed
 
 - ⬆️ Update the AWS SDK for C++ to 1.11.935. Users who set
@@ -259,7 +261,8 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- Version links -->
 
-[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.4.1...HEAD
+[unreleased]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.4.2...HEAD
+[1.4.2]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/compare/v1.3.0...v1.3.1
