@@ -114,7 +114,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include <ctime>
 #include <future>
@@ -128,7 +127,6 @@
 #include <set>
 #include <span>
 #include <stdexcept>
-#include <stdlib.h> /// NOLINT(modernize-deprecated-headers): POSIX setenv
 #include <string>
 #include <string_view>
 #include <thread>
@@ -640,42 +638,33 @@ auto getCurrentExecutionWindowAvailability(
   return anyWindowParsed ? std::optional<bool>{false} : std::nullopt;
 }
 
-auto getQDMIStatusForBraketDevice(
-    const Aws::Braket::Model::DeviceStatus braketStatus,
-    const std::optional<bool>& executionWindowAvailability,
-    const size_t queueLength) -> std::optional<QDMI_Device_Status> {
-  switch (braketStatus) {
-  case Aws::Braket::Model::DeviceStatus::ONLINE: {
-    const bool isOutsideExecutionWindow =
-        executionWindowAvailability.has_value() &&
-        !*executionWindowAvailability;
-    if (isOutsideExecutionWindow || queueLength >= QUEUE_BUSY_THRESHOLD) {
+auto computeQDMIStatusFromDevice(
+    const Aws::Braket::Model::GetDeviceResult& device,
+    const bool hasReservationArn, const std::optional<size_t> queueLength)
+    -> std::optional<QDMI_Device_Status> {
+  switch (device.GetDeviceStatus()) {
+  case Aws::Braket::Model::DeviceStatus::ONLINE:
+    if (queueLength.value_or(QUEUE_BUSY_THRESHOLD) >= QUEUE_BUSY_THRESHOLD ||
+        (!hasReservationArn &&
+         !getCurrentExecutionWindowAvailability(device.GetDeviceCapabilities())
+              .value_or(true))) {
       return QDMI_DEVICE_STATUS_BUSY;
     }
     return QDMI_DEVICE_STATUS_IDLE;
-  }
+  case Aws::Braket::Model::DeviceStatus::PAUSED:
+    return QDMI_DEVICE_STATUS_BUSY;
   case Aws::Braket::Model::DeviceStatus::OFFLINE:
     return QDMI_DEVICE_STATUS_MAINTENANCE;
   case Aws::Braket::Model::DeviceStatus::RETIRED:
     return QDMI_DEVICE_STATUS_OFFLINE;
   case Aws::Braket::Model::DeviceStatus::NOT_SET:
   default:
+    std::cerr << "Unknown Braket device status: "
+              << Aws::Braket::Model::DeviceStatusMapper::GetNameForDeviceStatus(
+                     device.GetDeviceStatus())
+              << " (" << static_cast<int>(device.GetDeviceStatus()) << ")\n";
     return std::nullopt;
   }
-}
-
-auto computeQDMIStatusFromDevice(
-    const Aws::Braket::Model::GetDeviceResult& device,
-    const bool hasReservationArn, const std::optional<size_t> queueLength)
-    -> std::optional<QDMI_Device_Status> {
-  std::optional<bool> executionWindowAvailability;
-  if (!hasReservationArn) {
-    executionWindowAvailability =
-        getCurrentExecutionWindowAvailability(device.GetDeviceCapabilities());
-  }
-  return getQDMIStatusForBraketDevice(
-      device.GetDeviceStatus(), executionWindowAvailability,
-      queueLength.value_or(QUEUE_BUSY_THRESHOLD));
 }
 
 auto statusFromCurrentException() noexcept -> QDMI_STATUS {
@@ -953,9 +942,6 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture(
     const auto qdmiStatus = computeQDMIStatusFromDevice(
         device, !reservationArn_.empty(), queueLength);
     if (!qdmiStatus.has_value()) {
-      const auto braketStatus = device.GetDeviceStatus();
-      std::cerr << "ERROR: Unknown device status (enum value: "
-                << static_cast<int>(braketStatus) << ")\n";
       return QDMI_ERROR_NOTSUPPORTED;
     }
     braketDeviceStatus_.store(*qdmiStatus);
@@ -984,17 +970,10 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture(
   architecture->provider = device.GetProviderName();
   architecture->deviceType = device.GetDeviceType();
 
-  // Map Amazon Braket DeviceStatus to QDMI Device Status
-  // Amazon Braket has three statuses: ONLINE, OFFLINE, RETIRED
-  // QDMI has: OFFLINE, IDLE, BUSY, ERROR, MAINTENANCE, CALIBRATION
-  const auto braketStatus = device.GetDeviceStatus();
-
   const auto queueLength = getTotalQueueLength(device);
   const auto qdmiStatus = computeQDMIStatusFromDevice(
       device, !reservationArn_.empty(), queueLength);
   if (!qdmiStatus.has_value()) {
-    std::cerr << "ERROR: Unknown device status (enum value: "
-              << static_cast<int>(braketStatus) << ")\n";
     return QDMI_ERROR_NOTSUPPORTED;
   }
   braketDeviceStatus_.store(*qdmiStatus);
@@ -2747,20 +2726,6 @@ int AMAZON_BRAKET_QDMI_device_initialize() try {
       logLevel = match->second;
     }
     gAWSOptions.loggingOptions.logLevel = logLevel;
-    /// The SDK reads this process-wide opt-in when initializing error maps.
-    /// Preserve explicit values and leave it set for subsequent AWS clients.
-    if (!amazon::braket::qdmi::detail::getEnvironment("AWS_NEW_RETRIES_2026")
-             .has_value()) {
-#ifdef _WIN32
-      const auto result = _putenv_s("AWS_NEW_RETRIES_2026", "true");
-#else
-      const auto result = setenv("AWS_NEW_RETRIES_2026", "true", 0);
-#endif
-      if (result != 0) {
-        std::fputs("Could not enable AWS_NEW_RETRIES_2026.\n", stderr);
-        return QDMI_ERROR_FATAL;
-      }
-    }
     Aws::InitAPI(gAWSOptions);
     gAWSInitialized = true;
   }

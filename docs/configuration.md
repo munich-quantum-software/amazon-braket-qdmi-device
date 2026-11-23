@@ -39,11 +39,7 @@ export AWS_MAX_ATTEMPTS=15
 See the [AWS retry reference] for `AWS_RETRY_MODE`, attempt limits, profile
 settings, and retry behavior.
 
-Device initialization enables `AWS_NEW_RETRIES_2026=true` unless explicitly set.
-This process-wide setting remains after finalization and can affect other AWS
-clients. Initialize the device before other threads use the SDK; if your
-application initializes the SDK first, set the variable before that step. Set it
-to `false` before startup to opt out.
+Set `AWS_RETRY_MODE=legacy` to select the SDK's legacy retry behavior.
 
 Task submissions also retry `ServiceQuotaExceededException`. Retries are
 bounded: persistent quota exhaustion can still fail a submission. Increase

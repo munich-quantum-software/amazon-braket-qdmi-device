@@ -10,6 +10,17 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+### Changed
+
+- ⬆️ Update the AWS SDK for C++ to 1.11.935. Users who set
+  `AWS_NEW_RETRIES_2026=false` can select legacy retries with
+  `AWS_RETRY_MODE=legacy` ([#320]) ([**@burgholzer**]).
+
+### Fixed
+
+- 🐛 Keep paused Amazon Braket devices queryable and report their status as busy
+  ([#320]) ([**@burgholzer**]).
+
 ## [1.4.1] - 2026-11-15
 
 ### Changed
@@ -261,6 +272,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#320]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/320
 [#314]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/314
 [#312]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/312
 [#310]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/310
