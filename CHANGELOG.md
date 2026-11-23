@@ -12,6 +12,8 @@ releases may include breaking changes.
 
 ### Changed
 
+- ⚡️ Request QuantumTask queue information only for queue-position queries
+  ([#326]) ([**@kshitijc**]).
 - ⬆️ Require CMake 3.28 or newer for source builds ([#324]) ([**@burgholzer**]).
 
 ## [1.4.2] - 2026-11-23
@@ -279,6 +281,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#326]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/326
 [#320]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/320
 [#324]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/324
 [#314]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/314
@@ -332,6 +335,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 [**@marcelwa**]: https://github.com/marcelwa
 [**@burgholzer**]: https://github.com/burgholzer
 [**@denialhaag**]: https://github.com/denialhaag
+[**@kshitijc**]: https://github.com/kshitijc
 
 <!-- General links -->
 
