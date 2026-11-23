@@ -860,7 +860,6 @@ TEST_F(AwsClientConfigurationTest, HonorsOpenSslCaBundle) {
 
 class AwsRetryConfigurationTest : public AwsClientConfigurationTest {
 protected:
-  ScopedEnvironment newRetries_{"AWS_NEW_RETRIES_2026", "true"};
   ScopedEnvironment profile_{"AWS_PROFILE", "amazon-braket-qdmi-retry-test"};
   ScopedEnvironment retryMode_{"AWS_RETRY_MODE", ""};
   ScopedEnvironment maxAttempts_{"AWS_MAX_ATTEMPTS", ""};
@@ -968,21 +967,6 @@ TEST_F(AwsRetryConfigurationTest, HonorsProfileAndEnvironmentPrecedence) {
   EXPECT_FALSE(configuration.retryStrategy->ShouldRetry(
       Aws::Client::CoreErrorsMapper::GetErrorForName("ThrottlingException"),
       0));
-}
-
-TEST(AwsRetryInitializationTest, EnablesNewRetriesUnlessExplicitlyConfigured) {
-  for (const auto* value : {static_cast<const char*>(nullptr), "false"}) {
-    const ScopedEnvironment newRetries("AWS_NEW_RETRIES_2026", value);
-    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_initialize(), QDMI_SUCCESS);
-    EXPECT_EQ(
-        amazon::braket::qdmi::detail::getEnvironment("AWS_NEW_RETRIES_2026"),
-        value != nullptr ? value : "true");
-    EXPECT_EQ(
-        Aws::Client::CoreErrorsMapper::GetErrorForName("RequestLimitExceeded")
-            .ShouldThrottle(),
-        value == nullptr);
-    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_finalize(), QDMI_SUCCESS);
-  }
 }
 
 TEST(AwsLoggingInitializationTest, ConfiguresLoggingForEachSdkLifetime) {
@@ -3994,13 +3978,18 @@ TEST_F(AmazonBraketQDMILocalJobTest,
             QDMI_ERROR_INVALIDARGUMENT);
 }
 
-TEST_F(AmazonBraketQDMILocalJobTest,
-       RetiredDeviceStatusIsQueryableOnInitialAndCachedFetches) {
+class DeviceStatusTest
+    : public AmazonBraketQDMILocalJobTest,
+      public testing::WithParamInterface<
+          std::pair<Aws::Braket::Model::DeviceStatus, QDMI_Device_Status>> {};
+
+TEST_P(DeviceStatusTest, QueriesNameAndRefreshesStatus) {
+  const auto [braketStatus, expectedStatus] = GetParam();
   Aws::Braket::Model::GetDeviceResult result;
   result.SetDeviceName("SV1");
   result.SetProviderName("Amazon Web Services");
   result.SetDeviceType(Aws::Braket::Model::DeviceType::SIMULATOR);
-  result.SetDeviceStatus(Aws::Braket::Model::DeviceStatus::RETIRED);
+  result.SetDeviceStatus(braketStatus);
   result.SetDeviceCapabilities(
       std::string{amazon::braket::qdmi::test::SV1}.c_str());
   auto stub = std::make_unique<StubGetDeviceClient>(std::move(result));
@@ -4008,17 +3997,26 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(session,
                                                           std::move(stub));
 
+  size_t nameSize = 0;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_NAME, 0, nullptr, &nameSize),
+            QDMI_SUCCESS);
+  EXPECT_EQ(nameSize, sizeof("SV1"));
   QDMI_Device_Status status = QDMI_DEVICE_STATUS_IDLE;
-  for (size_t query = 0; query < 2; ++query) {
-    SCOPED_TRACE(query);
-    EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
-                  session, QDMI_DEVICE_PROPERTY_STATUS, sizeof(status), &status,
-                  nullptr),
-              QDMI_SUCCESS);
-    EXPECT_EQ(status, QDMI_DEVICE_STATUS_OFFLINE);
-  }
+  EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_STATUS, sizeof(status), &status,
+                nullptr),
+            QDMI_SUCCESS);
+  EXPECT_EQ(status, expectedStatus);
   EXPECT_EQ(stubPtr->calls(), 2U);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Braket, DeviceStatusTest,
+    testing::Values(std::pair{Aws::Braket::Model::DeviceStatus::PAUSED,
+                              QDMI_DEVICE_STATUS_BUSY},
+                    std::pair{Aws::Braket::Model::DeviceStatus::RETIRED,
+                              QDMI_DEVICE_STATUS_OFFLINE}));
 
 TEST_F(AmazonBraketQDMILocalJobTest,
        DevicePropertyQueriesTranslateClientExceptions) {

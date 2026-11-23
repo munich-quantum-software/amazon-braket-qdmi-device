@@ -16,6 +16,7 @@ execution windows are ignored because the session targets a reserved window.
 | `ONLINE`, in window, queue below 5           | `QDMI_DEVICE_STATUS_IDLE`        | Device is available for submission                       |
 | `ONLINE`, outside window or queue at least 5 | `QDMI_DEVICE_STATUS_BUSY`        | Device accepts queued work but is not idle               |
 | `ONLINE`, reservation set, queue below 5     | `QDMI_DEVICE_STATUS_IDLE`        | Reserved access is treated as available                  |
+| `PAUSED`                                     | `QDMI_DEVICE_STATUS_BUSY`        | Device accepts submissions and queues them until online  |
 | `OFFLINE`                                    | `QDMI_DEVICE_STATUS_MAINTENANCE` | Device is temporarily unavailable                        |
 | `RETIRED`                                    | `QDMI_DEVICE_STATUS_OFFLINE`     | Device is permanently unavailable; submission is blocked |
 

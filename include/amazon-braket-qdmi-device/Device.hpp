@@ -74,7 +74,6 @@
 #include "aws/braket/model/DeviceType.h"
 #include "aws/core/auth/AWSCredentialsProvider.h"
 #include "aws/core/client/ClientConfiguration.h"
-#include "aws/core/config/ConfigAndCredentialsCacheManager.h"
 #include "aws/core/utils/json/JsonSerializer.h"
 #include "aws/core/utils/threading/Executor.h"
 #include "aws/s3/S3Client.h"
@@ -141,14 +140,10 @@ public:
 /// The SDK resolves the retry mode and owns backoff, jitter, and retry quotas.
 inline auto configureRetries(Aws::Client::ClientConfiguration& configuration)
     -> void {
-  if (getEnvironment("AWS_MAX_ATTEMPTS").value_or("").empty() &&
-      Aws::Config::GetCachedConfigValue(configuration.profileName,
-                                        "max_attempts")
-          .empty()) {
-    configuration.retryStrategy = Aws::Client::InitRetryStrategy(10);
-  } else {
-    configuration.retryStrategy = Aws::Client::InitRetryStrategy();
-  }
+  Aws::Client::InitRetryStrategyOptions options;
+  options.maxAttempts = 10;
+  options.profileName = configuration.profileName;
+  configuration.retryStrategy = Aws::Client::InitRetryStrategy(options);
 }
 
 inline auto configureCaBundle(Aws::Client::ClientConfiguration& configuration)
