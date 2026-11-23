@@ -10,6 +10,10 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+### Changed
+
+- ⬆️ Require CMake 3.28 or newer for source builds ([#324]) ([**@burgholzer**]).
+
 ## [1.4.2] - 2026-11-23
 
 ### Changed
@@ -276,6 +280,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 <!-- PR links -->
 
 [#320]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/320
+[#324]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/324
 [#314]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/314
 [#312]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/312
 [#310]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/310

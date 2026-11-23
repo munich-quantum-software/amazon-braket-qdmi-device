@@ -25,7 +25,7 @@ Select just one extra when only that framework is needed. See {doc}`qiskit` and
 
 ## Build dependencies
 
-A source build needs a C++20 compiler and CMake 3.24 or later. CMake obtains
+A source build needs a C++20 compiler and CMake 3.28 or later. CMake obtains
 QDMI and the AWS SDK for C++ when suitable installed packages are unavailable.
 Initial dependency downloads require network access. The AWS SDK uses platform
 HTTP and TLS libraries; Linux builds need libcurl and OpenSSL development

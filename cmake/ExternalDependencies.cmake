@@ -23,23 +23,16 @@ include(GNUInstallDirs)
 set(FETCH_PACKAGES "")
 
 if(BUILD_AMAZON_BRAKET_TESTS)
-  set(gtest_force_shared_crt
-      ON
-      CACHE BOOL "" FORCE)
-  # Disable the install instructions for GTest, as we do not need them.
-  set(INSTALL_GTEST
-      OFF
-      CACHE BOOL "" FORCE)
   set(GTEST_VERSION
       1.17.0
       CACHE STRING "Minimum installed GoogleTest version")
   # renovate: datasource=github-tags depName=google/googletest
   set(GTEST_REV
-      "52eb8108c5bdec04579160ae17225d66034bd723" # tag=v1.17.0
+      "063de7e9578f82b369302001269680b4b1553359" # tag=v1.18.0
       CACHE STRING "GoogleTest source revision")
   FetchContent_Declare(
     googletest URL https://github.com/google/googletest/archive/${GTEST_REV}.tar.gz
-                   FIND_PACKAGE_ARGS ${GTEST_VERSION} NAMES GTest)
+                   EXCLUDE_FROM_ALL FIND_PACKAGE_ARGS ${GTEST_VERSION} NAMES GTest)
   list(APPEND FETCH_PACKAGES googletest)
 endif()
 
