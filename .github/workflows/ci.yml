@@ -187,17 +187,12 @@ jobs:
 
   live-tests:
     name: ☁️ Live tests
-    needs:
-      - change-detection
-      - cpp-tests-ubuntu
-      - cpp-tests-macos
-      - cpp-tests-windows
-      - python-tests
-      - build-wheel
+    needs: change-detection
     if: >-
-      !cancelled()
-      && !contains(needs.*.result, 'failure')
-      && !contains(needs.*.result, 'cancelled')
+      (
+        fromJSON(needs.change-detection.outputs.run-cpp-tests)
+        || fromJSON(needs.change-detection.outputs.run-python-tests)
+      )
       && (
         github.event_name != 'workflow_dispatch'
         || github.ref == 'refs/heads/main'
@@ -263,7 +258,9 @@ jobs:
             }}
             ${{
               (
-                github.event_name == 'pull_request'
+                !fromJSON(needs.change-detection.outputs.run-cpp-tests)
+                && !fromJSON(needs.change-detection.outputs.run-python-tests)
+                || github.event_name == 'pull_request'
                 && github.event.pull_request.head.repo.full_name != github.repository
                 || github.event_name == 'workflow_dispatch'
                 && github.ref != 'refs/heads/main'
