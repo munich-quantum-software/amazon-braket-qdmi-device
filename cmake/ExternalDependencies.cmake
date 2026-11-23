@@ -32,18 +32,21 @@ if(BUILD_AMAZON_BRAKET_TESTS)
       CACHE BOOL "" FORCE)
   set(GTEST_VERSION
       1.17.0
-      CACHE STRING "Google Test version")
-  set(GTEST_URL https://github.com/google/googletest/archive/refs/tags/v${GTEST_VERSION}.tar.gz)
-  FetchContent_Declare(googletest URL ${GTEST_URL} FIND_PACKAGE_ARGS ${GTEST_VERSION} NAMES GTest)
+      CACHE STRING "Minimum installed GoogleTest version")
+  # renovate: datasource=github-tags depName=google/googletest
+  set(GTEST_REV
+      "52eb8108c5bdec04579160ae17225d66034bd723" # tag=v1.17.0
+      CACHE STRING "GoogleTest source revision")
+  FetchContent_Declare(
+    googletest URL https://github.com/google/googletest/archive/${GTEST_REV}.tar.gz
+                   FIND_PACKAGE_ARGS ${GTEST_VERSION} NAMES GTest)
   list(APPEND FETCH_PACKAGES googletest)
 endif()
 
 # cmake-format: off
-set(QDMI_MINIMUM_VERSION 1.4.0
-        CACHE STRING "Minimum QDMI version")
-set(QDMI_VERSION 1.4.0
-        CACHE STRING "QDMI version")
-set(QDMI_REV "6db03d83ad602aaa9fe928b5c3fc5cce84b10061" # v1.4.0
+set(QDMI_MINIMUM_VERSION 1.4.0 CACHE STRING "Minimum QDMI version")
+# Use QDMI develop for the exported CMake target version.
+set(QDMI_REV "d336c4ca6e972201f49b834da7d57dcb550f59f7"
         CACHE STRING "QDMI identifier (tag, branch or commit hash)")
 set(QDMI_REPO_OWNER "Munich-Quantum-Software-Stack"
         CACHE STRING "QDMI repository owner (change when using a fork)")
@@ -52,13 +55,13 @@ cmake_dependent_option(INSTALL_QDMI "Install QDMI library" ON "INSTALL" OFF)
 FetchContent_Declare(
   qdmi
   GIT_REPOSITORY https://github.com/${QDMI_REPO_OWNER}/qdmi.git
-  GIT_TAG ${QDMI_REV}
-  FIND_PACKAGE_ARGS ${QDMI_MINIMUM_VERSION})
+  GIT_TAG ${QDMI_REV})
 list(APPEND FETCH_PACKAGES qdmi)
 
 set(BUILD_TESTING_PREV ${BUILD_TESTING})
 set(BUILD_SHARED_LIBS_PREV ${BUILD_SHARED_LIBS})
 if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
+  # renovate: datasource=github-releases depName=aws/aws-sdk-cpp
   set(AWSSDK_VERSION
       1.11.935
       CACHE STRING "AWS SDK version")

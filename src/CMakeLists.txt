@@ -36,6 +36,10 @@ list(APPEND PUBLIC_HEADER_FILES
      "${PROJECT_SOURCE_DIR}/include/amazon-braket-qdmi-device/constants.hpp")
 
 get_target_property(qdmi_library_VERSION qdmi::qdmi VERSION)
+if(NOT qdmi_library_VERSION OR qdmi_library_VERSION VERSION_LESS QDMI_MINIMUM_VERSION)
+  message(
+    FATAL_ERROR "QDMI ${QDMI_MINIMUM_VERSION} or newer is required. Found ${qdmi_library_VERSION}.")
+endif()
 
 # Internal object library for DeviceParser. Both the shared library and the unit-test target consume
 # it, so private parser classes need not be exported from the shared library ABI.
