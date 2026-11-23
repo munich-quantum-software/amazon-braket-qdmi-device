@@ -431,7 +431,6 @@ private:
   mutable std::optional<Aws::Utils::Json::JsonValue> resultManifest_;
   mutable std::string outputS3Bucket_;
   mutable std::string outputS3Directory_;
-  mutable std::optional<size_t> queuePosition_;
   mutable std::mutex jobMutex_;
   mutable std::mutex statusMutex_;
   mutable std::mutex resultsMutex_;
@@ -451,12 +450,16 @@ private:
       -> QDMI_STATUS;
   auto supportsPrograms(QDMI_Program_Format format, size_t count,
                         size_t shots) const -> QDMI_STATUS;
+  /// Write the reported position to a non-null `queuePosition` for a queued
+  /// task.
   auto updateFromTask(const Aws::Braket::Model::GetQuantumTaskResult& task,
-                      QDMI_Job_Status* status) const -> QDMI_STATUS;
-  /// Poll the QuantumTask status. Request the `QueueInfo` attribute only when
-  /// the caller reads the queue position, because status polls discard it.
-  auto refreshStatus(QDMI_Job_Status* status, bool includeQueueInfo) const
+                      QDMI_Job_Status* status,
+                      std::optional<size_t>* queuePosition = nullptr) const
       -> QDMI_STATUS;
+  /// Poll the QuantumTask status. A non-null `queuePosition` requests the
+  /// `QueueInfo` attribute and receives the position from the same response.
+  auto refreshStatus(QDMI_Job_Status* status,
+                     std::optional<size_t>* queuePosition) const -> QDMI_STATUS;
   auto
   wait(size_t timeout,
        const amazon::braket::qdmi::detail::JobWaitFunctions& functions) const
