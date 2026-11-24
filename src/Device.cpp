@@ -1865,17 +1865,13 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::queryProperty(
 
   if (prop == QDMI_DEVICE_JOB_PROPERTY_QUEUEPOSITION) {
     QDMI_Job_Status refreshedStatus = QDMI_JOB_STATUS_CREATED;
-    if (const auto result = check(&refreshedStatus); result != QDMI_SUCCESS) {
+    std::optional<size_t> queuePosition;
+    if (const auto result = refreshStatus(&refreshedStatus, &queuePosition);
+        result != QDMI_SUCCESS) {
       return result;
     }
     if (refreshedStatus != QDMI_JOB_STATUS_QUEUED) {
       return QDMI_ERROR_BADSTATE;
-    }
-
-    std::optional<size_t> queuePosition;
-    {
-      const std::scoped_lock<std::mutex> lock(jobMutex_);
-      queuePosition = queuePosition_;
     }
     if (!queuePosition.has_value()) {
       return QDMI_ERROR_NOTSUPPORTED;
@@ -2174,9 +2170,9 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::cancel() -> QDMI_STATUS try {
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::updateFromTask(
     const Aws::Braket::Model::GetQuantumTaskResult& task,
-    QDMI_Job_Status* status) const -> QDMI_STATUS {
+    QDMI_Job_Status* status, std::optional<size_t>* queuePosition) const
+    -> QDMI_STATUS {
   const std::scoped_lock<std::mutex> lock(jobMutex_);
-  queuePosition_.reset();
   if (!task.GetOutputS3Bucket().empty() &&
       !task.GetOutputS3Directory().empty()) {
     outputS3Bucket_ = task.GetOutputS3Bucket();
@@ -2189,8 +2185,8 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::updateFromTask(
   case Aws::Braket::Model::QuantumTaskStatus::QUEUED:
     *status = QDMI_JOB_STATUS_QUEUED;
     if (const auto& queueInfo = task.GetQueueInfo();
-        queueInfo.PositionHasBeenSet()) {
-      queuePosition_ = amazon::braket::qdmi::detail::parseQueueValue(
+        queuePosition != nullptr && queueInfo.PositionHasBeenSet()) {
+      *queuePosition = amazon::braket::qdmi::detail::parseQueueValue(
           queueInfo.GetPosition());
     }
     break;
@@ -2218,6 +2214,12 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::updateFromTask(
 }
 
 auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
+    -> QDMI_STATUS {
+  return refreshStatus(status, nullptr);
+}
+
+auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::refreshStatus(
+    QDMI_Job_Status* status, std::optional<size_t>* queuePosition) const
     -> QDMI_STATUS try {
   if (status == nullptr) {
     return QDMI_ERROR_INVALIDARGUMENT;
@@ -2280,15 +2282,17 @@ auto AMAZON_BRAKET_QDMI_Device_Job_impl_d::check(QDMI_Job_Status* status) const
 
   Aws::Braket::Model::GetQuantumTaskRequest request;
   request.SetQuantumTaskArn(localTaskArn);
-  request.AddAdditionalAttributeNames(
-      Aws::Braket::Model::QuantumTaskAdditionalAttributeName::QueueInfo);
+  if (queuePosition != nullptr) {
+    request.AddAdditionalAttributeNames(
+        Aws::Braket::Model::QuantumTaskAdditionalAttributeName::QueueInfo);
+  }
 
   auto outcome = session_->getClient()->GetQuantumTask(request);
   if (!outcome.IsSuccess()) {
     return mapBraketServiceError(outcome.GetError(), "Braket GetQuantumTask");
   }
 
-  return updateFromTask(outcome.GetResult(), status);
+  return updateFromTask(outcome.GetResult(), status, queuePosition);
 } catch (...) {
   return statusFromCurrentException();
 }
