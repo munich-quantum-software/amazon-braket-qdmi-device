@@ -54,7 +54,7 @@ jobs:
 
       - name: Set up mold as linker
         if: runner.os == 'Linux'
-        uses: rui314/setup-mold@9c9c13bf4c3f1adef0cc596abc155580bcb04444 # v1
+        uses: rui314/setup-mold@339e96b4ff1f3bd865856ba4cbbe8818a7acb038 # v1
 
       - name: Build, install, relocate, and test
         run: cmake -P test/install.cmake
