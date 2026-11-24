@@ -59,7 +59,8 @@ categories:
       label: "patch"
   - type: "version-resolver"
     semver-increment: "patch"
-change-template: "- $TITLE (#$NUMBER) (@$AUTHOR)"
+change-authors-exclude-bots: true
+change-template: "- $TITLE (#$NUMBER) ($AUTHORS)"
 change-title-escapes: '\<*_&'
 
 template: |
@@ -68,5 +69,9 @@ template: |
   _Please refer to the [changelog](https://github.com/$OWNER/$REPOSITORY/blob/main/CHANGELOG.md) for a structured overview of the changes._
 
   $CHANGES
+
+  ## 🤝 New Contributors
+
+  $NEW_CONTRIBUTORS
 
   **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
