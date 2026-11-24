@@ -56,7 +56,7 @@ set(BUILD_SHARED_LIBS_PREV ${BUILD_SHARED_LIBS})
 if(NOT USE_INSTALLED_AMAZON_BRAKET_QDMI_DEVICE)
   # renovate: datasource=github-releases depName=aws/aws-sdk-cpp
   set(AWSSDK_VERSION
-      1.11.935
+      1.11.936
       CACHE STRING "AWS SDK version")
   set(BUILD_TESTING
       OFF
