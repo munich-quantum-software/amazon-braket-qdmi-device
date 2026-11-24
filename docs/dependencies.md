@@ -25,11 +25,11 @@ Select just one extra when only that framework is needed. See {doc}`qiskit` and
 
 ## Build dependencies
 
-A source build needs a C++20 compiler and CMake 3.28 or later. CMake obtains
-QDMI and the AWS SDK for C++ when suitable installed packages are unavailable.
-Initial dependency downloads require network access. The AWS SDK uses platform
-HTTP and TLS libraries; Linux builds need libcurl and OpenSSL development
-packages. Native tests use GoogleTest.
+A source build needs a C++20 compiler and CMake 3.28 or later. CMake fetches the
+pinned QDMI source. It uses an installed AWS SDK for C++ when a suitable version
+is available and fetches the SDK otherwise. Initial dependency downloads require
+network access. The AWS SDK uses platform HTTP and TLS libraries; Linux builds
+need libcurl and OpenSSL development packages. Native tests use GoogleTest.
 
 Building the Python package also requires Python 3.11.5 or later and the build
 backend declared in `pyproject.toml`. Documentation uses Sphinx and Doxygen. See
