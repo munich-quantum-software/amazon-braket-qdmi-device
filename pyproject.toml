@@ -101,12 +101,8 @@ dev = [
   "nox>=2026.8.10",
 ]
 test = [
+  { include-group = "test-base" },
   "mqt-core[pennylane,qiskit]>=4.2.1",
-  "pytest>=9.1.1",
-  "pytest-console-scripts>=1.4.1",
-  "pytest-cov>=7.1",
-  "pytest-sugar>=1.1.1",
-  "pytest-xdist>=3.8",
 ]
 docs = [
   "cmake>=3.28",
@@ -117,6 +113,13 @@ docs = [
   "sphinx-design>=0.7",
 ]
 build = [ "scikit-build-core>=1.1" ]
+test-base = [
+  "pytest>=9.1.1",
+  "pytest-console-scripts>=1.4.1",
+  "pytest-cov>=7.1",
+  "pytest-sugar>=1.1.1",
+  "pytest-xdist>=3.8",
+]
 
 
 [tool.scikit-build]
@@ -181,7 +184,7 @@ amazon-braket-qdmi = { workspace = true }
 
 [tool.cibuildwheel]
 build = "cp3*"
-skip = [ "*-musllinux_*", "cp3??t-*", "*-win_arm64" ]
+skip = [ "*-musllinux_*", "cp3??t-*" ]
 archs = "auto64"
 build-frontend = "uv"
 before-test = 'uv pip install --group "{project}/pyproject.toml:test"'
@@ -196,6 +199,12 @@ environment = { MACOSX_DEPLOYMENT_TARGET = "13.3" }
 
 [tool.cibuildwheel.windows]
 repair-wheel-command = "delvewheel repair -w {dest_dir} {wheel} --namespace-pkg amazon"
+
+# Qiskit and PennyLane's rustworkx dependency lack Windows ARM64 wheels.
+[[tool.cibuildwheel.overrides]]
+select = "*-win_arm64"
+before-test = 'uv pip install --group "{project}/pyproject.toml:test-base"'
+test-command = "pytest test/python/test_init.py test/python/test_main.py test/python/test_mqt_core.py"
 
 
 [tool.ruff]
