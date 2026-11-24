@@ -24,7 +24,7 @@ set(FETCH_PACKAGES "")
 
 if(BUILD_AMAZON_BRAKET_TESTS)
   set(GTEST_VERSION
-      1.17.0
+      1.18.0
       CACHE STRING "Minimum installed GoogleTest version")
   # renovate: datasource=github-tags depName=google/googletest
   set(GTEST_REV
