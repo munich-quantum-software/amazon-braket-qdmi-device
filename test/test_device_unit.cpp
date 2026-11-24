@@ -654,7 +654,6 @@ auto installParsedArchitecture(AMAZON_BRAKET_QDMI_Device_Session session,
     -> std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture> {
   auto architecture =
       std::make_shared<amazon::braket::qdmi::DeviceArchitecture>();
-  architecture->qubitsNum = properties.qubitCount;
   architecture->supportPhysicalQubits = properties.supportPhysicalQubits;
   architecture->supportVerbatim = properties.supportVerbatim;
   architecture->requiresAllQubitsMeasurement =
@@ -3936,6 +3935,26 @@ TEST_F(AmazonBraketQDMILocalJobTest,
   EXPECT_EQ(stubPtr->calls(), 1U);
 }
 
+TEST_F(AmazonBraketQDMILocalJobTest, QubitCountUsesExplicitTopologySites) {
+  Aws::Braket::Model::GetDeviceResult result;
+  result.SetDeviceType(Aws::Braket::Model::DeviceType::QPU);
+  result.SetDeviceStatus(Aws::Braket::Model::DeviceStatus::ONLINE);
+  result.SetDeviceCapabilities(R"({
+    "paradigm": {"qubitCount": 3, "nativeGateSet": ["cz"], "connectivity": {
+      "fullyConnected": false, "connectivityGraph": {"1": ["3"]}}},
+    "action": {"braket.ir.openqasm.program": {"supportedOperations": ["cz"]}}
+  })");
+  AMAZON_BRAKET_QDMI_Device_Session_TestAccess::setClient(
+      session, std::make_unique<StubGetDeviceClient>(std::move(result)));
+
+  size_t numQubits = 0;
+  ASSERT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
+                session, QDMI_DEVICE_PROPERTY_QUBITSNUM, sizeof(numQubits),
+                &numQubits, nullptr),
+            QDMI_SUCCESS);
+  EXPECT_EQ(numQubits, 2U);
+}
+
 TEST_F(AmazonBraketQDMILocalJobTest,
        DevicePropertyPropagatesCachedStatusRefreshFailure) {
   Aws::Braket::Model::GetDeviceResult result;
@@ -3956,7 +3975,7 @@ TEST_F(AmazonBraketQDMILocalJobTest,
                 session, QDMI_DEVICE_PROPERTY_QUBITSNUM, sizeof(numQubits),
                 &numQubits, nullptr),
             QDMI_SUCCESS);
-  EXPECT_GT(numQubits, 0U);
+  EXPECT_EQ(numQubits, 4U);
   EXPECT_EQ(AMAZON_BRAKET_QDMI_device_session_query_device_property(
                 session, QDMI_DEVICE_PROPERTY_QUBITSNUM, sizeof(numQubits),
                 &numQubits, nullptr),

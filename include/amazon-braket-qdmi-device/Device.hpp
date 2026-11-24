@@ -37,7 +37,6 @@
  * Device (Singleton - ONE per Amazon Braket QMDI Device)
  *   ├─ Initializes AWS SDK once via QDMI device_initialize()
  *   ├─ Tracks all active sessions across all users and devices
- *   ├─ Caches architecture stubs for QPUs (name/provider/deviceType only)
  *   ├─ Caches full architecture for simulators (static sites/operations)
  *   ├─ Generates unique job IDs across all sessions
  *   └─ Thread-safe coordination (sessionsMutex_, rngMutex_, deviceCacheMutex_)
@@ -179,8 +178,7 @@ inline auto configureCaBundle(Aws::Client::ClientConfiguration& configuration)
  * For simulators: all fields are populated and shared via the global cache
  * across sessions to the same ARN (site/operation data is static).
  *
- * For QPUs: only name/provider/deviceType are stored in the global cache.
- * qubitsNum, sites, operations, and connectivity are fetched once per session
+ * For QPUs: sites, operations, and connectivity are fetched once per session
  * because QDMI handles must remain valid for that session. Open a new session
  * to obtain a new calibration snapshot.
  */
@@ -194,7 +192,6 @@ struct DeviceArchitecture {
   std::string name;     // Specific device name (e.g., "Garnet")
   std::string provider; // Provider name (e.g., "IQM")
   Aws::Braket::Model::DeviceType deviceType; // QPU or SIMULATOR
-  size_t qubitsNum = 0;                      // Number of qubits
 
   // Sites
   std::vector<std::unique_ptr<AMAZON_BRAKET_QDMI_Site_impl_d>> sites;
@@ -300,8 +297,7 @@ private:
 
   // Simulators: shared_ptr to the singleton-cached DeviceArchitecture object
   //             (no second copy; same object as in Device::deviceCache_).
-  // QPUs:        holds one full session-owned architecture. Only an identity
-  //              stub lives in the singleton cache.
+  // QPUs:        holds one full session-owned architecture.
   mutable std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture>
       cachedArchitecture_;
   // Serializes initial architecture publication and later status refreshes.
