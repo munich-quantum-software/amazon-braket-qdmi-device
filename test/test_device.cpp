@@ -1132,8 +1132,7 @@ TEST_F(DeviceParsingTestFixture, IQMDeviceParsing) {
 
   const auto sites = querySites(session);
   ASSERT_GT(sites.size(), 0U);
-  EXPECT_LE(sites.size(), qubitCount)
-      << "Live IQM topology data can temporarily omit unavailable qubits";
+  EXPECT_EQ(sites.size(), qubitCount);
 
   auto siteNames = getSiteNames(5);
   for (size_t i = 0; i < siteNames.size(); ++i) {

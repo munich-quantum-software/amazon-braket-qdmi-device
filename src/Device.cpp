@@ -51,7 +51,7 @@
  * Program               | Action field (OpenQASM string wrapped in JSON)
  * Shots                 | CreateQuantumTaskRequest::SetShots()
  *
- * Site (Qubit)          | Parsed from paradigm.qubitCount
+ * Site (Qubit)          | Explicit topology or fully connected register
  * Operation (Gate)      | Parsed from action.braket.ir.openqasm.program
  * Coupling Map          | Explicit edges for devices with restricted
  * connectivity
@@ -912,19 +912,18 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture(
 
   // Keep a complete architecture in the device session. QDMI site and
   // operation handles remain valid for the lifetime of that session. The
-  // process-wide cache stores complete simulator architectures, but only QPU
-  // identity stubs because calibration data is session-local.
+  // process-wide cache shares simulator architectures across sessions.
   std::shared_ptr<amazon::braket::qdmi::DeviceArchitecture> localArch;
   {
     const std::scoped_lock lock(cachedArchitectureMutex_);
-    if (cachedArchitecture_ == nullptr || cachedArchitecture_->qubitsNum == 0) {
+    if (cachedArchitecture_ == nullptr) {
       cachedArchitecture_ =
           amazon::braket::qdmi::Device::get().getCachedArchitecture(deviceArn_);
     }
     localArch = cachedArchitecture_;
   }
 
-  if (localArch != nullptr && localArch->qubitsNum > 0) {
+  if (localArch != nullptr) {
     if (!refreshStatus) {
       return QDMI_SUCCESS;
     }
@@ -952,7 +951,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture(
     return QDMI_SUCCESS;
   }
 
-  // Cache miss or QPU identity-stub hit: request the complete architecture.
+  // Request the complete architecture on a cache miss.
   Aws::Braket::Model::GetDeviceRequest request;
   request.SetDeviceArn(deviceArn_.c_str());
 
@@ -1002,7 +1001,6 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture(
   architecture->supportVerbatim = properties.supportVerbatim;
 
   // Transfer Parsed Data to Cached Architecture
-  architecture->qubitsNum = properties.qubitCount;
   architecture->programSetLimits = properties.programSetLimits;
   architecture->shotsRange = properties.shotsRange;
   architecture->connectivity = std::move(properties.connectivity);
@@ -1019,23 +1017,9 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::fetchDeviceArchitecture(
       std::move(properties.supportedOperationsPtr);
   architecture->operationsMap = std::move(properties.operationsMap);
 
-  // Store in global singleton cache and assign to session.
-  // QPUs: only a stub {name, provider, deviceType} goes into the global cache
-  // so that future calls know the device type and provider (for parser
-  // selection) without caching the mutable sites, operations, and connectivity.
-  // Simulators: the full architecture is cached (sites and operations are
-  // static).
   {
     const std::scoped_lock lock(cachedArchitectureMutex_);
-    if (architecture->deviceType == Aws::Braket::Model::DeviceType::QPU) {
-      const auto stub =
-          std::make_shared<amazon::braket::qdmi::DeviceArchitecture>();
-      stub->name = architecture->name;
-      stub->provider = architecture->provider;
-      stub->deviceType = architecture->deviceType;
-      amazon::braket::qdmi::Device::get().setCachedArchitecture(deviceArn_,
-                                                                stub);
-    } else {
+    if (architecture->deviceType == Aws::Braket::Model::DeviceType::SIMULATOR) {
       amazon::braket::qdmi::Device::get().setCachedArchitecture(deviceArn_,
                                                                 architecture);
     }
@@ -1523,7 +1507,7 @@ auto AMAZON_BRAKET_QDMI_Device_Session_impl_d::queryDeviceProperty(
   ADD_LIST_PROPERTY(QDMI_DEVICE_PROPERTY_COUPLINGMAP, AMAZON_BRAKET_QDMI_Site,
                     arch->connectivity, prop, size, value, sizeRet)
   ADD_SINGLE_VALUE_PROPERTY(QDMI_DEVICE_PROPERTY_QUBITSNUM, size_t,
-                            arch->qubitsNum, prop, size, value, sizeRet)
+                            arch->sites.size(), prop, size, value, sizeRet)
   ADD_STRING_PROPERTY(QDMI_DEVICE_PROPERTY_NAME, arch->name.c_str(), prop, size,
                       value, sizeRet)
   // Return device status from Amazon Braket (mutable, per-query)
