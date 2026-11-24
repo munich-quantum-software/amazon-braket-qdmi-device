@@ -10,6 +10,11 @@ releases may include breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- 📦 Provide Windows ARM64 wheels for the native Amazon Braket QDMI device
+  ([#336]) ([**@burgholzer**]).
+
 ## [1.4.3] - 2026-11-24
 
 ### Changed
@@ -294,6 +299,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 
 <!-- PR links -->
 
+[#336]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/336
 [#330]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/330
 [#328]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/328
 [#327]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/327

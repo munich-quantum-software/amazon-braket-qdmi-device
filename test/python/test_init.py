@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import json
 from importlib import import_module
 from importlib.metadata import entry_points
@@ -92,11 +93,10 @@ def test_cmake_dir_exists() -> None:
     assert "cmake" in str(AMAZON_BRAKET_QDMI_CMAKE_DIR)
 
 
-def test_library_path_exists() -> None:
-    """Test that AMAZON_BRAKET_QDMI_LIBRARY_PATH exists and is a file."""
-    assert AMAZON_BRAKET_QDMI_LIBRARY_PATH.exists()
-    assert AMAZON_BRAKET_QDMI_LIBRARY_PATH.is_file()
-    assert "amazon-braket-qdmi-device" in str(AMAZON_BRAKET_QDMI_LIBRARY_PATH)
+def test_installed_library_loads() -> None:
+    """Load the packaged native library and resolve its QDMI entry point."""
+    library = ctypes.CDLL(str(AMAZON_BRAKET_QDMI_LIBRARY_PATH))
+    assert callable(library.AMAZON_BRAKET_QDMI_device_initialize)
 
 
 def test_paths_are_pathlib_objects() -> None:
