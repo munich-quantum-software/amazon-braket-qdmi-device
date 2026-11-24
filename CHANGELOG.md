@@ -14,6 +14,11 @@ releases may include breaking changes.
 
 - ⬆️ Require CMake 3.28 or newer for source builds ([#324]) ([**@burgholzer**]).
 
+### Fixed
+
+- 🐛 Report the number of exposed qubits when an Amazon Braket device provides a
+  partial topology ([#327]) ([**@burgholzer**]).
+
 ## [1.4.2] - 2026-11-23
 
 ### Changed
@@ -280,6 +285,7 @@ _This is the initial release of the `amazon-braket-qdmi-device` project._
 <!-- PR links -->
 
 [#320]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/320
+[#327]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/327
 [#324]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/324
 [#314]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/314
 [#312]: https://github.com/munich-quantum-software/amazon-braket-qdmi-device/pull/312

@@ -34,7 +34,7 @@ AMAZON_BRAKET_QDMI_device_session_query_device_property(
 | `QDMI_DEVICE_PROPERTY_VERSION`        | Device-library version            |
 | `QDMI_DEVICE_PROPERTY_STATUS`         | Current mapped device status      |
 | `QDMI_DEVICE_PROPERTY_LIBRARYVERSION` | QDMI version                      |
-| `QDMI_DEVICE_PROPERTY_QUBITSNUM`      | Number of qubits                  |
+| `QDMI_DEVICE_PROPERTY_QUBITSNUM`      | Number of exposed QDMI sites      |
 | `QDMI_DEVICE_PROPERTY_QUEUELENGTH`    | Current queued-task count         |
 | `QDMI_DEVICE_PROPERTY_SITES`          | Qubit handles                     |
 | `QDMI_DEVICE_PROPERTY_OPERATIONS`     | Native gate handles               |
