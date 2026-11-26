@@ -7,32 +7,15 @@ on:
 permissions: {}
 
 jobs:
-  build-sdist:
+  package:
     name: 🚀 CD
     permissions:
       contents: read
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-sdist.yml@4e380c0bb1774aa8b9dd53194f4a7f6575cc3d42 # v2.5.10
-
-  build-wheel:
-    name: 🚀 CD
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        runs-on:
-          - ubuntu-26.04
-          - ubuntu-26.04-arm
-          - macos-26
-          - windows-2025
-          - windows-11-arm
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-wheel-cibuildwheel.yml@4e380c0bb1774aa8b9dd53194f4a7f6575cc3d42 # v2.5.10
-    with:
-      runs-on: ${{ matrix.runs-on }}
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-cibuildwheel.yml@85eef7c1358086e8669ceda13b27d1a9caf095c1
 
   deploy:
     name: 🚀 Publish
-    needs: [build-sdist, build-wheel]
+    needs: package
     if: github.event_name == 'release' && github.event.action == 'published'
     permissions:
       attestations: write
