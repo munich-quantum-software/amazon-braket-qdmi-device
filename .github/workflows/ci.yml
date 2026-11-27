@@ -162,8 +162,8 @@ jobs:
     with:
       runs-on: ${{ matrix.runs-on }}
 
-  package:
-    name: 🚀 CD
+  packaging:
+    name: 🐍 Packaging
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-python-tests) || fromJSON(needs.change-detection.outputs.run-cd)
     uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-cibuildwheel.yml@39381a969e9f5753cb113b04e3e3008e95267273
@@ -205,7 +205,7 @@ jobs:
       - python-coverage
       - python-linter
       - cpp-install-tests
-      - package
+      - packaging
       - live-tests
     if: always()
     runs-on: ubuntu-slim
@@ -236,7 +236,7 @@ jobs:
             ${{
               !fromJSON(needs.change-detection.outputs.run-python-tests)
               && !fromJSON(needs.change-detection.outputs.run-cd)
-              && 'package,' || ''
+              && 'packaging,' || ''
             }}
             ${{
               (
