@@ -18,7 +18,7 @@ jobs:
     name: 🔍 Change
     permissions:
       pull-requests: read
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-change-detection.yml@85eef7c1358086e8669ceda13b27d1a9caf095c1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-change-detection.yml@39381a969e9f5753cb113b04e3e3008e95267273
     with:
       additional-cpp-files: >-
         [".github/workflows/cpp-*.yml", ".github/workflows/live-tests.yml"]
@@ -40,7 +40,7 @@ jobs:
         include:
           - runs-on: ubuntu-26.04
             preset: debug
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-tests-ubuntu.yml@85eef7c1358086e8669ceda13b27d1a9caf095c1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-tests-ubuntu.yml@39381a969e9f5753cb113b04e3e3008e95267273
     with:
       apt-packages: libcurl4-openssl-dev
       runs-on: ${{ matrix.runs-on }}
@@ -79,7 +79,7 @@ jobs:
         include:
           - runs-on: windows-2025
             preset: debug
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-tests-windows.yml@85eef7c1358086e8669ceda13b27d1a9caf095c1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-tests-windows.yml@39381a969e9f5753cb113b04e3e3008e95267273
     with:
       runs-on: ${{ matrix.runs-on }}
       preset-name: ${{ matrix.preset }}
@@ -88,7 +88,7 @@ jobs:
     name: 🇨 Sanitizers
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-cpp-tests)
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-tests-ubuntu.yml@85eef7c1358086e8669ceda13b27d1a9caf095c1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-tests-ubuntu.yml@39381a969e9f5753cb113b04e3e3008e95267273
     with:
       apt-packages: libcurl4-openssl-dev
       runs-on: ubuntu-26.04
@@ -101,7 +101,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-coverage.yml@85eef7c1358086e8669ceda13b27d1a9caf095c1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-coverage.yml@39381a969e9f5753cb113b04e3e3008e95267273
     with:
       apt-packages: libcurl4-openssl-dev
 
@@ -112,7 +112,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-linter.yml@85eef7c1358086e8669ceda13b27d1a9caf095c1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-cpp-linter.yml@39381a969e9f5753cb113b04e3e3008e95267273
     with:
       apt-packages: libcurl4-openssl-dev
       files-changed-only: true
@@ -122,7 +122,7 @@ jobs:
     name: 🐍 Test
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-python-tests)
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-tests.yml@85eef7c1358086e8669ceda13b27d1a9caf095c1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-tests.yml@39381a969e9f5753cb113b04e3e3008e95267273
     with:
       apt-packages: libcurl4-openssl-dev
       runs-on: ubuntu-26.04
@@ -135,13 +135,13 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-coverage.yml@85eef7c1358086e8669ceda13b27d1a9caf095c1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-coverage.yml@39381a969e9f5753cb113b04e3e3008e95267273
 
   python-linter:
     name: 🐍 Lint
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-python-linter)
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-linter.yml@85eef7c1358086e8669ceda13b27d1a9caf095c1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-linter.yml@39381a969e9f5753cb113b04e3e3008e95267273
     with:
       enable-ty: true
       enable-mypy: false
@@ -166,7 +166,7 @@ jobs:
     name: 🚀 CD
     needs: change-detection
     if: fromJSON(needs.change-detection.outputs.run-python-tests) || fromJSON(needs.change-detection.outputs.run-cd)
-    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-cibuildwheel.yml@85eef7c1358086e8669ceda13b27d1a9caf095c1
+    uses: munich-quantum-toolkit/workflows/.github/workflows/reusable-python-packaging-cibuildwheel.yml@39381a969e9f5753cb113b04e3e3008e95267273
 
   live-tests:
     name: ☁️ Live tests
